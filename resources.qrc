@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/ibtool" >
+        <file>icon.png</file>
+    </qresource>
+</RCC>
