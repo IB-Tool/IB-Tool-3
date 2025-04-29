@@ -1,0 +1,5 @@
+Copyright/License: © GeoBasis-DE/LGB, dl-de/by-2-0
+
+The geodata provided here (A_AUX.*, A_HU.*, A_RN.*) are available free of charge at https://geobroker.geobasis-bb.de.
+
+The UGB.* and A_PART.*-files are openly available according to the MIT licence.
