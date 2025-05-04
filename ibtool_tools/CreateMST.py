@@ -1,40 +1,34 @@
-#from PyQt5.QtGui.QRawFont import weight
-from PyQt5.QtGui import QRawFont
 from qgis.core import (
     QgsVectorLayer,
     QgsField,
     QgsFeature,
     QgsGeometry,
     QgsPointXY,
-    QgsLineString,
-    QgsProject,
     QgsDistanceArea,
-    QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
-    QgsFeatureRequest,
-    edit
+    edit,
+    QgsProcessing,
 )
 from qgis.PyQt.QtCore import QVariant
 import scipy.spatial.distance as spd
 import networkx as nx
 import numpy as np
 from scipy.spatial import Delaunay
-import math
-
+from qgis import processing
+from ..helpers.system_utils import save_temp_layer_to_gpkg
+from ..helpers.geometry_utils import create_linestring_layer_from_array, nodes_detect
 from ..helpers.logger import Logger
-from ..helpers.system_utils import save_temp_layer_to_gpkg, msg
-from ..helpers.geometry_utils import create_linestring_from_array
 
-def calculate_mst(input_bdg, streets, SpatialReference, road_length=50):
+def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
     """
-    Calculate the Minimum Spanning Tree (MST) from building points, considering streets as constraints.
-    Edges crossing roads longer than the threshold are excluded.
+    Calculates Minimum Spanning Tree (MST) and processes spatial data for street and building layers.
+    Performs operations such as Delaunay triangulation, node detection, dead-end street calculations,
+    and adds fields to and manipulates geographic layers.
 
-    :param input_bdg: Path to the buildings shapefile.
-    :param streets: Path to the streets shapefile.
-    :param part_name: Name for intermediate and output layers.
-    :param road_length: Threshold for excluding edges crossing roads (default is 50 meters).
-    :return: Path to the resulting MST shapefile.
+    :param input_bdg: QgsVectorLayer representing building polygons.
+    :param streets_orig: QgsVectorLayer representing the original street layer.
+    :param SpatialReference: Object specifying the spatial reference system (CRS) to use.
+    :param road_length: Optional; numerical threshold to filter streets by length, default is 50.
+    :return: None
     """
 
     def unique(items):
@@ -118,19 +112,30 @@ def calculate_mst(input_bdg, streets, SpatialReference, road_length=50):
                 polygons = [geometry.asPolygon()]
 
             # Alle Ringe in allen Polygonteilen extrahieren (äußere + evtl. innere Ringe)
-            stützpunkte = []
+            stuetzpunkte = []
             for polygon_part in polygons:
                 for ring in polygon_part:
                     for pt in ring:
-                        stützpunkte.append((pt.x(), pt.y()))
+                        stuetzpunkte.append((pt.x(), pt.y()))
 
-            result_dict[key] = stützpunkte
+            result_dict[key] = stuetzpunkte
 
         return result_dict
 
+    # Hilfsfunktion: Koordinaten runden und normalisieren
+    def rounded_edge_key(x1, y1, x2, y2):
+        p1 = (round(x1, 0), round(y1, 0))
+        p2 = (round(x2, 0), round(y2, 0))
+        return tuple(sorted([p1, p2]))  # Reihenfolge-unabhängig
 
 
     crs = SpatialReference
+
+    save_temp_layer_to_gpkg(streets_orig, "streets_orig")
+    streets = QgsVectorLayer("LineString?crs={}".format(streets_orig.crs().authid()), "streets", "memory")
+    data_provider = streets.dataProvider()
+    data_provider.addFeatures(list(streets_orig.getFeatures()))
+    streets.updateExtents()
 
     # Extract building points
     building_points = []
@@ -148,10 +153,7 @@ def calculate_mst(input_bdg, streets, SpatialReference, road_length=50):
     points_array = np.array(building_points)
     #[[441517.87835061 5842552.27960158][441522.42535928 5842556.40760104][441538.48145923 5842529.0131073]]
     tri = Delaunay(points_array)
-    msg("delaunay")
 
-    # Create graph from Delaunay edges
-    graph = nx.Graph()
     edges = []
     for simplex in tri.simplices:
         #[[252 292 291][1992 1827 1989][1621 218 233]]
@@ -161,19 +163,104 @@ def calculate_mst(input_bdg, streets, SpatialReference, road_length=50):
             point1 = points_array[p1]
             point2 = points_array[p2]
             dist = np.linalg.norm(point1 - point2)
-            graph.add_edge(p1, p2, weight=dist)
             edges.append([[point1[0], point1[1]], [point2[0], point2[1]], dist])
+
+    delaunay_triangles = create_layer_from_edges(edges, crs)
+
+    nodes_1 = nodes_detect(streets, 1)
+    
+    schnittpunkte = processing.run("native:lineintersections",
+                   {'INPUT': streets,
+                    'INTERSECT': streets,
+                    'INPUT_FIELDS': [], 'INTERSECT_FIELDS': [], 'INTERSECT_FIELDS_PREFIX': '',
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    schnittpunkte_puffer = processing.run("native:buffer", {
+        'INPUT': schnittpunkte,
+        'DISTANCE': 5, 'SEGMENTS': 5, 'END_CAP_STYLE': 0, 'JOIN_STYLE': 0, 'MITER_LIMIT': 2, 'DISSOLVE': False,
+        'SEPARATE_DISJOINT': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    sel_nodes_1 = processing.run("native:selectbylocation", {
+        'INPUT': nodes_1,
+        'PREDICATE': [0],
+        'INTERSECT': schnittpunkte_puffer,
+        'METHOD': 0,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    with edit(nodes_1):
+        for feature in nodes_1.getFeatures():
+            if feature.id() in nodes_1.selectedFeatureIds():  # Nur ausgewählte Features löschen
+                nodes_1.deleteFeature(feature.id())
+
+    streets_dead_end = processing.run("native:extractbylocation",
+                   {'INPUT': streets,
+                    'PREDICATE': [0],
+                    'INTERSECT': nodes_1,
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                    })['OUTPUT']
+
+    # Add a new field 'length' to the 'streets_dead_end' layer
+    fields = streets_dead_end.fields()
+    if not fields.indexFromName('length') >= 0:  # Avoid duplicate field addition
+        streets_dead_end.dataProvider().addAttributes([QgsField('length', QVariant.Double)])
+        streets_dead_end.updateFields()
+
+    # Calculate and set the length for each feature in 'streets_dead_end'
+    distance_area = QgsDistanceArea()
+    with edit(streets_dead_end):
+        for feature in streets_dead_end.getFeatures():
+            geom = feature.geometry()
+            length = distance_area.measureLength(geom)
+            feature['length'] = length
+            streets_dead_end.updateFeature(feature)
+
+    streets_dead_end_short = processing.run("native:extractbyexpression",
+                   {'INPUT': streets_dead_end,
+                    'EXPRESSION': '"length" < {}'.format(str(road_length)),
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                    })['OUTPUT']
+
+    sel = processing.run("native:selectbylocation",{
+        'INPUT': streets,
+        'PREDICATE': [3],
+        'INTERSECT': streets_dead_end_short,
+        'METHOD': 0,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+
+    with edit(streets):
+        for feature in streets.getFeatures():
+            if feature.id() in streets.selectedFeatureIds():  # Nur ausgewählte Features löschen
+                streets.deleteFeature(feature.id())
+
+    sel = processing.run("native:selectbylocation", {
+        'INPUT': delaunay_triangles,
+        'PREDICATE': [0],
+        'INTERSECT': streets,
+        'METHOD': 0,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    with edit(delaunay_triangles):
+        for feature in delaunay_triangles.getFeatures():
+            if feature.id() in delaunay_triangles.selectedFeatureIds():  # Nur ausgewählte Features löschen
+                delaunay_triangles.deleteFeature(feature.id())
 
     DelaunayList = []
     list_of_points = []
     ListOfPointsAndNodes = []
-
-
-    nr_of_points = len(points_array)
+    #nr_of_points = len(points_array)
+    nr_of_points = len(edges)
 
     for x in range(0, nr_of_points):
         o = [0, 0]
         list_of_points.append(o)
+
 
     # Transfer of the edges of the Delaunay triangulation into a list
 
@@ -212,43 +299,58 @@ def calculate_mst(input_bdg, streets, SpatialReference, road_length=50):
         ListOfPointsAndNodes.append([x1, y1, int(tri.simplices[x, 1])])
         ListOfPointsAndNodes.append([x2, y2, int(tri.simplices[x, 2])])
 
+    # hier weitermachen: aus DelaunayList die einträge löschen, die keine entsprechung in delaunay_triangles haben
 
-    a = unique(ListOfPointsAndNodes)
-    ListOpPointsAndNodes = a
+    Logger.log("DelaunayList: {}".format(len(DelaunayList)), level="DEBUG")
 
-    a = unique(DelaunayList)
-    DelaunayList = a
+    # 1. Indiziere alle Linien im Layer (einmalig!)
+    line_index = set()
 
-    #nodes werden in der Attributabelle der Gebäude als extra spalte eingetragen
+    for feature in delaunay_triangles.getFeatures():
+        geom = feature.geometry()
+        if geom.isMultipart():
+            lines = geom.asMultiPolyline()
+        else:
+            lines = [geom.asPolyline()]
 
-    join_array_to_polygons(input_bdg, ListOpPointsAndNodes)
-    save_temp_layer_to_gpkg(input_bdg, "input_bdg_42")
+        for line in lines:
+            if len(line) >= 2:
+                start = line[0]
+                end = line[-1]
+                key = rounded_edge_key(start.x(), start.y(), end.x(), end.y())
+                line_index.add(key)
 
+    # 2. Filter die DelaunayList anhand der indizierten Linien
+    filtered_edges = []
+
+    for entry in DelaunayList:
+        _, x1, y1, x2, y2 = entry
+        key = rounded_edge_key(x1, y1, x2, y2)
+        if key in line_index:
+            filtered_edges.append(entry)
+
+    Logger.log("filtered_edges: {}".format(len(filtered_edges)), level="DEBUG")
+
+    join_array_to_polygons(input_bdg, ListOfPointsAndNodes)
     DictListOfNodes = polygon_stuetzpunkte_dict(input_bdg, "node")
 
     # Initialisiere Graph
     G = nx.Graph()
 
     # Durchlaufe alle Einträge
-    for entry in DelaunayList:
+    for entry in filtered_edges:
         edge_str = entry[0]
-        #node1_str, node2_str = edge_str.split()
-        #node1, node2 = int(node1_str), int(node2_str)
-
-        #edge_str = str(z[4])
         string2 = edge_str.replace("[", "")
         string3 = string2.replace("]", "")
         string = string3.replace(" ", "")
         node1, node2 = string.split(",", 1)
-
 
         XA = DictListOfNodes[node1]
         XB = DictListOfNodes[node2]
 
         # Distanzmatrix berechnen
         distances = spd.cdist(XA, XB, metric='euclidean')
-        min_dist = distances.min()
-        weight = max(min_dist, 1)  # Falls kleiner als 1, setze auf 1
+        weight = distances.min()
 
         # Kante hinzufügen
         G.add_edge(node1, node2, weight=weight)
@@ -262,41 +364,7 @@ def calculate_mst(input_bdg, streets, SpatialReference, road_length=50):
         x1, y1 = list_of_points[int(p1)]
         x2, y2 = list_of_points[int(p2)]
         ArrayOfLines.append([[x1, y1], [x2, y2], weight])
-    mst_polyline = create_linestring_from_array(ArrayOfLines, crs,  "mst_poly")
-    save_temp_layer_to_gpkg(mst_polyline, "mst_polyline")
+    mst_polyline = create_linestring_layer_from_array(ArrayOfLines, crs,  "mst_poly")
 
 
-    # Filter edges that cross streets longer than road_length
-    filtered_edges = []
-    distance_area = QgsDistanceArea()
-    for edge in edges:
-        geom = QgsGeometry.fromPolylineXY([QgsPointXY(*edge[0]), QgsPointXY(*edge[1])])
-        intersects_long_road = False
-        for road_feature in streets.getFeatures():
-            road_geom = road_feature.geometry()
-            if distance_area.measureLength(road_geom) > road_length and geom.crosses(road_geom):
-                intersects_long_road = True
-                break
-        if not intersects_long_road:
-            filtered_edges.append(edge) # [[441478.54240229557, 5841087.986828695], [441404.05341359985, 5841021.432969372], 99.89006771312381]
-
-    filtered_edges_layer = create_layer_from_edges(filtered_edges, crs)
-    save_temp_layer_to_gpkg(filtered_edges_layer, "MST2_42")
-
-    # Generate Minimum Spanning Tree
-    mst_edges = nx.minimum_spanning_edges(graph, data=True)
-    mst_edge_list = []
-    for u, v, data in mst_edges:
-        point1 = points_array[u]
-        point2 = points_array[v]
-        mst_edge_list.append([[point1[0], point1[1]], [point2[0], point2[1]], data['weight']])
-
-    # Create output layer
-    mst_layer = create_layer_from_edges(mst_edge_list, crs)
-
-
-    return mst_layer
-
-# Example usage:
-# result_path = calculate_mst("path/to/buildings.shp", "path/to/streets.shp", "output", road_length=50)
-# print(f"MST shapefile saved at: {result_path}")
+    return mst_polyline

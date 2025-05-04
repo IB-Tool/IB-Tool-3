@@ -14,15 +14,19 @@ from qgis.core import (
     QgsProcessingFeatureSourceDefinition,
     QgsVectorDataProvider,
     QgsWkbTypes,
-    QgsPolygon
+    QgsPolygon,
+    QgsProcessingFeatureSourceDefinition,
+    QgsProcessing,
 )
-
 from qgis.PyQt.QtCore import QVariant
 from qgis import processing
-from .system_utils import msg
+from .system_utils import msg, save_temp_layer_to_gpkg
 from .logger import Logger
 import os
 from shapely.geometry import LineString, MultiLineString
+
+
+
 
 def polyline2(array_of_lines, output_path, output_format="shp"):
     """
@@ -385,7 +389,7 @@ def shp_area(layer, Fieldname='Shape_Area'):
     """Adds shape area field to file"""
 
     if not layer.isValid():
-        raise Exception(f"Layer {filename} is not valid")
+        raise Exception(f"Layer {layer} is not valid")
 
     if Fieldname not in [field.name() for field in layer.fields()]:
         layer.dataProvider().addAttributes([QgsField(Fieldname, QVariant.Double)])
@@ -399,50 +403,90 @@ def shp_area(layer, Fieldname='Shape_Area'):
                     'FIELD_PRECISION': 0,
                     'FORMULA': ' $area ',
                     'OUTPUT': 'TEMPORARY_OUTPUT'})
-
-
     return layer['OUTPUT']
 
 
-def create_linestring_from_array(data, crs, layer_name):
+def create_linestring_layer_from_array(data, crs, layer_name):
     """
-    Erzeugt ein Linienpolygon (MultiLineString) aus einer Liste von Strecken.
+    Erstellt einen temporären QgsVectorLayer vom Typ LineString
+    aus einer Liste von Liniensegmenten.
 
     Parameters:
         data (list): Liste der Form [[[x1, y1], [x2, y2], weight], ...]
+        crs (str oder QgsCoordinateReferenceSystem): z. B. "EPSG:25833"
+        layer_name (str): Name des temporären Layers
 
     Returns:
-        MultiLineString: Ein Shapely MultiLineString-Objekt, das alle Liniensegmente enthält.
+        QgsVectorLayer: Ein gültiger Linienlayer
     """
+    layer = QgsVectorLayer("LineString?crs={}".format(crs.toWkt()), layer_name, "memory")
+    prov = layer.dataProvider()
 
+    # Optional: Attribut für Gewicht hinzufügen
+    prov.addAttributes([QgsField("weight", QVariant.Double)])
+    layer.updateFields()
 
+    features = []
+    for segment in data:
+        if len(segment) < 2:
+            continue
 
-    layer = QgsVectorLayer(f"LineString?crs={crs}", layer_name, "memory")
+        p1_coords, p2_coords = segment[0], segment[1]
+        weight = segment[2] if len(segment) > 2 else None
 
-    # Get the data provider
-    provider = layer.dataProvider()
+        line = QgsGeometry.fromPolylineXY([
+            QgsPointXY(p1_coords[0], p1_coords[1]),
+            QgsPointXY(p2_coords[0], p2_coords[1])
+        ])
 
-    # Create a feature
-    feature = QgsFeature()
+        feat = QgsFeature()
+        feat.setGeometry(line)
+        feat.setAttributes([weight])
+        features.append(feat)
 
-    # Create points from coordinates
-    points = [QgsPointXY(x, y) for x, y, w in data]
-
-    # Create geometry
-    geometry = QgsGeometry.fromPolylineXY(points)
-
-    # Set the geometry
-    feature.setGeometry(geometry)
-
-    # Add feature to the provider
-    provider.addFeature(feature)
-
-    # Update layer extent
+    prov.addFeatures(features)
     layer.updateExtents()
-
     return layer
 
+def nodes_detect(input_road_network, count):
+    """
+    QGIS-Portierung der ArcPy-Funktion NodesDetect mit Join_Count beim Zusammenführen von Punkten.
+    """
 
+    # 1. Endpunkte extrahieren
+    vertices = processing.run("native:extractspecificvertices",{
+        'INPUT': input_road_network,
+        'VERTICES': '0, -1',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
 
+    # 2. X/Y hinzufügen, falls nicht vorhanden
+    vertices = processing.run("qgis:fieldcalculator", {
+        'INPUT': vertices,
+        'FIELD_NAME': 'x-coord',
+        'FIELD_TYPE': 0,
+        'FIELD_PRECISION': 10,
+        'NEW_FIELD': True,
+        'FORMULA': 'x($geometry)',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
 
-    return MultiLineString(lines)
+    vertices = processing.run("native:aggregate", {
+        'INPUT': vertices,
+        'GROUP_BY': '"x-coord"',
+        'AGGREGATES': [{'aggregate': 'count', 'delimiter': ',', 'input': '"x-coord"', 'length': 10, 'name': 'x-coord',
+             'precision': 3, 'sub_type': 0, 'type': 6, 'type_name': 'double precision'}],
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    save_temp_layer_to_gpkg(vertices, "aggregated_vertices")
+
+    filtered = processing.run("native:extractbyattribute", {
+        'INPUT': vertices,
+        'FIELD': 'x-coord',
+        'OPERATOR': 0,
+        'VALUE': count,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    return filtered
+

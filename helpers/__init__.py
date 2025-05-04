@@ -14,7 +14,8 @@ from .geometry_utils import (
     create_polygons_from_lines,
     extract_polygons_from_lines,
     shp_area,
-    create_linestring_from_array
+    create_linestring_layer_from_array,
+    nodes_detect
 )
 from .data_loader import (
     select_HU_file,
