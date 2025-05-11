@@ -9,11 +9,13 @@ from .FootprintDensity import calc_footprint_density, identify_dense_blocks
 from .Blocker import blocker
 from .ImportFilter import input_hu_filter
 from .CreateMST import calculate_mst
+from .MST_Clustering import mst_clustering
 
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
     "calc_footprint_density",
     "blocker",
     "identify_dense_blocks",
-    "calculate_mst"
+    "calculate_mst",
+    "mst_clustering"
     ]
