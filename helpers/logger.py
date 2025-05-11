@@ -2,6 +2,8 @@ import logging
 import os
 import time
 from qgis.core import Qgis, QgsMessageLog
+from .message import msg
+
 
 class Logger:
     """Singleton-Logger, um Nachrichten im Nachrichtenfenster und in einer Logdatei auszugeben."""
@@ -25,12 +27,12 @@ class Logger:
         log_filename = os.path.join(log_dir, f"logfile_{startzeit}.txt")
 
         cls.file_handler = logging.FileHandler(log_filename, mode='a')
-        cls.file_handler.setLevel(logging.DEBUG)  # Log alles in die Datei
+        cls.file_handler.setLevel(logging.INFO)  # Log alles in die Datei
         formatter = logging.Formatter('%(levelname)s %(asctime)s - %(message)s', datefmt='%H:%M:%S')
         cls.file_handler.setFormatter(formatter)
 
         # Logging-Konfiguration
-        logging.basicConfig(level=logging.DEBUG, handlers=[cls.file_handler])
+        logging.basicConfig(level=logging.INFO, handlers=[cls.file_handler])
         cls.log(f"Logger initialisiert. Logdatei: {log_filename}", level="INFO")
 
     @classmethod
@@ -47,7 +49,7 @@ class Logger:
             'WARNING': logging.WARNING,
             'CRITICAL': logging.CRITICAL,
         }
-
+        msg(level)
         if level not in log_levels:
             raise ValueError(f"Ungültiger Log-Level: {level}. Verfügbare Levels: {', '.join(log_levels.keys())}")
 
@@ -63,10 +65,10 @@ class Logger:
         :param level: Das Log-Level ('INFO', 'WARNING', 'DEBUG', 'ERROR', 'CRITICAL').
         """
         log_levels = {
-            'INFO': logging.INFO,
-            'WARNING': logging.WARNING,
-            'DEBUG': logging.DEBUG,
-            'CRITICAL': logging.CRITICAL,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "CRITICAL": logging.CRITICAL,
+            'SUCCESS': logging.DEBUG
         }
 
         if level not in log_levels:
@@ -87,7 +89,7 @@ class Logger:
             if cls.message_box:
                 cls.message_box.appendPlainText(f"{level}: {message}")
             else:
-                print(f"{level}: {message}")
+                msg(f"{level}: {message}")
 
             # Nachricht in die QGIS-Meldungen ausgeben
             QgsMessageLog.logMessage(message, "IBTool", level=cls._qgis_level(level))
@@ -98,9 +100,8 @@ class Logger:
         mapping = {
             'INFO': Qgis.Info,
             'WARNING': Qgis.Warning,
-            'DEBUG': Qgis.Info,  # QGIS hat kein separates DEBUG-Level
-            'ERROR': Qgis.Critical,
             'CRITICAL': Qgis.Critical,
+            'SUCCESS':Qgis.Success,
         }
         return mapping.get(level, Qgis.Info)
 
