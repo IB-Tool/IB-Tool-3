@@ -1,18 +1,7 @@
-import logging
-import time
 import os
 import shutil
-#from qgis.PyQt.QtWidgets import QAction, QFileDialog, QDialog
-from qgis.core import Qgis, QgsVectorLayer, QgsProject, QgsVectorFileWriter, QgsProcessingFeatureSourceDefinition
-from qgis.utils import QgsMessageLog
+from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter
 from .logger import Logger
-
-
-
-def msg(message, level=Qgis.Info):
-    if not isinstance(message, str):
-        message = str(message)
-    QgsMessageLog.logMessage(message, 'Meldungen', level=level)
 
 
 def save_temp_layer_to_gpkg(layer, filename):
@@ -20,7 +9,7 @@ def save_temp_layer_to_gpkg(layer, filename):
     Speichert einen temporären Layer in ein GeoPackage (GPKG) unter 'L:\\Test_data\\workspace'.
 
     :param layer: QgsVectorLayer - Der zu speichernde Layer
-    :param filename: str - Der Dateiname (ohne Pfad) für das GeoPackage
+    :param layer: str - Der Dateiname (ohne Pfad) für das GeoPackage
     """
 
     if not isinstance(layer, QgsVectorLayer):
@@ -32,7 +21,7 @@ def save_temp_layer_to_gpkg(layer, filename):
         return
 
     # Standardpfad
-    base_path = r'L:\Test_data\workspace'
+    base_path = r'L:\Test_data\workspace' #TODO
 
     # Ausgabe-Dateipfad
     gpkg_file = os.path.join(base_path, "{}.gpkg".format(filename))
@@ -53,7 +42,7 @@ def save_temp_layer_to_gpkg(layer, filename):
     )
 
     if error[0] == QgsVectorFileWriter.NoError:
-        Logger.log("Layer erfolgreich als '{}' in '{}' gespeichert.".format(layer_name, gpkg_file), 'DEBUG')
+        Logger.log("Layer erfolgreich als '{}' in '{}' gespeichert.".format(layer_name, gpkg_file), 'SUCCESS')
     else:
         Logger.log("Fehler beim Speichern des Layers '{}' in '{}': {}".format(layer_name, gpkg_file, error[1]), 'CRITICAL')
 
@@ -77,14 +66,14 @@ def manage_directory(PathCommonWorkspace, DelPartLog):
         # Wenn DelPartLog True ist und der Ordner existiert, löschen
         if DelPartLog and os.path.exists(directory_path):
             shutil.rmtree(directory_path)
-            Logger.log("Verzeichnis {} wurde erfolgreich gelöscht.".format(directory_path), "DEBUG")
+            Logger.log("Verzeichnis {} wurde erfolgreich gelöscht.".format(directory_path), "SUCCESS")
 
         # In jedem Fall den Ordner neu erstellen
         if not os.path.exists(directory_path):
             os.makedirs(directory_path)
-            Logger.log("Verzeichnis {} wurde erfolgreich neu erstellt.".format(directory_path), "DEBUG")
+            Logger.log("Verzeichnis {} wurde erfolgreich neu erstellt.".format(directory_path), "SUCCESS")
         else:
-            Logger.log("Verzeichnis {} existiert bereits und wird verwendet.".format(directory_path), "DEBUG")
+            Logger.log("Verzeichnis {} existiert bereits und wird verwendet.".format(directory_path), "WARNING")
     except Exception as e:
         Logger.log("Fehler beim Verwalten des Verzeichnisses {}: {}".format(directory_path, str(e)), 'CRITICAL')
 
@@ -116,3 +105,20 @@ def copy_shapefile(source_folder, shapefile_name, target_folder):
 
     # Beispielaufruf
     # output = copy_shapefile("C:/pfad/zur/quelle", "mein_shapefile", "C:/pfad/zum/ziel")
+
+def get_feature_count(layer):
+
+    """
+    Gibt die Anzahl der Features einer Datei aus (zur Überprüfung geeignet).
+    :param layer: str - Der Pfad zur Vektordatei.
+    :return: str - Text mit der Anzahl der Features.
+    """
+
+    if not layer.isValid():
+        raise RuntimeError(f"Layer konnte nicht geladen werden: {layer}")
+
+    # Anzahl der Features abrufen
+    feature_count = layer.featureCount()
+    printtext = f"No: {feature_count}"
+
+    Logger.log(printtext, level="INFO")
