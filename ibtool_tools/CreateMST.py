@@ -301,7 +301,7 @@ def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
 
     # hier weitermachen: aus DelaunayList die einträge löschen, die keine entsprechung in delaunay_triangles haben
 
-    Logger.log("DelaunayList: {}".format(len(DelaunayList)), level="DEBUG")
+    Logger.log("DelaunayList: {}".format(len(DelaunayList)), level="SUCCESS")
 
     # 1. Indiziere alle Linien im Layer (einmalig!)
     line_index = set()
@@ -329,7 +329,7 @@ def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
         if key in line_index:
             filtered_edges.append(entry)
 
-    Logger.log("filtered_edges: {}".format(len(filtered_edges)), level="DEBUG")
+    Logger.log("filtered_edges: {}".format(len(filtered_edges)), level="SUCCESS")
 
     join_array_to_polygons(input_bdg, ListOfPointsAndNodes)
     DictListOfNodes = polygon_stuetzpunkte_dict(input_bdg, "node")
