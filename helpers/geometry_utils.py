@@ -20,7 +20,8 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QVariant
 from qgis import processing
-from .system_utils import msg, save_temp_layer_to_gpkg
+from .system_utils import save_temp_layer_to_gpkg
+from .message import msg
 from .logger import Logger
 import os
 from shapely.geometry import LineString, MultiLineString
@@ -405,6 +406,47 @@ def shp_area(layer, Fieldname='Shape_Area'):
                     'OUTPUT': 'TEMPORARY_OUTPUT'})
     return layer['OUTPUT']
 
+def shp_length(layer, Fieldname='Length'):
+    """Adds length field to file"""
+
+    if not layer.isValid():
+        raise Exception(f"Layer {layer} is not valid")
+
+    if Fieldname not in [field.name() for field in layer.fields()]:
+        layer.dataProvider().addAttributes([QgsField(Fieldname, QVariant.Double)])
+        layer.updateFields()
+
+    layer = processing.run("native:fieldcalculator",
+                   {'INPUT': layer,
+                    'FIELD_NAME': 'length',
+                    'FIELD_TYPE': 0,
+                    'FIELD_LENGTH': 0,
+                    'FIELD_PRECISION': 0,
+                    'FORMULA': ' $length',
+                    'OUTPUT': 'TEMPORARY_OUTPUT'})
+    return layer['OUTPUT']
+
+
+def create_empty_layer(layer_type: str, crs: str):
+    """
+    Creates an empty layer with a specified geometry type and CRS.
+
+    :param layer_type: The geometry type of the layer (e.g., "Polygon", "LineString", "Point").
+    :param crs: The coordinate reference system for the layer as a string.
+    :return: QgsVectorLayer object
+    """
+    layer = QgsVectorLayer(f"{layer_type}?crs={crs}", "merge_layer", "memory")
+    layer_data_provider = layer.dataProvider()
+
+    # Add required fields to the layer if needed
+    layer_data_provider.addAttributes([
+        QgsField("id", QVariant.Int),  # Example attribute field
+        QgsField("name", QVariant.String)  # Add more fields as required
+    ])
+    layer.updateFields()
+    return layer
+
+
 
 def create_linestring_layer_from_array(data, crs, layer_name):
     """
@@ -490,3 +532,26 @@ def nodes_detect(input_road_network, count):
 
     return filtered
 
+def add_area_field_and_calculate(layer):
+    """
+    Adds an "Area" field to the provided layer if it doesn't already exist and calculates the area for each feature.
+
+    :param layer: The input layer (QgsVectorLayer) containing polygon features.
+    """
+    # Check if "Area" field already exists
+    existing_fields = [field.name() for field in layer.fields()]
+    if 'Area' not in existing_fields:
+        # Add "Area" field to the layer
+        layer.dataProvider().addAttributes([QgsField('Area', QVariant.Double)])
+        layer.updateFields()
+
+    # Calculate area for each feature in the layer
+    layer.startEditing()
+    for feature in layer.getFeatures():
+        # Calculate the area of the feature geometry
+        geom = feature.geometry()
+        area = geom.area()
+        # Update the "Area" field with the calculated value
+        feature['Area'] = area
+        layer.updateFeature(feature)
+    layer.commitChanges()
