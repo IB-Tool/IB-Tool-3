@@ -1,10 +1,5 @@
 from PyQt5.QtWidgets import QFileDialog
 
-from qgis.core import QgsVectorLayer, QgsWkbTypes, QgsProcessingFeedback, QgsProcessingException
-from qgis import processing
-from .logger import Logger
-
-from .system_utils import save_temp_layer_to_gpkg
 
 # Function to select the HU input file
 def select_HU_file(dlg):
