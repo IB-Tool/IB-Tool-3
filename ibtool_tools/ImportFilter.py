@@ -18,7 +18,8 @@ from qgis import processing
 from PyQt5.QtCore import QVariant
 
 from ..helpers.logger import Logger
-from ..helpers.system_utils import save_temp_layer_to_gpkg, msg
+from ..helpers.system_utils import save_temp_layer_to_gpkg
+from ..helpers.message import msg
 from ..helpers.geometry_utils import select_and_save_by_location, shp_area
 
 def import_filter(filename, HU_Input):
@@ -36,7 +37,7 @@ def import_filter(filename, HU_Input):
 
     # Überprüfen, ob der Eingabelayer das richtige Format hat
     if not HU_Input.isValid() or HU_Input.geometryType() != QgsWkbTypes.PolygonGeometry:
-        raise Exception("HU_Input muss ein gültiger Polygon-Layer sein.")
+        raise Exception("hu_layer muss ein gültiger Polygon-Layer sein.")
 
 
     # Feldname bestimmen
@@ -99,7 +100,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=50, PointDensCellSize=
     """
     # Check if the input layer is valid
     if not HU_Input.isValid() or HU_Input.geometryType() != QgsWkbTypes.PolygonGeometry:
-        raise Exception("HU_Input must be a valid polygon layer.")
+        raise Exception("hu_layer must be a valid polygon layer.")
 
     anz_hu = HU_Input.featureCount()
 
