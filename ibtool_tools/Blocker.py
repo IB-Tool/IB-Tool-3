@@ -77,6 +77,6 @@ def blocker(strassen, hu_input, partition):
         blocks_layer.updateFeature(feature)
 
     blocks_layer.commitChanges()
-    Logger.log("Blocker End - blocks", "DEBUG")
+    Logger.log("Blocker End - blocks", "SUCCESS")
 
     return blocks_layer
