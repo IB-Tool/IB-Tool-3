@@ -14,8 +14,11 @@ from .geometry_utils import (
     create_polygons_from_lines,
     extract_polygons_from_lines,
     shp_area,
+    shp_length,
+    create_empty_layer,
     create_linestring_layer_from_array,
-    nodes_detect
+    nodes_detect,
+    add_area_field_and_calculate
 )
 from .data_loader import (
     select_HU_file,
@@ -28,16 +31,15 @@ from .data_loader import (
     create_auxiliary_data
 )
 from .system_utils import (
-    #log,
-    #set_log_level_from_combobox,
     save_temp_layer_to_gpkg,
-    msg,
     manage_directory,
-    copy_shapefile
-
+    copy_shapefile,
+    get_feature_count
 )
 
 from .logger import Logger
+
+from .message import msg
 
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
@@ -49,14 +51,13 @@ __all__ = [
     "select_PART_file",
     "select_output_file",
     "select_workspace_file",
-    #"log",
-    #"set_log_level_from_combobox",
     "save_temp_layer_to_gpkg",
-    "msg",
     "split_layer_by_attribute",
     "manage_directory",
     "create_partitions_list",
     "Logger",
     "create_auxiliary_data",
-    "extract_polygons_from_lines"
+    "extract_polygons_from_lines",
+    "msg",
+    "get_feature_count"
 ]
