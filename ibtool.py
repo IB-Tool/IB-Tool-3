@@ -68,15 +68,17 @@ from .helpers.data_loader import *
 from .helpers.system_utils import (
     #log,
     #set_log_level_from_combobox,
-    msg,
     manage_directory,
     save_temp_layer_to_gpkg,
     copy_shapefile
 )
+from .helpers.message import msg
+
 from .ibtool_tools.FootprintDensity import calc_footprint_density, identify_dense_blocks
 from .ibtool_tools.Blocker import blocker
 from .ibtool_tools.ImportFilter import input_hu_filter
 from .ibtool_tools.CreateMST import calculate_mst
+from .ibtool_tools.MST_Clustering import mst_clustering
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -157,6 +159,11 @@ class IBTool:
         self.thread = ProcessingThread()
         self.thread.progress_update.connect(self.update_progress)
         self.thread.log_message.connect(self.update_messages)
+
+    def run(self):
+        """Callback-Methode für den Plugin-Start."""
+        msg("Plugin wurde ausgeführt")
+        # Hier kann der Code hinzugefügt werden, um den Dialog oder andere Elemente zu starten
 
     def update_progress(self, value):
         """Fortschrittsbalken aktualisieren"""
@@ -265,14 +272,14 @@ class IBTool:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = ':/plugins/ibtool_tools/icon.png'
+        icon_path = ':/plugins/ibtool/icon.png'
         self.add_action(
             icon_path,
             text=self.tr(u'IB-Tool'),
             callback=self.run,
             parent=self.iface.mainWindow())
 
-        #self.setup_logging_in_plugin() # logging der UI deaktivert
+        self.setup_logging_in_plugin() # logging der UI deaktivert
 
         # will be set False in run()
         self.first_start = True
@@ -290,14 +297,29 @@ class IBTool:
         logger.close_logger()
 
     def setup_logging_in_plugin(self):
-        """Verbindet die QComboBox zur Steuerung des Log-Levels."""
-        self.dlg.LogLevelBox.addItems(
-            ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])  # Log-Level-Optionen hinzufügen
-        #self.dlg.LogLevelBox.currentTextChanged.connect(lambda: set_log_level_from_combobox(self.dlg.LogLevelBox))
-        self.dlg.LogLevelBox.currentTextChanged.connect(lambda: logger.set_log_level_from_combobox(self.dlg.LogLevelBox))
-        # Standard-Log-Level setzen
-        set_log_level_from_combobox(self.dlg.LogLevelBox)
+        """
+        Verbindet die QComboBox zur Steuerung des Log-Levels.
+        """
+        valid_levels = ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']
+        self.dlg.LogLevelBox.addItems(valid_levels)
 
+        # Standard-Log-Level setzen
+        default_level = 'INFO'
+        if default_level in valid_levels:
+            self.dlg.LogLevelBox.setCurrentText(default_level)
+            logger.set_log_level(default_level)
+        else:
+            raise ValueError(f"Ungültiger Standard-Log-Level: {default_level}")
+
+        # Log-Level-Wechsel behandeln
+        def apply_log_level():
+            selected_level = self.dlg.LogLevelBox.currentText()
+            if selected_level in valid_levels:
+                logger.set_log_level(selected_level)
+            else:
+                msg(f"Ungültiger Log-Level: {selected_level}")
+
+        self.dlg.LogLevelBox.currentTextChanged.connect(apply_log_level)
 
     def run(self):
         """Run method that performs all the real work"""
@@ -375,7 +397,7 @@ class IBTool:
             logger.log("Filterdatei erfolgreich geladen.", level="INFO")
 
         except Exception as e:
-            logger.log(f"Fehler beim Laden der Filterdatei: {str(e)}", level="ERROR")
+            logger.log(f"Fehler beim Laden der Filterdatei: {str(e)}", level="CRITICAL")
 
     def start_processing(self):
         """Hauptprozess starten"""
@@ -387,7 +409,7 @@ class IBTool:
         logger.log("Dies ist eine kritische Nachricht.", level="CRITICAL")
         logger.log("Dies ist eine Warnung.", level="WARNING")
         logger.log("Dies ist eine Info.", level="INFO")
-        logger.log("Dies ist eine Debug-Nachricht.", level="DEBUG")
+        logger.log("Dies ist eine Debug-Nachricht.", level="SUCCESS")
 
         global startzeit
         global lockswitch
@@ -487,7 +509,7 @@ class IBTool:
 
         # Partitionen aus Gesamtdatei für Debugging auswählen
         partlist = create_partitions_list(LayerPart, partlist, partstart, partend)
-        logger.log("Partlist: {}".format(partlist), 'DEBUG')
+        logger.log("Partlist: {}".format(partlist), 'SUCCESS')
 
         '''
         # calculate threshold value for footprint density
@@ -503,7 +525,7 @@ class IBTool:
         else:
             pass
         '''
-        GlobalFootprintDensity = 14 #spaeter löschen
+        GlobalFootprintDensity = 18 #spaeter löschen
         logger.log("Global building coverage threshold = {}".format(str(GlobalFootprintDensity)), "INFO")
 
         if DelPartLog == 'True':
@@ -523,7 +545,7 @@ class IBTool:
         anz_hu_gesamt = LayerHU.featureCount()
         anz_hu_sum = 0
         for i in partlist:
-            logger.log("Check if {} is in Partlist.".format(str(i)), 'DEBUG')
+            logger.log("Check if {} is in Partlist.".format(str(i)), 'SUCCESS')
             a = 0
             isin = False
             Partlog = open(PartLogPath, 'r+')
@@ -537,7 +559,7 @@ class IBTool:
                 Partlog.close()
             if isin is True:
                 Partlog.close()
-                logger.log("{} is in PartLog.".format(str(i)), 'DEBUG')
+                logger.log("{} is in PartLog.".format(str(i)), 'SUCCESS')
                 continue
 
             global Part_Name
@@ -587,15 +609,15 @@ class IBTool:
 
 
             # Debug-Ausgaben
-            logger.log("SelHU Count = {}".format(anz_hu), 'DEBUG')
-            logger.log("SelStrassen Count = {}".format(anz_strassen), 'DEBUG')
+            logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
+            logger.log("SelStrassen Count = {}".format(anz_strassen), 'SUCCESS')
 
             MinOverlapMST = calc_footprint_density(SelHU_layer, SelStrassen_layer, 100, GlobalFootprintDensity, 'local',
                                                          MinBdgCount)
-            logger.log("Local building coverage =" + str(MinOverlapMST), 'DEBUG')
+            logger.log("Local building coverage =" + str(MinOverlapMST), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, SelHU_layer, SelPart_layer)
-            save_temp_layer_to_gpkg(blocks, "blocks_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(blocks, "blocks_{}".format(Part_Name))
 
 
             HU_Filter = input_hu_filter(SelHU_layer, InputFilter, MinArea, 50, 200)
@@ -604,17 +626,19 @@ class IBTool:
             OverlapCalcOutput = calc_footprint_density(HU_Filter, aux_lines_sel, 100, MinOverlapMST, 'local', MinBdgCount)
 
             Blocks_dense = identify_dense_blocks(HU_Filter, blocks, OverlapCalcOutput)
-            save_temp_layer_to_gpkg(Blocks_dense, "Blocks_dense_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(Blocks_dense, "Blocks_dense_{}".format(Part_Name))
 
+            mst_layer = calculate_mst(HU_Filter, SelStrassen_layer, SpatialReference)
+            save_temp_layer_to_gpkg(mst_layer, "MST_{}".format(Part_Name))
 
+            hu_cluster_output = mst_clustering(hu_layer=SelHU_layer, mst_layer=mst_layer, crs = SpatialReference, overlap_ratio=GlobalFootprintDensity, )
+            save_temp_layer_to_gpkg(hu_cluster_output, "hu_cluster_output")
 
-            MST = calculate_mst(HU_Filter, SelStrassen_layer, SpatialReference)
-            save_temp_layer_to_gpkg(MST, "MST_{}".format(Part_Name))
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
             prozent = int(anz_hu_sum / anz_hu_gesamt * 100)
             self.dlg.ProgressBar.setValue(prozent)
-    
+
 
         logger.log("ERFOLG")
