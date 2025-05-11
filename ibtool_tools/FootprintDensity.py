@@ -32,7 +32,8 @@ utils_dir = os.path.join(parent_dir, 'helpers')
 
 # Den Ordner zu sys.path hinzufügen
 sys.path.append(utils_dir)
-from ..helpers.system_utils import save_temp_layer_to_gpkg, msg
+from ..helpers.system_utils import save_temp_layer_to_gpkg
+from ..helpers.message import msg
 from ..helpers.logger import Logger
 
 def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshold=18, Ext='local',
@@ -156,7 +157,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
 
     if Ext == 'global':
-        Logger.log("Start calc footprint global", 'DEBUG')
+        Logger.log("Start calc footprint global", 'SUCCESS')
         if not Partition:
             raise ValueError("Partition layer is required for global extent.")
 
@@ -216,7 +217,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
     # Calculate the overlap
     result = Inner_Blocks.featureCount()
-    Logger.log("Inner Blocks count: {}".format(result),'DEBUG')
+    Logger.log("Inner Blocks count: {}".format(result),'SUCCESS')
 
     if result > 5:
         overlap_sum = 0
@@ -342,7 +343,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
 
     # Ensure input layers are loaded
     if not isinstance(HU_Input, QgsVectorLayer) or not isinstance(Bloecke, QgsVectorLayer):
-        raise ValueError("Both HU_Input and Bloecke must be valid QgsVectorLayer objects.")
+        raise ValueError("Both hu_layer and Bloecke must be valid QgsVectorLayer objects.")
 
     # Add area fields for both buildings and blocks
     Bloecke.startEditing()
