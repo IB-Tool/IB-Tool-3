@@ -386,25 +386,26 @@ def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygon
     return polygon_layer
 
 
-def shp_area(layer, Fieldname='Shape_Area'):
+def shp_area(layer, area_field='Area'):
     """Adds shape area field to file"""
 
     if not layer.isValid():
         raise Exception(f"Layer {layer} is not valid")
 
-    if Fieldname not in [field.name() for field in layer.fields()]:
-        layer.dataProvider().addAttributes([QgsField(Fieldname, QVariant.Double)])
+    if area_field not in [field.name() for field in layer.fields()]:
+        layer.dataProvider().addAttributes([QgsField(area_field, QVariant.Double)])
         layer.updateFields()
 
     layer = processing.run("native:fieldcalculator",
                    {'INPUT': layer,
-                    'FIELD_NAME': 'Shape_Area',
+                    'FIELD_NAME': area_field,
                     'FIELD_TYPE': 0,
                     'FIELD_LENGTH': 0,
                     'FIELD_PRECISION': 0,
                     'FORMULA': ' $area ',
                     'OUTPUT': 'TEMPORARY_OUTPUT'})
     return layer['OUTPUT']
+
 
 def shp_length(layer, Fieldname='Length'):
     """Adds length field to file"""
@@ -532,26 +533,3 @@ def nodes_detect(input_road_network, count):
 
     return filtered
 
-def add_area_field_and_calculate(layer):
-    """
-    Adds an "Area" field to the provided layer if it doesn't already exist and calculates the area for each feature.
-
-    :param layer: The input layer (QgsVectorLayer) containing polygon features.
-    """
-    # Check if "Area" field already exists
-    existing_fields = [field.name() for field in layer.fields()]
-    if 'Area' not in existing_fields:
-        # Add "Area" field to the layer
-        layer.dataProvider().addAttributes([QgsField('Area', QVariant.Double)])
-        layer.updateFields()
-
-    # Calculate area for each feature in the layer
-    layer.startEditing()
-    for feature in layer.getFeatures():
-        # Calculate the area of the feature geometry
-        geom = feature.geometry()
-        area = geom.area()
-        # Update the "Area" field with the calculated value
-        feature['Area'] = area
-        layer.updateFeature(feature)
-    layer.commitChanges()
