@@ -46,7 +46,8 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsExpression,
     QgsProcessingFeatureSourceDefinition,
-    QgsFeature
+    QgsFeature,
+    QgsProcessing
 )
 
 from qgis import processing
@@ -634,6 +635,13 @@ class IBTool:
 
             AddSingBdg = add_single_bdg(HU_Filter, hu_cluster_output, crs= SpatialReference, threshold=300)
             save_temp_layer_to_gpkg(AddSingBdg, "AddSingBdg")
+
+            RectMerged = processing.run("qgis:mergevectorlayers", {
+                'LAYERS': [AddSingBdg, Blocks_dense],
+                'CRS': SpatialReference,
+                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                })['OUTPUT']
+            save_temp_layer_to_gpkg(RectMerged, "RectMerged")
 
 
             # Fortschritt aktualisieren
