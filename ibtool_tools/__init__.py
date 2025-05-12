@@ -10,6 +10,7 @@ from .Blocker import blocker
 from .ImportFilter import input_hu_filter
 from .CreateMST import calculate_mst
 from .MST_Clustering import mst_clustering
+from .AddSingleBuilding import add_single_bdg
 
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "blocker",
     "identify_dense_blocks",
     "calculate_mst",
-    "mst_clustering"
+    "mst_clustering",
+    "add_single_bdg"
     ]
