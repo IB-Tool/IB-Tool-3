@@ -581,7 +581,6 @@ class IBTool:
             SelHU_layer = select_and_save_by_location(LayerHU, SelPart_layer)
             save_temp_layer_to_gpkg(SelHU_layer, "SelHU_{}".format(Part_Name))
 
-
             # Anzahl der ausgewählten Gebäude prüfen
             anz_hu = SelHU_layer.featureCount()
 
@@ -590,7 +589,6 @@ class IBTool:
                 with open(PartLogFin, 'a') as Partlog:
                     Partlog.write("\n" + Part_Name)
                 logger.log("Warning: No or less than 10 buildings selected in partition", 'WARNING')
-
 
             # Straßen-Features selektieren
             SelStrassen_layer = select_and_save_by_location(LayerRN, SelPart_layer)
@@ -606,7 +604,6 @@ class IBTool:
                 logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, SelPart_layer)
-
 
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
