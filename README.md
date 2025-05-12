@@ -90,20 +90,6 @@ Das Plugin arbeitet mit verschiedenen Eingabedateien. Diese beinhalten:
 Nach der erfolgreichen Verarbeitung erstellt IBTool folgende Struktur:
 
 
-### Beispiel für eine Filterdatei
-
-```txt
-#Filter positive
-Wohnhäuser
-Einzelfamilienhaus
-
-#Filter negative
-Industriehallen
-Garagen
-```
-
----
-
 ## Lizenz
 
 Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Sie können es frei verwenden, verändern und weitergeben, solange die Bedingungen der GPL eingehalten werden.
