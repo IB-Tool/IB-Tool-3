@@ -13,12 +13,13 @@ from qgis.core import (
     QgsField,
     QgsProcessing,
     QgsWkbTypes,
-    QgsPointXY
+    QgsPointXY,
+    QgsCoordinateReferenceSystem
 )
 
 from ..helpers.system_utils import get_feature_count
 from ..helpers.logger import Logger
-from ..helpers.geometry_utils import add_area_field_and_calculate, shp_area, create_empty_layer
+from ..helpers.geometry_utils import shp_area, create_empty_layer
 
 
 def calc_bounding_rect(hu_polyline: list[tuple[float, float]] | object, hu_layer: object, type: str, crs: object) -> \
@@ -216,14 +217,11 @@ tuple[object, float | None]:
             AngleList.append(round(Angle, 1))
             PointList.append([X11, Y11])
 
-
-
     j = 0
     list = []
     for i in AngleList:
         list.append([i, LengthList[j]])
         j += 1
-
 
     if len(PointList) > 4:
         MainAngle = main_angle(list, 10)
@@ -288,9 +286,7 @@ tuple[object, float | None]:
         feature.setGeometry(HUDirRect_geom)
         feature.setAttributes([1])  # Example attribute
         provider.addFeature(feature)
-
         HUDirRect.commitChanges()
-        
 
         if PolyArea == 0:
             Logger.log(" FID {} or FID {} in MST_Clustering causes division by zero", level="CRITICAL")
@@ -303,7 +299,8 @@ tuple[object, float | None]:
         return hu_layer, None
 
 
-def mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18, ):
+def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: QgsCoordinateReferenceSystem,
+                   overlap_ratio: float = 18) -> QgsVectorLayer:
     """
     Performs clustering using a Minimum Spanning Tree (MST) approach combined with spatial analysis to group
     geospatial entities based on their overlapping areas and bounding rectangle ratio.
@@ -325,16 +322,19 @@ def mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18, ):
     :return: None
     """
 
+    # Extract MST features that intersect hu features
     mst_layer = processing.run("native:extractbylocation",
                    {'INPUT': mst_layer,
                     'PREDICATE': [0],
                     'INTERSECT': hu_layer,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
-    add_area_field_and_calculate(hu_layer)
+    # add area field and calculate area
+    hu_layer = shp_area(hu_layer)
 
     edges = []  # Liste für Kanteninformationen
 
+    # Saves all coordinates of the edges of hu layer in an array. [[feature id, start points, end points]]
     for feature in hu_layer.getFeatures():
         geom = feature.geometry()
 
@@ -377,6 +377,7 @@ def mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18, ):
             # Geometrien, die keiner Polygongeometrie entsprechen, überspringen
             Logger.log(f"Invalid or unsupported geometry type for feature ID {feature.id()}", level="WARNING")
 
+    # transform edges list to a dictionary with feature id as key
     HULineListSort = sorted(edges, key=itemgetter(0))
     HULineArray = []
     sublist = []
@@ -393,8 +394,9 @@ def mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18, ):
     HULineArray.append([j, sublist])
     dict_HU = dict(list(HULineArray))
 
-    hu_layer = shp_area(hu_layer, "Area")
+    #hu_layer = shp_area(hu_layer, "Area")
 
+    # Joining hu features to mst features and keep ids of features as attributes
     hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QVariant.Int)])
     hu_layer.updateFields()
 
@@ -427,9 +429,6 @@ def mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18, ):
                                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                                 })['OUTPUT']
 
-    #save_temp_layer_to_gpkg(hu_points, "hu_points_43")
-
-
     mst_layer_hu_join = processing.run("native:joinattributesbylocation",
                    {'INPUT': mst_layer,
                     'PREDICATE': [0],
@@ -441,16 +440,18 @@ def mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18, ):
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
 
+
     MST_List = []
     empty_polygon_layer = create_empty_layer("Polygon", crs.authid())
     merge_layer_2 = create_empty_layer("Polygon", crs.authid())
-    
+
+
     mst_layer_hu_join_features = mst_layer_hu_join.getFeatures()
     for feature in mst_layer_hu_join_features:
-        TARGET_FID = feature["fid_mst_orig"] # id des MST-Features
-        ORIG_FID = feature["fid_hu_orig"] # eigentlich "fid"
+        TARGET_FID = feature["fid_mst_orig"] # id mst feature
+        ORIG_FID = feature["fid_hu_orig"] # id hu feature
         MST_DIFF = feature["weight"]
-        Area = feature["Area"]
+        Area = feature["Area"] # hu feature area
         MST_List.append([TARGET_FID, ORIG_FID, MST_DIFF, Area])  # ORIG_FID-1 because of file typ change
 
     ORIG_FID2 = 0
@@ -460,7 +461,6 @@ def mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18, ):
     j = "x"
 
     ListOutsorted = []
-    # sorted from shortest MST_DIFF to longest
 
     MST_List_Sort = sorted(MST_List, key=itemgetter(0))
 
