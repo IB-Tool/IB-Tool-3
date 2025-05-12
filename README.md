@@ -85,8 +85,48 @@ Das Plugin arbeitet mit verschiedenen Eingabedateien. Diese beinhalten:
 
 ---
 
-## Beispiele
-
 ### Projektstruktur
 
 Nach der erfolgreichen Verarbeitung erstellt IBTool folgende Struktur:
+
+
+### Beispiel für eine Filterdatei
+
+```txt
+#Filter positive
+Wohnhäuser
+Einzelfamilienhaus
+
+#Filter negative
+Industriehallen
+Garagen
+```
+
+---
+
+## Lizenz
+
+Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Sie können es frei verwenden, verändern und weitergeben, solange die Bedingungen der GPL eingehalten werden.
+
+---
+
+## Entwickler & Kontakt
+
+- **Autor**: 
+- **Erstellt mit Unterstützung von**: [QGIS Plugin Builder](http://g-sherman.github.io/Qgis-Plugin-Builder/)
+
+---
+
+## Fehlerbehebung
+
+- Stelle sicher, dass deine Eingabedaten sich im gleichen **CRS** (Koordinatensystem) befinden.
+- Überprüfe, ob Abhängigkeiten (z.B. Bibliotheken) korrekt installiert sind.
+- Konsultiere die Log-Nachrichten im Message-Fenster des Plugins, um Fehler zu identifizieren.
+
+---
+
+Viel Spaß beim Verwenden des **IBTool**-Plugins!
+
+
+
+
