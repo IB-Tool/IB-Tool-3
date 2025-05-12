@@ -17,8 +17,8 @@ from .geometry_utils import (
     shp_length,
     create_empty_layer,
     create_linestring_layer_from_array,
-    nodes_detect,
-    add_area_field_and_calculate
+    nodes_detect
+
 )
 from .data_loader import (
     select_HU_file,
@@ -45,7 +45,8 @@ from .message import msg
 __all__ = [
     "polyline2",
     "check_projection",
-    "load_to_geopackage", "select_HU_file",
+    "load_to_geopackage",
+    "select_HU_file",
     "select_RN_file",
     "select_AUX_file",
     "select_PART_file",
