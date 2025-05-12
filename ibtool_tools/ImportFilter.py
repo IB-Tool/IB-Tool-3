@@ -188,7 +188,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=50, PointDensCellSize=
         # Step 3: Delete small buildings
         final_layer = processing.run("native:extractbyattribute", {
             'INPUT': hu_final,
-            'FIELD': 'Shape_Area',
+            'FIELD': 'Area',
             'OPERATOR': 2,
             'VALUE': MinAreaAllBdgs,
             'OUTPUT': 'memory:'
