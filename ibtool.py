@@ -79,6 +79,7 @@ from .ibtool_tools.Blocker import blocker
 from .ibtool_tools.ImportFilter import input_hu_filter
 from .ibtool_tools.CreateMST import calculate_mst
 from .ibtool_tools.MST_Clustering import mst_clustering
+from .ibtool_tools.AddSingleBuilding import add_single_bdg
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -630,6 +631,9 @@ class IBTool:
 
             hu_cluster_output = mst_clustering(hu_layer=SelHU_layer, mst_layer=mst_layer, crs = SpatialReference, overlap_ratio=GlobalFootprintDensity, )
             save_temp_layer_to_gpkg(hu_cluster_output, "hu_cluster_output")
+
+            AddSingBdg = add_single_bdg(HU_Filter, hu_cluster_output, crs= SpatialReference, threshold=300)
+            save_temp_layer_to_gpkg(AddSingBdg, "AddSingBdg")
 
 
             # Fortschritt aktualisieren
