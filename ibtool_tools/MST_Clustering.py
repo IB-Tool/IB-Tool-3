@@ -546,6 +546,8 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
             else:
                 ListOutsorted.append(["S", ORIG_FID1, ORIG_FID2])
 
+    rect_merge = None
+
     for single_group in dict_group_all_members:
         single_group_list = dict_group_all_members[single_group][:]
         members_group_id_coords = []
@@ -562,10 +564,12 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
             merge_layer_2 = rect_merge
-        except:
-            if single_group_list is not None:
-                Logger.log("Group could not merged: {}".format(single_group_list), level="SUCCESS")
-            else:
-                Logger.log("Group could not merged: None-Type", level="SUCCESS")
+        except Exception as e:
+            Logger.log(f"Group could not be merged: {single_group_list or 'None'} - {str(e)}", level="CRITICAL")
+
+    # Rückgabe als Fallback
+    if not rect_merge:
+        Logger.log("No valid rect_merge produced in mst_clustering", level="WARNING")
+        rect_merge = merge_layer_2
 
     return rect_merge
