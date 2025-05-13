@@ -29,22 +29,33 @@ def add_single_bdg(input_hu: QgsVectorLayer, rect_merge: QgsVectorLayer, crs, th
     :rtype: QgsVectorLayer
     """
 
+    processed_input_hu = processing.run("qgis:fixgeometries", {
+        'INPUT': input_hu,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    processed_rect_merge = processing.run("qgis:fixgeometries", {
+        'INPUT': rect_merge,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
     # Gebäude außerhalb von rect_merge extrahieren (Disjoint)
     hu_centroids = processing.run("native:centroids",
-                   {'INPUT': input_hu,
+                   {'INPUT': processed_input_hu,
                     'ALL_PARTS': False,
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+                    'INVALID_HANDLING': 1  # 1 für ignorieren
                     })['OUTPUT']
 
     hu_centroids_sel = processing.run("native:extractbylocation", {
                     'INPUT': hu_centroids,
                     'PREDICATE': [2], #getrennt
-                    'INTERSECT': rect_merge,
+                    'INTERSECT': processed_rect_merge,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
 
     hu_sel = processing.run("native:extractbylocation", {
-                    'INPUT': input_hu,
+                    'INPUT': processed_input_hu,
                     'PREDICATE': [0], #schneidet
                     'INTERSECT': hu_centroids_sel,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
@@ -69,7 +80,7 @@ def add_single_bdg(input_hu: QgsVectorLayer, rect_merge: QgsVectorLayer, crs, th
 
     # Merge Rechtecke + ursprüngliches Merge-Rechteck
     merged_result = processing.run("qgis:mergevectorlayers", {
-        'LAYERS': [hu_rect, rect_merge],
+        'LAYERS': [hu_rect, processed_rect_merge],
         'CRS': crs,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
          })['OUTPUT']
