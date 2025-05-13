@@ -644,6 +644,7 @@ class IBTool:
             save_temp_layer_to_gpkg(RectMerged, "RectMerged")
 
 
+
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
             prozent = int(anz_hu_sum / anz_hu_gesamt * 100)
