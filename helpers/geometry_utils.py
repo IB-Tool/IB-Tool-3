@@ -17,6 +17,7 @@ from qgis.core import (
     QgsPolygon,
     QgsProcessingFeatureSourceDefinition,
     QgsProcessing,
+    edit
 )
 from qgis.PyQt.QtCore import QVariant
 from qgis import processing
@@ -403,8 +404,68 @@ def shp_area(layer, area_field='Area'):
                     'FIELD_LENGTH': 0,
                     'FIELD_PRECISION': 0,
                     'FORMULA': ' $area ',
-                    'OUTPUT': 'TEMPORARY_OUTPUT'})
-    return layer['OUTPUT']
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                    })['OUTPUT']
+    return layer
+
+
+def shp_area2(layer, field_name="Area", logger=None):
+    """
+    Berechnet die Flächen (Area) für jede Geometrie in einem angegebenen Layer
+    und speichert die Werte in einem neuen Feld.
+
+    :param layer: (QgsVectorLayer) Der Eingabe-Layer, dessen Geometrien verarbeitet werden sollen.
+    :param field_name: (str) Der Name des Feldes, in dem die Fläche gespeichert wird. Standard ist "Area".
+    :param logger: (Logger) Optionales Logger-Objekt (z.B. für Debugging und Fehlerprotokollierung).
+    :return: (bool) True, wenn die Operation erfolgreich abgeschlossen wurde, False im Fehlerfall.
+    """
+
+    #shp_area2(layer, logger=Logger) mit Logging
+
+    # Überprüfen, ob der Layer gültig ist
+    if not layer.isValid():
+        if logger:
+            logger.log(f"Layer '{layer.name()}' ist ungültig.", level="ERROR")
+        return False
+
+    # Überprüfen, ob das Feld bereits existiert
+    field_names = [field.name() for field in layer.fields()]
+    if field_name not in field_names:
+        # Neues Feld hinzufügen
+        layer_provider = layer.dataProvider()
+        layer_provider.addAttributes([QgsField(field_name, QVariant.Double)])
+        layer.updateFields()
+    else:
+        if logger:
+            logger.log(f"Das Feld '{field_name}' existiert bereits.", level="WARNING")
+
+    # Geometrien iterieren und Flächen berechnen
+    try:
+        with edit(layer):
+            for feature in layer.getFeatures():
+                geometry = feature.geometry()
+                if geometry and geometry.isGeosValid():
+                    # Fläche berechnen und setzen
+                    area = geometry.area()
+                    feature[field_name] = area
+                    layer.updateFeature(feature)
+                else:
+                    if logger:
+                        logger.log(f"Ungültige Geometrie in Feature ID: {feature.id()}. Überspringe Feature.",
+                                   level="WARNING")
+
+        if logger:
+            logger.log(f"Flächenberechnung erfolgreich für Layer '{layer.name()}'.", level="INFO")
+        return True
+
+    except Exception as e:
+        if logger:
+            logger.log(f"Fehler bei der Flächenberechnung: {str(e)}", level="ERROR")
+        return False
+
+
+
+
 
 
 def shp_length(layer, Fieldname='Length'):
