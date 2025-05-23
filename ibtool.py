@@ -83,6 +83,7 @@ from .ibtool_tools.CreateMST import calculate_mst
 from .ibtool_tools.MST_Clustering import mst_clustering
 from .ibtool_tools.AddSingleBuilding import add_single_bdg
 from .ibtool_tools.EdgeCatch import edge_catch
+from .ibtool_tools.HoleClose import hole_close
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -647,6 +648,10 @@ class IBTool:
 
             snapped_rect = edge_catch(RectMerged, HU_Filter, SelStrassen_layer, blocks, SpatialReference)
             save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
+
+            hole_closed = hole_close(snapped_rect, max_hole_size=MaxHoleSize)
+            save_temp_layer_to_gpkg(hole_closed, "hole_closed")
+
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
