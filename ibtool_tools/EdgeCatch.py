@@ -297,7 +297,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-
         lines_polygons = processing.run("native:polygonize", {
             'INPUT': lines_merge,
             'KEEP_FIELDS': False,
@@ -307,19 +306,22 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
         if feature.id() == 23:
             save_temp_layer_to_gpkg(lines_merge, f"lines_merge_{feature.id()}")
             save_temp_layer_to_gpkg(polyline_layer, f"polyline_layer_{feature.id()}")
-            save_temp_layer_to_gpkg(road_network_sel, f"road_network_sel_{feature.id()}")
+            save_temp_layer_to_gpkg(road_network_sel_dense, f"road_network_sel_{feature.id()}")
             save_temp_layer_to_gpkg(lines_polygons, f"polygonize_{feature.id()}")
 
-
+        '''
+        
         lines_polygons_hu = processing.run("native:extractbylocation",
                                            {'INPUT': lines_polygons,
                                             'PREDICATE': [0],
                                             'INTERSECT': hu_input,
                                             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                                            })['OUTPUT']
+        '''
+        #TODO Prüfen, ob das Sinn macht
 
         lines_polygons_block = processing.run("native:intersection",
-                       {'INPUT': lines_polygons_hu,
+                       {'INPUT': lines_polygons,
                         'OVERLAY': block_sel,
                         'INPUT_FIELDS': [],
                         'OVERLAY_FIELDS': [],
