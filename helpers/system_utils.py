@@ -122,3 +122,5 @@ def get_feature_count(layer):
     printtext = f"No: {feature_count}"
 
     Logger.log(printtext, level="INFO")
+
+    return feature_count
