@@ -74,6 +74,7 @@ from .helpers.system_utils import (
     copy_shapefile
 )
 from .helpers.message import msg
+from .helpers.system_utils import get_feature_count
 
 from .ibtool_tools.FootprintDensity import calc_footprint_density, identify_dense_blocks
 from .ibtool_tools.Blocker import blocker
@@ -81,6 +82,7 @@ from .ibtool_tools.ImportFilter import input_hu_filter
 from .ibtool_tools.CreateMST import calculate_mst
 from .ibtool_tools.MST_Clustering import mst_clustering
 from .ibtool_tools.AddSingleBuilding import add_single_bdg
+from .ibtool_tools.EdgeCatch import edge_catch
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -606,7 +608,7 @@ class IBTool:
                 logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, SelPart_layer)
-
+            
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
             logger.log("SelStrassen Count = {}".format(anz_strassen), 'SUCCESS')
@@ -616,7 +618,7 @@ class IBTool:
             logger.log("Local building coverage =" + str(MinOverlapMST), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, SelHU_layer, SelPart_layer)
-            #save_temp_layer_to_gpkg(blocks, "blocks_{}".format(Part_Name))
+            save_temp_layer_to_gpkg(blocks, "blocks_{}".format(Part_Name))
 
 
             HU_Filter = input_hu_filter(SelHU_layer, InputFilter, MinArea, 50, 200)
@@ -641,9 +643,10 @@ class IBTool:
                 'CRS': SpatialReference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
-            save_temp_layer_to_gpkg(RectMerged, "RectMerged")
+            save_temp_layer_to_gpkg(RectMerged, "RectMerged2")
 
-
+            snapped_rect = edge_catch(RectMerged, HU_Filter, SelStrassen_layer, blocks, SpatialReference)
+            save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
