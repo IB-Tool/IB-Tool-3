@@ -14,6 +14,7 @@ from .geometry_utils import (
     create_polygons_from_lines,
     extract_polygons_from_lines,
     shp_area,
+    shp_area2,
     shp_length,
     create_empty_layer,
     create_linestring_layer_from_array,
@@ -60,5 +61,7 @@ __all__ = [
     "create_auxiliary_data",
     "extract_polygons_from_lines",
     "msg",
-    "get_feature_count"
+    "get_feature_count",
+    "shp_area2",
+    "shp_area"
 ]
