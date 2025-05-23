@@ -122,6 +122,8 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
                         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                         })['OUTPUT']
 
+        save_temp_layer_to_gpkg(road_network_sel_dense, "road_network_sel_dense")
+
         road_network_sel_dense_vert = processing.run("native:extractvertices", {
                         'INPUT': road_network_sel_dense,
                         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
@@ -147,6 +149,10 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
             'INPUT': distance_matrix,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
             })['OUTPUT']
+
+        save_temp_layer_to_gpkg(distance_matrix_singlepart, "distance_matrix_singlepart")
+
+
 
         distance_matrix_singlepart_xy = processing.run("native:addxyfields", {
             'INPUT': distance_matrix_singlepart,
@@ -268,7 +274,7 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
 
             polyline_layer_snap2 = processing.run("native:snapgeometries",
                            {'INPUT': polyline_layer_snap1,
-                            'REFERENCE_LAYER': road_network_sel,
+                            'REFERENCE_LAYER': road_network_sel_dense,
                             'TOLERANCE': 1,
                             'BEHAVIOR': 0,
                             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
@@ -286,7 +292,7 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
                         })['OUTPUT']
 
         lines_merge = processing.run("native:mergevectorlayers", {
-            'LAYERS': [road_network_sel, polyline_layer_snap2],
+            'LAYERS': [road_network_sel_dense, polyline_layer_snap2],
             'CRS': crs,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
