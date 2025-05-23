@@ -572,4 +572,6 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
         Logger.log("No valid rect_merge produced in mst_clustering", level="WARNING")
         rect_merge = merge_layer_2
 
+    #TODO Features entfernen, die sich komplett innerhalb eines anderen features befinden
+
     return rect_merge
