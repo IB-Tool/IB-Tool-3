@@ -594,3 +594,32 @@ def nodes_detect(input_road_network, count):
 
     return filtered
 
+def get_isolated_polygons(layer):
+    """
+    Gibt eine Liste aller Polygone zurück, die keine anderen schneiden, überlappen oder berühren.
+    """
+
+    all_features = list(layer.getFeatures())
+    isolated_features = []
+
+    for i, feat in enumerate(all_features):
+        geom1 = feat.geometry()
+        is_isolated = True
+
+        for j, other_feat in enumerate(all_features):
+            if i == j:
+                continue
+            geom2 = other_feat.geometry()
+
+            # Prüfe auf Schnitt, Überlappung oder Berührung
+            if (geom1.crosses(geom2)
+                or geom1.overlaps(geom2)
+                or geom1.touches(geom2)
+                or geom1.intersects(geom2)):
+                is_isolated = False
+                break
+
+        if is_isolated:
+            isolated_features.append(feat)
+
+    return isolated_features
