@@ -702,7 +702,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>PART_43</string>
+      <string>PART_36</string>
      </property>
     </widget>
     <widget class="QCheckBox" name="PartLogBox">
