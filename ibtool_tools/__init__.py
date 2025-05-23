@@ -12,6 +12,7 @@ from .CreateMST import calculate_mst
 from .MST_Clustering import mst_clustering
 from .AddSingleBuilding import add_single_bdg
 from .EdgeCatch import edge_catch
+from .HoleClose import hole_close
 
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
