@@ -442,8 +442,8 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
 
 
     MST_List = []
-    empty_polygon_layer = create_empty_layer("Polygon", crs.authid())
-    merge_layer_2 = create_empty_layer("Polygon", crs.authid())
+    empty_polygon_layer = create_empty_layer("merge_layer_clustering_1", "Polygon", crs.authid())
+    merge_layer_2 = create_empty_layer("merge_layer_clustering_2", "Polygon", crs.authid())
 
 
     mst_layer_hu_join_features = mst_layer_hu_join.getFeatures()
