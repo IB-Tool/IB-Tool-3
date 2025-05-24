@@ -19,7 +19,7 @@ from .geometry_utils import (
     create_empty_layer,
     create_linestring_layer_from_array,
     nodes_detect,
-    get_isolated_polygons
+    get_hole_polygons
 
 )
 from .data_loader import (
@@ -65,5 +65,5 @@ __all__ = [
     "get_feature_count",
     "shp_area2",
     "shp_area",
-    "get_isolated_polygons"
+    "get_hole_polygons"
 ]
