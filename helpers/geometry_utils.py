@@ -596,13 +596,13 @@ def nodes_detect(input_road_network, count):
     return filtered
 
 
-def get_isolated_polygons(layer1, layer2):
+def get_hole_polygons(layer1, layer2):
     """
     Gibt einen neuen Layer mit allen Polygonen aus layer1 zurück, die nicht in layer2 enthalten sind.
     """
     all_features_layer1 = list(layer1.getFeatures())
     all_features_layer2 = list(layer2.getFeatures())
-    isolated_features = []
+    hole_features = []
 
     for feat1 in all_features_layer1:
         geom1 = feat1.geometry()
@@ -611,22 +611,22 @@ def get_isolated_polygons(layer1, layer2):
         for feat2 in all_features_layer2:
             geom2 = feat2.geometry()
 
-            # Prüfe, ob geom1 in geom2 enthalten ist oder diese schneidet/überlappt
-            if geom1.overlaps(geom2): #'geom1.crosses(geom2) or geom1.overlaps(geom2) or '
+            # Prüfe, ob geom1 in geom2 geschnitten oder enthalten ist
+            if  geom1.within(geom2):
                 is_isolated = False
                 break
 
         if is_isolated:
-            isolated_features.append(feat1)
+            hole_features.append(feat1)
 
     # Erstellen eines neuen Layers für die isolierten Features
     crs = layer1.crs().toWkt()
-    isolated_layer = QgsVectorLayer(f"Polygon?crs={crs}", "Isolated Polygons", "memory")
-    provider = isolated_layer.dataProvider()
+    hole_layer = QgsVectorLayer(f"Polygon?crs={crs}", "Isolated Polygons", "memory")
+    provider = hole_layer.dataProvider()
     provider.addAttributes(layer1.fields())
-    isolated_layer.updateFields()
+    hole_layer.updateFields()
 
-    provider.addFeatures(isolated_features)
-    isolated_layer.updateExtents()
+    provider.addFeatures(hole_features)
+    hole_layer.updateExtents()
 
-    return isolated_layer
+    return hole_layer
