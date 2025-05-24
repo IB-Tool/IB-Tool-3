@@ -62,7 +62,8 @@ from .helpers.geometry_utils import (
     check_projection,
     load_to_geopackage,
     select_and_save_by_location,
-    create_polygons_from_lines
+    create_polygons_from_lines,
+    create_empty_layer
 
 )
 from .helpers.data_loader import *
@@ -425,9 +426,6 @@ class IBTool:
         Workspace = os.getcwd()
         os.chdir(Workspace)
 
-
-
-
         MinOverlapBlocks= self.dlg.MinOverlapBlocksBox.text()
         try:
             MinOverlapBlocks = int(MinOverlapBlocks)  # Konvertiere den Text in eine Zahl
@@ -512,6 +510,7 @@ class IBTool:
         lockswitch = False
         aux_layers_poly, aux_layers_line = create_auxiliary_data(LayerAux, LayerRN)
 
+        merge_layer = create_empty_layer("global_merge_layer", "Polygon", SpatialReference.authid())
         # Partitionen aus Gesamtdatei für Debugging auswählen
         partlist = create_partitions_list(LayerPart, partlist, partstart, partend)
         logger.log("Partlist: {}".format(partlist), 'SUCCESS')
@@ -549,6 +548,10 @@ class IBTool:
         lenpartlist = len(partlist)
         anz_hu_gesamt = LayerHU.featureCount()
         anz_hu_sum = 0
+
+        HU_Filter1 = input_hu_filter(LayerHU, InputFilter, MinArea, 50, 200)
+        save_temp_layer_to_gpkg(HU_Filter1, "global_HU_Filter")
+
         for i in partlist:
             logger.log("Check if {} is in Partlist.".format(str(i)), 'SUCCESS')
             a = 0
@@ -594,6 +597,7 @@ class IBTool:
                 with open(PartLogFin, 'a') as Partlog:
                     Partlog.write("\n" + Part_Name)
                 logger.log("Warning: No or less than 10 buildings selected in partition", 'WARNING')
+                continue
 
             # Straßen-Features selektieren
             SelStrassen_layer = select_and_save_by_location(LayerRN, SelPart_layer)
@@ -623,7 +627,7 @@ class IBTool:
 
 
             HU_Filter = input_hu_filter(SelHU_layer, InputFilter, MinArea, 50, 200)
-            save_temp_layer_to_gpkg(HU_Filter, "HU_Filter_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(HU_Filter, "HU_Filter_{}".format(Part_Name))
 
             OverlapCalcOutput = calc_footprint_density(HU_Filter, aux_lines_sel, 100, MinOverlapMST, 'local', MinBdgCount)
 
@@ -631,32 +635,39 @@ class IBTool:
             #save_temp_layer_to_gpkg(Blocks_dense, "Blocks_dense_{}".format(Part_Name))
 
             mst_layer = calculate_mst(HU_Filter, SelStrassen_layer, SpatialReference)
-            save_temp_layer_to_gpkg(mst_layer, "MST_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(mst_layer, "MST_{}".format(Part_Name))
 
             hu_cluster_output = mst_clustering(hu_layer=SelHU_layer, mst_layer=mst_layer, crs = SpatialReference, overlap_ratio=GlobalFootprintDensity, )
-            save_temp_layer_to_gpkg(hu_cluster_output, "hu_cluster_output")
+            #save_temp_layer_to_gpkg(hu_cluster_output, "hu_cluster_output")
 
             AddSingBdg = add_single_bdg(HU_Filter, hu_cluster_output, crs= SpatialReference, threshold=300)
-            save_temp_layer_to_gpkg(AddSingBdg, "AddSingBdg")
+            #save_temp_layer_to_gpkg(AddSingBdg, "AddSingBdg")
 
             RectMerged = processing.run("qgis:mergevectorlayers", {
                 'LAYERS': [AddSingBdg, Blocks_dense],
                 'CRS': SpatialReference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
-            save_temp_layer_to_gpkg(RectMerged, "RectMerged2")
+            #save_temp_layer_to_gpkg(RectMerged, "RectMerged2")
 
             snapped_rect = edge_catch(RectMerged, HU_Filter, SelStrassen_layer, blocks, SpatialReference)
-            save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
+            #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
             hole_closed = hole_close(snapped_rect, max_hole_size=MaxHoleSize)
-            save_temp_layer_to_gpkg(hole_closed, "hole_closed")
-
+            #save_temp_layer_to_gpkg(hole_closed, "hole_closed")
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
             prozent = int(anz_hu_sum / anz_hu_gesamt * 100)
             self.dlg.ProgressBar.setValue(prozent)
+
+            merge = processing.run("native:mergevectorlayers", {
+                'LAYERS': [hole_closed, merge_layer],
+                'CRS': SpatialReference,
+                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                })['OUTPUT']
+            merge_layer = merge
+            save_temp_layer_to_gpkg(merge, "global_merge_layer")
 
 
         logger.log("ERFOLG")
