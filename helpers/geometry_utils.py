@@ -1,4 +1,5 @@
 import networkx as nx
+from pandas.core.arrays.categorical import contains
 
 from qgis.core import (
     Qgis,
@@ -594,32 +595,38 @@ def nodes_detect(input_road_network, count):
 
     return filtered
 
-def get_isolated_polygons(layer):
-    """
-    Gibt eine Liste aller Polygone zurück, die keine anderen schneiden, überlappen oder berühren.
-    """
 
-    all_features = list(layer.getFeatures())
+def get_isolated_polygons(layer1, layer2):
+    """
+    Gibt einen neuen Layer mit allen Polygonen aus layer1 zurück, die nicht in layer2 enthalten sind.
+    """
+    all_features_layer1 = list(layer1.getFeatures())
+    all_features_layer2 = list(layer2.getFeatures())
     isolated_features = []
 
-    for i, feat in enumerate(all_features):
-        geom1 = feat.geometry()
+    for feat1 in all_features_layer1:
+        geom1 = feat1.geometry()
         is_isolated = True
 
-        for j, other_feat in enumerate(all_features):
-            if i == j:
-                continue
-            geom2 = other_feat.geometry()
+        for feat2 in all_features_layer2:
+            geom2 = feat2.geometry()
 
-            # Prüfe auf Schnitt, Überlappung oder Berührung
-            if (geom1.crosses(geom2)
-                or geom1.overlaps(geom2)
-                or geom1.touches(geom2)
-                or geom1.intersects(geom2)):
+            # Prüfe, ob geom1 in geom2 enthalten ist oder diese schneidet/überlappt
+            if geom1.overlaps(geom2): #'geom1.crosses(geom2) or geom1.overlaps(geom2) or '
                 is_isolated = False
                 break
 
         if is_isolated:
-            isolated_features.append(feat)
+            isolated_features.append(feat1)
 
-    return isolated_features
+    # Erstellen eines neuen Layers für die isolierten Features
+    crs = layer1.crs().toWkt()
+    isolated_layer = QgsVectorLayer(f"Polygon?crs={crs}", "Isolated Polygons", "memory")
+    provider = isolated_layer.dataProvider()
+    provider.addAttributes(layer1.fields())
+    isolated_layer.updateFields()
+
+    provider.addFeatures(isolated_features)
+    isolated_layer.updateExtents()
+
+    return isolated_layer
