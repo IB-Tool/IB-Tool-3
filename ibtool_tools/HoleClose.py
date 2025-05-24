@@ -48,7 +48,7 @@ def hole_close(input_layer, max_hole_size):
 
        # Step 4: Finde Löcher (Differenz zwischen ursprünglichen und neuen Polygonen)
     holes = get_hole_polygons(lines_poly, input_layer_diss)
-    save_temp_layer_to_gpkg(holes, "holes")
+
     shp_area2(holes)
 
     # Step 5: Filtere Löcher nach maximaler Größe
@@ -59,7 +59,6 @@ def hole_close(input_layer, max_hole_size):
                     'VALUE': max_hole_size,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
-    save_temp_layer_to_gpkg(holes_filtered, "holes_filtered")
 
     # Step 6: Löcher und ursprüngliche Polygone zusammenführen
     merged_result = processing.run(
@@ -69,8 +68,6 @@ def hole_close(input_layer, max_hole_size):
             "CRS": input_layer.crs().authid(),
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-    save_temp_layer_to_gpkg(merged_result, "merged_result")
-
 
     # Step 7: Geometrie reparieren und auflösen
     dissolved_result = processing.run(
