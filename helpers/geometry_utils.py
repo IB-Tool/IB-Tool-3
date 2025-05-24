@@ -490,7 +490,7 @@ def shp_length(layer, Fieldname='Length'):
     return layer['OUTPUT']
 
 
-def create_empty_layer(layer_type: str, crs: str):
+def create_empty_layer(layer_name: str, layer_type: str, crs: str):
     """
     Creates an empty layer with a specified geometry type and CRS.
 
@@ -498,7 +498,7 @@ def create_empty_layer(layer_type: str, crs: str):
     :param crs: The coordinate reference system for the layer as a string.
     :return: QgsVectorLayer object
     """
-    layer = QgsVectorLayer(f"{layer_type}?crs={crs}", "merge_layer", "memory")
+    layer = QgsVectorLayer(f"{layer_type}?crs={crs}", layer_name, "memory")
     layer_data_provider = layer.dataProvider()
 
     # Add required fields to the layer if needed
