@@ -77,7 +77,7 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
 
 
     outline_points_list = []
-    merge_layer = create_empty_layer("Polygon", crs.authid())
+    merge_layer = create_empty_layer("merge_layer_edge_catch", "Polygon", crs.authid())
 
     shp_area2(grouped_bdgs)
     for feature in grouped_bdgs.getFeatures():
@@ -115,14 +115,11 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-
         road_network_sel_dense = processing.run("native:densifygeometriesgivenaninterval",
                        {'INPUT': road_network_sel,
                         'INTERVAL': 3,
                         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                         })['OUTPUT']
-
-        save_temp_layer_to_gpkg(road_network_sel_dense, "road_network_sel_dense")
 
         road_network_sel_dense_vert = processing.run("native:extractvertices", {
                         'INPUT': road_network_sel_dense,
@@ -149,10 +146,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
             'INPUT': distance_matrix,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
             })['OUTPUT']
-
-        save_temp_layer_to_gpkg(distance_matrix_singlepart, "distance_matrix_singlepart")
-
-
 
         distance_matrix_singlepart_xy = processing.run("native:addxyfields", {
             'INPUT': distance_matrix_singlepart,
@@ -209,153 +202,153 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
 
         ArrayOfLines = []
 
-        grouped_angel = group_lines_by_angle(grouped_lines)
+        if len(grouped_lines) > 1:
+            grouped_angel = group_lines_by_angle(grouped_lines)
+
+            if len(grouped_angel) > 2:
+                avg_distances = calculate_average_distances(grouped_angel)
+
+                # Identify the group with the maximum average distance
+                current_max, prev_max = 0, 0
+                max_index = -1
+                for idx, avg_distance in enumerate(avg_distances):
+                    if avg_distance > current_max:
+                        prev_max, current_max = current_max, avg_distance
+                        max_index = idx
+
+                # Remove the group if its distance is significantly higher
+                if current_max > 1.5 * prev_max:
+                    grouped_angel.pop(max_index)
+
+            try:
+                for group_of_lines in grouped_angel:
+                    for line in group_of_lines:
+                        ArrayOfLines.append([[line[0], line[1]], [line[2], line[3]]]) #x1.coordinate, y1.coordinate, x2.coordinate, y2.coordinate
+
+            except:
+                for group_of_lines in grouped_angel:
+                    for k in group_of_lines:
+                        for line in k:
+                            ArrayOfLines.append([[line[0], line[1]], [line[2], line[3]]])
 
 
-        if len(grouped_angel) > 2:
-            avg_distances = calculate_average_distances(grouped_angel)
-
-            # Identify the group with the maximum average distance
-            current_max, prev_max = 0, 0
-            max_index = -1
-            for idx, avg_distance in enumerate(avg_distances):
-                if avg_distance > current_max:
-                    prev_max, current_max = current_max, avg_distance
-                    max_index = idx
-
-            # Remove the group if its distance is significantly higher
-            if current_max > 1.5 * prev_max:
-                grouped_angel.pop(max_index)
-
-        try:
-            for group_of_lines in grouped_angel:
-                for line in group_of_lines:
-                    ArrayOfLines.append([[line[0], line[1]], [line[2], line[3]]]) #x1.coordinate, y1.coordinate, x2.coordinate, y2.coordinate
-
-        except:
-            for group_of_lines in grouped_angel:
-                for k in group_of_lines:
-                    for line in k:
-                        ArrayOfLines.append([[line[0], line[1]], [line[2], line[3]]])
+            for line in rect_edges:
+                ArrayOfLines.append(line)
 
 
-        for line in rect_edges:
-            ArrayOfLines.append(line)
+            # Erstelle ein neues temporäres Polyline-Layer
+            polyline_layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "polyline_layer",
+                                            "memory")
+            provider = polyline_layer.dataProvider()
+
+            # Füge die Linien aus dem ArrayOfLines hinzu
+            for group_of_lines in ArrayOfLines:
+                points = [QgsPoint(group_of_lines[0][0], group_of_lines[0][1]), QgsPoint(group_of_lines[1][0], group_of_lines[1][1])]
+                polyline_feature = QgsFeature()
+                polyline_feature.setGeometry(QgsGeometry.fromPolyline(points))
+                provider.addFeature(polyline_feature)
+
+            if not polyline_layer.isValid():
+               Logger.log(f"Layer '{polyline_layer.name()}' ist ungültig.", level="INFO")
+
+            if not road_network_sel.isValid():
+                Logger.log(f"Layer '{road_network_sel.name()}' ist ungültig.", level="INFO")
+
+            #save_temp_layer_to_gpkg(polyline_layer, f"polyline_layer_{feature.id()}")
+            #save_temp_layer_to_gpkg(road_network_sel_dense, f"road_network_sel_dense_{feature.id()}")
+
+            try:
+                polyline_layer_snap1 = processing.run("native:snapgeometries",
+                               {'INPUT': polyline_layer,
+                                'REFERENCE_LAYER': outline_points_xy,
+                                'TOLERANCE': 1,
+                                'BEHAVIOR': 0,
+                                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                                })['OUTPUT']
 
 
-        # Erstelle ein neues temporäres Polyline-Layer
-        polyline_layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "polyline_layer",
-                                        "memory")
-        provider = polyline_layer.dataProvider()
+                polyline_layer_snap2 = processing.run("native:snapgeometries",
+                               {'INPUT': polyline_layer_snap1,
+                                'REFERENCE_LAYER': road_network_sel_dense,
+                                'TOLERANCE': 1,
+                                'BEHAVIOR': 0,
+                                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                                })['OUTPUT']
+            except:
+                Logger.log("EdgeCatch abgebrochen für Feature {}.".format(feature.id()), level="WARNING")
+                continue
+                #TODO interne Fehlerbehandlung aktivieren: ungültige Geometrien ignorieren
 
-        # Füge die Linien aus dem ArrayOfLines hinzu
-        for group_of_lines in ArrayOfLines:
-            points = [QgsPoint(group_of_lines[0][0], group_of_lines[0][1]), QgsPoint(group_of_lines[1][0], group_of_lines[1][1])]
-            polyline_feature = QgsFeature()
-            polyline_feature.setGeometry(QgsGeometry.fromPolyline(points))
-            provider.addFeature(polyline_feature)
-
-        if not polyline_layer.isValid():
-           Logger.log(f"Layer '{polyline_layer.name()}' ist ungültig.", level="INFO")
-
-        if not road_network_sel.isValid():
-            Logger.log(f"Layer '{road_network_sel.name()}' ist ungültig.", level="INFO")
-
-        try:
-
-            polyline_layer_snap1 = processing.run("native:snapgeometries",
-                           {'INPUT': polyline_layer,
-                            'REFERENCE_LAYER': outline_points_xy,
-                            'TOLERANCE': 1,
-                            'BEHAVIOR': 0,
+            road_network_sel_sel = processing.run("native:extractbylocation",
+                           {'INPUT': road_network_sel_dense,
+                            'PREDICATE': [0, 4, 7],
+                            'INTERSECT': polyline_layer_snap2,
                             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                             })['OUTPUT']
 
-
-            polyline_layer_snap2 = processing.run("native:snapgeometries",
-                           {'INPUT': polyline_layer_snap1,
-                            'REFERENCE_LAYER': road_network_sel_dense,
-                            'TOLERANCE': 1,
-                            'BEHAVIOR': 0,
-                            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                            })['OUTPUT']
-        except:
-            Logger.log("EdgeCatch abgebrochen für Feature {}.".format(feature.id()), level="WARNING")
-            continue
-            #TODO interne Fehlerbehandlung aktivieren: ungültige Geometrien ignorieren
-
-        road_network_sel_sel = processing.run("native:extractbylocation",
-                       {'INPUT': road_network_sel_dense,
-                        'PREDICATE': [0, 4, 7],
-                        'INTERSECT': polyline_layer_snap2,
-                        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                        })['OUTPUT']
-
-        lines_merge = processing.run("native:mergevectorlayers", {
-            'LAYERS': [road_network_sel_dense, polyline_layer_snap2],
-            'CRS': crs,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        lines_polygons = processing.run("native:polygonize", {
-            'INPUT': lines_merge,
-            'KEEP_FIELDS': False,
-            'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
-
-        if feature.id() == 23:
-            save_temp_layer_to_gpkg(lines_merge, f"lines_merge_{feature.id()}")
-            save_temp_layer_to_gpkg(polyline_layer, f"polyline_layer_{feature.id()}")
-            save_temp_layer_to_gpkg(road_network_sel_dense, f"road_network_sel_{feature.id()}")
-            save_temp_layer_to_gpkg(lines_polygons, f"polygonize_{feature.id()}")
-
-        '''
-        
-        lines_polygons_hu = processing.run("native:extractbylocation",
-                                           {'INPUT': lines_polygons,
-                                            'PREDICATE': [0],
-                                            'INTERSECT': hu_input,
-                                            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                                           })['OUTPUT']
-        '''
-        #TODO Prüfen, ob das Sinn macht
-
-        lines_polygons_block = processing.run("native:intersection",
-                       {'INPUT': lines_polygons,
-                        'OVERLAY': block_sel,
-                        'INPUT_FIELDS': [],
-                        'OVERLAY_FIELDS': [],
-                        'OVERLAY_FIELDS_PREFIX': '',
-                        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-                        'GRID_SIZE': None
-                        })['OUTPUT']
-
-        lines_polygons_block_fix = processing.run("native:fixgeometries",
-                       {'INPUT': lines_polygons_block,
-                        'METHOD': 1,
-                        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                        })['OUTPUT']
-
-        shp_area2(lines_polygons_block_fix)
-
-        lines_polygons_block_small = processing.run("native:extractbyexpression",
-                                                {'INPUT': lines_polygons_block_fix,
-                                                 'EXPRESSION': '"Area" < {}'.format((str(shapeareagroup * 3))), #TODO Operator prüfen ob > oder <
-                                                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                                                 })['OUTPUT']
-
-        #lines_polygons_block_small = lines_polygons_hu
-
-        #TODO Merge in der Art ist rechenintensiv
-        try:
-            polygones_merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [lines_polygons_block_small, merge_layer],
+            lines_merge = processing.run("native:mergevectorlayers", {
+                'LAYERS': [road_network_sel_dense, polyline_layer_snap2],
                 'CRS': crs,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
-            merge_layer = polygones_merge
-        except Exception as e:
-            Logger.log(f"Group could not be merged - {str(e)}", level="CRITICAL")
+            })['OUTPUT']
+
+            lines_polygons = processing.run("native:polygonize", {
+                'INPUT': lines_merge,
+                'KEEP_FIELDS': False,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            })['OUTPUT']
+
+
+            '''
+            
+            lines_polygons_hu = processing.run("native:extractbylocation",
+                                               {'INPUT': lines_polygons,
+                                                'PREDICATE': [0],
+                                                'INTERSECT': hu_input,
+                                                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                                               })['OUTPUT']
+            '''
+            #TODO Prüfen, ob das Sinn macht
+
+            lines_polygons_block = processing.run("native:intersection",
+                           {'INPUT': lines_polygons,
+                            'OVERLAY': block_sel,
+                            'INPUT_FIELDS': [],
+                            'OVERLAY_FIELDS': [],
+                            'OVERLAY_FIELDS_PREFIX': '',
+                            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+                            'GRID_SIZE': None
+                            })['OUTPUT']
+
+            lines_polygons_block_fix = processing.run("native:fixgeometries",
+                           {'INPUT': lines_polygons_block,
+                            'METHOD': 1,
+                            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                            })['OUTPUT']
+
+            shp_area2(lines_polygons_block_fix)
+
+            lines_polygons_block_small = processing.run("native:extractbyexpression",
+                                                    {'INPUT': lines_polygons_block_fix,
+                                                     'EXPRESSION': '"Area" < {}'.format((str(shapeareagroup * 3))), #TODO Operator prüfen ob > oder <
+                                                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                                                     })['OUTPUT']
+
+            #lines_polygons_block_small = lines_polygons_hu
+            #save_temp_layer_to_gpkg(lines_polygons_block_small, f"lines_polygons_block_small_{feature.id()}")
+
+            #TODO Merge in der Art ist rechenintensiv
+            try:
+                polygones_merge = processing.run("native:mergevectorlayers", {
+                    'LAYERS': [lines_polygons_block_small, merge_layer],
+                    'CRS': crs,
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                    })['OUTPUT']
+                merge_layer = polygones_merge
+            except Exception as e:
+                Logger.log(f"Group could not be merged - {str(e)}", level="CRITICAL")
+                continue
+        else:
             continue
 
     # Rückgabe als Fallback
@@ -364,3 +357,4 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):
         polygones_merge = grouped_bdgs
 
     return polygones_merge
+
