@@ -271,7 +271,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         feature['area_intersect'] = area
         intersected_layer.updateFeature(feature)
     intersected_layer.commitChanges()
-    save_temp_layer_to_gpkg(intersected_layer, "intersected_layer")
+    #save_temp_layer_to_gpkg(intersected_layer, "intersected_layer")
 
     # Summierung der Flächenanteile für jedes große Polygon
     sum_result = processing.run(
@@ -325,7 +325,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             feature['OVERLAP'] = 0
         joined_layer.updateFeature(feature)
     joined_layer.commitChanges()
-    save_temp_layer_to_gpkg(joined_layer, "joined_layer")
+    #save_temp_layer_to_gpkg(joined_layer, "joined_layer")
 
     return joined_layer
 
