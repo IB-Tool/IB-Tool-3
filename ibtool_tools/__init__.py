@@ -13,6 +13,7 @@ from .MST_Clustering import mst_clustering
 from .AddSingleBuilding import add_single_bdg
 from .EdgeCatch import edge_catch
 from .HoleClose import hole_close
+from .GapClose import gap_close
 
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     "calculate_mst",
     "mst_clustering",
     "add_single_bdg",
-    "edge_catch"
+    "edge_catch",
+    "gap_close"
     ]
