@@ -131,7 +131,6 @@ def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
 
     crs = SpatialReference
 
-    save_temp_layer_to_gpkg(streets_orig, "streets_orig")
     streets = QgsVectorLayer("LineString?crs={}".format(streets_orig.crs().authid()), "streets", "memory")
     data_provider = streets.dataProvider()
     data_provider.addFeatures(list(streets_orig.getFeatures()))
