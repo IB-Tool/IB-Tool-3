@@ -85,6 +85,9 @@ from .ibtool_tools.MST_Clustering import mst_clustering
 from .ibtool_tools.AddSingleBuilding import add_single_bdg
 from .ibtool_tools.EdgeCatch import edge_catch
 from .ibtool_tools.HoleClose import hole_close
+from .ibtool_tools.GapClose import gap_close
+
+from .workspace import WorkspaceManager
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -460,13 +463,13 @@ class IBTool:
         try:
             MaxHoleSize = float(MaxHoleSize)
         except ValueError:
-            logger.log("Ungültiger Zahlenwert für MaxHoleSize eingegeben.")
+            logger.log("Ungültiger Zahlenwert für max_hole_size eingegeben.")
 
         MaxGapSize = self.dlg.MaxGapSizeBox.text()
         try:
             MaxGapSize = float(MaxGapSize)
         except ValueError:
-            logger.log("Ungültiger Zahlenwert für MaxGapSize eingegeben.")
+            logger.log("Ungültiger Zahlenwert für max_gap_size eingegeben.")
 
         partstart = int(self.dlg.partstartBox.text())
         partend = int(self.dlg.partendBox.text())
@@ -476,6 +479,8 @@ class IBTool:
         SpatialReference = self.dlg.SpatialReferenceBox.text()
         SpatialReference = QgsCoordinateReferenceSystem(SpatialReference)
         logger.log("SpatialReference: {}".format(SpatialReference.authid()), 'INFO',)
+
+        WorkspaceManager.get_instance().path = PathCommonWorkspace
 
         if partlist[0] != "#":
             partlist = list(partlist.split(","))
@@ -515,7 +520,7 @@ class IBTool:
         partlist = create_partitions_list(LayerPart, partlist, partstart, partend)
         logger.log("Partlist: {}".format(partlist), 'SUCCESS')
 
-        '''
+
         # calculate threshold value for footprint density
         if GlobalFootprintDensity == 0:
             GlobalFootprintDensity = calc_footprint_density(
@@ -528,8 +533,8 @@ class IBTool:
                 LayerPart)
         else:
             pass
-        '''
-        GlobalFootprintDensity = 18 #spaeter löschen
+
+        #GlobalFootprintDensity = 18 #TODO spaeter löschen
         logger.log("Global building coverage threshold = {}".format(str(GlobalFootprintDensity)), "INFO")
 
         if DelPartLog == 'True':
@@ -550,7 +555,7 @@ class IBTool:
         anz_hu_sum = 0
 
         HU_Filter1 = input_hu_filter(LayerHU, InputFilter, MinArea, 50, 200)
-        save_temp_layer_to_gpkg(HU_Filter1, "global_HU_Filter")
+        #save_temp_layer_to_gpkg(HU_Filter1, "global_HU_Filter")
 
         for i in partlist:
             logger.log("Check if {} is in Partlist.".format(str(i)), 'SUCCESS')
@@ -583,11 +588,11 @@ class IBTool:
                     'INPUT': LayerPart,
                     'OUTPUT': 'TEMPORARY_OUTPUT'
                 })['OUTPUT']
-            save_temp_layer_to_gpkg(SelPart_layer, "SelPart_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(SelPart_layer, "SelPart_{}".format(Part_Name))
 
             # Gebäude-Features selektieren
             SelHU_layer = select_and_save_by_location(LayerHU, SelPart_layer)
-            save_temp_layer_to_gpkg(SelHU_layer, "SelHU_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(SelHU_layer, "SelHU_{}".format(Part_Name))
 
             # Anzahl der ausgewählten Gebäude prüfen
             anz_hu = SelHU_layer.featureCount()
@@ -601,7 +606,7 @@ class IBTool:
 
             # Straßen-Features selektieren
             SelStrassen_layer = select_and_save_by_location(LayerRN, SelPart_layer)
-            save_temp_layer_to_gpkg(SelStrassen_layer, "SelStrassen_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(SelStrassen_layer, "SelStrassen_{}".format(Part_Name))
 
             # Anzahl der ausgewählten Straßen prüfen
             anz_strassen = SelStrassen_layer.featureCount()
@@ -623,7 +628,7 @@ class IBTool:
             logger.log("Local building coverage =" + str(MinOverlapMST), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, SelHU_layer, SelPart_layer)
-            save_temp_layer_to_gpkg(blocks, "blocks_{}".format(Part_Name))
+            #save_temp_layer_to_gpkg(blocks, "blocks_{}".format(Part_Name))
 
 
             HU_Filter = input_hu_filter(SelHU_layer, InputFilter, MinArea, 50, 200)
@@ -653,8 +658,8 @@ class IBTool:
             snapped_rect = edge_catch(RectMerged, HU_Filter, SelStrassen_layer, blocks, SpatialReference)
             #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
-            hole_closed = hole_close(snapped_rect, max_hole_size=MaxHoleSize)
-            #save_temp_layer_to_gpkg(hole_closed, "hole_closed")
+            gaps_colsed = gap_close(snapped_rect, blocks, MaxHoleSize, MaxGapSize, SpatialReference, gap_dist=30)
+            #save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed")
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
@@ -662,7 +667,7 @@ class IBTool:
             self.dlg.ProgressBar.setValue(prozent)
 
             merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [hole_closed, merge_layer],
+                'LAYERS': [gaps_colsed, merge_layer],
                 'CRS': SpatialReference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
