@@ -43,7 +43,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>2</number>
+    <number>0</number>
    </property>
    <widget class="QWidget" name="tab">
     <attribute name="title">
@@ -702,7 +702,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>PART_36</string>
+      <string>#</string>
      </property>
     </widget>
     <widget class="QCheckBox" name="PartLogBox">
