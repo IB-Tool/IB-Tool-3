@@ -217,7 +217,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
     # Calculate the overlap
     result = Inner_Blocks.featureCount()
-    Logger.log("Inner Blocks count: {}".format(result),'SUCCESS')
+    Logger.log("Inner blocks count: {}".format(result),'SUCCESS')
 
     if result > 5:
         overlap_sum = 0
