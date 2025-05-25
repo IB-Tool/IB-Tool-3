@@ -2,6 +2,7 @@ import os
 import shutil
 from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter
 from .logger import Logger
+from ..workspace import WorkspaceManager
 
 
 def save_temp_layer_to_gpkg(layer, filename):
@@ -21,7 +22,8 @@ def save_temp_layer_to_gpkg(layer, filename):
         return
 
     # Standardpfad
-    base_path = r'L:\Test_data\workspace' #TODO
+    #base_path = r'L:\Test_data\workspace' #TODO get path from ib-tool.py
+    base_path = WorkspaceManager.get_instance().path
 
     # Ausgabe-Dateipfad
     gpkg_file = os.path.join(base_path, "{}.gpkg".format(filename))
