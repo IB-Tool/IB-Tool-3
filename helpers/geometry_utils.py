@@ -465,10 +465,6 @@ def shp_area2(layer, field_name="Area", logger=None):
         return False
 
 
-
-
-
-
 def shp_length(layer, Fieldname='Length'):
     """Adds length field to file"""
 
@@ -508,7 +504,6 @@ def create_empty_layer(layer_name: str, layer_type: str, crs: str):
     ])
     layer.updateFields()
     return layer
-
 
 
 def create_linestring_layer_from_array(data, crs, layer_name):
@@ -583,7 +578,6 @@ def nodes_detect(input_road_network, count):
              'precision': 3, 'sub_type': 0, 'type': 6, 'type_name': 'double precision'}],
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
-    save_temp_layer_to_gpkg(vertices, "aggregated_vertices")
 
     filtered = processing.run("native:extractbyattribute", {
         'INPUT': vertices,
