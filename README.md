@@ -94,9 +94,9 @@ Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Si
 
 ---
 
-## Entwickler & Kontakt
+## Entwickler
 
-- **Autor**: 
+- **Autor**: Oliver Harig
 - **Erstellt mit Unterstützung von**: [QGIS Plugin Builder](http://g-sherman.github.io/Qgis-Plugin-Builder/)
 
 ---
