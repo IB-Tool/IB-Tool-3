@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>961</width>
-    <height>805</height>
+    <height>541</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -19,12 +19,12 @@
      <x>20</x>
      <y>10</y>
      <width>281</width>
-     <height>51</height>
+     <height>31</height>
     </rect>
    </property>
    <property name="font">
     <font>
-     <pointsize>36</pointsize>
+     <pointsize>20</pointsize>
      <weight>75</weight>
      <bold>true</bold>
     </font>
@@ -37,7 +37,7 @@
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>80</y>
+     <y>50</y>
      <width>921</width>
      <height>261</height>
     </rect>
@@ -702,7 +702,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>#</string>
+      <string>Part_36</string>
      </property>
     </widget>
     <widget class="QCheckBox" name="PartLogBox">
@@ -793,7 +793,7 @@
    <property name="geometry">
     <rect>
      <x>750</x>
-     <y>760</y>
+     <y>500</y>
      <width>93</width>
      <height>28</height>
     </rect>
@@ -806,7 +806,7 @@
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>360</y>
+     <y>320</y>
      <width>921</width>
      <height>23</height>
     </rect>
@@ -819,9 +819,9 @@
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>400</y>
+     <y>350</y>
      <width>921</width>
-     <height>351</height>
+     <height>141</height>
     </rect>
    </property>
   </widget>
@@ -829,7 +829,7 @@
    <property name="geometry">
     <rect>
      <x>850</x>
-     <y>760</y>
+     <y>500</y>
      <width>93</width>
      <height>28</height>
     </rect>
