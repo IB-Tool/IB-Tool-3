@@ -61,12 +61,9 @@
 
 ## Verwendung
 
-1. Lade deine Geodaten (z.B. Gebäudeumrisse, Straßennetzwerke) in QGIS.
-2. Starte das Plugin über die QGIS-Menüleiste unter **Plugins > IB-Tool**.
-3. Konfiguriere folgende Parametereinstellungen im Dialogfenster:
-   - **Eingabedaten**: Lade deine .shp- oder .gpkg-Daten.
-   - **Filterdateien**: Definiere durch Textdateien spezifische Bedingungen zur Filterung.
-   - **Parameter wie Mindestgrößen oder Überlappungswerte**.
+1. Starte das Plugin über die QGIS-Menüleiste unter **Plugins > IB-Tool**.
+2. Lade deine Geodaten (z.B. Gebäudeumrisse, Straßennetzwerke) direkt über die Benutzeroberfläche des Tools.
+3. Konfiguriere die Parametereinstellungen im Dialogfenster.
 4. Beginne die Verarbeitung:
    - Überwache den Fortschritt im Fortschrittsbalken.
    - Ergebnisse werden als .gpkg-Dateien gespeichert.
