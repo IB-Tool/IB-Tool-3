@@ -2,7 +2,7 @@ import os
 import shutil
 from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter
 from .logger import Logger
-from ..workspace import WorkspaceManager
+from .workspace import WorkspaceManager
 
 
 def save_temp_layer_to_gpkg(layer, filename):
