@@ -29,40 +29,19 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QFileDialog, QDialog
 
 from qgis.core import (
-    QgsProject,
-    Qgis,
-    QgsApplication,
-    QgsProcessingFeedback,
-    QgsVectorFileWriter,
     #QgsVectorLayer,
-    QgsVectorDataProvider,
-    QgsRasterLayer,
-    QgsProcessingAlgorithm,
-    QgsProcessingParameterFeatureSource,
-    QgsProcessingParameterNumber,
-    QgsProcessingParameterFeatureSink,
-    QgsProcessingParameterFileDestination,
-    QgsProcessingUtils,
     QgsCoordinateReferenceSystem,
-    QgsExpression,
-    QgsProcessingFeatureSourceDefinition,
-    QgsFeature,
     QgsProcessing
 )
-
-from qgis import processing
-
 
 from .helpers.logger import Logger
 # Initialisieren Sie den Logger
 logger = Logger()
 
 from .helpers.geometry_utils import (
-    polyline2,
     check_projection,
     load_to_geopackage,
     select_and_save_by_location,
-    create_polygons_from_lines,
     create_empty_layer
 
 )
@@ -71,11 +50,9 @@ from .helpers.system_utils import (
     #log,
     #set_log_level_from_combobox,
     manage_directory,
-    save_temp_layer_to_gpkg,
-    copy_shapefile
+    save_temp_layer_to_gpkg
 )
 from .helpers.message import msg
-from .helpers.system_utils import get_feature_count
 
 from .ibtool_tools.FootprintDensity import calc_footprint_density, identify_dense_blocks
 from .ibtool_tools.Blocker import blocker
@@ -84,20 +61,17 @@ from .ibtool_tools.CreateMST import calculate_mst
 from .ibtool_tools.MST_Clustering import mst_clustering
 from .ibtool_tools.AddSingleBuilding import add_single_bdg
 from .ibtool_tools.EdgeCatch import edge_catch
-from .ibtool_tools.HoleClose import hole_close
 from .ibtool_tools.GapClose import gap_close
+from .ibtool_tools.PatchRemove import patch_remove
 
-from .workspace import WorkspaceManager
+from .helpers.workspace import WorkspaceManager
 
 # Initialize Qt resources from file resources.py
-from .resources import *
 # Import the code for the dialog
 from .ibtool_dialog import IBToolDialog
 import os.path
 import time
 import sys
-import datetime
-import shutil
 
 os.environ['PYTHONPATH'] = '/helpers'
 sys.path.append(os.environ['PYTHONPATH'])
@@ -403,17 +377,23 @@ class IBTool:
             self.dlg.txtPositive.setPlainText("\n".join(positive_filters))
             self.dlg.txtNegative.setPlainText("\n".join(negative_filters))
 
-            logger.log("Filterdatei erfolgreich geladen.", level="INFO")
+            #logger.log("Filterdatei erfolgreich geladen.", level="INFO")
 
         except Exception as e:
-            logger.log(f"Fehler beim Laden der Filterdatei: {str(e)}", level="CRITICAL")
+            #logger.log(f"Fehler beim Laden der Filterdatei: {str(e)}", level="CRITICAL")
+            pass
 
     def start_processing(self):
         """Hauptprozess starten"""
 
+        PathCommonWorkspace = self.dlg.WorkspacePath.text()
+        WorkspaceManager.get_instance().path = PathCommonWorkspace
+
+
         logger.log("Hauptprozess wird gestartet...", level="INFO")
         # Füge hier die Logik deines Hauptprozesses ein
         self.dlg.ProgressBar.setValue(0)  # Fortschritt auf 0 setzen
+
 
         logger.log("Dies ist eine kritische Nachricht.", level="CRITICAL")
         logger.log("Dies ist eine Warnung.", level="WARNING")
@@ -474,13 +454,13 @@ class IBTool:
         partstart = int(self.dlg.partstartBox.text())
         partend = int(self.dlg.partendBox.text())
         partlist = self.dlg.partlistBox.text()
-        PathCommonWorkspace = self.dlg.WorkspacePath.text()
+
         DelPartLog = self.dlg.PartLogBox.isChecked()
         SpatialReference = self.dlg.SpatialReferenceBox.text()
         SpatialReference = QgsCoordinateReferenceSystem(SpatialReference)
         logger.log("SpatialReference: {}".format(SpatialReference.authid()), 'INFO',)
 
-        WorkspaceManager.get_instance().path = PathCommonWorkspace
+
 
         if partlist[0] != "#":
             partlist = list(partlist.split(","))
@@ -496,6 +476,7 @@ class IBTool:
         InputAux = self.dlg.AuxPath.text()
         InputPart = self.dlg.PartPath.text()
         InputFilter = self.dlg.FilterPath.text()
+        OutputFile = self.dlg.OutputPath.text()
 
         check_projection(SpatialReference, [InputHU, InputRN, InputAux, InputPart])
 
@@ -520,7 +501,7 @@ class IBTool:
         partlist = create_partitions_list(LayerPart, partlist, partstart, partend)
         logger.log("Partlist: {}".format(partlist), 'SUCCESS')
 
-
+        '''
         # calculate threshold value for footprint density
         if GlobalFootprintDensity == 0:
             GlobalFootprintDensity = calc_footprint_density(
@@ -533,8 +514,8 @@ class IBTool:
                 LayerPart)
         else:
             pass
-
-        #GlobalFootprintDensity = 18 #TODO spaeter löschen
+        '''
+        GlobalFootprintDensity = 18 #TODO spaeter löschen
         logger.log("Global building coverage threshold = {}".format(str(GlobalFootprintDensity)), "INFO")
 
         if DelPartLog == 'True':
@@ -659,7 +640,11 @@ class IBTool:
             #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
             gaps_colsed = gap_close(snapped_rect, blocks, MaxHoleSize, MaxGapSize, SpatialReference, gap_dist=30)
-            #save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed")
+            save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed")
+
+            patch_removed = patch_remove(gaps_colsed, SelHU_layer, MinPatchSize, MinBdgCount)
+            save_temp_layer_to_gpkg(patch_removed, "patch_removed")
+
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
@@ -672,7 +657,7 @@ class IBTool:
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
             merge_layer = merge
-            save_temp_layer_to_gpkg(merge, "global_merge_layer")
+            save_temp_layer_to_gpkg(merge, OutputFile)
 
 
         logger.log("ERFOLG")
