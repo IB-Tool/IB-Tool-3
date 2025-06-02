@@ -325,7 +325,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             feature['OVERLAP'] = 0
         joined_layer.updateFeature(feature)
     joined_layer.commitChanges()
-    #save_temp_layer_to_gpkg(joined_layer, "joined_layer")
+
 
     return joined_layer
 
