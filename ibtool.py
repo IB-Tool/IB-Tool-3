@@ -103,6 +103,7 @@ class IBTool:
         :type iface: QgsInterface
         """
         # Save reference to the QGIS interface
+
         self.iface = iface
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
@@ -312,12 +313,12 @@ class IBTool:
         if self.first_start == True:
             self.first_start = False
             self.dlg = IBToolDialog()
-            self.dlg.HuButton.clicked.connect(select_HU_file)
-            self.dlg.RnButton.clicked.connect(select_RN_file)
-            self.dlg.PartButton.clicked.connect(select_PART_file)
-            self.dlg.AuxButton.clicked.connect(select_AUX_file)
-            self.dlg.OutputButton.clicked.connect(select_output_file)
-            self.dlg.WorkspaceButton.clicked.connect(select_workspace_file)
+            self.dlg.HuButton.clicked.connect(self.select_HU_file)
+            self.dlg.RnButton.clicked.connect(self.select_RN_file)
+            self.dlg.PartButton.clicked.connect(self.select_PART_file)
+            self.dlg.AuxButton.clicked.connect(self.select_AUX_file)
+            self.dlg.OutputButton.clicked.connect(self.select_output_file)
+            self.dlg.WorkspaceButton.clicked.connect(self.select_workspace_file)
             self.dlg.FilterButton.clicked.connect(self.select_filter_file)
             self.dlg.StartButton.clicked.connect(self.start_processing)
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
@@ -336,11 +337,76 @@ class IBTool:
         # show the dialog
         self.dlg.show()
 
+    def select_HU_file(self):
+        """Öffnet einen Dateidialog, um die HU-Datei auszuwählen."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.dlg,  # Dialog ist Teil der GUI
+            "Select building footprints file",
+            "",
+            "Shapefiles (*.shp);;Alle Dateien (*)"
+        )
+        if file_path:
+            self.dlg.HuPath.setText(file_path)  # Zeige den Pfad in QLineEdit an
+
+    def select_RN_file(self):
+        """Öffnet einen Dateidialog, um die RN-Datei auszuwählen."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.dlg,
+            "Select road network file",
+            "",
+            "Shapefiles (*.shp);;Alle Dateien (*)"
+        )
+        if file_path:
+            self.dlg.RnPath.setText(file_path)  # Zeige den Pfad in QLineEdit an
+
+    def select_PART_file(self):
+        """Öffnet einen Dateidialog, um die PART-Datei auszuwählen."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.dlg,
+            "Select partitions file",
+            "",
+            "Shapefiles (*.shp);;Alle Dateien (*)"
+        )
+        if file_path:
+            self.dlg.PartPath.setText(file_path)  # Zeige den Pfad in QLineEdit an
+
+    def select_AUX_file(self):
+        """Öffnet einen Dateidialog, um die AUX-Datei auszuwählen."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self.dlg,
+            "Select auxillary data file",
+            "",
+            "Shapefiles (*.shp);;Alle Dateien (*)"
+        )
+        if file_path:
+            self.dlg.AuxPath.setText(file_path)  # Zeige den Pfad in QLineEdit an
+
+    def select_output_file(self):
+        """Öffnet einen Dateidialog, um die Ausgabedatei (GeoPackage) auszuwählen oder zu erstellen."""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self.dlg,
+            "Select output file",
+            "",
+            "GeoPackage (*.gpkg);;Alle Dateien (*)"
+        )
+        if file_path:
+            self.dlg.OutputPath.setText(file_path)  # Zeige den Pfad in QLineEdit an
+
+    def select_workspace_file(self):
+        """Öffnet einen Dialog, um einen Arbeitsbereichordner auszuwählen."""
+        folder_path = QFileDialog.getExistingDirectory(
+            self.dlg,
+            "Select workspace folder",
+            ""
+        )
+        if folder_path:
+            self.dlg.WorkspacePath.setText(folder_path)  # Zeige den Pfad in QLineEdit an
+
     def select_filter_file(self):
         """Öffnet einen Dateidialog, um die Filterdatei auszuwählen, und verarbeitet sie."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,  # Dialog ist Teil der GUI
-            "Filter-Datei auswählen",
+            "Select filter config file",
             "",
             "Text-Dateien (*.txt);;Alle Dateien (*)"
         )
