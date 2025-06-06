@@ -2,10 +2,10 @@ import os
 import shutil
 from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter
 from .logger import Logger
-from .workspace import WorkspaceManager
 
+Logger = Logger()
 
-def save_temp_layer_to_gpkg(layer, filename):
+def save_temp_layer_to_gpkg(layer, filename, workspace_path):
     """
     Speichert einen temporären Layer in ein GeoPackage (GPKG) unter 'L:\\Test_data\\workspace'.
 
@@ -21,12 +21,8 @@ def save_temp_layer_to_gpkg(layer, filename):
         Logger.log("Fehler: Der Layer {} ist ungültig.".format(layer))
         return
 
-    # Standardpfad
-    #base_path = r'L:\Test_data\workspace' #TODO get path from ib-tool.py
-    base_path = WorkspaceManager.get_instance().path
-
     # Ausgabe-Dateipfad
-    gpkg_file = os.path.join(base_path, "{}.gpkg".format(filename))
+    gpkg_file = os.path.join(workspace_path, "{}.gpkg".format(filename))
 
     # Layer-Name für GPKG bestimmen
     layer_name = layer.name()
@@ -52,21 +48,23 @@ def save_temp_layer_to_gpkg(layer, filename):
 
 
 
-def manage_directory(PathCommonWorkspace, DelPartLog):
+def manage_directory(workspace_path, del_part_log):
     """
-    Löscht den Ordner 'IB_Tool_Results', wenn DelPartLog True ist,
+    Löscht den Ordner 'IB_Tool_Results', wenn del_part_log True ist,
     und stellt sicher, dass der Ordner neu erstellt wird.
 
     Parameter:
-        PathCommonWorkspace (str): Der Basis-Pfad, in dem der Ordner verwaltet wird.
-        DelPartLog (bool): Gibt an, ob der Ordner gelöscht werden soll.
+        path_common_workspace (str): Der Basis-Pfad, in dem der Ordner verwaltet wird.
+        del_part_log (bool): Gibt an, ob der Ordner gelöscht werden soll.
     """
     # Verzeichnispfad zusammensetzen
-    directory_path = os.path.join(PathCommonWorkspace, 'IB_Tool_Results')
+    #path_common_workspace = r"{}".format(workspace_path)
+    #directory_path = f'"{os.path.join(path_common_workspace, "IB_Tool_Results")}"'
+    directory_path = workspace_path + 'IB_Tool_Results'
 
     try:
-        # Wenn DelPartLog True ist und der Ordner existiert, löschen
-        if DelPartLog and os.path.exists(directory_path):
+        # Wenn del_part_log True ist und der Ordner existiert, löschen
+        if del_part_log and os.path.exists(directory_path):
             shutil.rmtree(directory_path)
             Logger.log("Verzeichnis {} wurde erfolgreich gelöscht.".format(directory_path), "SUCCESS")
 
