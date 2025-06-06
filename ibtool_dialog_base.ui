@@ -43,7 +43,7 @@
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>2</number>
    </property>
    <widget class="QWidget" name="tab">
     <attribute name="title">
@@ -231,7 +231,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>L:/Test_data/UGB.shp</string>
+      <string>L:/Test_data/UGB.gpkg</string>
      </property>
     </widget>
     <widget class="QPushButton" name="OutputButton">
@@ -270,7 +270,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>L:/Test_data/workspace/</string>
+      <string>L:/Test_data/workspace</string>
      </property>
     </widget>
     <widget class="QPushButton" name="WorkspaceButton">
@@ -702,7 +702,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>Part_36</string>
+      <string>PART_36</string>
      </property>
     </widget>
     <widget class="QCheckBox" name="PartLogBox">
