@@ -22,7 +22,7 @@ from qgis.core import (
 from qgis import processing
 import os
 import sys
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant, QMetaType
 
 
 # Absoluten Pfad des benachbarten Ordners berechnen
@@ -262,7 +262,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
 
     # Sicherstellen, dass das Feld 'area_intersect' existiert
     if provider.fieldNameIndex('area_intersect') == -1:
-        provider.addAttributes([QgsField("area_intersect", QVariant.Double)])
+        provider.addAttributes([QgsField("area_intersect", QMetaType.Double)])
         intersected_layer.updateFields()
 
     for feature in intersected_layer.getFeatures():
@@ -311,7 +311,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
 
     # Ensure the 'OVERLAP' field exists
     if provider.fieldNameIndex('OVERLAP') == -1:
-        provider.addAttributes([QgsField("OVERLAP", QVariant.Double)])
+        provider.addAttributes([QgsField("OVERLAP", QMetaType.Double)])
     joined_layer.updateFields()
     joined_layer.commitChanges()
 
@@ -348,12 +348,12 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
     # Add area fields for both buildings and blocks
     Bloecke.startEditing()
     if "SHAPE_AREA" not in [field.name() for field in Bloecke.fields()]:
-        Bloecke.dataProvider().addAttributes([QgsField("SHAPE_AREA", QVariant.Double)])
+        Bloecke.dataProvider().addAttributes([QgsField("SHAPE_AREA", QMetaType.Double)])
     Bloecke.commitChanges()
 
     HU_Input.startEditing()
     if "FOOTPRINT_AREA" not in [field.name() for field in HU_Input.fields()]:
-        HU_Input.dataProvider().addAttributes([QgsField("FOOTPRINT_AREA", QVariant.Double)])
+        HU_Input.dataProvider().addAttributes([QgsField("FOOTPRINT_AREA", QMetaType.Double)])
     HU_Input.commitChanges()
 
     # Calculate areas
