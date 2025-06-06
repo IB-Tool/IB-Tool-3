@@ -604,7 +604,7 @@ class IBTool:
 
         for i in partlist:
             logger.log("Check if {} is in Partlist.".format(str(i)), 'SUCCESS')
-            a = 0
+            a = 1
             isin = False
             Partlog = open(PartLogPath, 'r+')
             for row in Partlog:
