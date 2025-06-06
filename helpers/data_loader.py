@@ -1,5 +1,12 @@
 from PyQt5.QtWidgets import QFileDialog
 
+from qgis.core import QgsVectorLayer, QgsWkbTypes, QgsProcessingFeedback, QgsProcessingException
+from qgis import processing
+from .logger import Logger
+from .system_utils import save_temp_layer_to_gpkg
+
+Logger = Logger()
+
 
 # Function to select the HU input file
 def select_HU_file(dlg):
@@ -74,14 +81,7 @@ def create_partitions_list(Partition_layer, partlist, partstart, partend):
 
     return partlist
 
-
-
-from qgis.core import QgsVectorLayer, QgsWkbTypes, QgsProcessingFeedback, QgsProcessingException
-from qgis import processing
-from .logger import Logger
-from .system_utils import save_temp_layer_to_gpkg
-
-def create_auxiliary_data(veg_layer, strassen):
+def create_auxiliary_data(veg_layer, strassen, workspace_path):
     """
     Creates auxiliary data by converting vegetation layers to lines if needed, merging them with roads,
     and converting the result to polygons.
@@ -125,7 +125,7 @@ def create_auxiliary_data(veg_layer, strassen):
         'OUTPUT': 'memory:AuxLayers_Poly'
     }, feedback=feedback)['OUTPUT']
 
-    AuxiliaryData_Poly = save_temp_layer_to_gpkg(AuxLayers_Poly, "AuxiliaryData_Poly")
-    AuxiliaryData_Line = save_temp_layer_to_gpkg(AuxLayers_Line, "AuxiliaryData_Line")
+    AuxiliaryData_Poly = save_temp_layer_to_gpkg(AuxLayers_Poly, "AuxiliaryData_Poly", workspace_path)
+    AuxiliaryData_Line = save_temp_layer_to_gpkg(AuxLayers_Line, "AuxiliaryData_Line", workspace_path)
 
     return AuxiliaryData_Poly, AuxiliaryData_Line
