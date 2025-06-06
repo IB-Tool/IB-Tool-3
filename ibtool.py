@@ -64,8 +64,6 @@ from .ibtool_tools.EdgeCatch import edge_catch
 from .ibtool_tools.GapClose import gap_close
 from .ibtool_tools.PatchRemove import patch_remove
 
-from .helpers.workspace import WorkspaceManager
-
 # Initialize Qt resources from file resources.py
 # Import the code for the dialog
 from .ibtool_dialog import IBToolDialog
@@ -256,7 +254,7 @@ class IBTool:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = ':/plugins/ibtool/icon.png'
+        icon_path = os.path.join(self.plugin_dir, 'icon.png')
         self.add_action(
             icon_path,
             text=self.tr(u'IB-Tool'),
@@ -402,6 +400,7 @@ class IBTool:
         if folder_path:
             self.dlg.WorkspacePath.setText(folder_path)  # Zeige den Pfad in QLineEdit an
 
+
     def select_filter_file(self):
         """Öffnet einen Dateidialog, um die Filterdatei auszuwählen, und verarbeitet sie."""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -451,9 +450,6 @@ class IBTool:
 
     def start_processing(self):
         """Hauptprozess starten"""
-
-        PathCommonWorkspace = self.dlg.WorkspacePath.text()
-        WorkspaceManager.get_instance().path = PathCommonWorkspace
 
 
         logger.log("Hauptprozess wird gestartet...", level="INFO")
@@ -522,6 +518,7 @@ class IBTool:
         partlist = self.dlg.partlistBox.text()
 
         DelPartLog = self.dlg.PartLogBox.isChecked()
+        msg(f"DelPartLog={DelPartLog}")
         SpatialReference = self.dlg.SpatialReferenceBox.text()
         SpatialReference = QgsCoordinateReferenceSystem(SpatialReference)
         logger.log("SpatialReference: {}".format(SpatialReference.authid()), 'INFO',)
@@ -531,10 +528,12 @@ class IBTool:
         if partlist[0] != "#":
             partlist = list(partlist.split(","))
 
-        manage_directory(PathCommonWorkspace, DelPartLog)
+        workspace_path = self.dlg.WorkspacePath.text() + "/"
+        msg(f"workspace_path={workspace_path}")
+        manage_directory(workspace_path, DelPartLog)
 
-        PartLogPath = PathCommonWorkspace + 'IB_Tool_Results' + os.path.sep + 'IB_Tool2_Log.txt'
-        PartLogFin = PathCommonWorkspace + 'IB_Tool_Results' + os.path.sep + "IB_Tool2_Log_Fin.txt"
+        PartLogPath = workspace_path + 'IB_Tool_Results/IB_Tool2_Log.txt'
+        PartLogFin = workspace_path + 'IB_Tool_Results/IB_Tool2_Log_Fin.txt'
 
         # Pfade zu den Eingabe-Shapefiles
         InputHU = self.dlg.HuPath.text()
@@ -543,24 +542,25 @@ class IBTool:
         InputPart = self.dlg.PartPath.text()
         InputFilter = self.dlg.FilterPath.text()
         OutputFile = self.dlg.OutputPath.text()
+        msg(f"Outputfile={OutputFile}") #ToDO entfernen
 
         check_projection(SpatialReference, [InputHU, InputRN, InputAux, InputPart])
 
         # Alle Eingabe-Shapefiles in das GeoPackage laden
 
-        LayerRN = load_to_geopackage(InputRN, PathCommonWorkspace + "LayerRN.gpkg", "LayerRN", SpatialReference)
+        LayerRN = load_to_geopackage(InputRN, workspace_path + "LayerRN.gpkg", "LayerRN", SpatialReference)
 
-        LayerAux  = load_to_geopackage(InputAux, PathCommonWorkspace + "LayerAux.gpkg", "LayerAux", SpatialReference)
+        LayerAux  = load_to_geopackage(InputAux, workspace_path + "LayerAux.gpkg", "LayerAux", SpatialReference)
 
-        LayerPart = load_to_geopackage(InputPart, PathCommonWorkspace + "LayerPart.gpkg", "LayerPart", SpatialReference)
+        LayerPart = load_to_geopackage(InputPart, workspace_path + "LayerPart.gpkg", "LayerPart", SpatialReference)
 
-        LayerHU= load_to_geopackage(InputHU, PathCommonWorkspace + "LayerHU.gpkg","LayerHU", SpatialReference)
+        LayerHU= load_to_geopackage(InputHU, workspace_path + "LayerHU.gpkg","LayerHU", SpatialReference)
 
 
 
         startzeit = time.strftime("%Y_%m_%d_%H_%M")
         lockswitch = False
-        aux_layers_poly, aux_layers_line = create_auxiliary_data(LayerAux, LayerRN)
+        aux_layers_poly, aux_layers_line = create_auxiliary_data(LayerAux, LayerRN, workspace_path)
 
         merge_layer = create_empty_layer("global_merge_layer", "Polygon", SpatialReference.authid())
         # Partitionen aus Gesamtdatei für Debugging auswählen
@@ -584,6 +584,7 @@ class IBTool:
         GlobalFootprintDensity = 18 #TODO spaeter löschen
         logger.log("Global building coverage threshold = {}".format(str(GlobalFootprintDensity)), "INFO")
 
+        msg(PartLogPath) #TODO löschen
         if DelPartLog == 'True':
             if os.path.isfile(PartLogPath):
                 os.remove(PartLogPath)
@@ -597,12 +598,9 @@ class IBTool:
             Partlog.write("")
             Partlog.close()
 
-        lenpartlist = len(partlist)
         anz_hu_gesamt = LayerHU.featureCount()
         anz_hu_sum = 0
 
-        HU_Filter1 = input_hu_filter(LayerHU, InputFilter, MinArea, 50, 200)
-        #save_temp_layer_to_gpkg(HU_Filter1, "global_HU_Filter")
 
         for i in partlist:
             logger.log("Check if {} is in Partlist.".format(str(i)), 'SUCCESS')
@@ -628,24 +626,22 @@ class IBTool:
             logger.log( "PARTITION: " + str(Part_Name) + " - " + str(a) + " of " + str(len(partlist)), 'INFO')
 
             # Partition auswählen
-            LayerPart.selectByExpression(f"\"NAME\" = '{Part_Name}'")
-
-            SelPart_layer = processing.run(
-                "native:saveselectedfeatures",{
+            SelPart_layer = processing.run("native:extractbyexpression",{
                     'INPUT': LayerPart,
-                    'OUTPUT': 'TEMPORARY_OUTPUT'
-                })['OUTPUT']
-            #save_temp_layer_to_gpkg(SelPart_layer, "SelPart_{}".format(Part_Name))
+                    'EXPRESSION': f"\"NAME\" = '{Part_Name}'",
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                    })['OUTPUT']
+            save_temp_layer_to_gpkg(SelPart_layer, "SelPart_{}".format(Part_Name), workspace_path)
 
             # Gebäude-Features selektieren
             SelHU_layer = select_and_save_by_location(LayerHU, SelPart_layer)
-            #save_temp_layer_to_gpkg(SelHU_layer, "SelHU_{}".format(Part_Name))
+            save_temp_layer_to_gpkg(SelHU_layer, "SelHU_{}".format(Part_Name), workspace_path)
 
             # Anzahl der ausgewählten Gebäude prüfen
             anz_hu = SelHU_layer.featureCount()
 
             if anz_hu < 10:
-                PartLogFin = os.path.join(PathCommonWorkspace, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
+                #PartLogFin = os.path.join(workspace_path, "/IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
                 with open(PartLogFin, 'a') as Partlog:
                     Partlog.write("\n" + Part_Name)
                 logger.log("Warning: No or less than 10 buildings selected in partition", 'WARNING')
@@ -653,13 +649,13 @@ class IBTool:
 
             # Straßen-Features selektieren
             SelStrassen_layer = select_and_save_by_location(LayerRN, SelPart_layer)
-            #save_temp_layer_to_gpkg(SelStrassen_layer, "SelStrassen_{}".format(Part_Name))
+            save_temp_layer_to_gpkg(SelStrassen_layer, "SelStrassen_{}".format(Part_Name),workspace_path)
 
             # Anzahl der ausgewählten Straßen prüfen
             anz_strassen = SelStrassen_layer.featureCount()
 
             if anz_strassen < 5:
-                PartLogFin = os.path.join(PathCommonWorkspace, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
+                #PartLogFin = os.path.join(workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
                 with open(PartLogFin, 'a') as Partlog:
                     Partlog.write("\n" + Part_Name)
                 logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
@@ -706,10 +702,10 @@ class IBTool:
             #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
             gaps_colsed = gap_close(snapped_rect, blocks, MaxHoleSize, MaxGapSize, SpatialReference, gap_dist=30)
-            save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed")
+            save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed", workspace_path)
 
-            patch_removed = patch_remove(gaps_colsed, SelHU_layer, MinPatchSize, MinBdgCount)
-            save_temp_layer_to_gpkg(patch_removed, "patch_removed")
+            #patch_removed = patch_remove(gaps_colsed, SelHU_layer, workspace_path, MinPatchSize, MinBdgCount, )
+            #save_temp_layer_to_gpkg(patch_removed, "patch_removed", workspace_path)
 
 
             # Fortschritt aktualisieren
@@ -723,7 +719,14 @@ class IBTool:
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
             merge_layer = merge
-            save_temp_layer_to_gpkg(merge, OutputFile)
+
+            # Split the OutputFile into path, filename, and extension
+            output_folder, file_with_extension = os.path.split(OutputFile)
+            output_filename, _ = os.path.splitext(file_with_extension)
+            msg(output_folder)
+            msg(output_filename)
+
+            save_temp_layer_to_gpkg(merge, str(output_filename), output_folder + "/")
 
 
         logger.log("ERFOLG")
