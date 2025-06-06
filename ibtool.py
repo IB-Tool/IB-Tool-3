@@ -549,13 +549,13 @@ class IBTool:
         # Alle Eingabe-Shapefiles in das GeoPackage laden
 
         LayerRN = load_to_geopackage(InputRN, workspace_path + "LayerRN.gpkg", "LayerRN", SpatialReference)
-
+        LayerRN.dataProvider().createSpatialIndex()
         LayerAux  = load_to_geopackage(InputAux, workspace_path + "LayerAux.gpkg", "LayerAux", SpatialReference)
-
+        LayerAux.dataProvider().createSpatialIndex()
         LayerPart = load_to_geopackage(InputPart, workspace_path + "LayerPart.gpkg", "LayerPart", SpatialReference)
-
+        LayerPart.dataProvider().createSpatialIndex()
         LayerHU= load_to_geopackage(InputHU, workspace_path + "LayerHU.gpkg","LayerHU", SpatialReference)
-
+        LayerHU.dataProvider().createSpatialIndex()
 
 
         startzeit = time.strftime("%Y_%m_%d_%H_%M")
