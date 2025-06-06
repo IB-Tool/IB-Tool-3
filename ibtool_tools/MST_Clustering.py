@@ -3,7 +3,7 @@ from operator import itemgetter
 import numpy as np
 import math
 
-from PyQt5.QtCore import QVariant
+from PyQt5.QtCore import QMetaType
 from qgis import processing
 from qgis.core import (
     QgsGeometry, 
@@ -278,7 +278,7 @@ tuple[object, float | None]:
         provider = HUDirRect.dataProvider()
 
         # Add fields to the layer
-        provider.addAttributes([QgsField("id", QVariant.Int)])
+        provider.addAttributes([QgsField("id", QMetaType.Int)])
         HUDirRect.updateFields()
 
         # Add the polygon geometry to the layer
@@ -397,7 +397,7 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
     #hu_layer = shp_area(hu_layer, "Area")
 
     # Joining hu features to mst features and keep ids of features as attributes
-    hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QVariant.Int)])
+    hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QMetaType.Int)])
     hu_layer.updateFields()
 
     hu_layer = processing.run("native:fieldcalculator",
@@ -410,7 +410,7 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
 
-    mst_layer.dataProvider().addAttributes([QgsField("fid_mst_orig", QVariant.Int)])
+    mst_layer.dataProvider().addAttributes([QgsField("fid_mst_orig", QMetaType.Int)])
     mst_layer.updateFields()
 
     mst_layer = processing.run("native:fieldcalculator",
