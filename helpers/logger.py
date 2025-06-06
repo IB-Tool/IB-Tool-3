@@ -3,8 +3,6 @@ import os
 import time
 from qgis.core import Qgis, QgsMessageLog
 from .message import msg
-from .workspace import WorkspaceManager
-
 
 class Logger:
     """Singleton-Logger, um Nachrichten im Nachrichtenfenster und in einer Logdatei auszugeben."""
@@ -23,9 +21,8 @@ class Logger:
     def _initialize_logging(cls):
         """Initialisiert die Logdatei und die Logging-Konfiguration."""
         startzeit = time.strftime("%Y-%m-%d_%H-%M-%S")
-        #log_dir = r'L:\Test_data\workspace'
-        log_dir = WorkspaceManager.get_instance().path or "C:/temp/logs" #TODO so umschreiben, dass auch ohne Standardpfad möglich
-
+        log_dir = os.path.join(os.getcwd(), "logs")  # Standard ist das aktuelle Verzeichnis
+        msg(log_dir)
         os.makedirs(log_dir, exist_ok=True)
         log_filename = os.path.join(log_dir, f"logfile_{startzeit}.txt")
 
