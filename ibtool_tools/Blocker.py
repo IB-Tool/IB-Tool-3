@@ -7,7 +7,7 @@ from qgis.core import (
     QgsProcessing,
     QgsProcessingUtils
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 import processing
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import create_polygons_from_lines, extract_polygons_from_lines
@@ -68,7 +68,7 @@ def blocker(strassen, hu_input, partition):
     # Add NAME field
     blocks_layer.startEditing()
     if not blocks_layer.dataProvider().fieldNameIndex("NAME") >= 0:
-        blocks_layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        blocks_layer.dataProvider().addAttributes([QgsField("NAME", QMetaType.QString)])
         blocks_layer.updateFields()
 
     # Calculate NAME field values
