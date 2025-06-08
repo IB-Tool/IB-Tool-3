@@ -631,11 +631,11 @@ class IBTool:
                     'EXPRESSION': f"\"NAME\" = '{Part_Name}'",
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
-            save_temp_layer_to_gpkg(SelPart_layer, "SelPart_{}".format(Part_Name), workspace_path)
+            #save_temp_layer_to_gpkg(SelPart_layer, "SelPart_{}".format(Part_Name), workspace_path)
 
             # Gebäude-Features selektieren
             SelHU_layer = select_and_save_by_location(LayerHU, SelPart_layer)
-            save_temp_layer_to_gpkg(SelHU_layer, "SelHU_{}".format(Part_Name), workspace_path)
+            #save_temp_layer_to_gpkg(SelHU_layer, "SelHU_{}".format(Part_Name), workspace_path)
 
             # Anzahl der ausgewählten Gebäude prüfen
             anz_hu = SelHU_layer.featureCount()
@@ -649,7 +649,7 @@ class IBTool:
 
             # Straßen-Features selektieren
             SelStrassen_layer = select_and_save_by_location(LayerRN, SelPart_layer)
-            save_temp_layer_to_gpkg(SelStrassen_layer, "SelStrassen_{}".format(Part_Name),workspace_path)
+            #save_temp_layer_to_gpkg(SelStrassen_layer, "SelStrassen_{}".format(Part_Name),workspace_path)
 
             # Anzahl der ausgewählten Straßen prüfen
             anz_strassen = SelStrassen_layer.featureCount()
@@ -702,9 +702,9 @@ class IBTool:
             #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
             gaps_colsed = gap_close(snapped_rect, blocks, MaxHoleSize, MaxGapSize, SpatialReference, gap_dist=30)
-            save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed", workspace_path)
+            #save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed", workspace_path)
 
-            #patch_removed = patch_remove(gaps_colsed, SelHU_layer, workspace_path, MinPatchSize, MinBdgCount, )
+            patch_removed = patch_remove(gaps_colsed, SelHU_layer, SpatialReference, workspace_path, MinPatchSize, MinBdgCount, )
             #save_temp_layer_to_gpkg(patch_removed, "patch_removed", workspace_path)
 
 
@@ -714,7 +714,7 @@ class IBTool:
             self.dlg.ProgressBar.setValue(prozent)
 
             merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [gaps_colsed, merge_layer],
+                'LAYERS': [patch_removed, merge_layer],
                 'CRS': SpatialReference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
