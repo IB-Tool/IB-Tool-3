@@ -4,7 +4,6 @@ import time
 from qgis.core import Qgis, QgsMessageLog
 from .message import msg
 
-
 class Logger:
     """Singleton-Logger, um Nachrichten im Nachrichtenfenster und in einer Logdatei auszugeben."""
     _instance = None
@@ -22,7 +21,8 @@ class Logger:
     def _initialize_logging(cls):
         """Initialisiert die Logdatei und die Logging-Konfiguration."""
         startzeit = time.strftime("%Y-%m-%d_%H-%M-%S")
-        log_dir = r'L:\Test_data\workspace'
+        log_dir = os.path.join(os.getcwd(), "logs")  # Standard ist das aktuelle Verzeichnis
+        msg(log_dir)
         os.makedirs(log_dir, exist_ok=True)
         log_filename = os.path.join(log_dir, f"logfile_{startzeit}.txt")
 
@@ -82,7 +82,7 @@ class Logger:
             if not isinstance(message, str):
                 message = str(message)
 
-            # Log in Datei schreiben
+            # Login-Datei schreiben
             logging.getLogger().log(logger_level, message)
 
             # Nachricht im Nachrichtenfenster anzeigen

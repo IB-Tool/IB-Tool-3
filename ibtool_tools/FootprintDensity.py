@@ -22,7 +22,7 @@ from qgis.core import (
 from qgis import processing
 import os
 import sys
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant, QMetaType
 
 
 # Absoluten Pfad des benachbarten Ordners berechnen
@@ -262,7 +262,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
 
     # Sicherstellen, dass das Feld 'area_intersect' existiert
     if provider.fieldNameIndex('area_intersect') == -1:
-        provider.addAttributes([QgsField("area_intersect", QVariant.Double)])
+        provider.addAttributes([QgsField("area_intersect", QMetaType.Double)])
         intersected_layer.updateFields()
 
     for feature in intersected_layer.getFeatures():
@@ -311,7 +311,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
 
     # Ensure the 'OVERLAP' field exists
     if provider.fieldNameIndex('OVERLAP') == -1:
-        provider.addAttributes([QgsField("OVERLAP", QVariant.Double)])
+        provider.addAttributes([QgsField("OVERLAP", QMetaType.Double)])
     joined_layer.updateFields()
     joined_layer.commitChanges()
 
@@ -325,7 +325,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             feature['OVERLAP'] = 0
         joined_layer.updateFeature(feature)
     joined_layer.commitChanges()
-    #save_temp_layer_to_gpkg(joined_layer, "joined_layer")
+
 
     return joined_layer
 
@@ -345,27 +345,31 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
     if not isinstance(HU_Input, QgsVectorLayer) or not isinstance(Bloecke, QgsVectorLayer):
         raise ValueError("Both hu_layer and Bloecke must be valid QgsVectorLayer objects.")
 
+    bloecke_singlepart = processing.run("native:multiparttosingleparts",
+                   {'INPUT': Bloecke,
+                    'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+
     # Add area fields for both buildings and blocks
-    Bloecke.startEditing()
-    if "SHAPE_AREA" not in [field.name() for field in Bloecke.fields()]:
-        Bloecke.dataProvider().addAttributes([QgsField("SHAPE_AREA", QVariant.Double)])
-    Bloecke.commitChanges()
+    bloecke_singlepart.startEditing()
+    if "SHAPE_AREA" not in [field.name() for field in bloecke_singlepart.fields()]:
+        bloecke_singlepart.dataProvider().addAttributes([QgsField("SHAPE_AREA", QMetaType.Double)])
+    bloecke_singlepart.commitChanges()
 
     HU_Input.startEditing()
     if "FOOTPRINT_AREA" not in [field.name() for field in HU_Input.fields()]:
-        HU_Input.dataProvider().addAttributes([QgsField("FOOTPRINT_AREA", QVariant.Double)])
+        HU_Input.dataProvider().addAttributes([QgsField("FOOTPRINT_AREA", QMetaType.Double)])
     HU_Input.commitChanges()
 
     # Calculate areas
     expr_blk_area = QgsExpression("$area")
     expr_ftprt_area = QgsExpression("$area")
-    with edit(Bloecke):
-        for feature in Bloecke.getFeatures():
+    with edit(bloecke_singlepart):
+        for feature in bloecke_singlepart.getFeatures():
             context = QgsExpressionContext()
-            context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(Bloecke))
+            context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(bloecke_singlepart))
             context.setFeature(feature)
             feature["SHAPE_AREA"] = expr_blk_area.evaluate(context)
-            Bloecke.updateFeature(feature)
+            bloecke_singlepart.updateFeature(feature)
 
     with edit(HU_Input):
         for feature in HU_Input.getFeatures():
@@ -377,10 +381,10 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
 
     # Perform a spatial join to associate building footprints with city blocks
     dissolved_layer = processing.run("native:joinbylocationsummary",
-                   {'INPUT': Bloecke,
+                   {'INPUT': bloecke_singlepart,
                     'PREDICATE': [0],
                     'JOIN': HU_Input,
-                    'JOIN_FIELDS': ['Shape_Area'],
+                    'JOIN_FIELDS': ['FOOTPRINT_AREA'],
                     'SUMMARIES': [5],
                     'DISCARD_NONMATCHING': True,
                     'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
@@ -392,7 +396,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
                     'FIELD_TYPE': 0,
                     'FIELD_LENGTH': 0,
                     'FIELD_PRECISION': 0,
-                    'FORMULA': ' "Shape_Area_sum" / "SHAPE_AREA" * 100',
+                    'FORMULA': ' "FOOTPRINT_AREA_sum" / "SHAPE_AREA" * 100',
                     'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
 
     # Filter blocks below the footprint density threshold

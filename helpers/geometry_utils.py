@@ -20,7 +20,7 @@ from qgis.core import (
     QgsProcessing,
     edit
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QVariant, QMetaType
 from qgis import processing
 from .system_utils import save_temp_layer_to_gpkg
 from .message import msg
@@ -28,7 +28,7 @@ from .logger import Logger
 import os
 from shapely.geometry import LineString, MultiLineString
 
-
+Logger = Logger()
 
 
 def polyline2(array_of_lines, output_path, output_format="shp"):
@@ -44,11 +44,11 @@ def polyline2(array_of_lines, output_path, output_format="shp"):
 
     # Define the fields for the layer
     fields = QgsFields()
-    fields.append(QgsField("x1", QVariant.Double))
-    fields.append(QgsField("y1", QVariant.Double))
-    fields.append(QgsField("x2", QVariant.Double))
-    fields.append(QgsField("y2", QVariant.Double))
-    fields.append(QgsField("Shape_Len", QVariant.Double))
+    fields.append(QgsField("x1", QMetaType.Double))
+    fields.append(QgsField("y1", QMetaType.Double))
+    fields.append(QgsField("x2", QMetaType.Double))
+    fields.append(QgsField("y2", QMetaType.Double))
+    fields.append(QgsField("Shape_Len", QMetaType.Double))
 
     # Create a memory layer to build the features
     layer = QgsVectorLayer("LineString?crs=EPSG:4326", "PolylineLayer", "memory")
@@ -365,7 +365,7 @@ def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygon
         "Polygon?crs={}".format(line_layer.crs().authid()), output_layer_name, "memory"
     )
     provider = polygon_layer.dataProvider()
-    provider.addAttributes([QgsField("id", QVariant.Int)])
+    provider.addAttributes([QgsField("id", QMetaType.Int)])
     polygon_layer.updateFields()
 
     # Füge die gefundenen Zyklen als Polygone hinzu
@@ -395,7 +395,7 @@ def shp_area(layer, area_field='Area'):
         raise Exception(f"Layer {layer} is not valid")
 
     if area_field not in [field.name() for field in layer.fields()]:
-        layer.dataProvider().addAttributes([QgsField(area_field, QVariant.Double)])
+        layer.dataProvider().addAttributes([QgsField(area_field, QMetaType.Double)])
         layer.updateFields()
 
     layer = processing.run("native:fieldcalculator",
@@ -434,7 +434,7 @@ def shp_area2(layer, field_name="Area", logger=None):
     if field_name not in field_names:
         # Neues Feld hinzufügen
         layer_provider = layer.dataProvider()
-        layer_provider.addAttributes([QgsField(field_name, QVariant.Double)])
+        layer_provider.addAttributes([QgsField(field_name, QMetaType.Double)])
         layer.updateFields()
     else:
         if logger:
@@ -472,7 +472,7 @@ def shp_length(layer, Fieldname='Length'):
         raise Exception(f"Layer {layer} is not valid")
 
     if Fieldname not in [field.name() for field in layer.fields()]:
-        layer.dataProvider().addAttributes([QgsField(Fieldname, QVariant.Double)])
+        layer.dataProvider().addAttributes([QgsField(Fieldname, QMetaType.Double)])
         layer.updateFields()
 
     layer = processing.run("native:fieldcalculator",
@@ -499,8 +499,8 @@ def create_empty_layer(layer_name: str, layer_type: str, crs: str):
 
     # Add required fields to the layer if needed
     layer_data_provider.addAttributes([
-        QgsField("id", QVariant.Int),  # Example attribute field
-        QgsField("name", QVariant.String)  # Add more fields as required
+        QgsField("id", QMetaType.Int),  # Example attribute field
+        QgsField("name", QMetaType.QString)  # Add more fields as required
     ])
     layer.updateFields()
     return layer
@@ -523,7 +523,7 @@ def create_linestring_layer_from_array(data, crs, layer_name):
     prov = layer.dataProvider()
 
     # Optional: Attribut für Gewicht hinzufügen
-    prov.addAttributes([QgsField("weight", QVariant.Double)])
+    prov.addAttributes([QgsField("weight", QMetaType.Double)])
     layer.updateFields()
 
     features = []

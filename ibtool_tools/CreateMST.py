@@ -8,7 +8,7 @@ from qgis.core import (
     edit,
     QgsProcessing,
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 import scipy.spatial.distance as spd
 import networkx as nx
 import numpy as np
@@ -17,6 +17,8 @@ from qgis import processing
 from ..helpers.system_utils import save_temp_layer_to_gpkg
 from ..helpers.geometry_utils import create_linestring_layer_from_array, nodes_detect
 from ..helpers.logger import Logger
+
+Logger = Logger()
 
 def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
     """
@@ -40,7 +42,7 @@ def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
         layer = QgsVectorLayer("LineString?crs={}".format(crs.toWkt()), "MST_Lines", "memory")
         provider = layer.dataProvider()
         provider.addAttributes([
-            QgsField("weight", QVariant.Double)
+            QgsField("weight", QMetaType.Double)
         ])
         layer.updateFields()
 
@@ -78,7 +80,7 @@ def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
         feldnamen = [f.name() for f in layer.fields()]
         with edit(layer):
             if feldname not in feldnamen:
-                layer.dataProvider().addAttributes([QgsField(feldname, QVariant.String)])
+                layer.dataProvider().addAttributes([QgsField(feldname, QMetaType.QString)])
 
         # Feature aktualisieren
         with edit(layer):
@@ -205,7 +207,7 @@ def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
     # Add a new field 'length' to the 'streets_dead_end' layer
     fields = streets_dead_end.fields()
     if not fields.indexFromName('length') >= 0:  # Avoid duplicate field addition
-        streets_dead_end.dataProvider().addAttributes([QgsField('length', QVariant.Double)])
+        streets_dead_end.dataProvider().addAttributes([QgsField('length', QMetaType.Double)])
         streets_dead_end.updateFields()
 
     # Calculate and set the length for each feature in 'streets_dead_end'
