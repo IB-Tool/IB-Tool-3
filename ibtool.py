@@ -68,7 +68,8 @@ from .helpers.geometry_utils import (
 )
 from .helpers.system_utils import (
     manage_directory,
-    save_temp_layer_to_gpkg
+    save_temp_layer_to_gpkg,
+    version_check
 )
 from .helpers.message import msg
 from .helpers.data_loader import *
@@ -323,6 +324,9 @@ class IBTool:
 
     def run(self):
         """Run method that performs all the real work"""
+
+        # check version of QGIS and Python
+        version_check()
 
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the

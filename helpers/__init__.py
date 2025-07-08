@@ -36,7 +36,8 @@ from .system_utils import (
     save_temp_layer_to_gpkg,
     manage_directory,
     copy_shapefile,
-    get_feature_count
+    get_feature_count,
+    version_check
 )
 
 from .logger import Logger
@@ -65,5 +66,6 @@ __all__ = [
     "get_feature_count",
     "shp_area2",
     "shp_area",
-    "get_hole_polygons"
+    "get_hole_polygons",
+    "version_check"
 ]
