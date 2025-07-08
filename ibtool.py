@@ -318,6 +318,7 @@ class IBTool:
             self.dlg.OutputButton.clicked.connect(self.select_output_file)
             self.dlg.WorkspaceButton.clicked.connect(self.select_workspace_file)
             self.dlg.FilterButton.clicked.connect(self.select_filter_file)
+            self.dlg.LogDirButton.clicked.connect(self.select_log_dir)
             self.dlg.StartButton.clicked.connect(self.start_processing)
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
             self.dlg.LogLevelBox.currentTextChanged.connect(
@@ -413,6 +414,16 @@ class IBTool:
             self.dlg.FilterPath.setText(file_path)  # Zeige den Pfad in QLineEdit an
             self.load_filter_file(file_path)  # Lade und verarbeite die Filterdatei
 
+    def select_log_dir(self):
+        """Öffnet einen Dialog, um das Logverzeichnis auszuwählen."""
+        folder_path = QFileDialog.getExistingDirectory(
+            self.dlg,
+            "Select log directory",
+            ""
+        )
+        if folder_path:
+            self.dlg.LogDirPath.setText(folder_path)
+
     def load_filter_file(self, file_path):
         """Liest die Filterdatei und zeigt die Filter in der GUI an."""
         try:
@@ -451,6 +462,9 @@ class IBTool:
     def start_processing(self):
         """Hauptprozess starten"""
 
+        log_dir = self.dlg.LogDirPath.text()
+        if log_dir:
+            logger.set_log_dir(log_dir)
 
         logger.log("Hauptprozess wird gestartet...", level="INFO")
         # Füge hier die Logik deines Hauptprozesses ein

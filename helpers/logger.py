@@ -10,6 +10,7 @@ class Logger:
     message_box = None
     file_handler = None
     log_level = logging.INFO  # Standard-Log-Level
+    log_dir = None  # Directory for log files
 
     def __new__(cls):
         if cls._instance is None:
@@ -21,10 +22,11 @@ class Logger:
     def _initialize_logging(cls):
         """Initialisiert die Logdatei und die Logging-Konfiguration."""
         startzeit = time.strftime("%Y-%m-%d_%H-%M-%S")
-        log_dir = os.path.join(os.getcwd(), "logs")  # Standard ist das aktuelle Verzeichnis
-        msg(log_dir)
-        os.makedirs(log_dir, exist_ok=True)
-        log_filename = os.path.join(log_dir, f"logfile_{startzeit}.txt")
+        if not cls.log_dir:
+            cls.log_dir = os.path.join(os.getcwd(), "logs")  # Standard ist das aktuelle Verzeichnis
+        msg(cls.log_dir)
+        os.makedirs(cls.log_dir, exist_ok=True)
+        log_filename = os.path.join(cls.log_dir, f"logfile_{startzeit}.txt")
 
         cls.file_handler = logging.FileHandler(log_filename, mode='a')
         cls.file_handler.setLevel(logging.INFO)  # Log alles in die Datei
@@ -32,7 +34,7 @@ class Logger:
         cls.file_handler.setFormatter(formatter)
 
         # Logging-Konfiguration
-        logging.basicConfig(level=logging.INFO, handlers=[cls.file_handler])
+        logging.basicConfig(level=cls.log_level, handlers=[cls.file_handler])
         cls.log(f"Logger initialisiert. Logdatei: {log_filename}", level="INFO")
 
     @classmethod
@@ -56,6 +58,15 @@ class Logger:
         cls.log_level = log_levels[level]
         logging.getLogger().setLevel(cls.log_level)  # Setze das Log-Level für die Datei
         cls.log(f"Log-Level auf {level} gesetzt.", level="INFO")
+
+    @classmethod
+    def set_log_dir(cls, directory):
+        """Legt das Verzeichnis für Logdateien fest und initialisiert neu."""
+        cls.log_dir = directory
+        if cls.file_handler:
+            cls.file_handler.close()
+            logging.getLogger().removeHandler(cls.file_handler)
+        cls._initialize_logging()
 
     @classmethod
     def log(cls, message, level="INFO"):
@@ -110,5 +121,4 @@ class Logger:
         """Schließt den File-Handler des Loggers und entfernt ihn."""
         if cls.file_handler:
             cls.file_handler.close()
-            logging.getLogger().removeHandler(cls.file_handler)
-            cls.log("Logger geschlossen.", level="INFO")
+            logging.getLogger().removeHandler(cls.file_handler)            cls.log("Logger geschlossen.", level="INFO")
