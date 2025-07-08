@@ -64,7 +64,7 @@
 
 1. Starte das Plugin über die QGIS-Menüleiste unter **Plugins > IB-Tool**.
 2. Lade deine Geodaten (z.B. Gebäudeumrisse, Straßennetzwerke) direkt über die Benutzeroberfläche des Tools.
-3. Lege einen Worspace-Ordner fest. Dieser dient zum Abspeichern von Zwischen- und Endergebnissen.
+3. Lege einen Workspace-Ordner fest. Dieser dient zum Abspeichern von Zwischen- und Endergebnissen.
 4. Konfiguriere die Parametereinstellungen im Dialogfenster.
 5. Beginne die Verarbeitung:
    - Überwache den Fortschritt im Fortschrittsbalken.
