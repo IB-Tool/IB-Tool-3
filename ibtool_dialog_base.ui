@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>961</width>
-    <height>541</height>
+    <height>569</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -39,11 +39,11 @@
      <x>20</x>
      <y>50</y>
      <width>921</width>
-     <height>261</height>
+     <height>291</height>
     </rect>
    </property>
    <property name="currentIndex">
-    <number>0</number>
+    <number>2</number>
    </property>
    <widget class="QWidget" name="tab">
     <attribute name="title">
@@ -312,55 +312,55 @@
       <string>Filter-TXT</string>
      </property>
     </widget>
-     <widget class="QPushButton" name="FilterButton">
-      <property name="geometry">
-       <rect>
-        <x>490</x>
-        <y>200</y>
-        <width>31</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>...</string>
-      </property>
-     </widget>
-     <widget class="QLabel" name="label_logdir">
-      <property name="geometry">
-       <rect>
-        <x>20</x>
-        <y>230</y>
-        <width>111</width>
-        <height>16</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>Log Directory</string>
-      </property>
-     </widget>
-     <widget class="QLineEdit" name="LogDirPath">
-      <property name="geometry">
-       <rect>
-        <x>180</x>
-        <y>230</y>
-        <width>291</width>
-        <height>22</height>
-       </rect>
-      </property>
-     </widget>
-     <widget class="QPushButton" name="LogDirButton">
-      <property name="geometry">
-       <rect>
-        <x>490</x>
-        <y>230</y>
-        <width>31</width>
-        <height>22</height>
-       </rect>
-      </property>
-      <property name="text">
-       <string>...</string>
-      </property>
-     </widget>
+    <widget class="QPushButton" name="FilterButton">
+     <property name="geometry">
+      <rect>
+       <x>490</x>
+       <y>200</y>
+       <width>31</width>
+       <height>22</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>...</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_logdir">
+     <property name="geometry">
+      <rect>
+       <x>20</x>
+       <y>230</y>
+       <width>111</width>
+       <height>16</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Log Directory</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="LogDirPath">
+     <property name="geometry">
+      <rect>
+       <x>180</x>
+       <y>230</y>
+       <width>291</width>
+       <height>22</height>
+      </rect>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="LogDirButton">
+     <property name="geometry">
+      <rect>
+       <x>490</x>
+       <y>230</y>
+       <width>31</width>
+       <height>22</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>...</string>
+     </property>
+    </widget>
    </widget>
    <widget class="QWidget" name="tab_3">
     <attribute name="title">
@@ -771,7 +771,7 @@
        <x>10</x>
        <y>40</y>
        <width>441</width>
-       <height>181</height>
+       <height>211</height>
       </rect>
      </property>
     </widget>
@@ -781,7 +781,7 @@
        <x>460</x>
        <y>40</y>
        <width>441</width>
-       <height>181</height>
+       <height>211</height>
       </rect>
      </property>
     </widget>
@@ -829,7 +829,7 @@
    <property name="geometry">
     <rect>
      <x>750</x>
-     <y>500</y>
+     <y>530</y>
      <width>93</width>
      <height>28</height>
     </rect>
@@ -842,7 +842,7 @@
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>320</y>
+     <y>350</y>
      <width>921</width>
      <height>23</height>
     </rect>
@@ -855,7 +855,7 @@
    <property name="geometry">
     <rect>
      <x>20</x>
-     <y>350</y>
+     <y>380</y>
      <width>921</width>
      <height>141</height>
     </rect>
@@ -865,7 +865,7 @@
    <property name="geometry">
     <rect>
      <x>850</x>
-     <y>500</y>
+     <y>530</y>
      <width>93</width>
      <height>28</height>
     </rect>
