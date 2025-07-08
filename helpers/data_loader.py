@@ -91,39 +91,35 @@ def create_auxiliary_data(veg_layer, strassen, workspace_path):
     :return: Auxiliary polygons layer
     """
     feedback = QgsProcessingFeedback()
-    AuxFileList = []
+    AuxLayerObjects = []  # Liste für Layer-Objekte statt Pfade
     AuxLayers = [veg_layer]
 
-    for idx, layer in enumerate(AuxLayers, start=1):
-        filename = f"memory:AuxFile_{idx}"
+    for index, layer in enumerate(AuxLayers, start=1):
         if layer.wkbType() not in [QgsWkbTypes.LineString, QgsWkbTypes.MultiLineString]:
             # Convert non-line layers to lines
             result = processing.run("native:polygonstolines", {
                 'INPUT': layer,
-                'OUTPUT': filename
-            }, feedback=feedback)
-            if not result['OUTPUT']:
-                raise QgsProcessingException(f"Layer {filename} could not be created")
-            AuxFileList.append(filename)
+                'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+            if not result:
+                raise QgsProcessingException(f"Layer could not be created")
+            AuxLayerObjects.append(result)  # Temporären Layer hinzufügen
         else:
             # Add line layers directly
-            AuxFileList.append(layer.source())
+            AuxLayerObjects.append(layer)  # Das Layer-Objekt selbst hinzufügen
 
     # Add roads layer
-    AuxFileList.append(strassen.source())
-    Logger.log(f"Auxiliary layers: {AuxFileList}")
+    AuxLayerObjects.append(strassen)  # Das Layer-Objekt selbst hinzufügen
+    Logger.log(f"Anzahl der Auxiliary layers: {len(AuxLayerObjects)}")
 
     # Merge all layers into a single line layer
     AuxLayers_Line = processing.run("native:mergevectorlayers", {
-        'LAYERS': AuxFileList,
-        'OUTPUT': 'memory:AuxLayers_Line'
-    }, feedback=feedback)['OUTPUT']
+        'LAYERS': AuxLayerObjects,  # Liste von Layer-Objekten verwenden
+        'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
 
     # Convert lines to polygons
     AuxLayers_Poly = processing.run("qgis:linestopolygons", {
         'INPUT': AuxLayers_Line,
-        'OUTPUT': 'memory:AuxLayers_Poly'
-    }, feedback=feedback)['OUTPUT']
+        'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
 
     AuxiliaryData_Poly = save_temp_layer_to_gpkg(AuxLayers_Poly, "AuxiliaryData_Poly", workspace_path)
     AuxiliaryData_Line = save_temp_layer_to_gpkg(AuxLayers_Line, "AuxiliaryData_Line", workspace_path)
