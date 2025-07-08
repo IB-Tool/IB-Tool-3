@@ -33,8 +33,9 @@
 
 ## Voraussetzungen
 
-- **QGIS**: Version 3.22 oder höher.
-- **Python**: Version 3.12.
+- **QGIS**: Version 3.40
+- **Python**: Version >= 3.9
+
 - Installierte Python-Bibliotheken:
   - `numpy`
   - `pandas`
