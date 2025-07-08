@@ -108,14 +108,14 @@ def check_projection(SpatialReference, inputlist):
     for f in inputlist:
         # Prüfen, ob die Datei existiert
         if not os.path.exists(f):
-            Logger.log("Alert: File {} does not exist!".format(f), level=Qgis.Critical)
+            Logger.log("Alert: File {} does not exist!".format(f), level="CRITICAL")
             continue
 
         # Laden der Datei als Layer
         layer = QgsVectorLayer(f, os.path.basename(f), "ogr")
 
         if not layer.isValid():
-            Logger.log("Alert: Unable to load file {} as a valid layer!".format(f), level=Qgis.Critical)
+            Logger.log("Alert: Unable to load file {} as a valid layer!".format(f), level="CRITICAL")
             continue
         if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
             layer.dataProvider().createSpatialIndex()
@@ -126,7 +126,8 @@ def check_projection(SpatialReference, inputlist):
         sr_f = layer.crs()
 
         if sr_i.authid() != sr_f.authid():
-            Logger.log("Alert: Projection of {} is not {}, but {}!".format(f, sr_i.authid(), sr_f.authid() ), level=Qgis.Critical)
+            Logger.log("Alert: Projection of {} is not {}, but {}!".format(f, sr_i.authid(), sr_f.authid()), level="CRITICAL"
+)
 
 
 def load_to_geopackage(input_layer, output_path, layer_name, SpatialReference):
@@ -145,7 +146,8 @@ def load_to_geopackage(input_layer, output_path, layer_name, SpatialReference):
     # Eingabelayer laden
     layer = QgsVectorLayer(input_layer, layer_name, "ogr")
     if not layer.isValid():
-        Logger.log("Fehler: {} konnte nicht geladen werden.".format(input_layer), level=Qgis.Critical)
+        Logger.log("Fehler: {} konnte nicht geladen werden.".format(input_layer), level="CRITICAL")
+
         return False
 
     if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
