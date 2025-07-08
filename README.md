@@ -1,5 +1,4 @@
 
-1
 # IBTool
 
 ![QGIS Plugin](https://img.shields.io/badge/QGIS-Plugin-blue)
