@@ -121,4 +121,5 @@ class Logger:
         """Schließt den File-Handler des Loggers und entfernt ihn."""
         if cls.file_handler:
             cls.file_handler.close()
-            logging.getLogger().removeHandler(cls.file_handler)            cls.log("Logger geschlossen.", level="INFO")
+            logging.getLogger().removeHandler(cls.file_handler)
+            cls.log("Logger geschlossen.", level="INFO")
