@@ -1,7 +1,13 @@
 import os
+import sys
 import shutil
-from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter
+from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter, Qgis
 from .logger import Logger
+
+MIN_PYTHON = (3, 9)
+MAX_PYTHON = (3, 12)
+MIN_QGIS = 34000  # QGIS Version 3.40
+MAX_QGIS = 35000 # QGIS Version 3.36
 
 Logger = Logger()
 
@@ -45,7 +51,6 @@ def save_temp_layer_to_gpkg(layer, filename, workspace_path):
         Logger.log("Fehler beim Speichern des Layers '{}' in '{}': {}".format(layer_name, gpkg_file, error[1]), 'CRITICAL')
 
     return gpkg_file
-
 
 
 def manage_directory(workspace_path, del_part_log):
@@ -124,3 +129,16 @@ def get_feature_count(layer):
     Logger.log(printtext, level="INFO")
 
     return feature_count
+
+def version_check():
+    # Python check
+    if not (MIN_PYTHON <= sys.version_info[:2] <= MAX_PYTHON):
+        raise RuntimeError(
+            f"Dieses Plugin benötigt Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} - {MAX_PYTHON[0]}.{MAX_PYTHON[1]}"
+        )
+    # QGIS check
+    qgis_int = Qgis.QGIS_VERSION_INT
+    if not (MIN_QGIS <= qgis_int <= MAX_QGIS):
+        raise RuntimeError(
+            "Dieses Plugin benötigt QGIS zwischen Version 3.22 und 3.36"
+        )
