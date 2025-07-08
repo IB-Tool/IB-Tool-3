@@ -12,7 +12,7 @@ from ..helpers.logger import Logger
 
 Logger = Logger()
 
-def patch_remove(input_poly, input_bdg, crs, workspace_path, min_patch_size=10000, min_bdg_count=20, footprint_density_threshold=18, ):
+def patch_remove(input_poly, input_bdg, crs, workspace_path, min_patch_size=10000, min_bdg_count=20, footprint_area_sum=6000, footprint_density_threshold=18, ):
     """
     Entfernt Abgrenzungen, die zu klein sind oder zu wenige Gebäude enthalten
 
@@ -86,7 +86,7 @@ def patch_remove(input_poly, input_bdg, crs, workspace_path, min_patch_size=1000
 
     dense_blocks_sel = processing.run("native:extractbyexpression",{
                 'INPUT': dense_blocks,
-                'EXPRESSION': ' "SHAPE_AREA" >= {} or  "FOOTPRINT_AREA_sum" >= 6000'.format(str(min_patch_size)),
+                'EXPRESSION': ' "SHAPE_AREA" >= {} or  "FOOTPRINT_AREA_sum" >= {}'.format(str(min_patch_size), str(footprint_area_sum)),
                 'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
     #save_temp_layer_to_gpkg(dense_blocks_sel, "c_dense_blocks_sel", workspace_path)
 
