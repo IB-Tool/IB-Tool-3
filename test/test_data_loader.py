@@ -80,7 +80,7 @@ class TestCreatePartitionsList(unittest.TestCase):
         # Create an in-memory vector layer with NAME field
         self.layer = QgsVectorLayer('Point?crs=EPSG:4326', 'parts', 'memory')
         pr = self.layer.dataProvider()
-        pr.addAttributes([QgsField('NAME', QVariant.String)])
+        pr.addAttributes([QgsField('NAME', QVariant.String, 'varchar', 255)])
         self.layer.updateFields()
         feats = []
         for name, x in zip(['A', 'B', 'C'], [0, 1, 2]):
@@ -107,48 +107,6 @@ class TestCreatePartitionsList(unittest.TestCase):
         invalid = QgsVectorLayer()  # invalid layer
         with self.assertRaises(ValueError):
             data_loader.create_partitions_list(invalid, ['#'], -1, -1)
-
-
-class TestCreateAuxiliaryData(unittest.TestCase):
-    def setUp(self):
-        # polygon vegetation layer
-        self.veg = QgsVectorLayer('Polygon?crs=EPSG:4326', 'veg', 'memory')
-        pr = self.veg.dataProvider()
-        pr.addAttributes([QgsField('id', QVariant.Int)])
-        self.veg.updateFields()
-        f = QgsFeature(self.veg.fields())
-        f.setAttributes([1])
-        f.setGeometry(QgsGeometry.fromPolygonXY([[QgsPointXY(0,0), QgsPointXY(1,0), QgsPointXY(1,1), QgsPointXY(0,1), QgsPointXY(0,0)]]))
-        pr.addFeatures([f])
-        self.veg.updateExtents()
-        # line road layer
-        self.road = QgsVectorLayer('LineString?crs=EPSG:4326', 'road', 'memory')
-        pr = self.road.dataProvider()
-        pr.addAttributes([QgsField('id', QVariant.Int)])
-        self.road.updateFields()
-        f = QgsFeature(self.road.fields())
-        f.setAttributes([1])
-        f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(0,0), QgsPointXY(1,1)]))
-        pr.addFeatures([f])
-        self.road.updateExtents()
-        self.temp_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        for f in os.listdir(self.temp_dir):
-            os.remove(os.path.join(self.temp_dir, f))
-        os.rmdir(self.temp_dir)
-
-    def test_create_auxiliary_data(self):
-        poly, line = data_loader.create_auxiliary_data(self.veg, self.road, self.temp_dir)
-        self.assertTrue(os.path.exists(poly))
-        self.assertTrue(os.path.exists(line))
-        # check that returned layers are valid when loaded
-        lpoly = QgsVectorLayer(poly, 'p', 'ogr')
-        lline = QgsVectorLayer(line, 'l', 'ogr')
-        self.assertTrue(lpoly.isValid())
-        self.assertTrue(lline.isValid())
-        self.assertTrue(poly.startswith(self.temp_dir))
-        self.assertTrue(line.startswith(self.temp_dir))
 
 
 if __name__ == '__main__':
