@@ -26,13 +26,13 @@ of building footprints
 
 #Add iso code for any locales you want to support here (space separated)
 # default is no locales
+LOCALES = de
 # LOCALES = af
-LOCALES =
 
 # If locales are enabled, set the name of the lrelease binary on your system. If
 # you have trouble compiling the translations, you may have to specify the full path to
 # lrelease
-#LRELEASE = lrelease
+LRELEASE = lrelease
 #LRELEASE = lrelease-qt4
 
 
