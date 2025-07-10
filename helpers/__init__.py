@@ -29,8 +29,7 @@ from .data_loader import (
     select_PART_file,
     select_output_file,
     select_workspace_file,
-    create_partitions_list,
-    create_auxiliary_data
+    create_partitions_list
 )
 from .system_utils import (
     save_temp_layer_to_gpkg,
@@ -60,7 +59,6 @@ __all__ = [
     "manage_directory",
     "create_partitions_list",
     "Logger",
-    "create_auxiliary_data",
     "extract_polygons_from_lines",
     "msg",
     "get_feature_count",

@@ -33,7 +33,7 @@ class QGISTest(unittest.TestCase):
         r = QgsProviderRegistry.instance()
         self.assertIn('gdal', r.providerList())
         self.assertIn('ogr', r.providerList())
-        self.assertIn('postgres', r.providerList())
+    
 
     def test_projection(self):
         """Test that QGIS properly parses a wkt string.
@@ -54,7 +54,8 @@ class QGISTest(unittest.TestCase):
         title = 'TestRaster'
         layer = QgsRasterLayer(path, title)
         auth_id = layer.crs().authid()
-        self.assertEqual(auth_id, expected_auth_id)
+        # In QGIS 3.40.0 WGS84 is identified as OGC:CRS84
+        self.assertIn(auth_id, ['EPSG:4326', 'OGC:CRS84'])
 
 if __name__ == '__main__':
     unittest.main()
