@@ -39,14 +39,15 @@ class SafeTranslationsTest(unittest.TestCase):
         parent_path = os.path.join(__file__, os.path.pardir, os.path.pardir)
         dir_path = os.path.abspath(parent_path)
         file_path = os.path.join(
-            dir_path, 'i18n', 'af.qm')
+            dir_path, 'i18n', 'de.qm')
         translator = QTranslator()
         translator.load(file_path)
         QCoreApplication.installTranslator(translator)
 
-        expected_message = 'Goeie more'
-        real_message = QCoreApplication.translate("@default", 'Good morning')
-        self.assertEqual(real_message, expected_message)
+        source_message = 'Good morning'
+        expected_translation = 'Guten Morgen'
+        real_message = QCoreApplication.translate("@default", source_message)
+        self.assertEqual(expected_translation, real_message)
 
 
 if __name__ == "__main__":
