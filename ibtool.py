@@ -51,7 +51,8 @@ from qgis.PyQt.QtCore import (
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QAction,
-    QDialog
+    QDialog,
+    QFileDialog
 )
 from qgis.core import (
     QgsCoordinateReferenceSystem,

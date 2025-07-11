@@ -1,12 +1,11 @@
 # coding=utf-8
 """Unit tests for helpers.data_loader"""
 
-import os
-import tempfile
 import unittest
 from unittest.mock import patch
 
 from helpers import data_loader
+from ibtool import IBTool
 
 from .utilities import get_qgis_app
 from qgis.core import QgsVectorLayer, QgsField, QgsFeature, QgsGeometry, QgsPointXY
@@ -14,65 +13,47 @@ from PyQt5.QtCore import QVariant
 
 QGIS_APP = get_qgis_app()
 
-class DummyLineEdit:
-    def __init__(self):
-        self._text = ""
-
-    def setText(self, text):
-        self._text = text
-
-    def text(self):
-        return self._text
-
-class DummyDlg:
-    def __init__(self):
-        self.HuPath = DummyLineEdit()
-        self.RnPath = DummyLineEdit()
-        self.PartPath = DummyLineEdit()
-        self.AuxPath = DummyLineEdit()
-        self.OutputPath = DummyLineEdit()
-        self.WorkspacePath = DummyLineEdit()
-
 
 class TestSelectFileFunctions(unittest.TestCase):
     def setUp(self):
-        self.dlg = DummyDlg()
+        _, _, iface, _ = get_qgis_app()
+        self.tool = IBTool(iface)
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_hu_file(self, mock_dialog):
         mock_dialog.return_value = ('/tmp/test_hu.shp', '')
-        data_loader.select_HU_file(self.dlg)
-        self.assertEqual(self.dlg.HuPath.text(), '/tmp/test_hu.shp')
+        self.tool.select_HU_file()
+        self.assertEqual(self.tool.dlg.HuPath.text(), '/tmp/test_hu.shp')
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_rn_file(self, mock_dialog):
         mock_dialog.return_value = ('/tmp/test_rn.shp', '')
-        data_loader.select_RN_file(self.dlg)
-        self.assertEqual(self.dlg.RnPath.text(), '/tmp/test_rn.shp')
+        self.tool.select_RN_file()
+        self.assertEqual(self.tool.dlg.RnPath.text(), '/tmp/test_rn.shp')
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_part_file(self, mock_dialog):
         mock_dialog.return_value = ('/tmp/test_part.shp', '')
-        data_loader.select_PART_file(self.dlg)
-        self.assertEqual(self.dlg.PartPath.text(), '/tmp/test_part.shp')
+        self.tool.select_PART_file()
+        self.assertEqual(self.tool.dlg.PartPath.text(), '/tmp/test_part.shp')
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_aux_file(self, mock_dialog):
         mock_dialog.return_value = ('/tmp/test_aux.shp', '')
-        data_loader.select_AUX_file(self.dlg)
-        self.assertEqual(self.dlg.AuxPath.text(), '/tmp/test_aux.shp')
+        self.tool.select_AUX_file()
+        self.assertEqual(self.tool.dlg.AuxPath.text(), '/tmp/test_aux.shp')
 
     @patch('PyQt5.QtWidgets.QFileDialog.getSaveFileName')
     def test_select_output_file(self, mock_dialog):
         mock_dialog.return_value = ('/tmp/out.gpkg', '')
-        data_loader.select_output_file(self.dlg)
-        self.assertEqual(self.dlg.OutputPath.text(), '/tmp/out.gpkg')
+        self.tool.select_output_file()
+        self.assertEqual(self.tool.dlg.OutputPath.text(), '/tmp/out.gpkg')
 
     @patch('PyQt5.QtWidgets.QFileDialog.getExistingDirectory')
     def test_select_workspace_file(self, mock_dialog):
         mock_dialog.return_value = '/tmp/workspace'
-        data_loader.select_workspace_file(self.dlg)
-        self.assertEqual(self.dlg.WorkspacePath.text(), '/tmp/workspace')
+        self.tool.select_workspace_file()
+        self.assertEqual(self.tool.dlg.WorkspacePath.text(), '/tmp/workspace')
 
 
 class TestCreatePartitionsList(unittest.TestCase):
