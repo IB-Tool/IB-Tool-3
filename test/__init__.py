@@ -13,6 +13,13 @@ if project_root not in sys.path:
 os.environ['QGIS_PREFIX_PATH'] = r'C:\Program Files\QGIS 3.40.0'
 os.environ['PYTHONPATH'] = r'C:\Program Files\QGIS 3.40.0\apps\qgis\python'
 
+# Ensure QGIS executables and Python modules are discoverable
+qgis_bin = os.path.join(os.environ['QGIS_PREFIX_PATH'], 'bin')
+os.environ['PATH'] = qgis_bin + os.pathsep + os.environ.get('PATH', '')
+python_path = os.environ['PYTHONPATH']
+if python_path not in sys.path:
+    sys.path.append(python_path)
+
 # Initialize QGIS application for testing
 from qgis.core import QgsApplication
 from qgis import processing

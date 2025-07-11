@@ -24,22 +24,7 @@ of building footprints
 """
 
 import os
-import sys
 import time
-
-# Constants for configuration
-PYTHONPATH = '/helpers'
-
-def initialize_environment():
-    """Set up environment variables and system paths."""
-    os.environ['PYTHONPATH'] = PYTHONPATH
-    sys.path.append(PYTHONPATH)
-    os.environ['PATH'] += r";C:\Program Files\QGIS 3.40.0\bin;"
-    os.environ['PYTHONPATH'] = r"C:\Program Files\QGIS 3.40.0\apps\qgis\python"
-    sys.path.append(r"C:\Program Files\QGIS 3.40.0\apps\qgis\python")
-
-# Initialize the environment
-initialize_environment()
 
 from qgis.PyQt.QtCore import (
     QCoreApplication,
@@ -51,7 +36,8 @@ from qgis.PyQt.QtCore import (
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QAction,
-    QDialog
+    QDialog,
+    QFileDialog
 )
 from qgis.core import (
     QgsCoordinateReferenceSystem,
