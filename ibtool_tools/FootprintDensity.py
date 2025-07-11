@@ -21,17 +21,7 @@ from qgis.core import (
 
 from qgis import processing
 import os
-import sys
 from qgis.PyQt.QtCore import QVariant, QMetaType
-
-
-# Absoluten Pfad des benachbarten Ordners berechnen
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.abspath(os.path.join(current_dir, '..'))
-utils_dir = os.path.join(parent_dir, 'helpers')
-
-# Den Ordner zu sys.path hinzufügen
-sys.path.append(utils_dir)
 from ..helpers.system_utils import save_temp_layer_to_gpkg
 from ..helpers.message import msg
 from ..helpers.logger import Logger
