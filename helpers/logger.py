@@ -46,10 +46,10 @@ class Logger:
     def set_log_level(cls, level):
         """Setzt das globale Log-Level."""
         log_levels = {
-            'DEBUG': logging.DEBUG,
             'INFO': logging.INFO,
             'WARNING': logging.WARNING,
             'CRITICAL': logging.CRITICAL,
+            'SUCCESS': logging.DEBUG  # SUCCESS als Alias für DEBUG
         }
         msg(level)
         if level not in log_levels:
@@ -57,7 +57,7 @@ class Logger:
 
         cls.log_level = log_levels[level]
         logging.getLogger().setLevel(cls.log_level)  # Setze das Log-Level für die Datei
-        cls.log(f"Log-Level auf {level} gesetzt.", level="INFO")
+        cls.log(f"Log-Level auf {level} gesetzt.", level="WARNING")
 
     @classmethod
     def set_log_dir(cls, directory):
@@ -69,17 +69,17 @@ class Logger:
         cls._initialize_logging()
 
     @classmethod
-    def log(cls, message, level="INFO"):
+    def log(cls, message, level="WARNING"):
         """
         Gibt eine Nachricht im Nachrichtenfenster aus und schreibt sie in die Logdatei.
         :param message: Die zu loggende Nachricht.
-        :param level: Das Log-Level ('INFO', 'WARNING', 'DEBUG', 'ERROR', 'CRITICAL').
+        :param level: Das Log-Level ('INFO', 'WARNING', 'CRITICAL', 'SUCCESS').
         """
         log_levels = {
             "INFO": logging.INFO,
             "WARNING": logging.WARNING,
             "CRITICAL": logging.CRITICAL,
-            'SUCCESS': logging.DEBUG
+            'SUCCESS': logging.DEBUG  # SUCCESS als Alias für DEBUG
         }
 
         if level not in log_levels:
@@ -87,8 +87,8 @@ class Logger:
 
         logger_level = log_levels[level]
 
-        # Nachricht nur ausgeben, wenn sie dem aktuellen Log-Level entspricht
-        if logger_level >= cls.log_level:
+        # Nachricht nur ausgeben, wenn sie dem konfigurierten Log-Level entspricht oder wichtiger ist
+        if cls.log_level <= logger_level:
             # Convert message to string if it is not already
             if not isinstance(message, str):
                 message = str(message)

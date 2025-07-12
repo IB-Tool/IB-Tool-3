@@ -1,0 +1,57 @@
+import os
+import sys
+import types
+import unittest
+
+# Dummy QGIS classes
+class DummyQgis:
+    Info = 1
+    Warning = 2
+    Critical = 3
+    Success = 4
+
+class DummyQgsMessageLog:
+    logs = []
+
+    @classmethod
+    def logMessage(cls, message, tag, level=None):
+        cls.logs.append((message, tag, level))
+
+class MessageTestCase(unittest.TestCase):
+    def setUp(self):
+        project_root = os.path.dirname(os.path.dirname(__file__))
+
+        # Prepare minimal helpers package without executing its __init__
+        helpers_pkg = types.ModuleType('helpers')
+        helpers_pkg.__path__ = [os.path.join(project_root, 'helpers')]
+        sys.modules['helpers'] = helpers_pkg
+
+        # Stub qgis modules
+        core_mod = types.SimpleNamespace(Qgis=DummyQgis)
+        utils_mod = types.SimpleNamespace(QgsMessageLog=DummyQgsMessageLog)
+        sys.modules['qgis.core'] = core_mod
+        sys.modules['qgis.utils'] = utils_mod
+        sys.modules['qgis'] = types.SimpleNamespace(core=core_mod, utils=utils_mod)
+
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('helpers.message', os.path.join(project_root, 'helpers', 'message.py'))
+        message_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(message_mod)
+        sys.modules['helpers.message'] = message_mod
+        self.message_mod = message_mod
+        DummyQgsMessageLog.logs.clear()
+
+    def tearDown(self):
+        for mod in ['helpers.message', 'helpers', 'qgis.core', 'qgis.utils', 'qgis']:
+            sys.modules.pop(mod, None)
+
+    def test_msg_logs_string(self):
+        self.message_mod.msg('hello')
+        self.assertEqual(DummyQgsMessageLog.logs[-1], ('hello', 'Meldungen', DummyQgis.Info))
+
+    def test_msg_converts_non_string(self):
+        self.message_mod.msg(123, level=DummyQgis.Warning)
+        self.assertEqual(DummyQgsMessageLog.logs[-1], ('123', 'Meldungen', DummyQgis.Warning))
+
+if __name__ == '__main__':
+    unittest.main()
