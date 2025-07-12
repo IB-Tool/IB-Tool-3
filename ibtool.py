@@ -611,7 +611,12 @@ class IBTool:
 
         startzeit = time.strftime("%Y_%m_%d_%H_%M")
         lockswitch = False
-        aux_layers_line = layer_aux
+
+        aux_layers_line = processing.run("qgis:mergevectorlayers", {
+            'LAYERS': [layer_aux, layer_rn],
+            'CRS': spatial_reference,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
 
         merge_layer = create_empty_layer("global_merge_layer",
                                          "Polygon",
@@ -722,7 +727,8 @@ class IBTool:
                 logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, sel_part_layer)
-            
+            #save_temp_layer_to_gpkg(aux_lines_sel, "aux_lines_sel_{}".format(part_name), workspace_path)
+
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
             logger.log("SelStrassen Count = {}".format(anz_strassen), 'SUCCESS')
@@ -732,7 +738,7 @@ class IBTool:
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, sel_hu_layer, sel_part_layer)
-            save_temp_layer_to_gpkg(blocks, "blocks_{}".format(part_name), workspace_path)
+            #save_temp_layer_to_gpkg(blocks, "blocks_{}".format(part_name), workspace_path)
 
             hu_filter = input_hu_filter(sel_hu_layer, input_filter, min_area, 50, 200)
             #save_temp_layer_to_gpkg(hu_filter, "HU_Filter_{}".format(part_name))
