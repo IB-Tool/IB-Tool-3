@@ -74,8 +74,14 @@ class LoggerTestCase(unittest.TestCase):
 
     def tearDown(self):
         self.time_patcher.stop()
+        
+        # Logger-Instanz explizit schließen bevor Module entfernt werden
+        if hasattr(self.logger_mod, 'Logger') and self.logger_mod.Logger._instance:
+            self.logger_mod.Logger.close_logger()
+        
         for mod in ['helpers.logger', 'helpers.message', 'helpers', 'qgis.core', 'qgis']:
             sys.modules.pop(mod, None)
+        
         self.tmpdir.cleanup()
 
     def test_log_file_created(self):
