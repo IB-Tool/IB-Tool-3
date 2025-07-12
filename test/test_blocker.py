@@ -15,9 +15,6 @@ from qgis.core import (
     QgsProcessing,
     QgsFeature
 )
-import processing
-
-
 from ..helpers.system_utils import save_temp_layer_to_gpkg
 
 
