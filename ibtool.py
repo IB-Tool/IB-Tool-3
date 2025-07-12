@@ -624,6 +624,7 @@ class IBTool:
 
         logger.log("Part list: {}".format(part_list), 'SUCCESS')
 
+        global_footprint_density = 18  # TODO
         '''
         # calculate threshold value for footprint density
         if global_footprint_density == 0:
@@ -638,7 +639,7 @@ class IBTool:
         else:
             pass
         '''
-        global_footprint_density = 18 #TODO
+
         logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
 
         msg(part_log_path) #TODO löschen
@@ -731,8 +732,7 @@ class IBTool:
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, sel_hu_layer, sel_part_layer)
-            #save_temp_layer_to_gpkg(blocks, "blocks_{}".format(part_name))
-
+            save_temp_layer_to_gpkg(blocks, "blocks_{}".format(part_name), workspace_path)
 
             hu_filter = input_hu_filter(sel_hu_layer, input_filter, min_area, 50, 200)
             #save_temp_layer_to_gpkg(hu_filter, "HU_Filter_{}".format(part_name))
