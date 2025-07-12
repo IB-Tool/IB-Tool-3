@@ -15,7 +15,5 @@ WORKDIR /app
 # 5. Plugin-Code und Tests kopieren
 COPY . /app
 
-# 6. Standard-Befehl: Tests über Xvfb „kopf­los“ ausführen
-CMD ["xvfb-run", "-a", "pytest", "--maxfail=1", "--disable-warnings", "-q"]
-
-
+# 6. Standard-Befehl: Tests im test/ Verzeichnis über Xvfb „kopf­los" ausführen
+CMD ["xvfb-run", "-a", "pytest", "test/", "--maxfail=1", "--disable-warnings", "-q"]
