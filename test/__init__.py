@@ -39,10 +39,16 @@ def setUpModule():
         # Initialize QGIS
         qgis_app.initQgis()
 
-        # Initialize processing plugin
+        # Initialize processing plugin - WICHTIG für Ihre Tools!
         try:
+            # Stelle sicher, dass Processing-Plugin verfügbar ist
+            from qgis import processing
             from processing.core.Processing import Processing
             Processing.initialize()
+            print("Processing plugin initialized successfully")
+        except ImportError as e:
+            print(f"Critical: Could not import processing module: {e}")
+            print("This will cause failures in tool modules!")
         except Exception as e:
             print(f"Warning: Could not initialize Processing plugin: {e}")
 
