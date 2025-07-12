@@ -1,4 +1,3 @@
-
 # IBTool
 
 ![QGIS Plugin](https://img.shields.io/badge/QGIS-Plugin-blue)
@@ -85,9 +84,36 @@ Das Plugin arbeitet mit verschiedenen Eingabedateien. Diese beinhalten:
 
 ---
 
-### Projektstruktur
 
-Nach der erfolgreichen Verarbeitung erstellt IBTool folgende Struktur:
+## Logging-System
+
+Das IBTool verfügt über ein umfassendes Logging-System, das Meldungen an drei verschiedenen Stellen ausgibt:
+
+1. In der Benutzeroberfläche (Nachrichtenfenster)
+2. In einer Logdatei im konfigurierbaren Log-Verzeichnis
+3. In den QGIS-Meldungen
+
+### Log-Levels
+
+Das System unterstützt vier verschiedene Log-Levels, die in absteigender Priorität sind:
+
+- **CRITICAL**: Kritische Fehler, die die Ausführung beeinträchtigen
+- **WARNING**: Warnungen, die auf mögliche Probleme hinweisen
+- **INFO**: Informationsmeldungen über den normalen Ablauf
+- **SUCCESS**: Detaillierte Erfolgs- und Debug-Meldungen
+
+Bei der Auswahl eines Log-Levels werden alle Nachrichten dieses Levels und der höheren Priorität angezeigt. Beispiel: Bei Auswahl von "INFO" werden INFO-, WARNING- und CRITICAL-Meldungen angezeigt, aber keine SUCCESS-Meldungen.
+
+### Konfiguration
+
+Das Log-Level kann über die Benutzeroberfläche eingestellt werden:
+
+1. Wählen Sie im Dropdown-Menü "Log-Level" den gewünschten Detaillierungsgrad aus.
+2. Optional: Wählen Sie ein anderes Verzeichnis für die Logdateien über den "Log-Verzeichnis" Button.
+
+### Logdateien
+
+Die Logdateien werden standardmäßig im Unterverzeichnis "logs" des Plugins gespeichert und mit einem Zeitstempel im Format `logfile_YYYY-MM-DD_HH-MM-SS.txt` versehen. Bei jedem Start des Plugins wird eine neue Logdatei erstellt.
 
 
 ## Lizenz
@@ -112,7 +138,3 @@ Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Si
 ---
 
 Viel Spaß beim Verwenden des **IBTool**-Plugins!
-
-
-
-

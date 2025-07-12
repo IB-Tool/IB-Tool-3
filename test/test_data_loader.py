@@ -80,7 +80,7 @@ class TestCreatePartitionsList(unittest.TestCase):
         # Create an in-memory vector layer with NAME field
         self.layer = QgsVectorLayer('Point?crs=EPSG:4326', 'parts', 'memory')
         pr = self.layer.dataProvider()
-        pr.addAttributes([QgsField('NAME', QVariant.String, 'varchar', 255)])
+        pr.addAttributes([QgsField('NAME', QVariant.String, 'varchar', 255, 0)])
         self.layer.updateFields()
         feats = []
         for name, x in zip(['A', 'B', 'C'], [0, 1, 2]):
