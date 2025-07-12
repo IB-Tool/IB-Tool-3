@@ -618,11 +618,31 @@
       </rect>
      </property>
      <property name="currentText">
-      <string/>
+      <string>WARNING</string>
      </property>
      <property name="currentIndex">
-      <number>-1</number>
+      <number>0</number>
      </property>
+     <item>
+      <property name="text">
+       <string>WARNING</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>CRITICAL</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>SUCCESS</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>INFO</string>
+      </property>
+     </item>
     </widget>
     <widget class="QLineEdit" name="SpatialReferenceBox">
      <property name="geometry">

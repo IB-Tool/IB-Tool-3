@@ -488,6 +488,14 @@ class IBTool:
     def start_processing(self):
         """Start main process"""
 
+        # Ensure logger uses the level selected in the GUI
+        selected_level = self.dlg.LogLevelBox.currentText()
+        if selected_level:
+            try:
+                logger.set_log_level(selected_level)
+            except ValueError as e:
+                msg(str(e))
+
         log_dir = self.dlg.LogDirPath.text()
         if log_dir:
             logger.set_log_dir(log_dir)
@@ -803,4 +811,4 @@ class IBTool:
             save_temp_layer_to_gpkg(merge, str(output_filename), output_folder + "/")
 
 
-        logger.log("ERFOLG")
+        logger.log("ERFOLG", "CRITICAL")
