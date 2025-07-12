@@ -811,4 +811,4 @@ class IBTool:
             save_temp_layer_to_gpkg(merge, str(output_filename), output_folder + "/")
 
 
-        logger.log("ERFOLG")
+        logger.log("ERFOLG", "CRITICAL")
