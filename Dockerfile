@@ -26,7 +26,6 @@ COPY . /app
 
 # 6. Umgebungsvariablen für headless mode setzen
 ENV QT_QPA_PLATFORM=offscreen
-ENV DISPLAY=:99
 
-# 7. Standard-Befehl: Tests im test/ Verzeichnis über Xvfb „kopf­los" ausführen
-CMD ["xvfb-run", "-a", "-s", "-screen 0 1024x768x24", "python3", "-m", "pytest", "test/", "-v", "--tb=short"]
+# 7. Finale Test-Ausführung
+CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short"]
