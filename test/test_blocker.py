@@ -3,19 +3,23 @@ import os
 import sys
 import logging
 from pathlib import Path
+import importlib.util
+
 
 # QGIS imports
 from qgis.core import (
-    QgsApplication,
     QgsVectorLayer,
-    QgsGeometry,
-    QgsField,
-    QgsFeature,
     QgsProject,
-    QgsCoordinateReferenceSystem,
-    QgsProcessingUtils
+    QgsGeometry,
+    QgsWkbTypes,  # Wichtig: Import für Geometrietypen
+    QgsProcessing,
+    QgsFeature
 )
-from qgis.PyQt.QtCore import QVariant
+import processing
+
+
+from ..helpers.system_utils import save_temp_layer_to_gpkg
+
 
 # Import utilities for QGIS setup
 from utilities import get_qgis_app
@@ -52,21 +56,21 @@ class TestBlockerIntegration(unittest.TestCase):
         # Verbesserte Pfadkonfiguration für Tests
         test_dir = Path(__file__).parent
         project_root = test_dir.parent
-        
+
         # Alle notwendigen Pfade hinzufügen
         paths_to_add = [
             str(project_root),
             str(project_root / 'helpers'),
             str(project_root / 'ibtool_tools')
         ]
-        
+
         for path in paths_to_add:
             if path not in sys.path:
                 sys.path.insert(0, path)
 
         # Import der Blocker-Funktion
         try:
-            from .ibtool_tools.Blocker import blocker
+            from ..ibtool_tools.Blocker import blocker
             self.blocker_function = blocker
         except ImportError as e:
             self.fail(f"Konnte Blocker-Funktion nicht importieren: {e}")
@@ -77,7 +81,11 @@ class TestBlockerIntegration(unittest.TestCase):
         if not file_path.exists():
             raise FileNotFoundError(f"Test data file not found: {file_path}")
 
-        layer = QgsVectorLayer(str(file_path), filename.stem, 'ogr')
+        # Korrektur: Verwende os.path.splitext um den Namen ohne Extension zu bekommen
+        layer_name = os.path.splitext(filename)[
+            0]  # Entfernt die .gpkg Extension
+        layer = QgsVectorLayer(str(file_path), layer_name, 'ogr')
+
         if not layer.isValid():
             raise ValueError(f"Layer is not valid: {filename}")
 
@@ -87,7 +95,7 @@ class TestBlockerIntegration(unittest.TestCase):
         """Berechnet die Gesamtfläche aller Features in einem Layer"""
         total_area = 0.0
         for feature in layer.getFeatures():
-            if feature.geometry() and feature.geometry().isValid():
+            if feature.geometry() and feature.geometry().isGeosValid():
                 total_area += feature.geometry().area()
         return total_area
 
@@ -95,8 +103,10 @@ class TestBlockerIntegration(unittest.TestCase):
         """Berechnet die Summe aller Umringe in einem Layer"""
         total_perimeter = 0.0
         for feature in layer.getFeatures():
-            if feature.geometry() and feature.geometry().isValid():
-                total_perimeter += feature.geometry().boundary().length()
+            if feature.geometry() and feature.geometry().isGeosValid():
+                # Für Polygone: length() gibt den Umfang zurück
+                # Für Linien: length() gibt die Länge zurück
+                total_perimeter += feature.geometry().length()
         return total_perimeter
 
     def calculate_area_difference_percent(self, expected_layer, actual_layer):
@@ -113,7 +123,7 @@ class TestBlockerIntegration(unittest.TestCase):
         """Vereinigt alle Geometrien eines Layers"""
         union_geom = None
         for feature in layer.getFeatures():
-            if feature.geometry() and feature.geometry().isValid():
+            if feature.geometry() and feature.geometry().isGeosValid():
                 if union_geom is None:
                     union_geom = feature.geometry()
                 else:
@@ -138,10 +148,12 @@ class TestBlockerIntegration(unittest.TestCase):
         """Überprüft die Geometriegültigkeit aller Features"""
         geometry_issues = []
         for feature in layer.getFeatures():
-            if feature.geometry() and not feature.geometry().isValid():
+            if feature.geometry() and not feature.geometry().isGeosValid():
                 geometry_issues.append({
                     'feature_id': feature.id(),
-                    'error': feature.geometry().lastError()
+                    'error': feature.geometry().lastError() if hasattr(
+                        feature.geometry(),
+                        'lastError') else 'Unknown geometry error'
                 })
         return geometry_issues
 
@@ -286,13 +298,15 @@ class TestBlockerIntegration(unittest.TestCase):
         self.logger.info("Running standard case test...")
 
         # Load test data
-        strassen = self.load_test_layer('dummy_rn.gpkg')
+        strassen = self.load_test_layer('dummy_aux_rn.gpkg')
         hu_input = self.load_test_layer('dummy_hu.gpkg')
         partition = self.load_test_layer('dummy_part.gpkg')
         expected_result = self.load_test_layer('blocker_result.gpkg')
+        test_dir = Path(__file__).parent
 
         # Run blocker function
         result = self.blocker_function(strassen, hu_input, partition)
+        save_temp_layer_to_gpkg(result, 'blocker_result2.gpkg', test_dir)
 
         # Verify result is valid
         self.assertIsNotNone(result, "Blocker function returned None")
@@ -303,7 +317,6 @@ class TestBlockerIntegration(unittest.TestCase):
         # Compare with expected result
         self.assert_layers_similar(expected_result, result, "standard_case")
 
-    '''
     def test_blocker_geometry_validation(self):
         """Test der Geometriegültigkeit"""
         self.logger.info("Running geometry validation test...")
@@ -329,7 +342,7 @@ class TestBlockerIntegration(unittest.TestCase):
             if feature.geometry():
                 self.assertEqual(
                     feature.geometry().type(),
-                    QgsGeometry.PolygonGeometry,
+                    QgsWkbTypes.PolygonGeometry,  # Korrekte Syntax!
                     "All features should be polygons"
                 )
 
@@ -452,7 +465,7 @@ class TestBlockerIntegration(unittest.TestCase):
         # Reasonable time limit (adjust as needed)
         self.assertLess(execution_time, 60,
                         "Function should complete within 60 seconds")
-        '''
+        
 
     def tearDown(self):
         """Cleanup nach jedem Test"""
