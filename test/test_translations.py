@@ -41,11 +41,20 @@ class SafeTranslationsTest(unittest.TestCase):
         file_path = os.path.join(
             dir_path, 'i18n', 'de.qm')
         translator = QTranslator()
-        translator.load(file_path)
+        
+        # Überprüfen, ob die Datei existiert
+        if not os.path.exists(file_path):
+            self.fail(f"Translation file not found: {file_path}")
+        
+        # Überprüfen, ob die Übersetzung geladen wurde
+        loaded = translator.load(file_path)
+        self.assertTrue(loaded, "Failed to load translation file")
+        
         QCoreApplication.installTranslator(translator)
 
         source_message = 'Good morning'
         expected_translation = 'Guten Morgen'
+        # Verwende den korrekten Kontext aus der .ts Datei
         real_message = QCoreApplication.translate("@default", source_message)
         self.assertEqual(expected_translation, real_message)
 
