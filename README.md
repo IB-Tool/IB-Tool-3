@@ -250,3 +250,5 @@ Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Si
 ---
 
 Viel Spaß beim Verwenden des **IBTool**-Plugins!
+
+coverage report hinzugefügt
