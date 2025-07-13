@@ -55,7 +55,13 @@
      - Windows: `C:\Users\<Benutzername>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
      - Linux: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
      - Hinweis: Installationspfad kann unsichtbar sein und muss dann erst über die Ordnereinstellung sichtbar gemacht werden
-3. **Aktivieren des Plugins**:
+3. **QGIS-Pfad konfigurieren (optional)**:
+   - IBTool erkennt QGIS automatisch über die Umgebungsvariable `QGIS_PREFIX_PATH` oder übliche Installationsorte.
+   - Ist QGIS an einem anderen Ort installiert, setze `QGIS_PREFIX_PATH` manuell, z.B.:
+     ```bash
+     export QGIS_PREFIX_PATH=/opt/qgis
+     ```
+4. **Aktivieren des Plugins**:
    - Starte QGIS und aktiviere IBTool in der "Plugin-Verwaltung".
 
 ---
