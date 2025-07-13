@@ -21,6 +21,8 @@ RUN apt-get update \
     python3-psycopg2 \
     python3-shapely \
     python3-fiona \
+    python3-coverage \
+    python3-pytest-cov \
  && rm -rf /var/lib/apt/lists/*
 
 # 4. Arbeitsverzeichnis im Container
@@ -51,4 +53,4 @@ print('Processing erfolgreich initialisiert'); \
 app.exitQgis()"
 
 # 8. Finale Test-Ausführung
-CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short"]
+CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short", "--cov=.", "--cov-report=xml", "--cov-report=html"]
