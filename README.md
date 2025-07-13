@@ -32,7 +32,7 @@
 
 ## Voraussetzungen
 
-- **QGIS**: Version 3.40
+- **QGIS**: Version 3.40-3.50
 - **Python**: Version >= 3.9
 
 - Installierte Python-Bibliotheken:
