@@ -2,9 +2,7 @@
 
 ![QGIS Plugin](https://img.shields.io/badge/QGIS-Plugin-blue)
 ![License](https://img.shields.io/badge/license-GPL%20v2-green)
-[![Coverage](https://codecov.io/gh/your-username/IB-Tool-3/branch/main/graph/badge.svg)](https://codecov.io/gh/your-username/IB-Tool-3)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
-
 
 ## Projektbeschreibung
 
@@ -92,116 +90,6 @@ Das Plugin arbeitet mit verschiedenen Eingabedateien. Diese beinhalten:
 
 ---
 
-## Entwicklerhinweise
-
-### GitHub Actions mit Docker
-
-Das Projekt nutzt GitHub Actions für kontinuierliche Integration (CI) mit Docker-Containern. Die CI-Pipeline ist in `.github/workflows/ci.yml` konfiguriert und führt automatisierte Tests auf mehreren Plattformen durch.
-
-#### CI-Konfiguration
-
-Die GitHub Actions-Pipeline bietet folgende Features:
-
-- **Multi-Platform Testing**: Unterstützung für Ubuntu, Windows und macOS
-- **Multi-QGIS-Version Testing**: Automatische Tests mit QGIS 3.40 und 3.50
-- **Docker-basierte Tests**: Verwendung von Docker für konsistente Testumgebungen
-- **Code Coverage**: Automatische Generierung von Coverage-Berichten und Badges
-
-#### Lokale Docker-Entwicklung
-
-1. **Docker-Image erstellen**:
-   ```bash
-   docker build --pull --build-arg QGIS_VERSION=3.50 -t qgis-plugin-test:3.50 .
-   ```
-
-2. **Tests in Docker ausführen**:
-   ```bash
-   docker run --rm -v $(pwd):/app -w /app qgis-plugin-test:3.50 \
-     bash -c "pytest -v --tb=short --cov=. --cov-report=xml --cov-report=html"
-   ```
-
-#### Dockerfile-Struktur
-
-Das Dockerfile konfiguriert eine vollständige QGIS-Testumgebung mit:
-
-- **QGIS-Installation**: Spezifische QGIS-Version basierend auf dem Build-Argument
-- **Python-Abhängigkeiten**: Alle erforderlichen Python-Pakete für Tests
-- **Testing-Tools**: pytest, coverage und weitere Test-Utilities
-
-#### Lokale Entwicklung
-
-**Voraussetzungen für lokale Entwicklung:**
-- Docker Desktop installiert
-- Git für Versionskontrolle
-- Editor mit Python-Unterstützung (empfohlen: PyCharm, VS Code)
-
-**Entwicklungsworkflow:**
-
-1. **Repository klonen**:
-   ```bash
-   git clone https://github.com/dein-repository/ibtool.git
-   cd ibtool
-   ```
-
-2. **Lokale Tests ausführen**:
-   ```bash
-   # Für QGIS 3.50
-   docker build --build-arg QGIS_VERSION=3.50 -t ibtool-test .
-   docker run --rm -v $(pwd):/app -w /app ibtool-test pytest
-   
-   # Für QGIS 3.40
-   docker build --build-arg QGIS_VERSION=3.40 -t ibtool-test-340 .
-   docker run --rm -v $(pwd):/app -w /app ibtool-test-340 pytest
-   ```
-
-3. **Coverage-Berichte generieren**:
-   ```bash
-   docker run --rm -v $(pwd):/app -w /app ibtool-test \
-     bash -c "pytest --cov=. --cov-report=html"
-   ```
-
-4. **Interaktive Docker-Sitzung für Debugging**:
-   ```bash
-   docker run --rm -it -v $(pwd):/app -w /app ibtool-test bash
-   ```
-
-#### CI-Pipeline Trigger
-
-Die CI-Pipeline wird automatisch ausgelöst bei:
-- **Push auf main-Branch**: Vollständige Test-Suite auf allen Plattformen
-- **Pull Requests**: Tests zur Validierung von Änderungen
-- **Manuelle Ausführung**: Über GitHub Actions Interface
-
-#### Coverage-Berichte
-
-Die Pipeline generiert automatisch:
-- **XML-Coverage-Berichte**: Für Codecov-Integration
-- **HTML-Coverage-Berichte**: Als Artefakte verfügbar
-- **Coverage-Badges**: Automatische Aktualisierung im README
-
-**Zugriff auf Coverage-Berichte:**
-1. Gehe zu GitHub Actions Tab
-2. Wähle den gewünschten Workflow-Lauf
-3. Lade die `htmlcov-*` Artefakte herunter
-
-#### Troubleshooting
-
-**Häufige Probleme:**
-
-1. **Docker-Build schlägt fehl**:
-   - Stelle sicher, dass Docker läuft
-   - Prüfe die Netzwerkverbindung für Package-Downloads
-   - Verwende `--no-cache` Flag bei persistenten Problemen
-
-2. **Tests schlagen in Docker fehl, aber lokal nicht**:
-   - Überprüfe Python-Pfade und QGIS-Installation
-   - Stelle sicher, dass alle Test-Abhängigkeiten im Dockerfile enthalten sind
-
-3. **Coverage-Berichte werden nicht generiert**:
-   - Stelle sicher, dass pytest-cov installiert ist
-   - Überprüfe die Coverage-Konfiguration in `pytest.ini` oder `setup.cfg`
-
----
 
 ## Logging-System
 
