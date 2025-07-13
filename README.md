@@ -2,7 +2,9 @@
 
 ![QGIS Plugin](https://img.shields.io/badge/QGIS-Plugin-blue)
 ![License](https://img.shields.io/badge/license-GPL%20v2-green)
+[![Coverage](https://codecov.io/gh/your-username/IB-Tool-3/branch/main/graph/badge.svg)](https://codecov.io/gh/your-username/IB-Tool-3)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
+
 
 ## Projektbeschreibung
 
