@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from helpers import data_loader
 
-from .utilities import get_qgis_app
+from ..utilities import get_qgis_app
 from qgis.core import QgsVectorLayer, QgsField, QgsFeature, QgsGeometry, QgsPointXY
 from PyQt5.QtCore import QVariant
 

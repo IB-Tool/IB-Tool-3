@@ -8,7 +8,7 @@ from qgis.PyQt.QtWidgets import (QDialog, QPushButton, QLineEdit, QProgressBar,
 from qgis.PyQt.QtCore import Qt
 
 from ibtool_dialog import IBToolDialog
-from .utilities import get_qgis_app
+from ..utilities import get_qgis_app
 
 __author__ = 'Tim Sutton <tim@linfiniti.com>'
 __date__ = '2011-04-22'
