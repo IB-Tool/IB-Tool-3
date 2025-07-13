@@ -1,5 +1,6 @@
-# 1. Basis-Image mit QGIS 3.40
-FROM 3liz/qgis-platform:3.40
+# 1. Basis-Image, QGIS-Version kann ueber Build-Arg angepasst werden
+ARG QGIS_VERSION=3.40
+FROM 3liz/qgis-platform:${QGIS_VERSION}
 
 # 2. Root-Rechte für Systeminstallationen
 USER root
@@ -21,7 +22,10 @@ RUN apt-get update \
     python3-psycopg2 \
     python3-shapely \
     python3-fiona \
- && rm -rf /var/lib/apt/lists/*
+    python3-pip \
+    python3-coverage \
+    python3-pytest-cov \
+&& rm -rf /var/lib/apt/lists/*
 
 # 4. Arbeitsverzeichnis im Container
 WORKDIR /app
@@ -51,4 +55,4 @@ print('Processing erfolgreich initialisiert'); \
 app.exitQgis()"
 
 # 8. Finale Test-Ausführung
-CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short"]
+CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short", "--cov=.", "--cov-report=xml", "--cov-report=html"]
