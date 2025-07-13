@@ -34,9 +34,26 @@ def initialize_environment():
     """Set up environment variables and system paths."""
     os.environ['PYTHONPATH'] = PYTHONPATH
     sys.path.append(PYTHONPATH)
-    os.environ['PATH'] += r";C:\Program Files\QGIS 3.40.0\bin;"
-    os.environ['PYTHONPATH'] = r"C:\Program Files\QGIS 3.40.0\apps\qgis\python"
-    sys.path.append(r"C:\Program Files\QGIS 3.40.0\apps\qgis\python")
+
+    qgis_prefix = os.environ.get('QGIS_PREFIX_PATH')
+    if not qgis_prefix:
+        potential_paths = [
+            '/usr',
+            '/usr/local',
+            '/Applications/QGIS.app/Contents/MacOS'
+        ]
+        for path in potential_paths:
+            if os.path.exists(os.path.join(path, 'bin', 'qgis')) or \
+               os.path.exists(os.path.join(path, 'bin', 'qgis.bin')):
+                qgis_prefix = path
+                break
+
+    if qgis_prefix:
+        os.environ['PATH'] += os.pathsep + os.path.join(qgis_prefix, 'bin')
+        python_path = os.path.join(qgis_prefix, 'share', 'qgis', 'python')
+        os.environ['PYTHONPATH'] += os.pathsep + python_path
+        if python_path not in sys.path:
+            sys.path.append(python_path)
 
 # Initialize the environment
 initialize_environment()

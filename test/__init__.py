@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 Test Module Setup für QGIS Processing Tests - CRASH-PROOF VERSION
+
+Supported QGIS versions: 3.40-3.50
 """
 
 import os

@@ -7,7 +7,7 @@ from .logger import Logger
 MIN_PYTHON = (3, 9)
 MAX_PYTHON = (3, 12)
 MIN_QGIS = 34000  # QGIS Version 3.40
-MAX_QGIS = 35000 # QGIS Version 3.36
+MAX_QGIS = 35000  # QGIS Version 3.50
 
 Logger = Logger()
 
@@ -65,7 +65,7 @@ def manage_directory(workspace_path, del_part_log):
     # Verzeichnispfad zusammensetzen
     #path_common_workspace = r"{}".format(workspace_path)
     #directory_path = f'"{os.path.join(path_common_workspace, "IB_Tool_Results")}"'
-    directory_path = workspace_path + 'IB_Tool_Results'
+    directory_path = os.path.join(workspace_path, 'IB_Tool_Results')
 
     try:
         # Wenn del_part_log True ist und der Ordner existiert, löschen
@@ -140,5 +140,5 @@ def version_check():
     qgis_int = Qgis.QGIS_VERSION_INT
     if not (MIN_QGIS <= qgis_int <= MAX_QGIS):
         raise RuntimeError(
-            "Dieses Plugin benötigt QGIS zwischen Version 3.22 und 3.36"
+            "Dieses Plugin benötigt QGIS zwischen Version 3.40 und 3.50"
         )
