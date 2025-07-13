@@ -7,11 +7,10 @@ on:
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest  # Docker läuft nur zuverlässig auf Ubuntu
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         qgis: ["3.40", "3.50"]
 
     steps:
@@ -44,5 +43,5 @@ jobs:
       - name: Upload htmlcov artifact
         uses: actions/upload-artifact@v4
         with:
-          name: htmlcov-${{ matrix.os }}-${{ matrix.qgis }}
+          name: htmlcov-qgis-${{ matrix.qgis }}
           path: htmlcov
