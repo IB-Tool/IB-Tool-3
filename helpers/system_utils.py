@@ -65,7 +65,7 @@ def manage_directory(workspace_path, del_part_log):
     # Verzeichnispfad zusammensetzen
     #path_common_workspace = r"{}".format(workspace_path)
     #directory_path = f'"{os.path.join(path_common_workspace, "IB_Tool_Results")}"'
-    directory_path = workspace_path + 'IB_Tool_Results'
+    directory_path = os.path.join(workspace_path, 'IB_Tool_Results')
 
     try:
         # Wenn del_part_log True ist und der Ordner existiert, löschen
