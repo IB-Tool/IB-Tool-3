@@ -15,11 +15,11 @@ from qgis.core import (
     QgsProcessing,
     QgsFeature
 )
-from ..helpers.system_utils import save_temp_layer_to_gpkg
+from helpers.system_utils import save_temp_layer_to_gpkg
 
 
 # Import utilities for QGIS setup
-from .utilities import get_qgis_app
+from ..utilities import get_qgis_app
 
 
 class TestBlockerIntegration(unittest.TestCase):
