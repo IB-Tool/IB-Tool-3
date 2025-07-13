@@ -2,7 +2,9 @@
 
 ![QGIS Plugin](https://img.shields.io/badge/QGIS-Plugin-blue)
 ![License](https://img.shields.io/badge/license-GPL%20v2-green)
+[![Coverage](https://codecov.io/gh/your-username/IB-Tool-3/branch/main/graph/badge.svg)](https://codecov.io/gh/your-username/IB-Tool-3)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
+
 
 ## Projektbeschreibung
 
@@ -90,6 +92,109 @@ Das Plugin arbeitet mit verschiedenen Eingabedateien. Diese beinhalten:
 
 ---
 
+## Entwicklerhinweise
+
+### Continuous Integration mit GitHub Actions und Docker
+
+Das Projekt nutzt GitHub Actions für automatisierte Tests in einer Docker-Umgebung. Die CI-Pipeline wird bei jedem Push auf den `main`-Branch und bei Pull Requests ausgeführt.
+
+#### CI-Workflow (`.github/workflows/ci.yml`)
+
+Der CI-Workflow:
+1. Checkt den Repository-Code aus
+2. Richtet Docker Buildx ein
+3. Baut das Docker-Image basierend auf dem `Dockerfile`
+4. Führt die Tests im Container aus
+
+```bash
+    yaml name: CI
+    on: push: branches: [main] pull_request:
+    jobs: test: runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Build Docker image
+        run: |
+          docker build --pull -t qgis-plugin-test .
+      
+      - name: Run tests
+        run: |
+          docker run --rm qgis-plugin-test
+```
+
+#### Docker-Umgebung
+
+Das `Dockerfile` basiert auf dem offiziellen QGIS-Image `3liz/qgis-platform:3.40` und:
+
+- Installiert alle benötigten Python-Abhängigkeiten (numpy, pandas, matplotlib, scipy, sklearn, etc.)
+- Konfiguriert eine headless X-Server-Umgebung (xvfb) für GUI-Tests
+- Setzt die notwendigen Umgebungsvariablen für QGIS
+- Initialisiert den QGIS Processing Provider
+- Führt die Tests mit pytest aus
+
+#### Lokale Entwicklung mit Docker
+
+Für die lokale Entwicklung können Sie das Docker-Image verwenden:
+
+
+```bash
+    # Docker-Image bauen
+    docker build -t qgis-plugin-test .
+    # Tests ausführen
+    docker run --rm qgis-plugin-test
+    # Interaktive Shell im Container
+    docker run --rm -it qgis-plugin-test /bin/bash
+```
+
+#### Test-Struktur
+
+Die Tests befinden sich im `test/`-Verzeichnis und werden mit pytest ausgeführt:
+
+- `test_init.py`: Plugin-Initialisierung
+- `test_logger.py`: Logging-System
+- `test_blocker.py`: Blocker-Funktionalität
+- `test_message.py`: Nachrichtensystem
+- `test_resources.py`: Ressourcen-Management
+- `test_data_loader.py`: Datenlade-Funktionen
+- `test_translations.py`: Übersetzungen
+- `test_ibtool_dialog.py`: Dialog-Funktionalität
+- `test_manage_directory.py`: Verzeichnis-Management
+- `test_qgis_environment.py`: QGIS-Umgebung
+
+#### Debugging
+
+Bei Problemen mit der CI-Pipeline:
+
+1. Überprüfen Sie die GitHub Actions-Logs für detaillierte Fehlermeldungen
+2. Testen Sie das Docker-Image lokal mit den gleichen Befehlen
+3. Stellen Sie sicher, dass neue Tests die Docker-Umgebung unterstützen (headless mode)
+
+#### Anpassung der CI-Pipeline
+
+Für Änderungen an der CI-Pipeline bearbeiten Sie:
+
+- `.github/workflows/ci.yml`: Workflow-Konfiguration
+- `Dockerfile`: Docker-Umgebung und Dependencies
+- `test/`: Test-Dateien und Testdaten
+
+#### Abhängigkeiten
+
+Die Docker-Umgebung installiert folgende Systemabhängigkeiten:
+
+- `xvfb`: X Virtual Framebuffer für headless GUI-Tests
+- `python3-pytest`: Test-Framework
+- `python3-numpy`, `python3-pandas`, `python3-matplotlib`: Numerische Bibliotheken
+- `python3-scipy`, `python3-sklearn`: Wissenschaftliche Bibliotheken
+- `python3-networkx`: Netzwerkanalyse
+- `python3-geopandas`, `python3-gdal`: Geodaten-Verarbeitung
+- `python3-psycopg2`: PostgreSQL-Verbindung
+- `python3-shapely`, `python3-fiona`: Geometrie-Verarbeitung
+
+---
 
 ## Logging-System
 
@@ -121,6 +226,7 @@ Das Log-Level kann über die Benutzeroberfläche eingestellt werden:
 
 Die Logdateien werden standardmäßig im Unterverzeichnis "logs" des Plugins gespeichert und mit einem Zeitstempel im Format `logfile_YYYY-MM-DD_HH-MM-SS.txt` versehen. Bei jedem Start des Plugins wird eine neue Logdatei erstellt.
 
+---
 
 ## Lizenz
 
