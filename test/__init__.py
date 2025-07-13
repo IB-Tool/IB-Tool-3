@@ -1,61 +1,77 @@
-# import qgis libs so that ve set the correct sip api version
-import qgis  # pylint: disable=W0611  # NOQA
+# -*- coding: utf-8 -*-
+"""
+Test Module Setup für QGIS Processing Tests - CRASH-PROOF VERSION
+"""
 
-import sys
 import os
+import sys
+import atexit
 
 # Add the project root directory to the Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# Set environment variables for headless mode
-os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-os.environ['DISPLAY'] = ':99'
+# QGIS environment setup
+qgis_root = r'C:\Program Files\QGIS 3.40.0'
+os.environ['QGIS_PREFIX_PATH'] = qgis_root
+os.environ['PYTHONPATH'] = os.path.join(qgis_root, 'apps', 'qgis', 'python')
 
-# QGIS environment setup - remove Windows-specific paths
-# os.environ['QGIS_PREFIX_PATH'] = r'C:\Program Files\QGIS 3.40.0'
-# os.environ['PYTHONPATH'] = r'C:\Program Files\QGIS 3.40.0\apps\qgis\python'
+# Füge alle notwendigen QGIS-Pfade hinzu
+qgis_paths = [
+    os.path.join(qgis_root, 'apps', 'qgis', 'python'),
+    os.path.join(qgis_root, 'apps', 'qgis', 'python', 'plugins'),
+    os.path.join(qgis_root, 'apps', 'Python312', 'Lib', 'site-packages'),
+]
 
-# Initialize QGIS application for testing
-from qgis.core import QgsApplication
-from qgis import processing
-import unittest
+for path in qgis_paths:
+    if os.path.exists(path) and path not in sys.path:
+        sys.path.insert(0, path)
 
 # Global QGIS application instance
 qgis_app = None
 
+def safe_cleanup():
+    """Sicherer Cleanup über atexit - verhindert Crash"""
+    global qgis_app
+    if qgis_app:
+        try:
+            # Nur versuchen zu beenden, wenn noch aktiv
+            if hasattr(qgis_app, 'exitQgis'):
+                qgis_app.exitQgis()
+            print("✅ QGIS über atexit sauber beendet")
+        except:
+            # Alle Fehler ignorieren
+            pass
+        finally:
+            qgis_app = None
 
 def setUpModule():
     """Set up QGIS application for all tests"""
     global qgis_app
     if qgis_app is None:
-        # Create QgsApplication with headless mode
-        qgis_app = QgsApplication([], False)
-
-        # Set up application paths for Docker environment
-        qgis_app.setPrefixPath('/usr', True)
-
-        # Initialize QGIS
+        # Initialize QGIS application
+        from qgis.core import QgsApplication
+        
+        # GUI=True ist wichtig für Processing!
+        qgis_app = QgsApplication([], True)
+        qgis_app.setPrefixPath(qgis_root, True)
         qgis_app.initQgis()
-
-        # Initialize processing plugin - WICHTIG für Ihre Tools!
+        
+        # Registriere sicheren Cleanup
+        atexit.register(safe_cleanup)
+        
+        # Initialize processing plugin
         try:
-            # Stelle sicher, dass Processing-Plugin verfügbar ist
-            from qgis import processing
+            import processing
             from processing.core.Processing import Processing
             Processing.initialize()
-            print("Processing plugin initialized successfully")
-        except ImportError as e:
-            print(f"Critical: Could not import processing module: {e}")
-            print("This will cause failures in tool modules!")
+            print("✅ Processing für Tests initialisiert")
         except Exception as e:
-            print(f"Warning: Could not initialize Processing plugin: {e}")
-
+            print(f"⚠️ Processing-Setup-Warnung: {e}")
 
 def tearDownModule():
-    """Clean up QGIS application after all tests"""
-    global qgis_app
-    if qgis_app:
-        qgis_app.exitQgis()
-        qgis_app = None
+    """Clean up QGIS application - NO-OP Version"""
+    # NICHTS TUN - atexit übernimmt das sicher
+    print("✅ tearDownModule - Cleanup über atexit")
+    pass
