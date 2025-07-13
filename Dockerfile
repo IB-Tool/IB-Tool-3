@@ -16,6 +16,12 @@ RUN apt-get update \
     python3-sklearn \
     python3-networkx \
     python3-geopandas \
+    # Processing-spezifische Abhängigkeiten
+    python3-gdal \
+    gdal-bin \
+    python3-psycopg2 \
+    python3-shapely \
+    python3-fiona \
  && rm -rf /var/lib/apt/lists/*
 
 # 4. Arbeitsverzeichnis im Container
@@ -24,8 +30,31 @@ WORKDIR /app
 # 5. Plugin-Code und Tests kopieren
 COPY . /app
 
-# 6. Umgebungsvariablen für headless mode setzen
+# 6. Umgebungsvariablen für headless mode und Processing setzen
 ENV QT_QPA_PLATFORM=offscreen
+ENV QGIS_PREFIX_PATH=/usr
+ENV PYTHONPATH=/usr/share/qgis/python:/usr/share/qgis/python/plugins:$PYTHONPATH
+ENV QGIS_PLUGINPATH=/usr/share/qgis/python/plugins
 
-# 7. Finale Test-Ausführung
+# 7. QGIS Processing Provider explizit initialisieren
+RUN python3 -c "
+import sys
+sys.path.insert(0, '/usr/share/qgis/python')
+sys.path.insert(0, '/usr/share/qgis/python/plugins')
+from qgis.core import QgsApplication
+app = QgsApplication([], False)
+app.setPrefixPath('/usr', True)
+app.initQgis()
+try:
+    import processing
+    from processing.core.Processing import Processing
+    Processing.initialize()
+    print('✅ Processing erfolgreich initialisiert')
+except Exception as e:
+    print(f'⚠️ Processing-Initialisierung: {e}')
+finally:
+    app.exitQgis()
+"
+
+# 8. Finale Test-Ausführung
 CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short"]
