@@ -1,8 +1,6 @@
 import networkx as nx
-from pandas.core.arrays.categorical import contains
 
 from qgis.core import (
-    Qgis,
     QgsProject,
     QgsVectorLayer,
     QgsFeature,
@@ -11,22 +9,17 @@ from qgis.core import (
     QgsFields,
     QgsField,
     QgsVectorFileWriter,
-    QgsCoordinateReferenceSystem,
     QgsProcessingFeatureSourceDefinition,
     QgsVectorDataProvider,
     QgsWkbTypes,
-    QgsPolygon,
-    QgsProcessingFeatureSourceDefinition,
     QgsProcessing,
-    edit
+    edit,
 )
-from qgis.PyQt.QtCore import QVariant, QMetaType
+from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
-from .system_utils import save_temp_layer_to_gpkg
-from .message import msg
 from .logger import Logger
 import os
-from shapely.geometry import LineString, MultiLineString
+
 
 Logger = Logger()
 
