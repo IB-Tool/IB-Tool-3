@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch
 
 # Nutze die zentrale QGIS-Initialisierung aus test/__init__.py
-from .utilities import get_qgis_app
+from ..utilities import get_qgis_app
 
 QGIS_APP = get_qgis_app()
 
@@ -27,12 +27,12 @@ class ManageDirectoryTest(unittest.TestCase):
 
     def _setup_manage_directory_function(self):
         """Importiert und setzt die manage_directory Funktion."""
-        from ..helpers.system_utils import manage_directory
+        from helpers.system_utils import manage_directory
         self.manage_directory = manage_directory
 
     def _setup_logger_mock(self):
         """Richtet das Logger-Mocking ein."""
-        from ..helpers import system_utils
+        from helpers import system_utils
         self.patcher = patch.object(system_utils, 'Logger', DummyLogger)
         self.patcher.start()
 
