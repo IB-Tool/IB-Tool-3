@@ -39,7 +39,7 @@
 
 - Installierte Python-Bibliotheken:
   - `numpy`
-  - `pytest
+  - `pytest`
   - `scipy`
   - `sklearn`
   - `-networkx`
