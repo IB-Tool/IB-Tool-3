@@ -60,5 +60,13 @@ Processing.initialize(); \
 print('Processing erfolgreich initialisiert'); \
 app.exitQgis()"
 
-# 8. Finale Test-Ausführung
-CMD ["python3", "-m", "pytest", "tests/", "-v", "--tb=short"]
+# 8. Xvfb-Startskript erstellen
+RUN echo '#!/bin/bash\n\
+Xvfb :99 -ac -screen 0 1024x768x24 &\n\
+export DISPLAY=:99\n\
+sleep 2\n\
+exec "$@"' > /usr/local/bin/xvfb-run-safe && \
+chmod +x /usr/local/bin/xvfb-run-safe
+
+# 89 Test-Ausführung mit Xvfb
+CMD ["xvfb-run-safe", "python3", "-m", "pytest", "tests/", "-v", "--tb=short"]
