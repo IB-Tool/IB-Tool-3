@@ -654,8 +654,8 @@ class IBTool:
 
         logger.log("Part list: {}".format(part_list), 'SUCCESS')
 
-        global_footprint_density = 18  # TODO
-        '''
+        #global_footprint_density = 18  # TODO
+
         # calculate threshold value for footprint density
         if global_footprint_density == 0:
             global_footprint_density = calc_footprint_density(
@@ -668,7 +668,7 @@ class IBTool:
                 layer_part)
         else:
             pass
-        '''
+
 
         logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
 
