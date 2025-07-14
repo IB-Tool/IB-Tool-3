@@ -250,6 +250,16 @@ Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Si
 - Überprüfe, ob Abhängigkeiten (z.B. Bibliotheken) korrekt installiert sind.
 - Konsultiere die Log-Nachrichten im Message-Fenster des Plugins, um Fehler zu identifizieren.
 
+## Ausführung per Skript
+
+Mit `scripts/run_plugin.py` kann das Plugin ohne QGIS-Oberfläche gestartet werden.
+Das Skript liest Parameter aus `config.ini` oder einer JSON-Datei und füllt die Dialogfelder automatisch.
+
+```bash
+python scripts/run_plugin.py -c config.ini
+```
+
+
 ---
 
 Viel Spaß beim Verwenden des **IBTool**-Plugins!
