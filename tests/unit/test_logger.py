@@ -39,7 +39,12 @@ class LoggerTestCase(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.dummy_msg = DummyMsg()
 
-        project_root = os.path.dirname(os.path.dirname(__file__))
+        # Korrekte Pfadberechnung: Von tests/unit/test_logger.py zum Projektroot
+        # __file__ ist .../tests/unit/test_logger.py
+        # os.path.dirname(__file__) ist .../tests/unit/
+        # os.path.dirname(os.path.dirname(__file__)) ist .../tests/
+        # os.path.dirname(os.path.dirname(os.path.dirname(__file__))) ist das Projektroot
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
         # Create minimal helpers package without running its __init__
         helpers_pkg = types.ModuleType('helpers')
@@ -57,7 +62,16 @@ class LoggerTestCase(unittest.TestCase):
 
         # Load logger module manually
         import importlib.util
-        spec = importlib.util.spec_from_file_location('helpers.logger', os.path.join(project_root, 'helpers', 'logger.py'))
+        logger_path = os.path.join(project_root, 'helpers', 'logger.py')
+        
+        # Debug: Pfad überprüfen
+        print(f"Debug: Suche logger.py unter: {logger_path}")
+        print(f"Debug: Datei existiert: {os.path.exists(logger_path)}")
+        
+        if not os.path.exists(logger_path):
+            raise FileNotFoundError(f"logger.py nicht gefunden unter: {logger_path}")
+        
+        spec = importlib.util.spec_from_file_location('helpers.logger', logger_path)
         logger_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(logger_mod)
         sys.modules['helpers.logger'] = logger_mod

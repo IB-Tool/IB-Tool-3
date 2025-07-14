@@ -19,7 +19,12 @@ class DummyQgsMessageLog:
 
 class MessageTestCase(unittest.TestCase):
     def setUp(self):
-        project_root = os.path.dirname(os.path.dirname(__file__))
+        # Korrekte Pfadberechnung: Von tests/unit/test_message.py zum Projektroot
+        # __file__ ist .../tests/unit/test_message.py
+        # os.path.dirname(__file__) ist .../tests/unit/
+        # os.path.dirname(os.path.dirname(__file__)) ist .../tests/
+        # os.path.dirname(os.path.dirname(os.path.dirname(__file__))) ist das Projektroot
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
         # Prepare minimal helpers package without executing its __init__
         helpers_pkg = types.ModuleType('helpers')
@@ -34,7 +39,16 @@ class MessageTestCase(unittest.TestCase):
         sys.modules['qgis'] = types.SimpleNamespace(core=core_mod, utils=utils_mod)
 
         import importlib.util
-        spec = importlib.util.spec_from_file_location('helpers.message', os.path.join(project_root, 'helpers', 'message.py'))
+        message_path = os.path.join(project_root, 'helpers', 'message.py')
+        
+        # Debug: Pfad überprüfen
+        print(f"Debug: Suche message.py unter: {message_path}")
+        print(f"Debug: Datei existiert: {os.path.exists(message_path)}")
+        
+        if not os.path.exists(message_path):
+            raise FileNotFoundError(f"message.py nicht gefunden unter: {message_path}")
+        
+        spec = importlib.util.spec_from_file_location('helpers.message', message_path)
         message_mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(message_mod)
         sys.modules['helpers.message'] = message_mod
