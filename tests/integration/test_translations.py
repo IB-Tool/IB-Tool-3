@@ -1,4 +1,5 @@
-# coding=utf-8
+# -*- coding: utf-8 -*-
+
 """Safe Translations Test.
 
 .. note:: This program is free software; you can redistribute it and/or modify
@@ -36,10 +37,10 @@ class SafeTranslationsTest(unittest.TestCase):
 
     def test_qgis_translations(self):
         """Test that translations work."""
-        parent_path = os.path.join(__file__, os.path.pardir, os.path.pardir)
-        dir_path = os.path.abspath(parent_path)
-        file_path = os.path.join(
-            dir_path, 'i18n', 'de.qm')
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(os.path.dirname(current_dir))
+        file_path = os.path.join(project_root, 'i18n', 'de.qm')
+
         translator = QTranslator()
         
         # Überprüfen, ob die Datei existiert
