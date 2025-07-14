@@ -4,6 +4,21 @@ FROM 3liz/qgis-platform:3.40
 # 2. Root-Rechte für Systeminstallationen
 USER root
 
+# Headless Display-Setup
+RUN apt-get update && apt-get install -y \
+    xvfb \
+    x11-utils \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libxrender1 \
+    libxrandr2 \
+    libxss1 \
+    libgtk-3-0 \
+    libasound2
+
+# Environment für headless Testing
+ENV QT_QPA_PLATFORM=offscreen
+ENV DISPLAY=:99
 # 3. System-Updates, Headless-X-Server und Python-Abhängigkeiten installieren
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
@@ -30,7 +45,6 @@ WORKDIR /app
 COPY . /app
 
 # 6. Umgebungsvariablen für headless mode und Processing setzen
-ENV QT_QPA_PLATFORM=offscreen
 ENV QGIS_PREFIX_PATH=/usr
 ENV PYTHONPATH=/usr/share/qgis/python:/usr/share/qgis/python/plugins:$PYTHONPATH
 ENV QGIS_PLUGINPATH=/usr/share/qgis/python/plugins
