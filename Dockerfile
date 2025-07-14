@@ -4,25 +4,17 @@ FROM 3liz/qgis-platform:3.40
 # 2. Root-Rechte für Systeminstallationen
 USER root
 
-# Headless Display-Setup
-RUN apt-get update && apt-get install -y \
+# 3. System-Updates, Headless-X-Server und Python-Abhängigkeiten installieren
+RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11-utils \
-    libgl1-mesa-glx \
+    libgl1-mesa-dri \
     libglib2.0-0 \
     libxrender1 \
     libxrandr2 \
     libxss1 \
     libgtk-3-0 \
-    libasound2
-
-# Environment für headless Testing
-ENV QT_QPA_PLATFORM=offscreen
-ENV DISPLAY=:99
-# 3. System-Updates, Headless-X-Server und Python-Abhängigkeiten installieren
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-    xvfb \
+    libasound2-dev \
     python3-pytest \
     python3-numpy \
     python3-pandas \
@@ -38,6 +30,10 @@ RUN apt-get update \
     python3-fiona \
  && rm -rf /var/lib/apt/lists/*
 
+# Environment für headless Testing
+ENV QT_QPA_PLATFORM=offscreen
+ENV DISPLAY=:99
+
 # 4. Arbeitsverzeichnis im Container
 WORKDIR /app
 
@@ -46,7 +42,7 @@ COPY . /app
 
 # 6. Umgebungsvariablen für headless mode und Processing setzen
 ENV QGIS_PREFIX_PATH=/usr
-ENV PYTHONPATH=/usr/share/qgis/python:/usr/share/qgis/python/plugins:$PYTHONPATH
+ENV PYTHONPATH=/usr/share/qgis/python:/usr/share/qgis/python/plugins:${PYTHONPATH}
 ENV QGIS_PLUGINPATH=/usr/share/qgis/python/plugins
 
 # 7. QGIS Processing Provider explizit initialisieren
