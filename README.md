@@ -39,7 +39,10 @@
 
 - Installierte Python-Bibliotheken:
   - `numpy`
-  - `pandas`
+  - `pytest
+  - `scipy`
+  - `sklearn`
+  - `-networkx`
   - `PyQt5`
   - `qgis.core`
 
