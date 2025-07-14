@@ -42,7 +42,7 @@
   - `pytest`
   - `scipy`
   - `sklearn`
-  - `-networkx`
+  - `networkx`
   - `PyQt5`
   - `qgis.core`
 
