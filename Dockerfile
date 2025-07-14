@@ -53,4 +53,4 @@ print('Processing erfolgreich initialisiert'); \
 app.exitQgis()"
 
 # 8. Finale Test-Ausführung
-CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short", "--cov=.", "--cov-report=xml", "--cov-report=html"]
+CMD ["python3", "-m", "pytest", "tests/", "-v", "--tb=short", "--cov=.", "--cov-report=xml", "--cov-report=html"]
