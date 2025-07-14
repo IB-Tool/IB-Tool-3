@@ -5,16 +5,9 @@ FROM 3liz/qgis-platform:3.40
 USER root
 
 # 3. System-Updates, Headless-X-Server und Python-Abhängigkeiten installieren
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
     xvfb \
-    x11-utils \
-    libgl1-mesa-dri \
-    libglib2.0-0 \
-    libxrender1 \
-    libxrandr2 \
-    libxss1 \
-    libgtk-3-0 \
-    libasound2-dev \
     python3-pytest \
     python3-numpy \
     python3-pandas \
@@ -28,11 +21,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-psycopg2 \
     python3-shapely \
     python3-fiona \
+    python3-coverage \
+    python3-pytest-cov \
  && rm -rf /var/lib/apt/lists/*
-
-# Environment für headless Testing
-ENV QT_QPA_PLATFORM=offscreen
-ENV DISPLAY=:99
 
 # 4. Arbeitsverzeichnis im Container
 WORKDIR /app
@@ -41,8 +32,9 @@ WORKDIR /app
 COPY . /app
 
 # 6. Umgebungsvariablen für headless mode und Processing setzen
+ENV QT_QPA_PLATFORM=offscreen
 ENV QGIS_PREFIX_PATH=/usr
-ENV PYTHONPATH=/usr/share/qgis/python:/usr/share/qgis/python/plugins:${PYTHONPATH}
+ENV PYTHONPATH=/usr/share/qgis/python:/usr/share/qgis/python/plugins:$PYTHONPATH
 ENV QGIS_PLUGINPATH=/usr/share/qgis/python/plugins
 
 # 7. QGIS Processing Provider explizit initialisieren
@@ -60,13 +52,5 @@ Processing.initialize(); \
 print('Processing erfolgreich initialisiert'); \
 app.exitQgis()"
 
-# 8. Xvfb-Startskript erstellen
-RUN echo '#!/bin/bash\n\
-Xvfb :99 -ac -screen 0 1024x768x24 &\n\
-export DISPLAY=:99\n\
-sleep 2\n\
-exec "$@"' > /usr/local/bin/xvfb-run-safe && \
-chmod +x /usr/local/bin/xvfb-run-safe
-
-# 89 Test-Ausführung mit Xvfb
-CMD ["xvfb-run-safe", "python3", "-m", "pytest", "tests/", "-v", "--tb=short"]
+# 8. Finale Test-Ausführung
+CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short", "--cov=.", "--cov-report=xml", "--cov-report=html"]
