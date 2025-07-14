@@ -33,6 +33,7 @@ for path in qgis_paths:
 # Global QGIS application instance
 qgis_app = None
 
+
 def safe_cleanup():
     """Sicherer Cleanup über atexit - verhindert Crash"""
     global qgis_app
@@ -48,21 +49,22 @@ def safe_cleanup():
         finally:
             qgis_app = None
 
+
 def setUpModule():
     """Set up QGIS application for all tests"""
     global qgis_app
     if qgis_app is None:
         # Initialize QGIS application
         from qgis.core import QgsApplication
-        
+
         # GUI=True ist wichtig für Processing!
         qgis_app = QgsApplication([], True)
         qgis_app.setPrefixPath(qgis_root, True)
         qgis_app.initQgis()
-        
+
         # Registriere sicheren Cleanup
         atexit.register(safe_cleanup)
-        
+
         # Initialize processing plugin
         try:
             import processing
@@ -71,6 +73,7 @@ def setUpModule():
             print("✅ Processing für Tests initialisiert")
         except Exception as e:
             print(f"⚠️ Processing-Setup-Warnung: {e}")
+
 
 def tearDownModule():
     """Clean up QGIS application - NO-OP Version"""
