@@ -50,24 +50,9 @@ class TestBlockerIntegration(unittest.TestCase):
         self.tolerance_percent = 1.0
         self.comparison_results = {}
 
-        # Verbesserte Pfadkonfiguration für Tests
-        test_dir = Path(__file__).parent
-        project_root = test_dir.parent
-
-        # Alle notwendigen Pfade hinzufügen
-        paths_to_add = [
-            str(project_root),
-            str(project_root / 'helpers'),
-            str(project_root / 'ibtool_tools')
-        ]
-
-        for path in paths_to_add:
-            if path not in sys.path:
-                sys.path.insert(0, path)
-
-        # Import der Blocker-Funktion
+        # Import der Blocker-Funktion (Pfad wird durch test/__init__.py gesetzt)
         try:
-            from ..ibtool_tools.Blocker import blocker
+            from ibtool_tools.Blocker import blocker
             self.blocker_function = blocker
         except ImportError as e:
             self.fail(f"Konnte Blocker-Funktion nicht importieren: {e}")
