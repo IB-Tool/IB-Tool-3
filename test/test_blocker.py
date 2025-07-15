@@ -52,7 +52,7 @@ class TestBlockerIntegration(unittest.TestCase):
 
         # Import der Blocker-Funktion (Pfad wird durch test/__init__.py gesetzt)
         try:
-            from ibtool_tools.Blocker import blocker
+            from ..ibtool_tools.Blocker import blocker
             self.blocker_function = blocker
         except ImportError as e:
             self.fail(f"Konnte Blocker-Funktion nicht importieren: {e}")
