@@ -8,27 +8,15 @@ Supported QGIS versions: 3.40-3.50
 import os
 import sys
 import atexit
+from .config import apply_qgis_environment, PROJECT_ROOT, QGIS_PREFIX_PATH
 
 # Add the project root directory to the Python path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = str(PROJECT_ROOT)
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-# QGIS environment setup
-qgis_root = r'C:\Program Files\QGIS 3.40.0'
-os.environ['QGIS_PREFIX_PATH'] = qgis_root
-os.environ['PYTHONPATH'] = os.path.join(qgis_root, 'apps', 'qgis', 'python')
-
-# Füge alle notwendigen QGIS-Pfade hinzu
-qgis_paths = [
-    os.path.join(qgis_root, 'apps', 'qgis', 'python'),
-    os.path.join(qgis_root, 'apps', 'qgis', 'python', 'plugins'),
-    os.path.join(qgis_root, 'apps', 'Python312', 'Lib', 'site-packages'),
-]
-
-for path in qgis_paths:
-    if os.path.exists(path) and path not in sys.path:
-        sys.path.insert(0, path)
+# Configure QGIS environment using central config
+apply_qgis_environment()
 
 # Global QGIS application instance
 qgis_app = None
@@ -57,7 +45,7 @@ def setUpModule():
         
         # GUI=True ist wichtig für Processing!
         qgis_app = QgsApplication([], True)
-        qgis_app.setPrefixPath(qgis_root, True)
+        qgis_app.setPrefixPath(QGIS_PREFIX_PATH, True)
         qgis_app.initQgis()
         
         # Registriere sicheren Cleanup
