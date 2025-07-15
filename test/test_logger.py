@@ -39,7 +39,8 @@ class LoggerTestCase(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.dummy_msg = DummyMsg()
 
-        project_root = os.path.dirname(os.path.dirname(__file__))
+        from .config import PROJECT_ROOT
+        project_root = str(PROJECT_ROOT)
 
         # Create minimal helpers package without running its __init__
         helpers_pkg = types.ModuleType('helpers')

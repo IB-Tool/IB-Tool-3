@@ -19,7 +19,8 @@ class DummyQgsMessageLog:
 
 class MessageTestCase(unittest.TestCase):
     def setUp(self):
-        project_root = os.path.dirname(os.path.dirname(__file__))
+        from .config import PROJECT_ROOT
+        project_root = str(PROJECT_ROOT)
 
         # Prepare minimal helpers package without executing its __init__
         helpers_pkg = types.ModuleType('helpers')
