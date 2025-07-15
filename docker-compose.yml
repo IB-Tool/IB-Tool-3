@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  ibtool:
+    build: .
+    volumes:
+      - ./input:/data/input
+      - ./output:/data/output
+    command: >
+      sh -c "python scripts/run_cli.py ${CONFIG_PATH:-/app/config.ini}"
+
