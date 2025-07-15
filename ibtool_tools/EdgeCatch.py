@@ -19,14 +19,6 @@ from qgis._analysis import QgsNativeAlgorithms
 from operator import itemgetter
 from qgis import processing
 import math
-import geopandas as gpd
-import numpy as np
-import os
-from scipy.spatial import distance_matrix
-from shapely.linear import shortest_line
-from shapely.geometry import LineString, MultiLineString
-from shapely.ops import polygonize
-from shapely import wkt  # Für WKT-Umwandlung (Well-Known Text)
 
 from ..helpers.system_utils import save_temp_layer_to_gpkg
 from ..helpers.logger import Logger
