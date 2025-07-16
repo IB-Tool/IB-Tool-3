@@ -26,6 +26,7 @@ of building footprints
 import os
 import sys
 import time
+import configparser
 
 # Constants for configuration
 PYTHONPATH = '/helpers'
@@ -57,6 +58,8 @@ def initialize_environment():
 
 # Initialize the environment
 initialize_environment()
+
+from qgis import processing
 
 from qgis.PyQt.QtCore import (
     QCoreApplication,
@@ -196,6 +199,89 @@ class IBTool:
         if self.thread.isRunning():
             self.thread.terminate()  # Terminate thread
             self.update_messages("Processing canceled.")
+
+    def load_config_ini(self):
+        """Lädt Konfigurationswerte aus config.ini im testdaten-Ordner"""
+        config_path = os.path.join(os.path.dirname(__file__), 'testdaten',
+                                   'config.ini')
+
+        if os.path.exists(config_path):
+            config = configparser.ConfigParser()
+            try:
+                config.read(config_path, encoding='utf-8')
+
+                # Werte aus der [ibtool] Sektion laden
+                if 'ibtool' in config:
+                    ibtool_config = config['ibtool']
+
+                    # Pfade laden
+                    if 'hu_path' in ibtool_config:
+                        self.dlg.HuPath.setText(ibtool_config['hu_path'])
+                    if 'rn_path' in ibtool_config:
+                        self.dlg.RnPath.setText(ibtool_config['rn_path'])
+                    if 'part_path' in ibtool_config:
+                        self.dlg.PartPath.setText(ibtool_config['part_path'])
+                    if 'aux_path' in ibtool_config:
+                        self.dlg.AuxPath.setText(ibtool_config['aux_path'])
+                    if 'output_path' in ibtool_config:
+                        self.dlg.OutputPath.setText(
+                            ibtool_config['output_path'])
+                    if 'workspace_path' in ibtool_config:
+                        self.dlg.WorkspacePath.setText(
+                            ibtool_config['workspace_path'])
+                    if 'filter_path' in ibtool_config:
+                        self.dlg.FilterPath.setText(
+                            ibtool_config['filter_path'])
+                    if 'log_dir' in ibtool_config:
+                        self.dlg.LogDirPath.setText(ibtool_config['log_dir'])
+
+                    # Parameter laden
+                    if 'min_overlap_blocks' in ibtool_config:
+                        self.dlg.MinOverlapBlocksBox.setText(
+                            ibtool_config['min_overlap_blocks'])
+                    if 'global_footprint_density' in ibtool_config:
+                        self.dlg.GlobalFootprintDensityBox.setText(
+                            ibtool_config['global_footprint_density'])
+                    if 'min_area' in ibtool_config:
+                        self.dlg.MinAreaBox.setText(ibtool_config['min_area'])
+                    if 'min_bdg_count' in ibtool_config:
+                        self.dlg.MinBdgCountBox.setText(
+                            ibtool_config['min_bdg_count'])
+                    if 'min_patch_size' in ibtool_config:
+                        self.dlg.MinPatchSizeBox.setText(
+                            ibtool_config['min_patch_size'])
+                    if 'max_hole_size' in ibtool_config:
+                        self.dlg.MaxHoleSizeBox.setText(
+                            ibtool_config['max_hole_size'])
+                    if 'max_gap_size' in ibtool_config:
+                        self.dlg.MaxGapSizeBox.setText(
+                            ibtool_config['max_gap_size'])
+                    if 'part_start' in ibtool_config:
+                        self.dlg.partstartBox.setText(
+                            ibtool_config['part_start'])
+                    if 'part_end' in ibtool_config:
+                        self.dlg.partendBox.setText(ibtool_config['part_end'])
+                    if 'part_list' in ibtool_config:
+                        self.dlg.partlistBox.setText(ibtool_config['part_list'])
+                    if 'spatial_reference' in ibtool_config:
+                        self.dlg.SpatialReferenceBox.setText(
+                            ibtool_config['spatial_reference'])
+                    if 'log_level' in ibtool_config:
+                        self.dlg.LogLevelBox.setCurrentText(
+                            ibtool_config['log_level'])
+                    if 'delete_part_log' in ibtool_config:
+                        self.dlg.PartLogBox.setChecked(
+                            ibtool_config.getboolean('delete_part_log'))
+
+                logger.log("Konfiguration aus config.ini geladen",
+                           level="INFO")
+
+            except Exception as e:
+                logger.log(f"Fehler beim Laden der config.ini: {str(e)}",
+                           level="WARNING")
+        else:
+            logger.log("Keine config.ini im testdaten-Ordner gefunden",
+                       level="INFO")
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -364,6 +450,9 @@ class IBTool:
             self.dlg.LogLevelBox.currentTextChanged.connect(
                 lambda: logger.set_log_level(self.dlg.LogLevelBox.currentText())
             )
+        
+        # Config-Datei laden
+        self.load_config_ini()
 
         # Automatische Aktualisierung der Textfelder bei Start
         file_path = self.dlg.FilterPath.text()  # Pfad aus dem QLineEdit abrufen
@@ -852,7 +941,6 @@ class IBTool:
                                          footprint_area_sum=6000,
                                          footprint_density_threshold=18)
             #save_temp_layer_to_gpkg(patch_removed, "patch_removed", workspace_path)
-
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
