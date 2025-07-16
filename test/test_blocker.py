@@ -3,17 +3,14 @@ import os
 import sys
 import logging
 from pathlib import Path
-import importlib.util
 
 
 # QGIS imports
 from qgis.core import (
     QgsVectorLayer,
     QgsProject,
-    QgsGeometry,
     QgsWkbTypes,  # Wichtig: Import für Geometrietypen
-    QgsProcessing,
-    QgsFeature
+    QgsFeature,
 )
 from ..helpers.system_utils import save_temp_layer_to_gpkg
 

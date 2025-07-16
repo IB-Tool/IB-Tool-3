@@ -1,16 +1,6 @@
-from qgis.core import (
-    QgsVectorLayer,
-    QgsField,
-    QgsFeatureRequest,
-    QgsProject,
-    QgsProcessingAlgorithm,
-    QgsProcessingUtils,
-    QgsWkbTypes,
-    QgsProcessing
-)
+from qgis.core import QgsVectorLayer, QgsProcessing
 from qgis import processing
 
-from ..helpers.geometry_utils import save_temp_layer_to_gpkg, shp_area2
 
 
 

@@ -1,11 +1,16 @@
 # coding=utf-8
 """Dialog test."""
 
-import pytest
-
-from qgis.PyQt.QtWidgets import (QDialog, QPushButton, QLineEdit, QProgressBar, 
-                                 QPlainTextEdit, QComboBox, QCheckBox, QSpinBox)
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import (
+    QDialog,
+    QPushButton,
+    QLineEdit,
+    QProgressBar,
+    QPlainTextEdit,
+    QComboBox,
+    QCheckBox,
+    QSpinBox,
+)
 
 from ibtool_dialog import IBToolDialog
 from .utilities import get_qgis_app

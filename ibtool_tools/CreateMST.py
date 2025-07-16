@@ -1,3 +1,8 @@
+import networkx as nx
+import numpy as np
+import scipy.spatial.distance as spd
+from scipy.spatial import Delaunay
+
 from qgis.core import (
     QgsVectorLayer,
     QgsField,
@@ -9,13 +14,12 @@ from qgis.core import (
     QgsProcessing,
 )
 from qgis.PyQt.QtCore import QMetaType
-import scipy.spatial.distance as spd
-import networkx as nx
-import numpy as np
-from scipy.spatial import Delaunay
 from qgis import processing
-from ..helpers.system_utils import save_temp_layer_to_gpkg
-from ..helpers.geometry_utils import create_linestring_layer_from_array, nodes_detect
+
+from ..helpers.geometry_utils import (
+    create_linestring_layer_from_array,
+    nodes_detect,
+)
 from ..helpers.logger import Logger
 
 Logger = Logger()

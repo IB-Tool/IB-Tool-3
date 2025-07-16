@@ -1,8 +1,6 @@
 # coding=utf-8
 """Unit tests for helpers.data_loader"""
 
-import os
-import tempfile
 import pytest
 from unittest.mock import patch
 

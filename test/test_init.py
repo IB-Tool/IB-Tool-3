@@ -9,7 +9,6 @@ __copyright__ = 'Copyright 2012, Australia Indonesia Facility for '
 __copyright__ += 'Disaster Reduction'
 
 import os
-import pytest
 import logging
 import configparser
 

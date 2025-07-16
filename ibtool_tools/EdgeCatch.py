@@ -1,29 +1,17 @@
-from PyQt5.QtCore import QVariant
-from qgis._core import QgsCoordinateReferenceSystem
+import math
+from operator import itemgetter
+
 from qgis.core import (
-    QgsProcessingFeatureSourceDefinition,
     QgsFeature,
     QgsVectorLayer,
-    QgsField,
     QgsGeometry,
     QgsPoint,
-    QgsExpression,
-    QgsFeatureRequest,
-    QgsVectorFileWriter,
     QgsProcessing,
-    edit
+    edit,
 )
-
-from qgis._analysis import QgsNativeAlgorithms
-
-from operator import itemgetter
 from qgis import processing
-import math
 
-from ..helpers.system_utils import save_temp_layer_to_gpkg
 from ..helpers.logger import Logger
-from ..helpers.system_utils import get_feature_count
-from ..helpers.message import msg
 from ..helpers.geometry_utils import shp_area2, create_empty_layer
 
 def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs):

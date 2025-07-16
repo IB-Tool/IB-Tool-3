@@ -15,7 +15,6 @@ __copyright__ = ('Copyright 2012, Australia Indonesia Facility for '
                  'Disaster Reduction')
 
 import os
-import pytest
 from qgis.core import (
     QgsProviderRegistry,
     QgsCoordinateReferenceSystem,
