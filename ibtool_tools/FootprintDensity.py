@@ -1,28 +1,16 @@
-from qgis.core import (
-    QgsProcessingFeatureSourceDefinition,
-    QgsVectorLayer,
-    QgsProcessing,
-    QgsProcessingContext,
-    QgsProcessingFeedback,
-    QgsVectorLayerUtils,
-    QgsFeature,
-    QgsProject,
-    QgsExpression,
-    QgsField,
-    QgsFeatureRequest,
-    QgsVectorLayerJoinInfo,
-    edit,
-    QgsGeometry,
-    QgsExpressionContext,
-    QgsExpressionContextUtils,
-    QgsProcessingOutputLayerDefinition,
-    QgsVectorFileWriter
-)
-
-from qgis import processing
 import os
 import sys
-from qgis.PyQt.QtCore import QVariant, QMetaType
+
+from qgis.core import (
+    QgsVectorLayer,
+    QgsExpression,
+    QgsField,
+    edit,
+    QgsExpressionContext,
+    QgsExpressionContextUtils,
+)
+from qgis import processing
+from qgis.PyQt.QtCore import QMetaType
 
 # Absoluten Pfad des benachbarten Ordners berechnen
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -31,8 +19,6 @@ utils_dir = os.path.join(parent_dir, 'helpers')
 
 # Den Ordner zu sys.path hinzufügen
 sys.path.append(utils_dir)
-import os
-import sys
 
 # Dynamischer Import für helpers
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -42,15 +28,6 @@ helpers_dir = os.path.join(parent_dir, 'helpers')
 if helpers_dir not in sys.path:
     sys.path.insert(0, helpers_dir)
 
-try:
-    from helpers.system_utils import save_temp_layer_to_gpkg
-except ImportError:
-    # Fallback für Tests
-    def save_temp_layer_to_gpkg(layer, name, workspace_path=None):
-        """Fallback-Funktion für Tests"""
-        print(f"Fallback: Würde Layer {name} speichern")
-        pass
-from ..helpers.message import msg
 from ..helpers.logger import Logger
 
 def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshold=18, Ext='local',

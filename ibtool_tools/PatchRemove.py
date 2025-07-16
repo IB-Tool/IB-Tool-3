@@ -3,9 +3,7 @@ from qgis.core import *
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
 
-from .FootprintDensity import calc_footprint_density, identify_dense_blocks
-from ..helpers.system_utils import save_temp_layer_to_gpkg
-from ..helpers.message import msg
+from .FootprintDensity import identify_dense_blocks
 from ..helpers.geometry_utils import shp_area2
 
 from ..helpers.logger import Logger

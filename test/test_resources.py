@@ -12,8 +12,6 @@ __author__ = 'ottmar.hittzfeld@web.de'
 __date__ = '2024-12-18'
 __copyright__ = 'Copyright 2024, Oliver Harig'
 
-import pytest
-
 from qgis.PyQt.QtGui import QIcon
 
 

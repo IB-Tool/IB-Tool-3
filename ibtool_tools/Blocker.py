@@ -1,16 +1,9 @@
-from qgis.core import (
-    QgsVectorLayer,
-    QgsFeature,
-    QgsField,
-    QgsGeometry,
-    QgsProcessingFeatureSourceDefinition,
-    QgsProcessing,
-    QgsProcessingUtils
-)
-from qgis.PyQt.QtCore import QMetaType
 import processing
+
+from qgis.core import QgsField
+from qgis.PyQt.QtCore import QMetaType
+
 from ..helpers.logger import Logger
-from ..helpers.geometry_utils import create_polygons_from_lines, extract_polygons_from_lines
 
 
 def blocker(strassen, hu_input, partition):

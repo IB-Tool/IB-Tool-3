@@ -1,25 +1,9 @@
-import math, os
-from qgis.core import (
-    QgsWkbTypes,
-    QgsProject,
-    QgsVectorLayer,
-    QgsFeature,
-    QgsField,
-    QgsProcessing,
-    QgsProcessingFeatureSourceDefinition,
-    QgsProcessingParameterFeatureSource,
-    QgsProcessingParameterFeatureSink,
-    QgsProcessingUtils,
-    QgsVectorFileWriter,
-    QgsProcessingFeedback,
-    QgsProcessingAlgorithm
-)
+import os
+
+from qgis.core import QgsWkbTypes, QgsVectorLayer, QgsProcessingUtils
 from qgis import processing
-from PyQt5.QtCore import QVariant
 
 from ..helpers.logger import Logger
-from ..helpers.system_utils import save_temp_layer_to_gpkg
-from ..helpers.message import msg
 from ..helpers.geometry_utils import select_and_save_by_location, shp_area
 
 def import_filter(filename, HU_Input):

@@ -1,3 +1,4 @@
+import os
 import networkx as nx
 
 from qgis.core import (
@@ -13,14 +14,12 @@ from qgis.core import (
     QgsWkbTypes,
     QgsProcessingFeatureSourceDefinition,
     QgsProcessing,
-    edit
+    edit,
 )
-from qgis.PyQt.QtCore import QVariant, QMetaType
+from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
-from .system_utils import save_temp_layer_to_gpkg
-from .message import msg
+
 from .logger import Logger
-import os
 
 Logger = Logger()
 

@@ -1,23 +1,7 @@
-from qgis.PyQt.QtCore import QVariant
-from qgis.core import (
-    QgsProcessing,
-    QgsProcessingFeatureSourceDefinition,
-    QgsProcessingUtils,
-    QgsFeatureSink,
-    QgsFeatureRequest,
-    QgsField,
-    QgsVectorLayer,
-    QgsGeometry,
-    QgsFeature,
-    QgsVectorFileWriter,
-)
+from qgis.core import QgsProcessing
 from qgis import processing
 
-from ..helpers.system_utils import save_temp_layer_to_gpkg
-from ..helpers.logger import Logger
-from ..helpers.system_utils import get_feature_count
-from ..helpers.message import msg
-from ..helpers.geometry_utils import shp_area2, create_empty_layer, get_hole_polygons
+from ..helpers.geometry_utils import shp_area2, get_hole_polygons
 
 def hole_close(input_layer, max_hole_size):
     """
