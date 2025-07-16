@@ -1,6 +1,6 @@
 import os
 import sys
-import unittest
+import pytest
 import tempfile
 import types
 from unittest.mock import patch
@@ -33,8 +33,8 @@ class DummyMessageBox:
     def appendPlainText(self, text):
         self.texts.append(text)
 
-class LoggerTestCase(unittest.TestCase):
-    def setUp(self):
+class TestLogger:
+    def setup_method(self, method):
         # Temporary directory for log files
         self.tmpdir = tempfile.TemporaryDirectory()
         self.dummy_msg = DummyMsg()
@@ -73,7 +73,7 @@ class LoggerTestCase(unittest.TestCase):
         self.logger = self.logger_mod.Logger()
         DummyQgsMessageLog.logs.clear()
 
-    def tearDown(self):
+    def teardown_method(self, method):
         self.time_patcher.stop()
         
         # Logger-Instanz explizit schließen bevor Module entfernt werden
@@ -87,26 +87,23 @@ class LoggerTestCase(unittest.TestCase):
 
     def test_log_file_created(self):
         log_file = os.path.join(self.tmpdir.name, 'logfile_2000-01-01_00-00-00.txt')
-        self.assertTrue(os.path.exists(log_file))
+        assert os.path.exists(log_file)
 
     def test_log_writes_and_message_box(self):
         box = DummyMessageBox()
         self.logger_mod.Logger.set_message_box(box)
         start_count = len(self.dummy_msg.messages)
         self.logger.log('hello world', level='INFO')
-        self.assertIn('INFO: hello world', box.texts)
-        self.assertEqual(DummyQgsMessageLog.logs[-1], ('hello world', 'IBTool', DummyQgis.Info))
-        self.assertEqual(len(self.dummy_msg.messages), start_count)  # msg() not used when message_box present
+        assert 'INFO: hello world' in box.texts
+        assert DummyQgsMessageLog.logs[-1] == ('hello world', 'IBTool', DummyQgis.Info)
+        assert len(self.dummy_msg.messages) == start_count  # msg() not used when message_box present
 
     def test_set_log_level_invalid(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.logger_mod.Logger.set_log_level('BAD')
 
     def test_qgis_level_mapping(self):
-        self.assertEqual(self.logger_mod.Logger._qgis_level('INFO'), DummyQgis.Info)
-        self.assertEqual(self.logger_mod.Logger._qgis_level('WARNING'), DummyQgis.Warning)
-        self.assertEqual(self.logger_mod.Logger._qgis_level('CRITICAL'), DummyQgis.Critical)
-        self.assertEqual(self.logger_mod.Logger._qgis_level('SUCCESS'), DummyQgis.Success)
-
-if __name__ == '__main__':
-    unittest.main()
+        assert self.logger_mod.Logger._qgis_level('INFO') == DummyQgis.Info
+        assert self.logger_mod.Logger._qgis_level('WARNING') == DummyQgis.Warning
+        assert self.logger_mod.Logger._qgis_level('CRITICAL') == DummyQgis.Critical
+        assert self.logger_mod.Logger._qgis_level('SUCCESS') == DummyQgis.Success

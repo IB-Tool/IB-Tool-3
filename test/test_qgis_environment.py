@@ -15,7 +15,7 @@ __copyright__ = ('Copyright 2012, Australia Indonesia Facility for '
                  'Disaster Reduction')
 
 import os
-import unittest
+import pytest
 from qgis.core import (
     QgsProviderRegistry,
     QgsCoordinateReferenceSystem,
@@ -25,15 +25,15 @@ from .utilities import get_qgis_app
 QGIS_APP = get_qgis_app()
 
 
-class QGISTest(unittest.TestCase):
+class TestQGISEnvironment:
     """Test the QGIS Environment"""
 
     def test_qgis_environment(self):
         """QGIS environment has the expected providers"""
 
         r = QgsProviderRegistry.instance()
-        self.assertIn('gdal', r.providerList())
-        self.assertIn('ogr', r.providerList())
+        assert 'gdal' in r.providerList()
+        assert 'ogr' in r.providerList()
     
 
     def test_projection(self):
@@ -48,7 +48,7 @@ class QGISTest(unittest.TestCase):
         crs.createFromWkt(wkt)
         auth_id = crs.authid()
         expected_auth_id = 'EPSG:4326'
-        self.assertEqual(auth_id, expected_auth_id)
+        assert auth_id == expected_auth_id
 
         # now test for a loaded layer
         path = os.path.join(os.path.dirname(__file__), 'tenbytenraster.asc')
@@ -56,7 +56,4 @@ class QGISTest(unittest.TestCase):
         layer = QgsRasterLayer(path, title)
         auth_id = layer.crs().authid()
         # In QGIS 3.40.0 WGS84 is identified as OGC:CRS84
-        self.assertIn(auth_id, ['EPSG:4326', 'OGC:CRS84'])
-
-if __name__ == '__main__':
-    unittest.main()
+        assert auth_id in ['EPSG:4326', 'OGC:CRS84']
