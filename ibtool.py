@@ -43,7 +43,7 @@ def initialize_environment():
             '/Applications/QGIS.app/Contents/MacOS'
         ]
         for path in potential_paths:
-            if os.path.exists(os.path.join(path, 'bin', 'qgis')) or \
+            if os.path.exists(os.path.join(path, 'bin', 'qgis')) or\
                os.path.exists(os.path.join(path, 'bin', 'qgis.bin')):
                 qgis_prefix = path
                 break
@@ -130,7 +130,7 @@ class IBTool:
 
     def __init__(self, iface):
         """Constructor.
-    
+
         :param iface: An interface instance that will be passed to this class
             which provides the hook by which you can manipulate the QGIS
             application at run time.
@@ -320,7 +320,7 @@ class IBTool:
         """
         valid_levels = ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']
         self.dlg.LogLevelBox.addItems(valid_levels)
-        
+
         # Set the default log level
         default_level = 'INFO'
         if default_level in valid_levels:
@@ -670,7 +670,10 @@ class IBTool:
             pass
 
 
-        logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
+        logger.log(
+            f"Global building coverage threshold = {global_footprint_density}",
+            "INFO"
+        )
 
         msg(part_log_path) #TODO löschen
         if DelPartLog == 'True':
@@ -691,7 +694,7 @@ class IBTool:
 
 
         for i in part_list:
-            logger.log("Check if {} is in Partlist.".format(str(i)), 
+            logger.log("Check if {} is in Partlist.".format(str(i)),
                        'SUCCESS')
             a = 1
             isin = False
@@ -711,7 +714,7 @@ class IBTool:
 
             part_name = i
             logger.log( "###############################", 'INFO')
-            logger.log( "PARTITION: " + str(part_name) + " - " + str(a) + " of " 
+            logger.log( "PARTITION: " + str(part_name) + " - " + str(a) + " of "
                         + str(len(part_list)), 'INFO')
 
             # Partition auswählen
@@ -721,7 +724,7 @@ class IBTool:
                     'EXPRESSION': f"\"NAME\" = '{part_name}'",
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
-            #save_temp_layer_to_gpkg(sel_part_layer, 
+            #save_temp_layer_to_gpkg(sel_part_layer,
             # "SelPart_{}".format(part_name), workspace_path)
 
             # Gebäude-Features selektieren
@@ -732,7 +735,9 @@ class IBTool:
             anz_hu = sel_hu_layer.featureCount()
 
             if anz_hu < 10:
-                #PartLogFin = os.path.join(workspace_path, "/IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
+                # PartLogFin = os.path.join(
+                #     workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt"
+                # )
                 with open(PartLogFin, 'a') as part_log:
                     part_log.write("\n" + part_name)
                 logger.log("Warning: No or less than 10 buildings selected in partition", 'WARNING')
@@ -740,26 +745,42 @@ class IBTool:
 
             # Straßen-Features selektieren
             sel_strassen_layer = select_and_save_by_location(layer_rn, sel_part_layer)
-            #save_temp_layer_to_gpkg(sel_strassen_layer, "SelStrassen_{}".format(part_name),workspace_path)
+            # save_temp_layer_to_gpkg(
+            #     sel_strassen_layer,
+            #     f"SelStrassen_{part_name}",
+            #     workspace_path
+            # )
 
             # Anzahl der ausgewählten Straßen prüfen
             anz_strassen = sel_strassen_layer.featureCount()
 
             if anz_strassen < 5:
-                #PartLogFin = os.path.join(workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
+                # PartLogFin = os.path.join(
+                #     workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt"
+                # )
                 with open(PartLogFin, 'a') as part_log:
                     part_log.write("\n" + part_name)
                 logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, sel_part_layer)
-            #save_temp_layer_to_gpkg(aux_lines_sel, "aux_lines_sel_{}".format(part_name), workspace_path)
+            # save_temp_layer_to_gpkg(
+            #     aux_lines_sel,
+            #     f"aux_lines_sel_{part_name}",
+            #     workspace_path
+            # )
 
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
             logger.log("SelStrassen Count = {}".format(anz_strassen), 'SUCCESS')
 
-            min_overlap_mst = calc_footprint_density(sel_hu_layer, sel_strassen_layer, 100, global_footprint_density, 'local',
-                                                         min_bdg_count)
+            min_overlap_mst = calc_footprint_density(
+                sel_hu_layer,
+                sel_strassen_layer,
+                100,
+                global_footprint_density,
+                'local',
+                min_bdg_count
+            )
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, sel_hu_layer, sel_part_layer)
@@ -768,7 +789,14 @@ class IBTool:
             hu_filter = input_hu_filter(sel_hu_layer, input_filter, min_area, 50, 200)
             #save_temp_layer_to_gpkg(hu_filter, "HU_Filter_{}".format(part_name))
 
-            overlap_calc_output = calc_footprint_density(hu_filter, aux_lines_sel, 100, min_overlap_mst, 'local', min_bdg_count)
+            overlap_calc_output = calc_footprint_density(
+                hu_filter,
+                aux_lines_sel,
+                100,
+                min_overlap_mst,
+                'local',
+                min_bdg_count
+            )
 
             blocks_dense = identify_dense_blocks(hu_filter, blocks, overlap_calc_output)
             #save_temp_layer_to_gpkg(blocks_dense, "Blocks_dense_{}".format(part_name))
@@ -796,10 +824,23 @@ class IBTool:
                 })['OUTPUT']
             #save_temp_layer_to_gpkg(rect_merged, "RectMerged2")
 
-            snapped_rect = edge_catch(rect_merged, hu_filter, sel_strassen_layer, blocks, spatial_reference)
+            snapped_rect = edge_catch(
+                rect_merged,
+                hu_filter,
+                sel_strassen_layer,
+                blocks,
+                spatial_reference
+            )
             #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
-            gaps_colsed = gap_close(snapped_rect, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
+            gaps_colsed = gap_close(
+                snapped_rect,
+                blocks,
+                max_hole_size,
+                max_gap_size,
+                spatial_reference,
+                gap_dist=30
+            )
             #save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed", workspace_path)
 
             patch_removed = patch_remove(gaps_colsed,
