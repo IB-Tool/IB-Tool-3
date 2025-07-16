@@ -1,4 +1,4 @@
-import unittest
+import pytest
 import os
 import sys
 import logging
@@ -22,14 +22,14 @@ from ..helpers.system_utils import save_temp_layer_to_gpkg
 from .utilities import get_qgis_app
 
 
-class TestBlockerIntegration(unittest.TestCase):
+class TestBlockerIntegration:
     """
     Integrationstest für die Blocker-Funktion
     Testet die vollständige Funktionalität mit echten QGIS-Daten
     """
 
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         """Setup QGIS application für alle Tests"""
         cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
         cls.test_data_dir = Path(__file__).parent / 'dummy_data'
@@ -44,7 +44,7 @@ class TestBlockerIntegration(unittest.TestCase):
         handler.setFormatter(formatter)
         cls.logger.addHandler(handler)
 
-    def setUp(self):
+    def setup_method(self, method):
         """Setup für jeden einzelnen Test"""
         self.tolerance_meters = 1.0
         self.tolerance_percent = 1.0
@@ -55,7 +55,7 @@ class TestBlockerIntegration(unittest.TestCase):
             from ..ibtool_tools.Blocker import blocker
             self.blocker_function = blocker
         except ImportError as e:
-            self.fail(f"Konnte Blocker-Funktion nicht importieren: {e}")
+            pytest.fail(f"Konnte Blocker-Funktion nicht importieren: {e}")
 
     def load_test_layer(self, filename):
         """Lädt einen Test-Layer aus dem dummy_data Ordner"""
@@ -269,10 +269,9 @@ class TestBlockerIntegration(unittest.TestCase):
             f"Actual feature count: {report['feature_count']['actual']}")
 
         # Assertions mit Toleranzen
-        self.assertEqual(
-            report['feature_count']['expected'],
-            report['feature_count']['actual'],
-            f"Feature count mismatch in {scenario_name}: Expected {report['feature_count']['expected']}, got {report['feature_count']['actual']}"
+        assert report['feature_count']['expected'] == report['feature_count']['actual'], (
+            f"Feature count mismatch in {scenario_name}: Expected {report['feature_count']['expected']}, "
+            f"got {report['feature_count']['actual']}"
         )
 
     def test_blocker_standard_case(self):
@@ -291,10 +290,9 @@ class TestBlockerIntegration(unittest.TestCase):
         save_temp_layer_to_gpkg(result, 'blocker_result2.gpkg', test_dir)
 
         # Verify result is valid
-        self.assertIsNotNone(result, "Blocker function returned None")
-        self.assertIsInstance(result, QgsVectorLayer,
-                              "Result is not a QgsVectorLayer")
-        self.assertTrue(result.isValid(), "Result layer is not valid")
+        assert result is not None, "Blocker function returned None"
+        assert isinstance(result, QgsVectorLayer), "Result is not a QgsVectorLayer"
+        assert result.isValid(), "Result layer is not valid"
 
         # Compare with expected result
         self.assert_layers_similar(expected_result, result, "standard_case")
@@ -322,11 +320,7 @@ class TestBlockerIntegration(unittest.TestCase):
         # Ensure all features are polygons
         for feature in result.getFeatures():
             if feature.geometry():
-                self.assertEqual(
-                    feature.geometry().type(),
-                    QgsWkbTypes.PolygonGeometry,  # Korrekte Syntax!
-                    "All features should be polygons"
-                )
+                assert feature.geometry().type() == QgsWkbTypes.PolygonGeometry, "All features should be polygons"
 
     def test_blocker_spatial_relationships(self):
         """Test räumlicher Beziehungen"""
@@ -361,11 +355,7 @@ class TestBlockerIntegration(unittest.TestCase):
             if contains_building:
                 blocks_with_buildings += 1
 
-        self.assertGreater(
-            blocks_with_buildings,
-            0,
-            "At least one block should contain buildings"
-        )
+        assert blocks_with_buildings > 0, "At least one block should contain buildings"
 
     def test_blocker_attribute_correctness(self):
         """Test der Attributkorrektheit"""
@@ -382,7 +372,7 @@ class TestBlockerIntegration(unittest.TestCase):
         # Check NAME field exists
         name_field_exists = any(
             field.name() == 'NAME' for field in result.fields())
-        self.assertTrue(name_field_exists, "NAME field should exist")
+        assert name_field_exists, "NAME field should exist"
 
         # Check NAME field values
         name_values = []
@@ -392,11 +382,8 @@ class TestBlockerIntegration(unittest.TestCase):
 
         # All NAME values should follow Block_X pattern
         for name in name_values:
-            self.assertIsNotNone(name, "NAME value should not be None")
-            self.assertTrue(
-                name.startswith('Block_'),
-                f"NAME value '{name}' should start with 'Block_'"
-            )
+            assert name is not None, "NAME value should not be None"
+            assert name.startswith('Block_'), f"NAME value '{name}' should start with 'Block_'"
 
     def test_blocker_with_empty_layers(self):
         """Test mit leeren Eingabe-Layern"""
@@ -417,9 +404,8 @@ class TestBlockerIntegration(unittest.TestCase):
             result = self.blocker_function(strassen, hu_input, partition)
 
             # Should handle empty inputs gracefully
-            self.assertIsNotNone(result, "Function should handle empty inputs")
-            self.assertIsInstance(result, QgsVectorLayer,
-                                  "Result should be a QgsVectorLayer")
+            assert result is not None, "Function should handle empty inputs"
+            assert isinstance(result, QgsVectorLayer), "Result should be a QgsVectorLayer"
 
         except Exception as e:
             # If function fails with empty inputs, that's acceptable
@@ -445,21 +431,17 @@ class TestBlockerIntegration(unittest.TestCase):
         self.logger.info(f"Execution time: {execution_time:.2f} seconds")
 
         # Reasonable time limit (adjust as needed)
-        self.assertLess(execution_time, 60,
-                        "Function should complete within 60 seconds")
+        assert execution_time < 60, "Function should complete within 60 seconds"
         
 
-    def tearDown(self):
+    def teardown_method(self, method):
         """Cleanup nach jedem Test"""
         # Clear any temporary layers
         QgsProject.instance().clear()
 
     @classmethod
-    def tearDownClass(cls):
+    def teardown_class(cls):
         """Cleanup nach allen Tests"""
         if hasattr(cls, 'QGIS_APP') and cls.QGIS_APP:
             cls.QGIS_APP.exitQgis()
 
-
-if __name__ == '__main__':
-    unittest.main()

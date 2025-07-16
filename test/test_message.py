@@ -1,7 +1,7 @@
 import os
 import sys
 import types
-import unittest
+import pytest
 
 # Dummy QGIS classes
 class DummyQgis:
@@ -17,8 +17,8 @@ class DummyQgsMessageLog:
     def logMessage(cls, message, tag, level=None):
         cls.logs.append((message, tag, level))
 
-class MessageTestCase(unittest.TestCase):
-    def setUp(self):
+class TestMessage:
+    def setup_method(self, method):
         from .config import PROJECT_ROOT
         project_root = str(PROJECT_ROOT)
 
@@ -42,17 +42,15 @@ class MessageTestCase(unittest.TestCase):
         self.message_mod = message_mod
         DummyQgsMessageLog.logs.clear()
 
-    def tearDown(self):
+    def teardown_method(self, method):
         for mod in ['helpers.message', 'helpers', 'qgis.core', 'qgis.utils', 'qgis']:
             sys.modules.pop(mod, None)
 
     def test_msg_logs_string(self):
         self.message_mod.msg('hello')
-        self.assertEqual(DummyQgsMessageLog.logs[-1], ('hello', 'Meldungen', DummyQgis.Info))
+        assert DummyQgsMessageLog.logs[-1] == ('hello', 'Meldungen', DummyQgis.Info)
 
     def test_msg_converts_non_string(self):
         self.message_mod.msg(123, level=DummyQgis.Warning)
-        self.assertEqual(DummyQgsMessageLog.logs[-1], ('123', 'Meldungen', DummyQgis.Warning))
+        assert DummyQgsMessageLog.logs[-1] == ('123', 'Meldungen', DummyQgis.Warning)
 
-if __name__ == '__main__':
-    unittest.main()

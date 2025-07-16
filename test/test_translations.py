@@ -13,7 +13,7 @@ __author__ = 'ismailsunni@yahoo.co.id'
 __date__ = '12/10/2011'
 __copyright__ = ('Copyright 2012, Australia Indonesia Facility for '
                  'Disaster Reduction')
-import unittest
+import pytest
 import os
 
 from qgis.PyQt.QtCore import QCoreApplication, QTranslator
@@ -21,15 +21,15 @@ from qgis.PyQt.QtCore import QCoreApplication, QTranslator
 QGIS_APP = get_qgis_app()
 
 
-class SafeTranslationsTest(unittest.TestCase):
+class TestSafeTranslations:
     """Test translations work."""
 
-    def setUp(self):
+    def setup_method(self, method):
         """Runs before each test."""
         if 'LANG' in iter(os.environ.keys()):
             os.environ.__delitem__('LANG')
 
-    def tearDown(self):
+    def teardown_method(self, method):
         """Runs after each test."""
         if 'LANG' in iter(os.environ.keys()):
             os.environ.__delitem__('LANG')
@@ -44,11 +44,11 @@ class SafeTranslationsTest(unittest.TestCase):
         
         # Überprüfen, ob die Datei existiert
         if not os.path.exists(file_path):
-            self.fail(f"Translation file not found: {file_path}")
+            pytest.fail(f"Translation file not found: {file_path}")
         
         # Überprüfen, ob die Übersetzung geladen wurde
         loaded = translator.load(file_path)
-        self.assertTrue(loaded, "Failed to load translation file")
+        assert loaded, "Failed to load translation file"
         
         QCoreApplication.installTranslator(translator)
 
@@ -56,10 +56,5 @@ class SafeTranslationsTest(unittest.TestCase):
         expected_translation = 'Guten Morgen'
         # Verwende den korrekten Kontext aus der .ts Datei
         real_message = QCoreApplication.translate("@default", source_message)
-        self.assertEqual(expected_translation, real_message)
+        assert expected_translation == real_message
 
-
-if __name__ == "__main__":
-    suite = unittest.makeSuite(SafeTranslationsTest)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)

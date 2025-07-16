@@ -1,6 +1,6 @@
 import os
 import tempfile
-import unittest
+import pytest
 from unittest.mock import patch
 
 # Nutze die zentrale QGIS-Initialisierung aus test/__init__.py
@@ -17,10 +17,10 @@ class DummyLogger:
         cls.logs.append((message, level))
 
 
-class ManageDirectoryTest(unittest.TestCase):
+class TestManageDirectory:
     EXPECTED_DIRECTORY_NAME = 'IB_Tool_Results'
 
-    def setUp(self):
+    def setup_method(self, method):
         self.tmp = tempfile.TemporaryDirectory()
         self._setup_manage_directory_function()
         self._setup_logger_mock()
@@ -42,7 +42,7 @@ class ManageDirectoryTest(unittest.TestCase):
         os.makedirs(workspace_path)
         return workspace_path
 
-    def tearDown(self):
+    def teardown_method(self, method):
         self.patcher.stop()
         self.tmp.cleanup()
 
@@ -54,8 +54,5 @@ class ManageDirectoryTest(unittest.TestCase):
 
         expected_directory = os.path.join(workspace_path,
                                           self.EXPECTED_DIRECTORY_NAME)
-        self.assertTrue(os.path.isdir(expected_directory))
+        assert os.path.isdir(expected_directory)
 
-
-if __name__ == '__main__':
-    unittest.main()

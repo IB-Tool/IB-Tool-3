@@ -25,7 +25,7 @@ repository root.
   required.
 * Avoid manual `sys.path` modifications. The configuration handles common paths.
 * Keep mocks that are specific to a test within the test file.
-* Simple unit tests that do not depend on QGIS should not import it.
+* Follow pytest conventions for test file naming (prefix with `test_`) and test function naming (prefix with `test_`).
 
 These notes are intended for developers and AI systems extending the test suite.
 Follow this structure to maintain consistent and minimal setup code.
