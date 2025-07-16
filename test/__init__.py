@@ -53,7 +53,6 @@ def setUpModule():
         
         # Initialize processing plugin
         try:
-            import processing
             from processing.core.Processing import Processing
             Processing.initialize()
             print("✅ Processing für Tests initialisiert")

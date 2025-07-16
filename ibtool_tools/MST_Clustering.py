@@ -1,7 +1,7 @@
 
 from operator import itemgetter
-import numpy as np
 import math
+import numpy as np
 
 from PyQt5.QtCore import QMetaType
 from qgis import processing
@@ -17,7 +17,6 @@ from qgis.core import (
     QgsCoordinateReferenceSystem
 )
 
-from ..helpers.system_utils import get_feature_count
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import shp_area, create_empty_layer
 

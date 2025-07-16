@@ -1,6 +1,5 @@
 import os
 import tempfile
-import pytest
 from unittest.mock import patch
 
 # Nutze die zentrale QGIS-Initialisierung aus test/__init__.py
