@@ -244,6 +244,22 @@ Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Si
 
 ---
 
+## Code Linting
+
+Um die Codequalität sicherzustellen, wird [pylint](https://pylint.pycqa.org/) verwendet.
+Die Standardkonfiguration befindet sich in der Datei `.pylintrc` im
+Projektwurzelverzeichnis. Einige Regeln wie `missing-docstring` und
+`invalid-name` sind dort deaktiviert, bis der Code entsprechend angepasst ist.
+
+Pylint kann lokal wie folgt ausgeführt werden:
+
+```bash
+pip install pylint
+pylint $(git ls-files '*.py')
+```
+
+---
+
 ## Fehlerbehebung
 
 - Stelle sicher, dass deine Eingabedaten sich im gleichen **CRS** (Koordinatensystem) befinden.
