@@ -9,14 +9,14 @@ __copyright__ = 'Copyright 2012, Australia Indonesia Facility for '
 __copyright__ += 'Disaster Reduction'
 
 import os
-import unittest
+import pytest
 import logging
 import configparser
 
 LOGGER = logging.getLogger('QGIS')
 
 
-class TestInit(unittest.TestCase):
+class TestInit:
     """Test that the plugin init is usable for QGIS.
 
     Based heavily on the validator class by Alessandro
@@ -55,10 +55,9 @@ class TestInit(unittest.TestCase):
         metadata.extend(parser.items('general'))
 
         for expectation in required_metadata:
-            message = ('Cannot find metadata "%s" in metadata source (%s).' % (
-                expectation, file_path))
+            message = (
+                'Cannot find metadata "%s" in metadata source (%s).' % (
+                    expectation, file_path))
 
-            self.assertIn(expectation, dict(metadata), message)
+            assert expectation in dict(metadata), message
 
-if __name__ == '__main__':
-    unittest.main()

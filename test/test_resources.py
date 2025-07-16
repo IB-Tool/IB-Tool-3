@@ -12,20 +12,20 @@ __author__ = 'ottmar.hittzfeld@web.de'
 __date__ = '2024-12-18'
 __copyright__ = 'Copyright 2024, Oliver Harig'
 
-import unittest
+import pytest
 
 from qgis.PyQt.QtGui import QIcon
 
 
 
-class IBToolDialogTest(unittest.TestCase):
+class TestIBToolResources:
     """Test rerources work."""
 
-    def setUp(self):
+    def setup_method(self, method):
         """Runs before each test."""
         pass
 
-    def tearDown(self):
+    def teardown_method(self, method):
         """Runs after each test."""
         pass
 
@@ -33,12 +33,8 @@ class IBToolDialogTest(unittest.TestCase):
         """Test we can click OK."""
         path = ':/plugins/IBTool/icon.png'
         icon = QIcon(path)
-        self.assertFalse(icon.isNull())
+        assert not icon.isNull()
 
-if __name__ == "__main__":
-    suite = unittest.makeSuite(IBToolResourcesTest)
-    runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
 
 
 
