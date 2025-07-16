@@ -27,12 +27,12 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
     def gap_select(input_poly, input_gaps, crs, length_percentage):
         """
         Wählt Lücken basierend auf dem prozentualen Anteil der überlappenden Kanten aus.
-        
+
         Args:
             input_poly: Eingabe-Polygon Layer
             input_gaps: Lücken-Polygon Layer
             length_percentage: Schwellwert für den prozentualen Längenanteil
-        
+
         Returns:
             QgsVectorLayer mit ausgewählten Lücken
         """
@@ -42,25 +42,25 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
             'INPUT': input_poly,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-    
+
         # Polygone in Linien umwandeln
         input_poly_lines = processing.run("native:polygonstolines", {
             'INPUT': input_poly_diss,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
         #save_temp_layer_to_gpkg(input_poly_lines, "b_input_poly_lines")
-    
+
         gap_lines = processing.run("native:polygonstolines", {
             'INPUT': input_gaps,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-    
+
         # Multipart zu Singlepart für Lückenlinien
         gap_lines_single = processing.run("native:multiparttosingleparts", {
             'INPUT': gap_lines,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-    
+
         # Felder hinzufügen und Längen berechnen
         gap_lines_with_length = processing.run("qgis:fieldcalculator", {
             'INPUT': gap_lines_single,
@@ -94,7 +94,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
                                     'FORMULA': '@id',
                                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                                     })['OUTPUT']
-    
+
         # Linien an Schnittpunkten teilen
         split_lines = processing.run("native:splitlinesbylength",
                        {'INPUT': gap_lines_with_fid_copy,
@@ -122,7 +122,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
             'INTERSECT': input_poly_lines_buff,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-            
+
         # Segmente nach FID auflösen und neue Länge berechnen
         dissolved_segments = processing.run("qgis:dissolve", {
             'INPUT': overlapping_segments,
@@ -139,7 +139,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
             'NEW_FIELD': True,
             'FORMULA': '$length',
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']            
+        })['OUTPUT']
         #save_temp_layer_to_gpkg(lines_with_length_2, "b_lines_with_length_2")
 
         # Längenverhältnis berechnen und filtern
@@ -152,7 +152,10 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
         #save_temp_layer_to_gpkg(final_selection, "b_final_selection")
 
         # Retrieve all values from the 'fid_copy' field in final_selection and store them in a list
-        fid_copy_values = [feature['fid_copy'] for feature in final_selection.getFeatures()]  #TODO das geht auch anders
+        fid_copy_values = [
+            feature['fid_copy']
+            for feature in final_selection.getFeatures()
+        ]  # TODO das geht auch anders
         #small_removed_count = small_removed.featureCount()
 
 
@@ -180,7 +183,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
 
         return filtered_features
 
-    
+
     ############################################################
 
     input_diss = processing.run("native:dissolve",

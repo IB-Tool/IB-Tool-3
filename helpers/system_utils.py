@@ -20,7 +20,10 @@ def save_temp_layer_to_gpkg(layer, filename, workspace_path):
     """
 
     if not isinstance(layer, QgsVectorLayer):
-        Logger.log("Fehler: Das übergebene Objekt {} ist kein gültiger QgsVectorLayer.".format(layer), "CRITICAL")
+        Logger.log(
+            f"Fehler: Das übergebene Objekt {layer} ist kein gültiger QgsVectorLayer.",
+            "CRITICAL"
+        )
         return
 
     if not layer.isValid():
@@ -46,9 +49,15 @@ def save_temp_layer_to_gpkg(layer, filename, workspace_path):
     )
 
     if error[0] == QgsVectorFileWriter.NoError:
-        Logger.log("Layer erfolgreich als '{}' in '{}' gespeichert.".format(layer_name, gpkg_file), 'SUCCESS')
+        Logger.log(
+            f"Layer erfolgreich als '{layer_name}' in '{gpkg_file}' gespeichert.",
+            'SUCCESS'
+        )
     else:
-        Logger.log("Fehler beim Speichern des Layers '{}' in '{}': {}".format(layer_name, gpkg_file, error[1]), 'CRITICAL')
+        Logger.log(
+            f"Fehler beim Speichern des Layers '{layer_name}' in '{gpkg_file}': {error[1]}",
+            'CRITICAL'
+        )
 
     return gpkg_file
 
@@ -71,16 +80,28 @@ def manage_directory(workspace_path, del_part_log):
         # Wenn del_part_log True ist und der Ordner existiert, löschen
         if del_part_log and os.path.exists(directory_path):
             shutil.rmtree(directory_path)
-            Logger.log("Verzeichnis {} wurde erfolgreich gelöscht.".format(directory_path), "SUCCESS")
+            Logger.log(
+                f"Verzeichnis {directory_path} wurde erfolgreich gelöscht.",
+                "SUCCESS"
+            )
 
         # In jedem Fall den Ordner neu erstellen
         if not os.path.exists(directory_path):
             os.makedirs(directory_path)
-            Logger.log("Verzeichnis {} wurde erfolgreich neu erstellt.".format(directory_path), "SUCCESS")
+            Logger.log(
+                f"Verzeichnis {directory_path} wurde erfolgreich neu erstellt.",
+                "SUCCESS"
+            )
         else:
-            Logger.log("Verzeichnis {} existiert bereits und wird verwendet.".format(directory_path), "WARNING")
+            Logger.log(
+                f"Verzeichnis {directory_path} existiert bereits und wird verwendet.",
+                "WARNING"
+            )
     except Exception as e:
-        Logger.log("Fehler beim Verwalten des Verzeichnisses {}: {}".format(directory_path, str(e)), 'CRITICAL')
+        Logger.log(
+            f"Fehler beim Verwalten des Verzeichnisses {directory_path}: {str(e)}",
+            'CRITICAL'
+        )
 
 # Beispielaufruf
 # manage_directory(r"L:\Test_data\workspace", True)
@@ -134,7 +155,10 @@ def version_check():
     # Python check
     if not (MIN_PYTHON <= sys.version_info[:2] <= MAX_PYTHON):
         raise RuntimeError(
-            f"Dieses Plugin benötigt Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} - {MAX_PYTHON[0]}.{MAX_PYTHON[1]}"
+            (
+                f"Dieses Plugin benötigt Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} - "
+                f"{MAX_PYTHON[0]}.{MAX_PYTHON[1]}"
+            )
         )
     # QGIS check
     qgis_int = Qgis.QGIS_VERSION_INT
