@@ -77,6 +77,7 @@ from qgis.core import (
     QgsSettings
 )
 from .helpers.logger import Logger as MainLogger
+from .helpers.config_manager import ConfigManager
 from .helpers.geometry_utils import (
     check_projection,
     load_to_geopackage,
@@ -137,10 +138,14 @@ class IBTool:
         :type iface: QgsInterface
         """
         # Save reference to the QGIS interface
-
         self.iface = iface
+        
         # Initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
+        
+        # Initialize configuration manager
+        self.config_manager = ConfigManager(self.plugin_dir)
+        
         # Initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -364,6 +369,9 @@ class IBTool:
             self.dlg.LogLevelBox.currentTextChanged.connect(
                 lambda: logger.set_log_level(self.dlg.LogLevelBox.currentText())
             )
+            
+            # Initialize configuration functionality
+            self.setup_config_functionality()
 
         # Automatische Aktualisierung der Textfelder bei Start
         file_path = self.dlg.FilterPath.text()  # Pfad aus dem QLineEdit abrufen
@@ -835,3 +843,93 @@ class IBTool:
 
 
         logger.log("ERFOLG", "CRITICAL")
+    
+    def setup_config_functionality(self):
+        """Setup configuration-related functionality."""
+        # Load configuration into UI if available
+        if self.config_manager.config_exists():
+            self.load_config_into_ui()
+            logger.log("Konfiguration aus CONFIG.ini geladen", "INFO")
+            
+            # Validate paths and show warnings for missing files
+            missing_paths = self.config_manager.get_missing_paths()
+            if missing_paths:
+                warning_msg = f"Folgende konfigurierte Pfade existieren nicht: {', '.join(missing_paths)}"
+                logger.log(warning_msg, "WARNING")
+        else:
+            logger.log("Keine CONFIG.ini gefunden - verwende Standardeinstellungen", "INFO")
+    
+    def load_config_into_ui(self):
+        """Load configuration values into UI elements."""
+        config = self.config_manager.get_config()
+        
+        # Map UI elements for path loading
+        ui_elements = {
+            'HuPath': self.dlg.HuPath,
+            'RnPath': self.dlg.RnPath,
+            'PartPath': self.dlg.PartPath,
+            'AuxPath': self.dlg.AuxPath,
+            'FilterPath': self.dlg.FilterPath,
+            'WorkspacePath': getattr(self.dlg, 'WorkspacePath', None),
+            'OutputPath': getattr(self.dlg, 'OutputPath', None),
+            'LogDirPath': getattr(self.dlg, 'LogDirPath', None)
+        }
+        
+        # Apply configuration to UI
+        self.config_manager.apply_to_ui_elements(ui_elements)
+        
+        # Set processing parameters if UI elements exist
+        if hasattr(self.dlg, 'RoadLengthSpinBox'):
+            self.dlg.RoadLengthSpinBox.setValue(config.processing.road_length_threshold)
+        
+        # Set log level
+        if hasattr(self.dlg, 'LogLevelBox'):
+            log_level = config.ui.log_level
+            index = self.dlg.LogLevelBox.findText(log_level)
+            if index >= 0:
+                self.dlg.LogLevelBox.setCurrentIndex(index)
+    
+    def save_current_config(self):
+        """Save current UI state to configuration."""
+        config = self.config_manager.get_config()
+        
+        # Update configuration with current UI values
+        if hasattr(self.dlg, 'HuPath'):
+            config.input_data.building_footprints_path = self.dlg.HuPath.text()
+        if hasattr(self.dlg, 'RnPath'):
+            config.input_data.road_network_path = self.dlg.RnPath.text()
+        if hasattr(self.dlg, 'PartPath'):
+            config.input_data.partitions_path = self.dlg.PartPath.text()
+        if hasattr(self.dlg, 'AuxPath'):
+            config.input_data.aux_layer_path = self.dlg.AuxPath.text()
+        if hasattr(self.dlg, 'FilterPath'):
+            config.input_data.filter_file_path = self.dlg.FilterPath.text()
+        if hasattr(self.dlg, 'WorkspacePath'):
+            config.output.workspace_directory = getattr(self.dlg.WorkspacePath, 'text', lambda: '')()
+        
+        # Update processing parameters
+        if hasattr(self.dlg, 'RoadLengthSpinBox'):
+            config.processing.road_length_threshold = self.dlg.RoadLengthSpinBox.value()
+        
+        # Update UI settings
+        if hasattr(self.dlg, 'LogLevelBox'):
+            config.ui.log_level = self.dlg.LogLevelBox.currentText()
+        
+        # Save to file
+        try:
+            self.config_manager.save_config()
+            logger.log("Konfiguration in CONFIG.ini gespeichert", "SUCCESS")
+        except Exception as e:
+            logger.log(f"Fehler beim Speichern der Konfiguration: {str(e)}", "CRITICAL")
+    
+    def create_example_config(self):
+        """Create example CONFIG.ini file."""
+        try:
+            self.config_manager.create_example_config()
+            logger.log(f"Beispiel-Konfiguration erstellt: {self.config_manager.config_file_path}", "SUCCESS")
+        except Exception as e:
+            logger.log(f"Fehler beim Erstellen der Beispiel-Konfiguration: {str(e)}", "CRITICAL")
+    
+    def get_processing_config(self):
+        """Get processing parameters from configuration for use in algorithms."""
+        return self.config_manager.get_processing_parameters()
