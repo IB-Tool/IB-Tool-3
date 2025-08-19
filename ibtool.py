@@ -26,7 +26,6 @@ of building footprints
 import os
 import sys
 import time
-import configparser
 
 # Constants for configuration
 PYTHONPATH = '/helpers'
@@ -44,7 +43,7 @@ def initialize_environment():
             '/Applications/QGIS.app/Contents/MacOS'
         ]
         for path in potential_paths:
-            if os.path.exists(os.path.join(path, 'bin', 'qgis')) or\
+            if os.path.exists(os.path.join(path, 'bin', 'qgis')) or \
                os.path.exists(os.path.join(path, 'bin', 'qgis.bin')):
                 qgis_prefix = path
                 break
@@ -58,8 +57,6 @@ def initialize_environment():
 
 # Initialize the environment
 initialize_environment()
-
-from qgis import processing
 
 from qgis.PyQt.QtCore import (
     QCoreApplication,
@@ -80,6 +77,7 @@ from qgis.core import (
     QgsSettings
 )
 from .helpers.logger import Logger as MainLogger
+from .helpers.config_manager import ConfigManager
 from .helpers.geometry_utils import (
     check_projection,
     load_to_geopackage,
@@ -133,17 +131,21 @@ class IBTool:
 
     def __init__(self, iface):
         """Constructor.
-
+    
         :param iface: An interface instance that will be passed to this class
             which provides the hook by which you can manipulate the QGIS
             application at run time.
         :type iface: QgsInterface
         """
         # Save reference to the QGIS interface
-
         self.iface = iface
+        
         # Initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
+        
+        # Initialize configuration manager
+        self.config_manager = ConfigManager(self.plugin_dir)
+        
         # Initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -199,89 +201,6 @@ class IBTool:
         if self.thread.isRunning():
             self.thread.terminate()  # Terminate thread
             self.update_messages("Processing canceled.")
-
-    def load_config_ini(self):
-        """Lädt Konfigurationswerte aus config.ini im testdaten-Ordner"""
-        config_path = os.path.join(os.path.dirname(__file__), 'testdaten',
-                                   'config.ini')
-
-        if os.path.exists(config_path):
-            config = configparser.ConfigParser()
-            try:
-                config.read(config_path, encoding='utf-8')
-
-                # Werte aus der [ibtool] Sektion laden
-                if 'ibtool' in config:
-                    ibtool_config = config['ibtool']
-
-                    # Pfade laden
-                    if 'hu_path' in ibtool_config:
-                        self.dlg.HuPath.setText(ibtool_config['hu_path'])
-                    if 'rn_path' in ibtool_config:
-                        self.dlg.RnPath.setText(ibtool_config['rn_path'])
-                    if 'part_path' in ibtool_config:
-                        self.dlg.PartPath.setText(ibtool_config['part_path'])
-                    if 'aux_path' in ibtool_config:
-                        self.dlg.AuxPath.setText(ibtool_config['aux_path'])
-                    if 'output_path' in ibtool_config:
-                        self.dlg.OutputPath.setText(
-                            ibtool_config['output_path'])
-                    if 'workspace_path' in ibtool_config:
-                        self.dlg.WorkspacePath.setText(
-                            ibtool_config['workspace_path'])
-                    if 'filter_path' in ibtool_config:
-                        self.dlg.FilterPath.setText(
-                            ibtool_config['filter_path'])
-                    if 'log_dir' in ibtool_config:
-                        self.dlg.LogDirPath.setText(ibtool_config['log_dir'])
-
-                    # Parameter laden
-                    if 'min_overlap_blocks' in ibtool_config:
-                        self.dlg.MinOverlapBlocksBox.setText(
-                            ibtool_config['min_overlap_blocks'])
-                    if 'global_footprint_density' in ibtool_config:
-                        self.dlg.GlobalFootprintDensityBox.setText(
-                            ibtool_config['global_footprint_density'])
-                    if 'min_area' in ibtool_config:
-                        self.dlg.MinAreaBox.setText(ibtool_config['min_area'])
-                    if 'min_bdg_count' in ibtool_config:
-                        self.dlg.MinBdgCountBox.setText(
-                            ibtool_config['min_bdg_count'])
-                    if 'min_patch_size' in ibtool_config:
-                        self.dlg.MinPatchSizeBox.setText(
-                            ibtool_config['min_patch_size'])
-                    if 'max_hole_size' in ibtool_config:
-                        self.dlg.MaxHoleSizeBox.setText(
-                            ibtool_config['max_hole_size'])
-                    if 'max_gap_size' in ibtool_config:
-                        self.dlg.MaxGapSizeBox.setText(
-                            ibtool_config['max_gap_size'])
-                    if 'part_start' in ibtool_config:
-                        self.dlg.partstartBox.setText(
-                            ibtool_config['part_start'])
-                    if 'part_end' in ibtool_config:
-                        self.dlg.partendBox.setText(ibtool_config['part_end'])
-                    if 'part_list' in ibtool_config:
-                        self.dlg.partlistBox.setText(ibtool_config['part_list'])
-                    if 'spatial_reference' in ibtool_config:
-                        self.dlg.SpatialReferenceBox.setText(
-                            ibtool_config['spatial_reference'])
-                    if 'log_level' in ibtool_config:
-                        self.dlg.LogLevelBox.setCurrentText(
-                            ibtool_config['log_level'])
-                    if 'delete_part_log' in ibtool_config:
-                        self.dlg.PartLogBox.setChecked(
-                            ibtool_config.getboolean('delete_part_log'))
-
-                logger.log("Konfiguration aus config.ini geladen",
-                           level="INFO")
-
-            except Exception as e:
-                logger.log(f"Fehler beim Laden der config.ini: {str(e)}",
-                           level="WARNING")
-        else:
-            logger.log("Keine config.ini im testdaten-Ordner gefunden",
-                       level="INFO")
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):
@@ -406,7 +325,7 @@ class IBTool:
         """
         valid_levels = ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']
         self.dlg.LogLevelBox.addItems(valid_levels)
-
+        
         # Set the default log level
         default_level = 'INFO'
         if default_level in valid_levels:
@@ -450,9 +369,9 @@ class IBTool:
             self.dlg.LogLevelBox.currentTextChanged.connect(
                 lambda: logger.set_log_level(self.dlg.LogLevelBox.currentText())
             )
-        
-        # Config-Datei laden
-        self.load_config_ini()
+            
+            # Initialize configuration functionality
+            self.setup_config_functionality()
 
         # Automatische Aktualisierung der Textfelder bei Start
         file_path = self.dlg.FilterPath.text()  # Pfad aus dem QLineEdit abrufen
@@ -759,10 +678,7 @@ class IBTool:
             pass
 
 
-        logger.log(
-            f"Global building coverage threshold = {global_footprint_density}",
-            "INFO"
-        )
+        logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
 
         msg(part_log_path) #TODO löschen
         if DelPartLog == 'True':
@@ -783,7 +699,7 @@ class IBTool:
 
 
         for i in part_list:
-            logger.log("Check if {} is in Partlist.".format(str(i)),
+            logger.log("Check if {} is in Partlist.".format(str(i)), 
                        'SUCCESS')
             a = 1
             isin = False
@@ -803,7 +719,7 @@ class IBTool:
 
             part_name = i
             logger.log( "###############################", 'INFO')
-            logger.log( "PARTITION: " + str(part_name) + " - " + str(a) + " of "
+            logger.log( "PARTITION: " + str(part_name) + " - " + str(a) + " of " 
                         + str(len(part_list)), 'INFO')
 
             # Partition auswählen
@@ -813,7 +729,7 @@ class IBTool:
                     'EXPRESSION': f"\"NAME\" = '{part_name}'",
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
-            #save_temp_layer_to_gpkg(sel_part_layer,
+            #save_temp_layer_to_gpkg(sel_part_layer, 
             # "SelPart_{}".format(part_name), workspace_path)
 
             # Gebäude-Features selektieren
@@ -824,9 +740,7 @@ class IBTool:
             anz_hu = sel_hu_layer.featureCount()
 
             if anz_hu < 10:
-                # PartLogFin = os.path.join(
-                #     workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt"
-                # )
+                #PartLogFin = os.path.join(workspace_path, "/IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
                 with open(PartLogFin, 'a') as part_log:
                     part_log.write("\n" + part_name)
                 logger.log("Warning: No or less than 10 buildings selected in partition", 'WARNING')
@@ -834,42 +748,26 @@ class IBTool:
 
             # Straßen-Features selektieren
             sel_strassen_layer = select_and_save_by_location(layer_rn, sel_part_layer)
-            # save_temp_layer_to_gpkg(
-            #     sel_strassen_layer,
-            #     f"SelStrassen_{part_name}",
-            #     workspace_path
-            # )
+            #save_temp_layer_to_gpkg(sel_strassen_layer, "SelStrassen_{}".format(part_name),workspace_path)
 
             # Anzahl der ausgewählten Straßen prüfen
             anz_strassen = sel_strassen_layer.featureCount()
 
             if anz_strassen < 5:
-                # PartLogFin = os.path.join(
-                #     workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt"
-                # )
+                #PartLogFin = os.path.join(workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
                 with open(PartLogFin, 'a') as part_log:
                     part_log.write("\n" + part_name)
                 logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, sel_part_layer)
-            # save_temp_layer_to_gpkg(
-            #     aux_lines_sel,
-            #     f"aux_lines_sel_{part_name}",
-            #     workspace_path
-            # )
+            #save_temp_layer_to_gpkg(aux_lines_sel, "aux_lines_sel_{}".format(part_name), workspace_path)
 
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
             logger.log("SelStrassen Count = {}".format(anz_strassen), 'SUCCESS')
 
-            min_overlap_mst = calc_footprint_density(
-                sel_hu_layer,
-                sel_strassen_layer,
-                100,
-                global_footprint_density,
-                'local',
-                min_bdg_count
-            )
+            min_overlap_mst = calc_footprint_density(sel_hu_layer, sel_strassen_layer, 100, global_footprint_density, 'local',
+                                                         min_bdg_count)
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, sel_hu_layer, sel_part_layer)
@@ -878,14 +776,7 @@ class IBTool:
             hu_filter = input_hu_filter(sel_hu_layer, input_filter, min_area, 50, 200)
             #save_temp_layer_to_gpkg(hu_filter, "HU_Filter_{}".format(part_name))
 
-            overlap_calc_output = calc_footprint_density(
-                hu_filter,
-                aux_lines_sel,
-                100,
-                min_overlap_mst,
-                'local',
-                min_bdg_count
-            )
+            overlap_calc_output = calc_footprint_density(hu_filter, aux_lines_sel, 100, min_overlap_mst, 'local', min_bdg_count)
 
             blocks_dense = identify_dense_blocks(hu_filter, blocks, overlap_calc_output)
             #save_temp_layer_to_gpkg(blocks_dense, "Blocks_dense_{}".format(part_name))
@@ -913,23 +804,10 @@ class IBTool:
                 })['OUTPUT']
             #save_temp_layer_to_gpkg(rect_merged, "RectMerged2")
 
-            snapped_rect = edge_catch(
-                rect_merged,
-                hu_filter,
-                sel_strassen_layer,
-                blocks,
-                spatial_reference
-            )
+            snapped_rect = edge_catch(rect_merged, hu_filter, sel_strassen_layer, blocks, spatial_reference)
             #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
 
-            gaps_colsed = gap_close(
-                snapped_rect,
-                blocks,
-                max_hole_size,
-                max_gap_size,
-                spatial_reference,
-                gap_dist=30
-            )
+            gaps_colsed = gap_close(snapped_rect, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
             #save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed", workspace_path)
 
             patch_removed = patch_remove(gaps_colsed,
@@ -941,6 +819,7 @@ class IBTool:
                                          footprint_area_sum=6000,
                                          footprint_density_threshold=18)
             #save_temp_layer_to_gpkg(patch_removed, "patch_removed", workspace_path)
+
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
@@ -964,3 +843,93 @@ class IBTool:
 
 
         logger.log("ERFOLG", "CRITICAL")
+    
+    def setup_config_functionality(self):
+        """Setup configuration-related functionality."""
+        # Load configuration into UI if available
+        if self.config_manager.config_exists():
+            self.load_config_into_ui()
+            logger.log("Konfiguration aus CONFIG.ini geladen", "INFO")
+            
+            # Validate paths and show warnings for missing files
+            missing_paths = self.config_manager.get_missing_paths()
+            if missing_paths:
+                warning_msg = f"Folgende konfigurierte Pfade existieren nicht: {', '.join(missing_paths)}"
+                logger.log(warning_msg, "WARNING")
+        else:
+            logger.log("Keine CONFIG.ini gefunden - verwende Standardeinstellungen", "INFO")
+    
+    def load_config_into_ui(self):
+        """Load configuration values into UI elements."""
+        config = self.config_manager.get_config()
+        
+        # Map UI elements for path loading
+        ui_elements = {
+            'HuPath': self.dlg.HuPath,
+            'RnPath': self.dlg.RnPath,
+            'PartPath': self.dlg.PartPath,
+            'AuxPath': self.dlg.AuxPath,
+            'FilterPath': self.dlg.FilterPath,
+            'WorkspacePath': getattr(self.dlg, 'WorkspacePath', None),
+            'OutputPath': getattr(self.dlg, 'OutputPath', None),
+            'LogDirPath': getattr(self.dlg, 'LogDirPath', None)
+        }
+        
+        # Apply configuration to UI
+        self.config_manager.apply_to_ui_elements(ui_elements)
+        
+        # Set processing parameters if UI elements exist
+        if hasattr(self.dlg, 'RoadLengthSpinBox'):
+            self.dlg.RoadLengthSpinBox.setValue(config.processing.road_length_threshold)
+        
+        # Set log level
+        if hasattr(self.dlg, 'LogLevelBox'):
+            log_level = config.ui.log_level
+            index = self.dlg.LogLevelBox.findText(log_level)
+            if index >= 0:
+                self.dlg.LogLevelBox.setCurrentIndex(index)
+    
+    def save_current_config(self):
+        """Save current UI state to configuration."""
+        config = self.config_manager.get_config()
+        
+        # Update configuration with current UI values
+        if hasattr(self.dlg, 'HuPath'):
+            config.input_data.building_footprints_path = self.dlg.HuPath.text()
+        if hasattr(self.dlg, 'RnPath'):
+            config.input_data.road_network_path = self.dlg.RnPath.text()
+        if hasattr(self.dlg, 'PartPath'):
+            config.input_data.partitions_path = self.dlg.PartPath.text()
+        if hasattr(self.dlg, 'AuxPath'):
+            config.input_data.aux_layer_path = self.dlg.AuxPath.text()
+        if hasattr(self.dlg, 'FilterPath'):
+            config.input_data.filter_file_path = self.dlg.FilterPath.text()
+        if hasattr(self.dlg, 'WorkspacePath'):
+            config.output.workspace_directory = getattr(self.dlg.WorkspacePath, 'text', lambda: '')()
+        
+        # Update processing parameters
+        if hasattr(self.dlg, 'RoadLengthSpinBox'):
+            config.processing.road_length_threshold = self.dlg.RoadLengthSpinBox.value()
+        
+        # Update UI settings
+        if hasattr(self.dlg, 'LogLevelBox'):
+            config.ui.log_level = self.dlg.LogLevelBox.currentText()
+        
+        # Save to file
+        try:
+            self.config_manager.save_config()
+            logger.log("Konfiguration in CONFIG.ini gespeichert", "SUCCESS")
+        except Exception as e:
+            logger.log(f"Fehler beim Speichern der Konfiguration: {str(e)}", "CRITICAL")
+    
+    def create_example_config(self):
+        """Create example CONFIG.ini file."""
+        try:
+            self.config_manager.create_example_config()
+            logger.log(f"Beispiel-Konfiguration erstellt: {self.config_manager.config_file_path}", "SUCCESS")
+        except Exception as e:
+            logger.log(f"Fehler beim Erstellen der Beispiel-Konfiguration: {str(e)}", "CRITICAL")
+    
+    def get_processing_config(self):
+        """Get processing parameters from configuration for use in algorithms."""
+        return self.config_manager.get_processing_parameters()
