@@ -12,7 +12,7 @@ from qgis.core import (
     QgsWkbTypes,  # Wichtig: Import für Geometrietypen
     QgsFeature,
 )
-from ..helpers.system_utils import save_temp_layer_to_gpkg
+from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
 
 
 # Import utilities for QGIS setup
@@ -49,7 +49,7 @@ class TestBlockerIntegration:
 
         # Import der Blocker-Funktion (Pfad wird durch test/__init__.py gesetzt)
         try:
-            from ..ibtool_tools.Blocker import blocker
+            from ibtool.ibtool_tools.Blocker import blocker
             self.blocker_function = blocker
         except ImportError as e:
             pytest.fail(f"Konnte Blocker-Funktion nicht importieren: {e}")

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(uv run:*)",
+      "Bash(python -m pytest test/test_create_mst.py -v)",
+      "Bash(rm:*)",
+      "Bash(python:*)",
+      "Bash(copy:*)",
+      "Bash(cp:*)",
+      "Bash(docker build:*)",
+      "Bash(powershell:*)",
+      "Bash(docker:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "mcpServers": {
+    "qgis": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "O:/IB-Tool/qgis_mcp-main",
+        "run",
+        "src/qgis_mcp/qgis_mcp_server.py"
+      ]
+    }
+  }
+}

@@ -4,11 +4,14 @@ FROM 3liz/qgis-platform:3.40
 # 2. Root-Rechte für Systeminstallationen
 USER root
 
+
 # 3. System-Updates, Headless-X-Server und Python-Abhängigkeiten installieren
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     xvfb \
     python3-pytest \
+    python3-pytest-cov \
+    python3-coverage \
     python3-numpy \
     python3-pandas \
     python3-matplotlib \
@@ -21,8 +24,6 @@ RUN apt-get update \
     python3-psycopg2 \
     python3-shapely \
     python3-fiona \
-    python3-coverage \
-    python3-pytest-cov \
  && rm -rf /var/lib/apt/lists/*
 
 # 4. Arbeitsverzeichnis im Container
@@ -53,4 +54,4 @@ print('Processing erfolgreich initialisiert'); \
 app.exitQgis()"
 
 # 8. Finale Test-Ausführung
-CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short", "--cov=.", "--cov-report=xml", "--cov-report=html"]
+CMD ["python3", "-m", "pytest", "test/", "-v", "--tb=short", "--cov=ibtool", "--cov-report=xml", "--cov-report=html"]
