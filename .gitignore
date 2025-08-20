@@ -120,3 +120,6 @@ ibtool - Kopie.py
 ibtool_dialog - Kopie.py
 ibtool_dialog_base - Kopie.ui
 .idea
+/ibtool_tools/CreateMST_original_backup.py
+/IB-Tool2.py
+/.claude/settings.local.json
