@@ -28,7 +28,6 @@ jobs:
       - name: Extract coverage reports
         run: |
           # Coverage-Dateien aus Docker-Container extrahieren
-          docker run --rm -v $(pwd):/app qgis-plugin-test cp /app/coverage.xml /app/
           docker run --rm -v $(pwd):/app qgis-plugin-test cp -r /app/htmlcov /app/
 
       - name: Upload coverage reports to Codecov
