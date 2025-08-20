@@ -46,7 +46,7 @@ class StreetProcessor:
         """
         streets = QgsVectorLayer(
             f"LineString?crs={original_streets.crs().authid()}", 
-            f"{self.config.temp_layer_prefix}_streets", 
+            "temp_mst_streets", 
             "memory"
         )
         
