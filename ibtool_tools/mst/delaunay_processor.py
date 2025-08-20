@@ -26,6 +26,10 @@ from ...helpers.logger import Logger
 class DelaunayProcessor:
     """Handles Delaunay triangulation and related geometric operations."""
     
+    # Delaunay processing parameters
+    COORDINATE_TOLERANCE = 0.0001
+    """Tolerance for coordinate comparison in triangulation"""
+    
     def __init__(self):
         """Initialize the Delaunay processor."""
         self.logger = Logger()
@@ -128,7 +132,7 @@ class DelaunayProcessor:
         """
         layer = QgsVectorLayer(
             f"LineString?crs={crs.toWkt()}", 
-            f"{self.config.temp_layer_prefix}_triangulation", 
+            "temp_mst_triangulation", 
             "memory"
         )
         
@@ -226,7 +230,7 @@ class DelaunayProcessor:
             key = MSTUtilities.rounded_edge_key(
                 edge.start_point[0], edge.start_point[1],
                 edge.end_point[0], edge.end_point[1],
-                self.config.coordinate_precision
+                self.COORDINATE_TOLERANCE
             )
             edge_index.add(key)
         
@@ -240,7 +244,7 @@ class DelaunayProcessor:
                 x2, y2 = points_array[node2_idx]
                 
                 # Check if edge exists in filtered set
-                key = MSTUtilities.rounded_edge_key(x1, y1, x2, y2, self.config.coordinate_precision)
+                key = MSTUtilities.rounded_edge_key(x1, y1, x2, y2, self.COORDINATE_TOLERANCE)
                 if key in edge_index:
                     # Ensure consistent node ordering
                     if node1_idx < node2_idx:
