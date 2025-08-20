@@ -10,8 +10,8 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     xvfb \
     python3-pytest \
-    python3-pytest-cov \\
-    python3-coverage \\
+    python3-pytest-cov \
+    python3-coverage \
     python3-numpy \
     python3-pandas \
     python3-matplotlib \
@@ -24,9 +24,7 @@ RUN apt-get update \
     python3-psycopg2 \
     python3-shapely \
     python3-fiona \
-    python3-coverage \
-    python3-pytest-cov \
- && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /var/lib/apt/lists/*
 
 # 4. Arbeitsverzeichnis im Container
 WORKDIR /app

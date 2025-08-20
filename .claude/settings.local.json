@@ -8,7 +8,10 @@
       "Bash(rm:*)",
       "Bash(python:*)",
       "Bash(copy:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(docker build:*)",
+      "Bash(powershell:*)",
+      "Bash(docker:*)"
     ],
     "deny": [],
     "ask": []
