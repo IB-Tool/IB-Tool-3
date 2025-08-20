@@ -27,8 +27,9 @@ jobs:
 
       - name: Extract coverage reports
         run: |
-          # Coverage-Dateien aus Docker-Container extrahieren
-          docker run --rm -v $(pwd):/app qgis-plugin-test cp -r /app/htmlcov /app/
+          # Tests already generate coverage files in mounted volume
+          # No need to extract since files are already available in host filesystem
+          ls -la coverage.xml htmlcov/ || echo "Coverage files not found"
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
