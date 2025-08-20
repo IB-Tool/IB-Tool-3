@@ -180,7 +180,7 @@ class MSTCalculator:
                 continue
         
         # Create layer using helper function
-        layer_name = self.config.output_layer_name
+        layer_name = "mst_result"
         mst_layer = create_linestring_layer_from_array(array_of_lines, crs, layer_name)
         
         self.logger.log(f"Created MST layer with {len(array_of_lines)} features", level="SUCCESS")
