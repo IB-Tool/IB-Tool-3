@@ -33,5 +33,5 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .ibtool import IBTool
+    from .ibtool.ibtool import IBTool
     return IBTool(iface)
