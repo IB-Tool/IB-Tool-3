@@ -1,0 +1,14 @@
+# .coveragerc - Nach Migration
+[run]
+source = ibtool/ibtool  # Zeigt auf das neue Package
+omit =
+    */test/*
+    */tests/*
+    */__pycache__/*
+    */build/*
+    */dist/*
+    */venv/*
+    */.venv/*
+    */resources.py
+    */ui_*.py
+    __init__.py  # QGIS Entry Point ausschließen
