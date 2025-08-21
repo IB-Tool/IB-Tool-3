@@ -8,51 +8,82 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-### Core Components
+### Package Structure (Post-Migration)
 
-- **`ibtool.py`**: Main plugin class and entry point
-- **`ibtool_dialog.py`**: User interface dialog implementation
-- **`ibtool_cli.py`**: Command-line interface version with direct imports
-- **`helpers/`**: Utility modules for common functionality
-  - `logger.py`: Comprehensive logging system (UI, file, QGIS messages)
-  - `data_loader.py`: Geodata loading and validation
-  - `geometry_utils.py`: Spatial geometry operations
-  - `system_utils.py`: System path and environment utilities
-  - `message.py`: User messaging system
-  - `qgis_defaults.py`: Global QGIS standard parameters for consistent tool behavior
-- **`ibtool_tools/`**: Core processing algorithms
-  - `Blocker.py`: Settlement blocking and partitioning
-  - `CreateMST.py`: Minimum spanning tree creation (refactored, modular architecture)
-  - `mst/`: Modular MST components (delaunay_processor, street_processor, mst_calculator, mst_data_classes)
-  - `MST_Clustering.py`: MST-based clustering algorithms
-  - `FootprintDensity.py`: Building density calculations
-  - `ImportFilter.py`: Data filtering and preprocessing
-  - `GapClose.py`, `HoleClose.py`: Geometry gap/hole closing
-  - `EdgeCatch.py`: Edge detection algorithms
-  - `AddSingleBuilding.py`: Single building processing
-  - `PatchRemove.py`: Patch removal operations
+The plugin now uses a clean package structure with absolute imports:
+
+```
+ibtool/                    # Root directory (plugin entry point)
+├── __init__.py           # QGIS plugin entry point
+├── ibtool/               # Main package directory
+│   ├── __init__.py      # Package initialization
+│   ├── ibtool.py        # Main plugin class and entry point
+│   ├── ibtool_dialog.py # User interface dialog implementation
+│   ├── helpers/         # Utility modules for common functionality
+│   │   ├── logger.py    # Comprehensive logging system (UI, file, QGIS messages)
+│   │   ├── data_loader.py # Geodata loading and validation
+│   │   ├── geometry_utils.py # Spatial geometry operations
+│   │   ├── system_utils.py # System path and environment utilities
+│   │   ├── message.py   # User messaging system
+│   │   └── config_manager.py # Configuration management system
+│   └── ibtool_tools/    # Core processing algorithms
+│       ├── Blocker.py   # Settlement blocking and partitioning
+│       ├── CreateMST.py # Minimum spanning tree creation (monolithic, to be refactored)
+│       ├── MST_Clustering.py # MST-based clustering algorithms
+│       ├── FootprintDensity.py # Building density calculations
+│       ├── ImportFilter.py # Data filtering and preprocessing
+│       ├── GapClose.py, HoleClose.py # Geometry gap/hole closing
+│       ├── EdgeCatch.py # Edge detection algorithms
+│       ├── AddSingleBuilding.py # Single building processing
+│       └── PatchRemove.py # Patch removal operations
+├── test/                # Test suite with simplified imports
+└── ibtool_cli.py       # Command-line interface (separate from package)
+```
+
+### Import System
+
+**All imports are now absolute:**
+```python
+# Before (relative imports - problematic)
+from .helpers.logger import Logger
+from ..helpers.system_utils import save_temp_layer_to_gpkg
+
+# After (absolute imports - clean and reliable)
+from ibtool.helpers.logger import Logger
+from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
+```
+
+### Core Components
 
 ### Data Flow
 
 The plugin processes multiple geodata layers (HU=buildings, RN=roads, Part=partitioning zones, Aux=auxiliary layers) through a pipeline of geometric analysis tools to generate settlement boundaries and density maps stored as GeoPackage files.
 
-### MST Module Architecture (Reference Implementation)
+### MST Module Architecture (Status: Monolithic - Needs Refactoring)
 
-The `ibtool_tools/mst/` module demonstrates the preferred modular architecture:
+The current `CreateMST.py` is a monolithic 372-line function that needs modular refactoring according to established patterns. The complex algorithm encompasses:
 
-**Core Classes:**
-- `DelaunayProcessor`: Handles Delaunay triangulation and geometric operations
-- `StreetProcessor`: Manages street data processing and filtering (ROAD_LENGTH_THRESHOLD=50.0, BUFFER_DISTANCE=5.0)
-- `MSTCalculator`: Performs MST calculations and graph operations (COORDINATE_TOLERANCE=0.0001)
-- `CreateMST`: Orchestrates the complete workflow, coordinates all processors
+**Current Implementation (Monolithic):**
+- Single large `calculate_mst()` function with embedded helper functions
+- Delaunay triangulation, street processing, and MST calculation all in one place
+- Complex nested operations with no clear separation of concerns
+- Constants defined inline (road_length=50, buffer_distance=5, coordinate_tolerance=0.0001)
 
-**Data Classes:**
-- `mst_data_classes.py`: Defines EdgeData, MSTResult, TriangulationResult, StreetProcessingResult, BuildingCentroidsResult
+**Target Architecture (For Future Refactoring):**
+```
+ibtool/ibtool_tools/mst/     # Target modular structure
+├── __init__.py
+├── delaunay_processor.py    # Delaunay triangulation operations
+├── street_processor.py     # Street filtering and node detection  
+├── mst_calculator.py       # Graph operations and MST calculation
+├── mst_data_classes.py     # Data structures for MST processing
+└── create_mst.py           # Orchestrator class
+```
 
-**Design Principles Applied:**
+**Recommended Design Principles:**
 - Each processor owns its business logic parameters as class constants
 - No shared config objects - simple constructors with no parameters
-- QGIS technical parameters are centralized in `helpers/qgis_defaults.py`
+- QGIS technical parameters centralized in `helpers/qgis_defaults.py`
 - Clean separation of concerns: geometry vs. streets vs. graph algorithms
 - Backward compatibility maintained through simple wrapper functions
 
