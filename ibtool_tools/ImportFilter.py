@@ -199,8 +199,14 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
             'OUTPUT': 'memory:'
         })['OUTPUT']
 
+        final_layer_diss = processing.run("native:dissolve", {
+            'INPUT': final_layer,
+            'FIELD': [],
+            'SEPARATE_DISJOINT': True,
+            'OUTPUT': 'memory:'
+        })['OUTPUT']
 
-        return final_layer
+        return final_layer_diss
 
     else:
         Logger.log(f"Anzahl der Gebäude für Filterung zu gering: {anz_hu}", level="WARNING")
