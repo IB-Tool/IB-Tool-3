@@ -27,7 +27,7 @@ class DelaunayProcessor:
     """Handles Delaunay triangulation and related geometric operations."""
     
     # Delaunay processing parameters
-    COORDINATE_TOLERANCE = 0.0001
+    COORDINATE_TOLERANCE = 1
     """Tolerance for coordinate comparison in triangulation"""
     
     def __init__(self):
