@@ -125,13 +125,6 @@ def calc_footprint_density(InputBdg, InputStrNetwork, workspace_path, Buffer=100
             'METHOD': 2  # Auswahl verfeinern (auf bestehender Auswahl aufbauen)
         })['OUTPUT']
 
-        InputBdg_Diss = processing.run("native:dissolve",
-                       {'INPUT': InputBdg,
-                        'FIELD': [],
-                        'SEPARATE_DISJOINT': True,
-                        'OUTPUT': 'TEMPORARY_OUTPUT'
-                        })['OUTPUT']
-
         # Spatial join between building buffer and street polygons
         Blocks_join = processing.run("native:joinbylocationsummary", {
             'INPUT': BlocksInside,
