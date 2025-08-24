@@ -4,7 +4,8 @@ from qgis.core import QgsWkbTypes, QgsVectorLayer, QgsProcessingUtils
 from qgis import processing
 
 from ..helpers.logger import Logger
-from ..helpers.geometry_utils import select_and_save_by_location, shp_area
+from ..helpers.system_utils import save_temp_layer_to_gpkg
+from ..helpers.geometry_utils import select_and_save_by_location, shp_area, shp_area2
 
 def import_filter(filename, HU_Input):
     """
@@ -70,7 +71,7 @@ def import_filter(filename, HU_Input):
     return filterpos, filterneg, fieldname
 
 
-def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=50, PointDensCellSize=50, PointDensNbh=100):
+def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSize=50, PointDensNbh=100, ):
     """
     :param HU_Input: input building footprints (QgsVectorLayer)
     :param MinAreaAllBdgs: minimum area of all filtered buildings
@@ -170,15 +171,34 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=50, PointDensCellSize=
         hu_final = select_and_save_by_location(HU_Input, hu_neg_sel, predicate=2)
 
         # Step 3: Delete small buildings
-        final_layer = processing.run("native:extractbyattribute", {
+        hu_diss = processing.run("native:dissolve",{
             'INPUT': hu_final,
+            'FIELD': [],
+            'SEPARATE_DISJOINT': True,
+            'OUTPUT': 'memory:'
+        })['OUTPUT']
+        shp_area2(hu_diss, "Area")
+
+        diss_del = processing.run("native:extractbyattribute", {
+            'INPUT': hu_diss,
             'FIELD': 'Area',
             'OPERATOR': 2,
             'VALUE': MinAreaAllBdgs,
             'OUTPUT': 'memory:'
         })['OUTPUT']
-        if not isinstance(final_layer, QgsVectorLayer):
+        if not isinstance(diss_del, QgsVectorLayer):
             raise Exception("Failed to create final_layer")
+
+        hu_final_sel = select_and_save_by_location(hu_final, diss_del, predicate=0)
+
+        final_layer = processing.run("native:extractbyattribute", {
+            'INPUT': hu_final_sel,
+            'FIELD': 'Area',
+            'OPERATOR': 2,
+            'VALUE': 35,
+            'OUTPUT': 'memory:'
+        })['OUTPUT']
+
 
         return final_layer
 
