@@ -105,7 +105,6 @@ from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
 from ibtool.ibtool_tools.EdgeCatch import edge_catch
 from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
-from ibtool.ibtool_tools.GapFix import gapfix
 
 # Import the dialog class
 from ibtool.ibtool_dialog import IBToolDialog
@@ -791,8 +790,6 @@ class IBTool:
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
             merge_layer = merge
-
-            # final = gapfix(merge, layer_rn)
 
         # Split the OutputFile into path, filename, and extension
         output_folder, file_with_extension = os.path.split(OutputFile)
