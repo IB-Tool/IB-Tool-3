@@ -39,6 +39,11 @@ from .system_utils import (
     version_check
 )
 
+from .edge_catch_utils import (
+    create_shortest_lines_to_roads,
+    delete_first_point
+)
+
 from .logger import Logger
 
 from .message import msg
@@ -65,5 +70,7 @@ __all__ = [
     "shp_area2",
     "shp_area",
     "get_hole_polygons",
-    "version_check"
+    "version_check",
+    "create_shortest_lines_to_roads",
+    "create_polygons_from_lines"
 ]
