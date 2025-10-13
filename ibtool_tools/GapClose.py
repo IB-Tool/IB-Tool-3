@@ -1,6 +1,7 @@
 from qgis.core import QgsVectorLayer, QgsProcessing
 from qgis import processing
 
+from ..helpers.logger import Logger
 
 def safe_processing_run(algorithm_name, parameters, fix_geometries=True):
     """
@@ -40,6 +41,7 @@ def safe_processing_run(algorithm_name, parameters, fix_geometries=True):
                     repaired_params['INVALID_FEATURE_HANDLING'] = 1
                 return processing.run(algorithm_name, repaired_params)
         else:
+            Logger.log(str(e), level="ERROR")
             raise e
 
 
