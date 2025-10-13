@@ -619,3 +619,4 @@ def get_hole_polygons(layer1, layer2):
     hole_layer.updateExtents()
 
     return hole_layer
+

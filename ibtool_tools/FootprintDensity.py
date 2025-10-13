@@ -26,16 +26,12 @@ from qgis.PyQt.QtCore import QVariant, QMetaType
 
 # Import helpers with fallback for test context
 try:
-    from ..helpers.system_utils import save_temp_layer_to_gpkg
+    #from ..helpers.system_utils import save_temp_layer_to_gpkg
     from ..helpers.message import msg
     from ..helpers.logger import Logger
 except ImportError:
     # Fallback for test context or direct execution
-    def save_temp_layer_to_gpkg(layer, name, workspace_path=None):
-        """Fallback function for tests"""
-        print(f"Fallback: Would save layer {name}")
-        return layer
-    
+
     def msg(message, level=None):
         """Fallback message function"""
         print(f"Message: {message}")
@@ -69,8 +65,6 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
             'INPUT': InputStrNetwork,
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
-        #save_temp_layer_to_gpkg(InputStrNetwork_Poly, "InputStrNetwork_Poly")
-
 
         # Create a spatial index for the polygonized street network
         processing.run("native:createspatialindex", {
@@ -88,7 +82,6 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
             'DISSOLVE': True,
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
-        #save_temp_layer_to_gpkg(InputBdg_Buff, "InputBdg_Buff")
 
         # Create a spatial index for the polygonized street network
         processing.run("native:createspatialindex", {
@@ -99,7 +92,6 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
             'INPUT': InputBdg_Buff,
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
-        #save_temp_layer_to_gpkg(InputBdg_Buff_Line, "InputBdg_Buff_Line")
 
         # Erste Auswahl basierend auf räumlicher Beziehung
         processing.run("native:selectbylocation", {
@@ -132,26 +124,17 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
             'INTERSECT': InputBdg,
             'METHOD': 2  # Auswahl verfeinern (auf bestehender Auswahl aufbauen)
         })['OUTPUT']
-        #save_temp_layer_to_gpkg(BlocksInside, "BlocksInside")
-
-        InputBdg_Diss = processing.run("native:dissolve",
-                       {'INPUT': InputBdg,
-                        'FIELD': [],
-                        'SEPARATE_DISJOINT': True,
-                        'OUTPUT': 'TEMPORARY_OUTPUT'
-                        })['OUTPUT']
 
         # Spatial join between building buffer and street polygons
         Blocks_join = processing.run("native:joinbylocationsummary", {
             'INPUT': BlocksInside,
-            'JOIN': InputBdg_Diss,
+            'JOIN': InputBdg,
             'PREDICATE': [0],  # Intersects
             'JOIN_FIELDS': [],
             'SUMMARIES': [0],
             'DISCARD_NONMATCHING': False,
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
-        #save_temp_layer_to_gpkg(Blocks_join, "Blocks_join")
 
         # Filter blocks with enough buildings
         Blocks_filtered = processing.run("native:extractbyattribute", {
@@ -161,10 +144,8 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
             'VALUE': MinBdgCount,
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
-        #save_temp_layer_to_gpkg(Blocks_filtered, "Blocks_filtered")
 
         return Blocks_filtered
-
 
     if Ext == 'global':
         Logger.log("Start calc footprint global", 'SUCCESS')
@@ -180,7 +161,6 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'EXPRESSION': where_clause,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             })['OUTPUT']
-            #save_temp_layer_to_gpkg(filtered_partition,"filtered_partition")
 
             # Filter buildings and streets by partition
             SelHU = processing.run("native:extractbylocation", {
@@ -189,7 +169,6 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'INTERSECT': filtered_partition,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             })['OUTPUT']
-            #save_temp_layer_to_gpkg(SelHU, "SelHU")
 
             SelStrassen = processing.run("native:extractbylocation", {
                 'INPUT': InputStrNetwork,
@@ -281,7 +260,6 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         feature['area_intersect'] = area
         intersected_layer.updateFeature(feature)
     intersected_layer.commitChanges()
-    #save_temp_layer_to_gpkg(intersected_layer, "intersected_layer")
 
     # Summierung der Flächenanteile für jedes große Polygon
     sum_result = processing.run(

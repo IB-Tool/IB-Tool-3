@@ -74,8 +74,10 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsProcessing,
     QgsApplication,
-    QgsSettings
+    QgsSettings,
+    QgsVectorLayer
 )
+from qgis import processing
 from ibtool.helpers.logger import Logger as MainLogger
 from ibtool.helpers.geometry_utils import (
     check_projection,
@@ -540,14 +542,14 @@ class IBTool:
         min_overlap_blocks= self.dlg.MinOverlapBlocksBox.text()
         try:
             # Konvertiere den Text in eine Zahl
-            min_overlap_blocks = int(min_overlap_blocks) #TODO
+            min_overlap_blocks = float(min_overlap_blocks) #TODO
 
         except ValueError:
             logger.log("Invalid numeric value entered.")
 
         global_footprint_density = self.dlg.GlobalFootprintDensityBox.text()
         try:
-            global_footprint_density = int(global_footprint_density)
+            global_footprint_density = float(global_footprint_density)
         except ValueError:
             logger.log("Invalid numeric value entered.")
 
@@ -669,7 +671,6 @@ class IBTool:
         else:
             pass
 
-
         logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
 
         msg(part_log_path) #TODO löschen
@@ -726,7 +727,7 @@ class IBTool:
 
             # Gebäude-Features selektieren
             sel_hu_layer = select_and_save_by_location(layer_hu, sel_part_layer)
-            #save_temp_layer_to_gpkg(sel_hu_layer, "SelHU_{}".format(part_name), workspace_path)
+            save_temp_layer_to_gpkg(sel_hu_layer, "SelHU_{}".format(part_name), workspace_path)
 
             # Anzahl der ausgewählten Gebäude prüfen
             anz_hu = sel_hu_layer.featureCount()
@@ -740,7 +741,7 @@ class IBTool:
 
             # Straßen-Features selektieren
             sel_strassen_layer = select_and_save_by_location(layer_rn, sel_part_layer)
-            #save_temp_layer_to_gpkg(sel_strassen_layer, "SelStrassen_{}".format(part_name),workspace_path)
+            save_temp_layer_to_gpkg(sel_strassen_layer, "SelStrassen_{}".format(part_name),workspace_path)
 
             # Anzahl der ausgewählten Straßen prüfen
             anz_strassen = sel_strassen_layer.featureCount()
@@ -760,47 +761,92 @@ class IBTool:
 
             min_overlap_mst = calc_footprint_density(sel_hu_layer, sel_strassen_layer, 100, global_footprint_density, 'local',
                                                          min_bdg_count)
+
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
             blocks = blocker(aux_layers_line, sel_hu_layer, sel_part_layer)
-            #save_temp_layer_to_gpkg(blocks, "blocks_{}".format(part_name), workspace_path)
+            save_temp_layer_to_gpkg(blocks, "L_01_blocks_{}".format(part_name), workspace_path)
 
-            hu_filter = input_hu_filter(sel_hu_layer, input_filter, min_area, 50, 200)
-            #save_temp_layer_to_gpkg(hu_filter, "HU_Filter_{}".format(part_name))
+            hu_filter = input_hu_filter(sel_hu_layer, input_filter,min_area, 50, 200)
+            save_temp_layer_to_gpkg(hu_filter, "L_02_hu_filter_{}".format(part_name), workspace_path)
 
-            overlap_calc_output = calc_footprint_density(hu_filter, aux_lines_sel, 100, min_overlap_mst, 'local', min_bdg_count)
+            blocks_dense = identify_dense_blocks(hu_filter, blocks, min_overlap_blocks)
+            save_temp_layer_to_gpkg(blocks_dense, "L_03_Blocks_dense_{}".format(part_name), workspace_path)
 
-            blocks_dense = identify_dense_blocks(hu_filter, blocks, overlap_calc_output)
-            #save_temp_layer_to_gpkg(blocks_dense, "Blocks_dense_{}".format(part_name))
+            hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
 
-            mst_layer = calculate_mst(hu_filter, sel_strassen_layer, spatial_reference)
-            #save_temp_layer_to_gpkg(mst_layer, "MST_{}".format(part_name))
+            mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
+            save_temp_layer_to_gpkg(mst_layer, "L_04_MST_{}".format(part_name),
+                                    workspace_path)
 
-            hu_cluster_output = mst_clustering(hu_layer=sel_hu_layer,
-                                               mst_layer=mst_layer,
-                                               crs = spatial_reference,
-                                               overlap_ratio=global_footprint_density, )
-            #save_temp_layer_to_gpkg(hu_cluster_output, "hu_cluster_output")
+            hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
+            save_temp_layer_to_gpkg(hu_cluster_output, "L_05_hu_cluster_output",
+                                    workspace_path)
 
-            add_sing_bdg = add_single_bdg(input_hu=hu_filter,
-                                          rect_merge=hu_cluster_output,
-                                          crs= spatial_reference,
-                                          threshold=300)
-
-            #save_temp_layer_to_gpkg(add_sing_bdg, "add_sing_bdg")
+            add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,  300)
+            save_temp_layer_to_gpkg(add_sing_bdg, "L_06_add_sing_bdg", workspace_path)
 
             rect_merged = processing.run("qgis:mergevectorlayers", {
                 'LAYERS': [add_sing_bdg, blocks_dense],
                 'CRS': spatial_reference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
-            #save_temp_layer_to_gpkg(rect_merged, "RectMerged2")
+            #save_temp_layer_to_gpkg(rect_merged, "L_RectMerged2")
 
-            snapped_rect = edge_catch(rect_merged, hu_filter, sel_strassen_layer, blocks, spatial_reference)
-            #save_temp_layer_to_gpkg(snapped_rect, "snapped_rect")
+
+            # Als Shape-Datei speichern
+            rect_merged_shapefile_path = os.path.join(workspace_path,
+                                                      f"C_rect_{part_name}.shp")
+            processing.run("native:savefeatures", {
+                'INPUT': rect_merged,
+                'OUTPUT': rect_merged_shapefile_path
+            })
+            logger.log(
+                f"rect_merged als Shape-Datei gespeichert: {rect_merged_shapefile_path}",
+                "INFO")
+
+            # hu_filter_sel als Shape-Datei speichern
+            hu_filter_sel_shapefile_path = os.path.join(workspace_path,
+                                                        f"C_hu_filter_{part_name}.shp")
+            processing.run("native:savefeatures", {
+                'INPUT': hu_filter_sel,
+                'OUTPUT': hu_filter_sel_shapefile_path
+            })
+            logger.log(
+                f"hu_filter_sel als Shape-Datei gespeichert: {hu_filter_sel_shapefile_path}",
+                "INFO")
+
+            # sel_strassen_layer als Shape-Datei speichern
+            sel_strassen_shapefile_path = os.path.join(workspace_path,
+                                                       f"C_strassen_{part_name}.shp")
+            processing.run("native:savefeatures", {
+                'INPUT': sel_strassen_layer,
+                'OUTPUT': sel_strassen_shapefile_path
+            })
+            logger.log(
+                f"sel_strassen_layer als Shape-Datei gespeichert: {sel_strassen_shapefile_path}",
+                "INFO")
+
+            # blocks als Shape-Datei speichern
+            blocks_shapefile_path = os.path.join(workspace_path,
+                                                 f"C_blocks_{part_name}.shp")
+            processing.run("native:savefeatures", {
+                'INPUT': blocks,
+                'OUTPUT': blocks_shapefile_path
+            })
+            logger.log(
+                f"blocks als Shape-Datei gespeichert: {blocks_shapefile_path}",
+                "INFO")
+
+
+            snapped_rect = edge_catch(rect_merged, hu_filter_sel, sel_strassen_layer, blocks, spatial_reference, workspace_path)
+            save_temp_layer_to_gpkg(snapped_rect, "L_07_edge_catch", workspace_path)
+            logger.log(
+                f"snapped_rect als Shape-Datei gespeichert",
+                "INFO")
 
             gaps_colsed = gap_close(snapped_rect, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
-            #save_temp_layer_to_gpkg(gaps_colsed, "gaps_colsed", workspace_path)
+            save_temp_layer_to_gpkg(gaps_colsed, "L_08_gaps_colsed", workspace_path)
 
             patch_removed = patch_remove(gaps_colsed,
                                          sel_hu_layer,
@@ -810,7 +856,7 @@ class IBTool:
                                          min_bdg_count=min_bdg_count,
                                          footprint_area_sum=6000,
                                          footprint_density_threshold=18)
-            #save_temp_layer_to_gpkg(patch_removed, "patch_removed", workspace_path)
+            save_temp_layer_to_gpkg(patch_removed, "L_09_patch_removed", workspace_path)
 
 
             # Fortschritt aktualisieren
