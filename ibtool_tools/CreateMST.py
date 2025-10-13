@@ -56,10 +56,7 @@ class CreateMST:
             QgsVectorLayer containing MST lines, or None if processing fails
         """
         try:
-            self.logger.log("Starting MST calculation workflow", level="INFO")
-            
             # Step 1: Extract building centroids
-            self.logger.log("Step 1: Extracting building centroids", level="INFO")
             centroids_result = self.delaunay_processor.extract_building_centroids(input_buildings)
             
             if len(centroids_result.centroids) == 0:
@@ -67,7 +64,6 @@ class CreateMST:
                 return None
             
             # Step 2: Create Delaunay triangulation
-            self.logger.log("Step 2: Creating Delaunay triangulation", level="INFO")
             triangulation_edges = self.delaunay_processor.create_triangulation(centroids_result)
             
             # Create triangulation layer for street filtering
@@ -76,11 +72,9 @@ class CreateMST:
             )
             
             # Step 3: Process streets (remove short dead-ends)
-            self.logger.log("Step 3: Processing street network", level="INFO")
             street_result = self.street_processor.process_streets(streets_original)
             
             # Step 4: Filter triangulation edges by streets
-            self.logger.log("Step 4: Filtering triangulation edges", level="INFO")
             filtered_edges = self.delaunay_processor.filter_edges_by_streets(
                 triangulation_layer, street_result.filtered_streets
             )
@@ -90,7 +84,6 @@ class CreateMST:
                 return None
             
             # Step 5: Create Delaunay list for MST processing
-            self.logger.log("Step 5: Preparing data for MST calculation", level="INFO")
             tri = Delaunay(centroids_result.points_array)
             delaunay_list, point_node_mapping = self.delaunay_processor.create_delaunay_list_with_nodes(
                 filtered_edges, centroids_result.points_array, tri
@@ -101,7 +94,6 @@ class CreateMST:
                 return None
             
             # Step 6: Calculate MST
-            self.logger.log("Step 6: Calculating Minimum Spanning Tree", level="INFO")
             mst_result = self.mst_calculator.calculate_mst_complete(
                 delaunay_list,
                 input_buildings,
@@ -113,15 +105,7 @@ class CreateMST:
             if mst_result.mst_layer is None:
                 self.logger.log("MST calculation failed", level="WARNING")
                 return None
-            
-            # Log final results
-            self.logger.log(
-                f"MST calculation completed successfully: "
-                f"{mst_result.node_count} nodes, {mst_result.edge_count} edges, "
-                f"total weight: {mst_result.total_weight:.2f}",
-                level="SUCCESS"
-            )
-            
+
             return mst_result.mst_layer
             
         except Exception as e:

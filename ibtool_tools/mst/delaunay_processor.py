@@ -63,12 +63,8 @@ class DelaunayProcessor:
                 centroids.append((centroid.x(), centroid.y()))
         
         points_array = np.array(centroids)
-        
-        self.logger.log(
-            f"Extracted {len(centroids)} centroids from {building_count} buildings", 
-            level="INFO"
-        )
-        
+
+
         return BuildingCentroidsResult(
             centroids=centroids,
             points_array=points_array,
@@ -111,8 +107,7 @@ class DelaunayProcessor:
                     node2_id=str(p2_idx)
                 )
                 edges.append(edge)
-        
-        self.logger.log(f"Created {len(edges)} triangulation edges", level="INFO")
+
         return edges
     
     def create_triangulation_layer(
@@ -196,12 +191,7 @@ class DelaunayProcessor:
         
         # Create edge index from remaining edges
         remaining_edges = self._create_edge_index_from_layer(triangulation_layer)
-        
-        self.logger.log(
-            f"Filtered edges: {len(remaining_edges)} remaining after street filtering", 
-            level="INFO"
-        )
-        
+
         return remaining_edges
     
     def create_delaunay_list_with_nodes(
@@ -259,8 +249,7 @@ class DelaunayProcessor:
                 node_idx = simplex[i]
                 x, y = points_array[node_idx]
                 list_of_points_and_nodes.append([float(x), float(y), int(node_idx)])
-        
-        self.logger.log(f"Created Delaunay list with {len(delaunay_list)} edges", level="INFO")
+
         
         return delaunay_list, list_of_points_and_nodes
     

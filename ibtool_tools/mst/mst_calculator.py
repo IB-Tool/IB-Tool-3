@@ -81,12 +81,7 @@ class MSTCalculator:
                 
                 # Add edge to graph
                 graph.add_edge(node1, node2, weight=weight)
-        
-        self.logger.log(
-            f"Built graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges", 
-            level="INFO"
-        )
-        
+
         return graph
     
     def calculate_minimum_spanning_tree(self, graph: nx.Graph) -> List[EdgeData]:
@@ -124,12 +119,7 @@ class MSTCalculator:
                 node2_id=node2
             )
             mst_edges.append(edge)
-        
-        self.logger.log(
-            f"Calculated MST with {len(mst_edges)} edges, total weight: {total_weight:.2f}", 
-            level="SUCCESS"
-        )
-        
+
         return mst_edges
     
     def create_mst_layer_from_edges(
@@ -182,9 +172,7 @@ class MSTCalculator:
         # Create layer using helper function
         layer_name = "mst_result"
         mst_layer = create_linestring_layer_from_array(array_of_lines, crs, layer_name)
-        
-        self.logger.log(f"Created MST layer with {len(array_of_lines)} features", level="SUCCESS")
-        
+
         return mst_layer
     
     def calculate_mst_complete(

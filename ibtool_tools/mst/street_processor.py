@@ -88,9 +88,7 @@ class StreetProcessor:
             'SEPARATE_DISJOINT': False,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-        
-        self.logger.log("Processed street intersections", level="INFO")
-        
+
         return intersection_buffer
     
     def identify_dead_ends(
@@ -133,9 +131,7 @@ class StreetProcessor:
             'INTERSECT': street_nodes,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-        
-        self.logger.log("Identified dead-end streets", level="INFO")
-        
+
         return dead_end_streets
     
     def calculate_street_lengths(self, streets_layer: QgsVectorLayer) -> None:
@@ -159,8 +155,7 @@ class StreetProcessor:
                 length = distance_area.measureLength(geom)
                 feature['length'] = length
                 streets_layer.updateFeature(feature)
-        
-        self.logger.log("Calculated street lengths", level="INFO")
+
     
     def filter_short_dead_ends(self, dead_end_streets: QgsVectorLayer) -> QgsVectorLayer:
         """
@@ -177,13 +172,7 @@ class StreetProcessor:
             'EXPRESSION': f'"length" < {self.ROAD_LENGTH_THRESHOLD}',
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-        
-        feature_count = short_dead_ends.featureCount()
-        self.logger.log(
-            f"Filtered {feature_count} short dead-end streets (< {self.ROAD_LENGTH_THRESHOLD}m)", 
-            level="INFO"
-        )
-        
+
         return short_dead_ends
     
     def remove_short_dead_ends_from_streets(
@@ -217,9 +206,7 @@ class StreetProcessor:
         with edit(streets_layer):
             for feature_id in selected_ids:
                 streets_layer.deleteFeature(feature_id)
-        
-        self.logger.log(f"Removed {removed_count} short dead-end streets", level="INFO")
-        
+
         return removed_count
     
     def process_streets(self, original_streets: QgsVectorLayer) -> StreetProcessingResult:

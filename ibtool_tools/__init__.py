@@ -15,6 +15,7 @@ from .EdgeCatch import edge_catch
 from .HoleClose import hole_close
 from .GapClose import gap_close
 from .PatchRemove import patch_remove
+from .GapFix import gapfix
 
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
@@ -26,5 +27,6 @@ __all__ = [
     "add_single_bdg",
     "edge_catch",
     "gap_close",
-    "patch_remove"
+    "patch_remove",
+    "gapfix"
     ]
