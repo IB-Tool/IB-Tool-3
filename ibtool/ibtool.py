@@ -872,18 +872,14 @@ class IBTool:
                 })['OUTPUT']
             merge_layer = merge
 
-            final = gapfix(merge, layer_rn)
+            # final = gapfix(merge, layer_rn)
 
+        # Split the OutputFile into path, filename, and extension
+        output_folder, file_with_extension = os.path.split(OutputFile)
+        output_filename, _ = os.path.splitext(file_with_extension)
+        msg(output_folder)
+        msg(output_filename)
 
-
-
-            # Split the OutputFile into path, filename, and extension
-            output_folder, file_with_extension = os.path.split(OutputFile)
-            output_filename, _ = os.path.splitext(file_with_extension)
-            msg(output_folder)
-            msg(output_filename)
-
-            save_temp_layer_to_gpkg(final, str(output_filename), output_folder + "/")
-
+        save_temp_layer_to_gpkg(merge, str(output_filename), output_folder + "/")
 
         logger.log("ERFOLG", "CRITICAL")
