@@ -241,8 +241,14 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
         })['OUTPUT']
         #save_temp_layer_to_gpkg(initial_buffer, "a_initial_buffer")
 
-        boundary_line = processing.run("native:polygonstolines", {
+        # Geometrie vor polygonstolines reparieren
+        repaired_buffer = processing.run("native:fixgeometries", {
             'INPUT': initial_buffer,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+        boundary_line = processing.run("native:polygonstolines", {
+            'INPUT': repaired_buffer,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
