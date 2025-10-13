@@ -186,7 +186,7 @@ export QGIS_PREFIX_PATH=/path/to/qgis
 ## Developer Preferences and Architecture Guidelines
 
 ### Parameter Management (Learned from MST Refactoring)
-- **Avoid over-engineering configurations**: Only create separate config files when parameters are shared across multiple modules
+- **Avoid over-engineering configurations**: Only create separate config files when parameters are shared across multiple modules, prefer the simple solution
 - **Local parameters belong locally**: Business logic parameters should be class constants where they're used
 - **YAGNI principle**: Don't create abstractions until they're actually needed (2-3 parameters don't justify a config class)
 - **Use helpers/qgis_defaults.py**: For technical QGIS parameters (buffer settings, precision) that should be consistent across tools
