@@ -42,7 +42,7 @@ except ImportError:
         def log(message, level="INFO"):
             print(f"[{level}] {message}")
 
-def calc_footprint_density(InputBdg, InputStrNetwork, workspace_path, Buffer=100, GlobalThreshold=18, Ext='local',
+def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshold=18, Ext='local',
                            MinBdgCount=20, Partition=None):
     """
     Calculates the degree of overlap of the given building footprints on the city blocks
@@ -58,7 +58,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, workspace_path, Buffer=100
     :return: Global overlap value in percent
     """
 
-    def select_block(InputStrNetwork, InputBdg, Buffer, feature_name):
+    def select_block(InputStrNetwork, InputBdg, Buffer):
 
         # Convert the street network to polygons
         InputStrNetwork_Poly = processing.run("native:polygonize", {
@@ -177,7 +177,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, workspace_path, Buffer=100
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             })['OUTPUT']
 
-            Inner_BlocksPart = select_block(SelStrassen, SelHU, Buffer, feature["NAME"])
+            Inner_BlocksPart = select_block(SelStrassen, SelHU, Buffer)
 
             if Merge_Dummy:
                 Merge_Dummy = processing.run("native:mergevectorlayers", {
