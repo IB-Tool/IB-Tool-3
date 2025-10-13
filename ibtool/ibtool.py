@@ -105,7 +105,6 @@ from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
 from ibtool.ibtool_tools.EdgeCatch import edge_catch
 from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
-from ibtool.ibtool_tools.GapFix import gapfix
 
 # Import the dialog class
 from ibtool.ibtool_dialog import IBToolDialog
@@ -520,22 +519,7 @@ class IBTool:
         if log_dir:
             logger.set_log_dir(log_dir)
 
-        #logger.log("Hauptprozess wird gestartet...", level="INFO")
-        # Füge hier die Logik deines Hauptprozesses ein
         self.dlg.ProgressBar.setValue(0)  # Set progress to 0
-
-
-        #logger.log("Dies ist eine kritische Nachricht.",
-        #           level="CRITICAL")
-        #logger.log("Dies ist eine Warnung.", level="WARNING")
-        #logger.log("Dies ist eine Info.", level="INFO")
-        #logger.log("Dies ist eine Debug-Nachricht.", level="SUCCESS") #TODO
-
-        #global startzeit
-        #global lockswitch
-        #global part_list
-
-        #global part_log_path
 
         workspace = os.getcwd()
         os.chdir(workspace)
@@ -723,8 +707,6 @@ class IBTool:
                     'EXPRESSION': f"\"NAME\" = '{part_name}'",
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
-            #save_temp_layer_to_gpkg(sel_part_layer, 
-            # "SelPart_{}".format(part_name), workspace_path)
 
             # Gebäude-Features selektieren
             sel_hu_layer = select_and_save_by_location(layer_hu, sel_part_layer)
@@ -734,7 +716,6 @@ class IBTool:
             anz_hu = sel_hu_layer.featureCount()
 
             if anz_hu < 10:
-                #PartLogFin = os.path.join(workspace_path, "/IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
                 with open(PartLogFin, 'a') as part_log:
                     part_log.write("\n" + part_name)
                 logger.log("Warning: No or less than 10 buildings selected in partition", 'WARNING')
@@ -748,13 +729,11 @@ class IBTool:
             anz_strassen = sel_strassen_layer.featureCount()
 
             if anz_strassen < 5:
-                #PartLogFin = os.path.join(workspace_path, "IB_Tool_Results", "IB_Tool2_Log_Fin.txt")
                 with open(PartLogFin, 'a') as part_log:
                     part_log.write("\n" + part_name)
                 logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, sel_part_layer)
-            #save_temp_layer_to_gpkg(aux_lines_sel, "aux_lines_sel_{}".format(part_name), workspace_path)
 
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
@@ -765,89 +744,29 @@ class IBTool:
 
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
-            blocks = blocker(aux_layers_line, sel_hu_layer, sel_part_layer)
-            save_temp_layer_to_gpkg(blocks, "L_01_blocks_{}".format(part_name), workspace_path)
+            blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer)
 
             hu_filter = input_hu_filter(sel_hu_layer, input_filter,min_area, 50, 200)
-            save_temp_layer_to_gpkg(hu_filter, "L_02_hu_filter_{}".format(part_name), workspace_path)
 
             blocks_dense = identify_dense_blocks(hu_filter, blocks, min_overlap_blocks)
-            save_temp_layer_to_gpkg(blocks_dense, "L_03_Blocks_dense_{}".format(part_name), workspace_path)
 
             hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
 
             mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
-            save_temp_layer_to_gpkg(mst_layer, "L_04_MST_{}".format(part_name),
-                                    workspace_path)
 
             hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
-            save_temp_layer_to_gpkg(hu_cluster_output, "L_05_hu_cluster_output",
-                                    workspace_path)
 
             add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,  300)
-            save_temp_layer_to_gpkg(add_sing_bdg, "L_06_add_sing_bdg", workspace_path)
 
             rect_merged = processing.run("qgis:mergevectorlayers", {
                 'LAYERS': [add_sing_bdg, blocks_dense],
                 'CRS': spatial_reference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
-            #save_temp_layer_to_gpkg(rect_merged, "L_RectMerged2")
-
-
-            # Als Shape-Datei speichern
-            rect_merged_shapefile_path = os.path.join(workspace_path,
-                                                      f"C_rect_{part_name}.shp")
-            processing.run("native:savefeatures", {
-                'INPUT': rect_merged,
-                'OUTPUT': rect_merged_shapefile_path
-            })
-            logger.log(
-                f"rect_merged als Shape-Datei gespeichert: {rect_merged_shapefile_path}",
-                "INFO")
-
-            # hu_filter_sel als Shape-Datei speichern
-            hu_filter_sel_shapefile_path = os.path.join(workspace_path,
-                                                        f"C_hu_filter_{part_name}.shp")
-            processing.run("native:savefeatures", {
-                'INPUT': hu_filter_sel,
-                'OUTPUT': hu_filter_sel_shapefile_path
-            })
-            logger.log(
-                f"hu_filter_sel als Shape-Datei gespeichert: {hu_filter_sel_shapefile_path}",
-                "INFO")
-
-            # sel_strassen_layer als Shape-Datei speichern
-            sel_strassen_shapefile_path = os.path.join(workspace_path,
-                                                       f"C_strassen_{part_name}.shp")
-            processing.run("native:savefeatures", {
-                'INPUT': sel_strassen_layer,
-                'OUTPUT': sel_strassen_shapefile_path
-            })
-            logger.log(
-                f"sel_strassen_layer als Shape-Datei gespeichert: {sel_strassen_shapefile_path}",
-                "INFO")
-
-            # blocks als Shape-Datei speichern
-            blocks_shapefile_path = os.path.join(workspace_path,
-                                                 f"C_blocks_{part_name}.shp")
-            processing.run("native:savefeatures", {
-                'INPUT': blocks,
-                'OUTPUT': blocks_shapefile_path
-            })
-            logger.log(
-                f"blocks als Shape-Datei gespeichert: {blocks_shapefile_path}",
-                "INFO")
-
 
             snapped_rect = edge_catch(rect_merged, hu_filter_sel, sel_strassen_layer, blocks, spatial_reference, workspace_path)
-            save_temp_layer_to_gpkg(snapped_rect, "L_07_edge_catch", workspace_path)
-            logger.log(
-                f"snapped_rect als Shape-Datei gespeichert",
-                "INFO")
 
             gaps_colsed = gap_close(snapped_rect, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
-            save_temp_layer_to_gpkg(gaps_colsed, "L_08_gaps_colsed", workspace_path)
 
             patch_removed = patch_remove(gaps_colsed,
                                          sel_hu_layer,
@@ -871,8 +790,6 @@ class IBTool:
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
             merge_layer = merge
-
-            # final = gapfix(merge, layer_rn)
 
         # Split the OutputFile into path, filename, and extension
         output_folder, file_with_extension = os.path.split(OutputFile)
