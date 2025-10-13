@@ -88,12 +88,8 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
             }
         )['OUTPUT']
-        #outline_points_list.append(outline_points)
-
 
         outline_points = delete_first_point(outline_points)
-        save_temp_layer_to_gpkg(outline_points, f"M_Sel_HU_Vertics_{fid}", workspace_path)
-
 
         block_sel = processing.run("native:extractbylocation", {
             'INPUT': bloecke,
@@ -101,8 +97,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
             'INTERSECT': outline_points,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
-        save_temp_layer_to_gpkg(block_sel, f"M_blocksel_{fid}",
-                                workspace_path)
 
         road_network_sel = processing.run("native:extractbylocation", {
             'INPUT': road_network,
@@ -111,19 +105,9 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        save_temp_layer_to_gpkg(road_network_sel, f"M_roadsel_{fid}",
-                                workspace_path)
-
         hu_ortho = create_shortest_lines_to_roads(outline_points, road_network_sel)
 
-        save_temp_layer_to_gpkg(hu_ortho, f"M_hu_ortho_{fid}",
-                                workspace_path)
-
         hu_ortho_filter = filter_ortho_lines(hu_ortho)
-        save_temp_layer_to_gpkg(hu_ortho_filter, f"M_hu_ortho_filter_{fid}",
-                                workspace_path)
-
-        #save_temp_layer_to_gpkg(hu_ortho_ext, f"N_lines_ext_{fid}", workspace_path)
 
         group_outline = processing.run("native:polygonstolines", {
             'INPUT': temporary_layer,
@@ -148,9 +132,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        save_temp_layer_to_gpkg(lines_merge_ext, f"N_lines_merge_{fid}",
-                               workspace_path)
-
         # Vor der Polygonisierung die Geometrien reparieren
         lines_merge_ext_fixed = processing.run("native:fixgeometries", {
             'INPUT': lines_merge_ext,
@@ -164,9 +145,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-
-        save_temp_layer_to_gpkg(lines_polygons, f"N_lines_polygons_{fid}", workspace_path)
-        
         lines_polygons_hu = processing.run("native:extractbylocation",
                                            {'INPUT': lines_polygons,
                                             'PREDICATE': [0],
@@ -185,10 +163,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
                         'GRID_SIZE': None
                         })['OUTPUT']
 
-        save_temp_layer_to_gpkg(lines_polygons_block, f"N_lines_polygons_block_{fid}",
-                                workspace_path)
-
-
         lines_polygons_block_fix = processing.run("native:fixgeometries",
                        {'INPUT': lines_polygons_block,
                         'METHOD': 1,
@@ -202,9 +176,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
                                                  'EXPRESSION': '"Area" < {}'.format((str(shapeareagroup * 2))), #TODO Operator prüfen ob > oder <
                                                  'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                                                  })['OUTPUT']
-
-        #lines_polygons_block_small = lines_polygons_hu
-        #save_temp_layer_to_gpkg(lines_polygons_block_small, f"lines_polygons_block_small_{feature.id()}")
 
         #TODO Merge in der Art ist rechenintensiv
         try:
