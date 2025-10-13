@@ -214,8 +214,6 @@ def filter_ortho_lines(hu_ortho, min_lines_to_keep=2):
     all_lines = list(hu_ortho.getFeatures())
     total_input = len(all_lines)
 
-    Logger.log(f"Filter: {total_input} Eingabelinien gefunden", level="INFO")
-
     # Da wir wissen dass die Linien von 4 aufeinanderfolgenden Vertices kommen,
     # können wir sie in 4er-Gruppen aufteilen
     # ANNAHME: Die Linien kommen in der richtigen Reihenfolge aus create_shortest_lines_to_roads
@@ -225,9 +223,6 @@ def filter_ortho_lines(hu_ortho, min_lines_to_keep=2):
     # Verarbeite in 4er-Gruppen (oder was auch immer übrig ist)
     for i in range(0, len(all_lines), 4):
         group = all_lines[i:min(i + 4, len(all_lines))]
-
-        Logger.log(f"Verarbeite Gruppe {i // 4}: {len(group)} Linien",
-                   level="INFO")
 
         if len(group) <= min_lines_to_keep:
             features_to_add.extend(group)
@@ -250,10 +245,6 @@ def filter_ortho_lines(hu_ortho, min_lines_to_keep=2):
         # Wende Filterregeln an
         filtered_lines = apply_filter_rules(line_data, min_lines_to_keep)
 
-        Logger.log(
-            f"Nach Filterung: {len(filtered_lines)} von {len(line_data)} Linien behalten",
-            level="INFO")
-
         # Füge gefilterte Features zur Liste hinzu
         for line_info in filtered_lines:
             features_to_add.append(line_info['feature'])
@@ -261,15 +252,9 @@ def filter_ortho_lines(hu_ortho, min_lines_to_keep=2):
 
     # Features zum Layer hinzufügen
     if features_to_add:
-        success = provider.addFeatures(features_to_add)
-        if not success:
-            Logger.log("Fehler beim Hinzufügen der Features!", level="CRITICAL")
+        provider.addFeatures(features_to_add)
 
     filtered_layer.updateExtents()
-
-    Logger.log(
-        f"Filter Ergebnis: {total_input} Eingabe -> {total_output} Ausgabe",
-        level="INFO")
 
     return filtered_layer
 
@@ -289,8 +274,6 @@ def apply_filter_rules(line_data, min_lines_to_keep):
     filtered = [line for line in line_data if line['distance'] < MAX_DIST]
 
     if not filtered:
-        Logger.log(f"All lines exceed MAX_DIST ({MAX_DIST})",
-                   level="WARNING")
         return []
 
     if len(filtered) <= min_lines_to_keep:
@@ -320,10 +303,6 @@ def apply_filter_rules(line_data, min_lines_to_keep):
 
     if len(lines_to_keep) >= min_lines_to_keep:
         filtered = lines_to_keep
-        if lines_removed:
-            Logger.log(
-                f"Rule 2: {len(lines_removed)} lines with endpoint in rectangle removed",
-                level="INFO")
     else:
         lines_removed.sort(key=lambda x: x['distance'])
         needed = min_lines_to_keep - len(lines_to_keep)
@@ -356,10 +335,6 @@ def apply_filter_rules(line_data, min_lines_to_keep):
             # Use the smaller angle difference (parallel or anti-parallel)
             final_angle_diff = min(angle_diff, opposite_angle_diff)
 
-            Logger.log(
-                f"Rule 3a: Checking lines {i} and {j}: angles {line1['angle']:.1f}° vs {line2['angle']:.1f}°, diff: {final_angle_diff:.1f}°",
-                level="INFO")
-
             if final_angle_diff <= ANGLE_THRESHOLD:
                 # Lines have similar angles - check if ENDPOINTS are close to each other
                 endpoint_dist = math.sqrt(
@@ -367,49 +342,18 @@ def apply_filter_rules(line_data, min_lines_to_keep):
                     (line1['y2'] - line2['y2']) ** 2
                 )
 
-                Logger.log(
-                    f"Rule 3a: Lines {i} and {j} are parallel (diff: {final_angle_diff:.1f}°), endpoint distance: {endpoint_dist:.1f}m",
-                    level="INFO")
-
                 if endpoint_dist <= ENDPOINT_PROXIMITY_THRESHOLD:
                     # Two parallel lines with nearby endpoints found - delete the longer one
-                    Logger.log(
-                        f"Rule 3a: Parallel lines with nearby endpoints found - removing longer line",
-                        level="INFO")
-                    Logger.log(
-                        f"  Line {i}: distance={line1['distance']:.1f}, angle={line1['angle']:.1f}°, endpoint=({line1['x2']:.1f}, {line1['y2']:.1f})",
-                        level="INFO")
-                    Logger.log(
-                        f"  Line {j}: distance={line2['distance']:.1f}, angle={line2['angle']:.1f}°, endpoint=({line2['x2']:.1f}, {line2['y2']:.1f})",
-                        level="INFO")
-
                     if line1['distance'] > line2['distance']:
                         lines_to_remove.add(i)
-                        Logger.log(
-                            f"  -> Remove line {i} (longer: {line1['distance']:.1f} vs {line2['distance']:.1f})",
-                            level="INFO")
                     else:
                         lines_to_remove.add(j)
-                        Logger.log(
-                            f"  -> Remove line {j} (longer: {line2['distance']:.1f} vs {line1['distance']:.1f})",
-                            level="INFO")
-                else:
-                    Logger.log(
-                        f"Rule 3a: Lines {i} and {j} are parallel but endpoints too far apart (distance: {endpoint_dist:.1f}m > {ENDPOINT_PROXIMITY_THRESHOLD}m)",
-                        level="INFO")
 
     # Remove marked lines, but keep minimum
     if lines_to_remove and len(filtered) - len(
             lines_to_remove) >= min_lines_to_keep:
         filtered = [line for idx, line in enumerate(filtered) if
                     idx not in lines_to_remove]
-        Logger.log(f"Rule 3a: Removed {len(lines_to_remove)} parallel lines",
-                   level="INFO")
-    else:
-        if lines_to_remove:
-            Logger.log(
-                f"Rule 3a: Cannot remove parallel lines - would violate minimum line count",
-                level="WARNING")
 
     if len(filtered) <= min_lines_to_keep:
         return filtered
@@ -421,16 +365,7 @@ def apply_filter_rules(line_data, min_lines_to_keep):
         min_angle = min(normalized_angles)
         max_angle = max(normalized_angles)
 
-        Logger.log(f"Rule 3b: Original angles: {angles}", level="INFO")
-        Logger.log(f"Rule 3b: Normalized angles: {normalized_angles}",
-                   level="INFO")
-        Logger.log(f"Rule 3b: Angle range: {max_angle - min_angle:.2f}°",
-                   level="INFO")
-
         if max_angle - min_angle <= PARALLEL_THRESHOLD:
-            Logger.log(
-                f"Rule 3b: All 4 lines almost parallel - keeping 2 shortest",
-                level="INFO")
             filtered.sort(key=lambda x: x['distance'])
             return filtered[:2]
 
@@ -472,16 +407,6 @@ def apply_filter_rules(line_data, min_lines_to_keep):
             # Check if removing the group still leaves enough lines
             remaining_lines = sum(len(group) for _, _, group in group_stats[1:])
 
-            Logger.log(
-                f"Rule 4: Group analysis - {len(grouped_angle)} groups found",
-                level="INFO")
-            Logger.log(
-                f"Rule 4: Max group avg distance: {max_distance:.2f}, Second: {second_max_distance:.2f}",
-                level="INFO")
-            Logger.log(
-                f"Rule 4: Remaining lines after removal: {remaining_lines}",
-                level="INFO")
-
             # MORE RESTRICTIVE CONDITIONS:
             # 1. Must have at least 2 groups
             # 2. Must keep minimum lines
@@ -491,25 +416,10 @@ def apply_filter_rules(line_data, min_lines_to_keep):
                     max_distance > 2.0 * second_max_distance and
                     len(grouped_angle) >= 3):  # Need at least 3 groups to remove one
 
-                Logger.log(
-                    f"Rule 4: Remove angle group {max_group_idx} with {len(max_group)} lines (Avg dist: {max_distance:.2f})",
-                    level="INFO")
-
                 # Keep all groups except the one with largest average distance
                 filtered = []
                 for idx, (_, _, group) in enumerate(group_stats[1:]):
                     filtered.extend(group)
-            else:
-                Logger.log(
-                    f"Rule 4: Cannot remove group - conditions not met (remaining: {remaining_lines}, threshold: {min_lines_to_keep})",
-                    level="INFO")
-
-    # DEBUG: Log final result
-    Logger.log(f"FINAL RESULT: {len(filtered)} lines remaining:", level="INFO")
-    for idx, line in enumerate(filtered):
-        Logger.log(
-            f"  Line {idx}: angle={line['angle']:.1f}°, distance={line['distance']:.1f}",
-            level="INFO")
 
     return filtered
 
