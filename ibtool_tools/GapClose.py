@@ -41,7 +41,7 @@ def safe_processing_run(algorithm_name, parameters, fix_geometries=True):
                     repaired_params['INVALID_FEATURE_HANDLING'] = 1
                 return processing.run(algorithm_name, repaired_params)
         else:
-            Logger.log(str(e), level="ERROR")
+            Logger.log(str(e), level="CRITICAL")
             raise e
 
 
