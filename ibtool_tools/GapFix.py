@@ -3,7 +3,7 @@ from qgis.core import QgsVectorLayer, QgsProject, QgsProcessing
 from ibtool.helpers.logger import Logger
 from ..helpers.system_utils import save_temp_layer_to_gpkg
 
-def gapfix(Inputpoly, InputRoadnetwork, bufferwidth=70):
+def gap_fix(Inputpoly, InputRoadnetwork, bufferwidth=70):
     """
     :param Inputpoly: Combined boundaries from all partitions as polygon shape
     :param InputRoadnetwork: Road network
