@@ -17,7 +17,6 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QVariant, QMetaType
 from qgis import processing
-from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
 from ibtool.helpers.message import msg
 from ibtool.helpers.logger import Logger
 import os
