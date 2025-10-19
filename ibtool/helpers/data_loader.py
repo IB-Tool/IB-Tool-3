@@ -5,8 +5,6 @@ from qgis import processing
 from ibtool.helpers.logger import Logger
 from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
 
-Logger = Logger()
-
 
 # Function to select the HU input file
 def select_HU_file(dlg):

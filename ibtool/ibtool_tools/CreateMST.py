@@ -18,8 +18,6 @@ from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
 from ibtool.helpers.geometry_utils import create_linestring_layer_from_array, nodes_detect
 from ibtool.helpers.logger import Logger
 
-Logger = Logger()
-
 def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50):
     """
     Calculates Minimum Spanning Tree (MST) and processes spatial data for street and building layers.

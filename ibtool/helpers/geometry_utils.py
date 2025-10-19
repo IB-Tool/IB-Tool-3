@@ -22,8 +22,6 @@ from ibtool.helpers.message import msg
 from ibtool.helpers.logger import Logger
 import os
 
-Logger = Logger()
-
 
 def polyline2(array_of_lines, output_path, output_format="shp"):
     """

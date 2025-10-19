@@ -9,8 +9,6 @@ MAX_PYTHON = (3, 12)
 MIN_QGIS = 34000  # QGIS Version 3.40
 MAX_QGIS = 35000  # QGIS Version 3.50
 
-Logger = Logger()
-
 def save_temp_layer_to_gpkg(layer, filename, workspace_path):
     """
     Speichert einen temporären Layer in ein GeoPackage (GPKG) unter 'L:\\Test_data\\workspace'.
