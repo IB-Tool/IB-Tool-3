@@ -49,23 +49,25 @@ ibtool/                    # Plugin root (QGIS package)
 
 ### Import System
 
-**Relative imports are used throughout for portability:**
+**Mixed import strategy for optimal compatibility:**
 
 ```python
-# In ROOT-level modules (helpers/, ibtool_tools/)
+# In ROOT-level modules (helpers/, ibtool_tools/) - RELATIVE imports
 from .logger import Logger
 from .message import msg
 
-# In nested ibtool/ibtool.py
-from ..helpers.logger import Logger
-from ..ibtool_tools.Blocker import blocker
-from .ibtool_dialog import IBToolDialog
+# In ibtool/ibtool.py - ABSOLUTE imports (siblings not in parent!)
+from ibtool.helpers.logger import Logger
+from ibtool.ibtool_tools.Blocker import blocker
+from ibtool.ibtool.ibtool_dialog import IBToolDialog
 
-# Why relative imports?
-# 1. Works in QGIS AND in test environments
-# 2. No PYTHONPATH configuration needed
-# 3. Follows QGIS plugin best practices
-# 4. Portable across different installation paths
+# Why absolute imports in ibtool/ibtool.py?
+# helpers/ and ibtool_tools/ are SIBLINGS of ibtool/, not parents!
+# from ..helpers would look for ibtool/../helpers (doesn't exist)
+# from ibtool.helpers correctly references the sibling directory
+
+# For tests: test/conftest.py adds plugin root to sys.path
+# This allows tests to use: from ibtool.helpers.X import Y
 ```
 
 ### Core Components

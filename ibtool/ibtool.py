@@ -78,36 +78,36 @@ from qgis.core import (
     QgsVectorLayer
 )
 from qgis import processing
-from ..helpers.logger import Logger as MainLogger
-from ..helpers.geometry_utils import (
+from ibtool.helpers.logger import Logger as MainLogger
+from ibtool.helpers.geometry_utils import (
     check_projection,
     load_to_geopackage,
     select_and_save_by_location,
     create_empty_layer
 )
-from ..helpers.system_utils import (
+from ibtool.helpers.system_utils import (
     manage_directory,
     save_temp_layer_to_gpkg,
     version_check
 )
-from ..helpers.message import msg
-from ..helpers.data_loader import *
+from ibtool.helpers.message import msg
+from ibtool.helpers.data_loader import *
 
-from ..ibtool_tools.FootprintDensity import (
+from ibtool.ibtool_tools.FootprintDensity import (
     calc_footprint_density,
     identify_dense_blocks
 )
-from ..ibtool_tools.Blocker import blocker
-from ..ibtool_tools.ImportFilter import input_hu_filter
-from ..ibtool_tools.CreateMST import calculate_mst
-from ..ibtool_tools.MST_Clustering import mst_clustering
-from ..ibtool_tools.AddSingleBuilding import add_single_bdg
-from ..ibtool_tools.EdgeCatch import edge_catch
-from ..ibtool_tools.GapClose import gap_close
-from ..ibtool_tools.PatchRemove import patch_remove
+from ibtool.ibtool_tools.Blocker import blocker
+from ibtool.ibtool_tools.ImportFilter import input_hu_filter
+from ibtool.ibtool_tools.CreateMST import calculate_mst
+from ibtool.ibtool_tools.MST_Clustering import mst_clustering
+from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
+from ibtool.ibtool_tools.EdgeCatch import edge_catch
+from ibtool.ibtool_tools.GapClose import gap_close
+from ibtool.ibtool_tools.PatchRemove import patch_remove
 
 # Import the dialog class
-from .ibtool_dialog import IBToolDialog
+from ibtool.ibtool.ibtool_dialog import IBToolDialog
 
 # Initialize the logger instance
 logger = MainLogger()
