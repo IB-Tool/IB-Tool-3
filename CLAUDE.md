@@ -63,11 +63,16 @@ from ibtool.ibtool.ibtool_dialog import IBToolDialog
 
 # Why absolute imports in ibtool/ibtool.py?
 # helpers/ and ibtool_tools/ are SIBLINGS of ibtool/, not parents!
-# from ..helpers would look for ibtool/../helpers (doesn't exist)
+# from ..helpers would look for ibtool/../helpers (doesn't exist in package context)
 # from ibtool.helpers correctly references the sibling directory
 
 # For tests: test/conftest.py adds plugin root to sys.path
 # This allows tests to use: from ibtool.helpers.X import Y
+
+# CRITICAL: Docker environment must mirror QGIS package structure
+# QGIS registers plugin directory as "ibtool" package
+# Docker must copy to /plugins/ibtool/ (not /app) with PYTHONPATH=/plugins
+# This ensures "from ibtool.helpers" resolves to /plugins/ibtool/helpers/
 ```
 
 ### Core Components
@@ -112,6 +117,9 @@ ibtool/ibtool_tools/mst/     # Target modular structure
 docker build -t qgis-plugin-test .
 docker run --rm qgis-plugin-test
 
+# Run interactive Docker session for debugging
+docker run --rm -it qgis-plugin-test /bin/bash
+
 # Run tests locally (requires QGIS environment setup)
 pytest test/
 
@@ -121,6 +129,12 @@ pytest test/test_blocker.py -v
 # Run with coverage
 pytest test/ --cov=. --cov-report=html
 ```
+
+**Important Docker Notes:**
+- The Dockerfile copies the plugin to `/plugins/ibtool/` (not `/app`) to match QGIS package structure
+- This ensures absolute imports like `from ibtool.helpers.logger` resolve correctly
+- PYTHONPATH is set to `/plugins` so Python finds the `ibtool` package
+- The working directory is `/plugins/ibtool` for test execution
 
 ### Building and Deployment
 ```bash
