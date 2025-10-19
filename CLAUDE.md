@@ -8,49 +8,66 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-### Package Structure (Post-Migration)
+### Package Structure (Clean, Post-Cleanup)
 
-The plugin now uses a clean package structure with absolute imports:
+The plugin uses ROOT-level directories with relative imports for portability:
 
 ```
-ibtool/                    # Root directory (plugin entry point)
-├── __init__.py           # QGIS plugin entry point
-├── ibtool/               # Main package directory
-│   ├── __init__.py      # Package initialization
-│   ├── ibtool.py        # Main plugin class and entry point
-│   ├── ibtool_dialog.py # User interface dialog implementation
-│   ├── helpers/         # Utility modules for common functionality
-│   │   ├── logger.py    # Comprehensive logging system (UI, file, QGIS messages)
-│   │   ├── data_loader.py # Geodata loading and validation
-│   │   ├── geometry_utils.py # Spatial geometry operations
-│   │   ├── system_utils.py # System path and environment utilities
-│   │   ├── message.py   # User messaging system
-│   │   └── config_manager.py # Configuration management system
-│   └── ibtool_tools/    # Core processing algorithms
-│       ├── Blocker.py   # Settlement blocking and partitioning
-│       ├── CreateMST.py # Minimum spanning tree creation (monolithic, to be refactored)
-│       ├── MST_Clustering.py # MST-based clustering algorithms
-│       ├── FootprintDensity.py # Building density calculations
-│       ├── ImportFilter.py # Data filtering and preprocessing
-│       ├── GapClose.py, HoleClose.py # Geometry gap/hole closing
-│       ├── EdgeCatch.py # Edge detection algorithms
-│       ├── AddSingleBuilding.py # Single building processing
-│       └── PatchRemove.py # Patch removal operations
-├── test/                # Test suite with simplified imports
-└── ibtool_cli.py       # Command-line interface (separate from package)
+ibtool/                    # Plugin root (QGIS package)
+├── __init__.py           # QGIS plugin entry point (from .ibtool.ibtool import IBTool)
+├── helpers/              # ROOT-level helper modules (ACTIVE)
+│   ├── __init__.py
+│   ├── logger.py        # Comprehensive logging system
+│   ├── data_loader.py   # Geodata loading and validation
+│   ├── geometry_utils.py # Spatial geometry operations
+│   ├── system_utils.py  # System path and environment utilities
+│   ├── message.py       # User messaging system
+│   ├── config_manager.py # Configuration management
+│   ├── qgis_defaults.py # QGIS technical parameters
+│   ├── mst_utils.py     # MST utility functions
+│   └── edge_catch_utils.py # Edge detection utilities
+├── ibtool_tools/        # ROOT-level processing tools (ACTIVE)
+│   ├── __init__.py
+│   ├── Blocker.py       # Settlement blocking and partitioning
+│   ├── CreateMST.py     # Minimum spanning tree creation
+│   ├── MST_Clustering.py # MST-based clustering
+│   ├── FootprintDensity.py # Building density calculations
+│   ├── ImportFilter.py  # Data filtering and preprocessing
+│   ├── GapClose.py      # Gap closing
+│   ├── HoleClose.py     # Hole closing
+│   ├── EdgeCatch.py     # Edge detection
+│   ├── AddSingleBuilding.py # Single building processing
+│   ├── PatchRemove.py   # Patch removal
+│   └── GapFix.py        # Gap fixing between partitions
+├── ibtool/              # Nested package for main plugin class
+│   ├── __init__.py      # Re-exports IBTool
+│   ├── ibtool.py        # Main plugin class (uses relative imports)
+│   └── ibtool_dialog.py # UI dialog
+├── test/                # Test suite
+└── ibtool_cli.py       # Command-line interface
 ```
 
 ### Import System
 
-**All imports are now absolute:**
-```python
-# Before (relative imports - problematic)
-from .helpers.logger import Logger
-from ..helpers.system_utils import save_temp_layer_to_gpkg
+**Mixed import strategy for optimal compatibility:**
 
-# After (absolute imports - clean and reliable)
+```python
+# In ROOT-level modules (helpers/, ibtool_tools/) - RELATIVE imports
+from .logger import Logger
+from .message import msg
+
+# In ibtool/ibtool.py - ABSOLUTE imports (siblings not in parent!)
 from ibtool.helpers.logger import Logger
-from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
+from ibtool.ibtool_tools.Blocker import blocker
+from ibtool.ibtool.ibtool_dialog import IBToolDialog
+
+# Why absolute imports in ibtool/ibtool.py?
+# helpers/ and ibtool_tools/ are SIBLINGS of ibtool/, not parents!
+# from ..helpers would look for ibtool/../helpers (doesn't exist)
+# from ibtool.helpers correctly references the sibling directory
+
+# For tests: test/conftest.py adds plugin root to sys.path
+# This allows tests to use: from ibtool.helpers.X import Y
 ```
 
 ### Core Components
@@ -182,6 +199,8 @@ export QGIS_PREFIX_PATH=/path/to/qgis
 - All user-facing strings should be translatable (use QCoreApplication.translate)
 - Keep functions focused and modular
 - Use the project's logging system for all output (not print statements)
+- QGIS Python Plugin Development Guide – Coding Standards https://docs.qgis.org/latest/en/docs/pyqgis_developer_cookbook/plugins/plugins.html
+- QGIS Plugin Repository Submission Guidelines https://plugins.qgis.org/publish/
 
 ## Developer Preferences and Architecture Guidelines
 

@@ -107,7 +107,7 @@ from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
 
 # Import the dialog class
-from ibtool.ibtool_dialog import IBToolDialog
+from ibtool.ibtool.ibtool_dialog import IBToolDialog
 
 # Initialize the logger instance
 logger = MainLogger()

@@ -98,7 +98,7 @@
       </rect>
      </property>
      <property name="text">
-      <string/>
+      <string>L:\Test_data\A_AUX.shp</string>
      </property>
     </widget>
     <widget class="QPushButton" name="PartButton">
@@ -137,7 +137,7 @@
       </rect>
      </property>
      <property name="text">
-      <string/>
+      <string>L:\Test_data\A_PART.shp</string>
      </property>
     </widget>
     <widget class="QLineEdit" name="HuPath">
@@ -153,7 +153,7 @@
       <enum>Qt::LeftToRight</enum>
      </property>
      <property name="text">
-      <string/>
+      <string>L:\Test_data\A_HU.shp</string>
      </property>
     </widget>
     <widget class="QPushButton" name="RnButton">
@@ -192,7 +192,7 @@
       </rect>
      </property>
      <property name="text">
-      <string/>
+      <string>L:\Test_data\A_RN.shp</string>
      </property>
     </widget>
     <widget class="QPushButton" name="HuButton">
@@ -231,7 +231,7 @@
       </rect>
      </property>
      <property name="text">
-      <string/>
+      <string>L:\Test_data\t1\out.gpkg</string>
      </property>
     </widget>
     <widget class="QPushButton" name="OutputButton">
@@ -270,7 +270,7 @@
       </rect>
      </property>
      <property name="text">
-      <string/>
+      <string>L:\Test_data\t1</string>
      </property>
     </widget>
     <widget class="QPushButton" name="WorkspaceButton">
@@ -296,7 +296,7 @@
       </rect>
      </property>
      <property name="text">
-      <string/>
+      <string>L:\Test_data\IB-Tool2_Filter.txt</string>
      </property>
     </widget>
     <widget class="QLabel" name="label_21">
@@ -346,6 +346,9 @@
        <width>291</width>
        <height>22</height>
       </rect>
+     </property>
+     <property name="text">
+      <string>L:\Test_data\t1</string>
      </property>
     </widget>
     <widget class="QPushButton" name="LogDirButton">
@@ -758,7 +761,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>#</string>
+      <string>PART_25</string>
      </property>
     </widget>
     <widget class="QCheckBox" name="PartLogBox">
