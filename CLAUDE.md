@@ -182,6 +182,8 @@ export QGIS_PREFIX_PATH=/path/to/qgis
 - All user-facing strings should be translatable (use QCoreApplication.translate)
 - Keep functions focused and modular
 - Use the project's logging system for all output (not print statements)
+- QGIS Python Plugin Development Guide – Coding Standards https://docs.qgis.org/latest/en/docs/pyqgis_developer_cookbook/plugins/plugins.html
+- QGIS Plugin Repository Submission Guidelines https://plugins.qgis.org/publish/
 
 ## Developer Preferences and Architecture Guidelines
 
