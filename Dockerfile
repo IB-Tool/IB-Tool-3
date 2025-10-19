@@ -35,7 +35,7 @@ COPY . /app
 # 6. Umgebungsvariablen für headless mode und Processing setzen
 ENV QT_QPA_PLATFORM=offscreen
 ENV QGIS_PREFIX_PATH=/usr
-ENV PYTHONPATH=/app:/usr/share/qgis/python:/usr/share/qgis/python/plugins:$PYTHONPATH
+ENV PYTHONPATH=/app:/usr/share/qgis/python:/usr/share/qgis/python/plugins
 ENV QGIS_PLUGINPATH=/usr/share/qgis/python/plugins
 
 # 7. QGIS Processing Provider explizit initialisieren
