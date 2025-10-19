@@ -21,8 +21,6 @@ from qgis import processing
 
 from .logger import Logger
 
-Logger = Logger()
-
 
 def polyline2(array_of_lines, output_path, output_format="shp"):
     """

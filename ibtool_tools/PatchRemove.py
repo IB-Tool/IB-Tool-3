@@ -8,8 +8,6 @@ from ..helpers.geometry_utils import shp_area2
 
 from ..helpers.logger import Logger
 
-Logger = Logger()
-
 def patch_remove(input_poly, input_bdg, crs, workspace_path, min_patch_size=10000, min_bdg_count=20, footprint_area_sum=6000, footprint_density_threshold=18, ):
     """
     Entfernt Abgrenzungen, die zu klein sind oder zu wenige Gebäude enthalten

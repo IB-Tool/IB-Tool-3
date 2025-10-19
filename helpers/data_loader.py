@@ -2,8 +2,6 @@ from PyQt5.QtWidgets import QFileDialog
 
 from .logger import Logger
 
-Logger = Logger()
-
 
 # Function to select the HU input file
 def select_HU_file(dlg):
