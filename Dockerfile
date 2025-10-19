@@ -27,16 +27,20 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # 4. Arbeitsverzeichnis im Container
-WORKDIR /app
+WORKDIR /plugins
 
-# 5. Plugin-Code und Tests kopieren
-COPY . /app
+# 5. Plugin-Code kopieren als ibtool Package
+# CRITICAL: Copy to /plugins/ibtool/ so that "from ibtool.helpers" resolves correctly
+COPY . /plugins/ibtool/
 
 # 6. Umgebungsvariablen für headless mode und Processing setzen
 ENV QT_QPA_PLATFORM=offscreen
 ENV QGIS_PREFIX_PATH=/usr
-ENV PYTHONPATH=/app:/usr/share/qgis/python:/usr/share/qgis/python/plugins
+ENV PYTHONPATH=/plugins:/usr/share/qgis/python:/usr/share/qgis/python/plugins
 ENV QGIS_PLUGINPATH=/usr/share/qgis/python/plugins
+
+# Set working directory to the plugin for test execution
+WORKDIR /plugins/ibtool
 
 # 7. QGIS Processing Provider explizit initialisieren
 RUN python3 -c "\
