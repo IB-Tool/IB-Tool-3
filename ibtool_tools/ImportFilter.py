@@ -92,7 +92,6 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
     if anz_hu > MinAreaAllBdgs:
 
         HU_Input = shp_area(HU_Input)
-
         filterpos, filterneg, fieldname = import_filter(filter_file, HU_Input)
 
         # Step 1: Select residential buildings (positive filter)
@@ -190,6 +189,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
             raise Exception("Failed to create final_layer")
 
         hu_final_sel = select_and_save_by_location(hu_final, diss_del, predicate=0)
+        shp_area2(hu_final_sel, "Area")
 
         final_layer = processing.run("native:extractbyattribute", {
             'INPUT': hu_final_sel,
