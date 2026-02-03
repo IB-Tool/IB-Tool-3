@@ -1,4 +1,5 @@
 
+
 from qgis.core import *
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
@@ -64,8 +65,6 @@ def patch_remove(input_poly, input_bdg, crs, workspace_path, min_patch_size=1000
                 input_poly_sp.updateFeature(feature)
             except Exception as e:
                 Logger.log(f"Fehler bei der Verarbeitung von Feature {feature.id()}: {e}",level="WARNING")
-        else:
-            Logger.log(f"Feature {feature.id()} hat keine gültige Geometrie.", level="WARNING")
 
     shp_area2(input_poly_sp)
     #save_temp_layer_to_gpkg(input_poly_sp, "input_poly_sp", workspace_path)
