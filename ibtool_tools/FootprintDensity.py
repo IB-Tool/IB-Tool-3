@@ -136,10 +136,21 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
 
+        # Dynamically find the count field created by the join
+        count_field = None
+        for field in Blocks_join.fields():
+            if field.name().endswith('_count'):
+                count_field = field.name()
+                break
+
+        if not count_field:
+            msg("ERROR: Could not find count field in joined layer", 'CRITICAL')
+            raise ValueError("Count field not found after spatial join")
+
         # Filter blocks with enough buildings
         Blocks_filtered = processing.run("native:extractbyattribute", {
             'INPUT': Blocks_join,
-            'FIELD': 'oid_1_count',
+            'FIELD': count_field,
             'OPERATOR': 2,  # Greater than
             'VALUE': MinBdgCount,
             'OUTPUT': 'TEMPORARY_OUTPUT'
