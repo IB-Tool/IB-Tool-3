@@ -63,6 +63,7 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
 
 
     merge_layer = create_empty_layer("merge_layer_edge_catch", "Polygon", crs.authid())
+    polygones_merge = None  # Initialize to avoid UnboundLocalError
 
     shp_area2(grouped_bdgs)
     for feature in grouped_bdgs.getFeatures():
@@ -188,7 +189,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
         except Exception as e:
             Logger.log(f"Group could not be merged - {str(e)}", level="CRITICAL")
             continue
-
 
     # Rückgabe als Fallback
     if not polygones_merge:
