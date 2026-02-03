@@ -288,7 +288,7 @@ tuple[object, float | None]:
         HUDirRect.commitChanges()
 
         if PolyArea == 0:
-            Logger.log(" FID {} or FID {} in MST_Clustering causes division by zero", level="CRITICAL")
+            Logger.log("PolyArea is zero in MST_Clustering calc_bounding_rect - causes division by zero", level="CRITICAL")
             PolyArea = 1000000000000
         return HUDirRect, PolyArea
 
