@@ -6,6 +6,7 @@ before processing starts.
 """
 
 import os
+import re
 from dataclasses import dataclass, field
 from typing import List
 
@@ -13,7 +14,9 @@ from qgis.core import (
     QgsVectorLayer,
     QgsWkbTypes,
     QgsCoordinateReferenceSystem,
+    QgsProcessing,
 )
+from qgis import processing
 
 from .logger import Logger
 
@@ -41,8 +44,9 @@ class InputValidator:
 
     # Required fields per layer type
     HU_REQUIRED_FIELDS = ("fkt", "funktion")  # At least one must exist
+    HU_FKT_PATTERN = re.compile(r"^\d{5}_\d{4}")  # ATKIS: 31001_1000
     PART_REQUIRED_FIELD = "NAME"
-    PART_NAME_PATTERN = "PART_"
+    PART_NAME_REGEX = re.compile(r"^PART_\d+$")  # PART_36, PART_433
     FILTER_SECTION_POSITIVE = "#Filter positive"
     FILTER_SECTION_NEGATIVE = "#Filter negative"
 
@@ -109,7 +113,8 @@ class InputValidator:
             layer = QgsVectorLayer(path, name, "ogr")
             if not layer.isValid():
                 result.add_error(
-                    f"{name}: Datei kann nicht als gültiger Layer geladen werden: {path}"
+                    f"{name}: Datei kann nicht als gültiger Layer "
+                    f"geladen werden: {path}"
                 )
                 continue
 
@@ -117,6 +122,17 @@ class InputValidator:
 
             # Check CRS
             self._check_crs(layer, name, spatial_reference, result)
+
+        # Feature count checks (includes empty layer check)
+        self._check_feature_counts(valid_layers, result)
+
+        # Geometry checks for all layers: null, empty, isGeosValid
+        for name, layer in valid_layers.items():
+            self._check_geometries(layer, name, result)
+
+        # Detailed geometry validation via qgis:checkvalidity
+        for name, layer in valid_layers.items():
+            self._check_validity_processing(layer, name, result)
 
         # Layer-specific checks
         hu_key = "Gebäudeumrisse (HU)"
@@ -130,9 +146,6 @@ class InputValidator:
         part_key = "Partitionierung (Part)"
         if part_key in valid_layers:
             self._check_part_layer(valid_layers[part_key], result)
-
-        # Feature count checks
-        self._check_feature_counts(valid_layers, result)
 
         # Multipart geometry check for line layers
         for key in [rn_key, "Hilfslayer (Aux)"]:
@@ -153,6 +166,10 @@ class InputValidator:
 
         return result
 
+    # ------------------------------------------------------------------
+    # General checks
+    # ------------------------------------------------------------------
+
     def _check_crs(
         self,
         layer: QgsVectorLayer,
@@ -169,125 +186,6 @@ class InputValidator:
                 f"Erwartet: {expected_crs.authid()}, gefunden: {actual}. "
                 f"Hinweis: Layer nach {expected_crs.authid()} reprojizieren."
             )
-
-    def _check_hu_layer(
-        self, layer: QgsVectorLayer, result: ValidationResult
-    ) -> None:
-        """Validate HU layer: polygon geometry and required fields."""
-        # Geometry type
-        if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
-            geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
-            result.add_error(
-                f"Gebäudeumrisse (HU): Polygon-Geometrie erforderlich, "
-                f"aber {geom_type} gefunden. "
-                f"Hinweis: Einen Layer mit Polygon-Geometrie verwenden."
-            )
-
-        # Required field: fkt or funktion
-        field_names = [f.name() for f in layer.fields()]
-        has_field = any(f in field_names for f in self.HU_REQUIRED_FIELDS)
-        if not has_field:
-            result.add_error(
-                f"Gebäudeumrisse (HU): Feld 'fkt' oder 'funktion' fehlt. "
-                f"Vorhandene Felder: {', '.join(field_names[:15])}. "
-                f"Hinweis: Ein Feld 'fkt' oder 'funktion' mit Gebäudefunktionscodes hinzufügen."
-            )
-
-    def _check_rn_layer(
-        self, layer: QgsVectorLayer, result: ValidationResult
-    ) -> None:
-        """Validate RN layer: must be LineString geometry."""
-        if layer.geometryType() != QgsWkbTypes.LineGeometry:
-            geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
-            result.add_error(
-                f"Straßennetz (RN): Linien-Geometrie erforderlich, "
-                f"aber {geom_type} gefunden. "
-                f"Hinweis: Einen Layer mit Linien-Geometrie verwenden."
-            )
-
-    def _check_part_layer(
-        self, layer: QgsVectorLayer, result: ValidationResult
-    ) -> None:
-        """Validate Part layer: NAME field and naming pattern."""
-        field_names = [f.name() for f in layer.fields()]
-
-        # Required field: NAME
-        if self.PART_REQUIRED_FIELD not in field_names:
-            result.add_error(
-                f"Partitionierung (Part): Feld '{self.PART_REQUIRED_FIELD}' fehlt. "
-                f"Vorhandene Felder: {', '.join(field_names[:15])}. "
-                f"Hinweis: Ein Textfeld 'NAME' mit Partitionsnamen (z.B. PART_123) hinzufügen."
-            )
-            return
-
-        # Check NAME values match PART_ pattern (warning only)
-        name_idx = layer.fields().indexFromName(self.PART_REQUIRED_FIELD)
-        non_matching = []
-        for feature in layer.getFeatures():
-            name_val = str(feature[name_idx])
-            if not name_val.startswith(self.PART_NAME_PATTERN):
-                non_matching.append(name_val)
-
-        if non_matching:
-            sample = non_matching[:5]
-            result.add_warning(
-                f"Partitionierung (Part): {len(non_matching)} NAME-Werte entsprechen "
-                f"nicht dem '{self.PART_NAME_PATTERN}'-Muster. "
-                f"Beispiele: {', '.join(sample)}. "
-                f"Hinweis: NAME-Werte sollten dem Format PART_123 entsprechen."
-            )
-
-    def _check_filter_file(
-        self, filter_path: str, result: ValidationResult
-    ) -> None:
-        """Validate filter file existence and format."""
-        if not filter_path or not filter_path.strip():
-            result.add_error("Filterdatei: Kein Dateipfad angegeben.")
-            return
-
-        if not os.path.exists(filter_path):
-            result.add_error(
-                f"Filterdatei: Datei existiert nicht: {filter_path}"
-            )
-            return
-
-        try:
-            with open(filter_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-        except Exception as e:
-            result.add_error(
-                f"Filterdatei: Datei kann nicht gelesen werden: {e}. "
-                f"Hinweis: Datei muss UTF-8-kodiert und lesbar sein."
-            )
-            return
-
-        if self.FILTER_SECTION_POSITIVE not in content:
-            result.add_error(
-                f"Filterdatei: Abschnitt '{self.FILTER_SECTION_POSITIVE}' fehlt. "
-                f"Hinweis: Zeile '{self.FILTER_SECTION_POSITIVE}' in der Datei ergänzen."
-            )
-        if self.FILTER_SECTION_NEGATIVE not in content:
-            result.add_error(
-                f"Filterdatei: Abschnitt '{self.FILTER_SECTION_NEGATIVE}' fehlt. "
-                f"Hinweis: Zeile '{self.FILTER_SECTION_NEGATIVE}' in der Datei ergänzen."
-            )
-
-    def _check_output_paths(
-        self, output_path: str, workspace_path: str, result: ValidationResult
-    ) -> None:
-        """Validate output and workspace paths."""
-        if not output_path or not output_path.strip():
-            result.add_error("Ausgabedatei: Kein Pfad angegeben.")
-        else:
-            output_dir = os.path.dirname(output_path)
-            if output_dir and not os.path.exists(output_dir):
-                result.add_error(
-                    f"Ausgabedatei: Verzeichnis existiert nicht: {output_dir}. "
-                    f"Hinweis: Verzeichnis anlegen oder anderen Pfad wählen."
-                )
-
-        if not workspace_path or not workspace_path.strip():
-            result.add_error("Arbeitsverzeichnis: Kein Pfad angegeben.")
 
     def _check_feature_counts(
         self, valid_layers: dict, result: ValidationResult
@@ -316,6 +214,259 @@ class InputValidator:
                     f"Hinweis: Datensatz auf Vollständigkeit prüfen."
                 )
 
+    # ------------------------------------------------------------------
+    # Geometry checks
+    # ------------------------------------------------------------------
+
+    def _check_geometries(
+        self, layer: QgsVectorLayer, layer_name: str,
+        result: ValidationResult,
+    ) -> None:
+        """Check all features for null, empty, and invalid geometries."""
+        null_count = 0
+        empty_count = 0
+        invalid_count = 0
+        invalid_reasons = []
+
+        for feature in layer.getFeatures():
+            geom = feature.geometry()
+
+            if geom.isNull():
+                null_count += 1
+                continue
+
+            if geom.isEmpty():
+                empty_count += 1
+                continue
+
+            if not geom.isGeosValid():
+                invalid_count += 1
+                if len(invalid_reasons) < 3:
+                    error = geom.validateGeometry()
+                    if error:
+                        invalid_reasons.append(
+                            f"FID {feature.id()}: {error[0].what()}"
+                        )
+
+        if null_count > 0:
+            result.add_error(
+                f"{layer_name}: {null_count} Features mit NULL-Geometrie. "
+                f"Hinweis: Features ohne Geometrie entfernen."
+            )
+
+        if empty_count > 0:
+            result.add_error(
+                f"{layer_name}: {empty_count} Features mit leerer Geometrie. "
+                f"Hinweis: Features mit leerer Geometrie entfernen."
+            )
+
+        if invalid_count > 0:
+            details = ""
+            if invalid_reasons:
+                details = " Beispiele: " + "; ".join(invalid_reasons) + "."
+            result.add_warning(
+                f"{layer_name}: {invalid_count} ungültige Geometrien "
+                f"(isGeosValid=False).{details} "
+                f"Hinweis: Geometrien reparieren "
+                f"(native:fixgeometries)."
+            )
+
+    def _check_validity_processing(
+        self, layer: QgsVectorLayer, layer_name: str,
+        result: ValidationResult,
+    ) -> None:
+        """Run qgis:checkvalidity for detailed geometry validation."""
+        try:
+            check_result = processing.run("qgis:checkvalidity", {
+                'INPUT_LAYER': layer,
+                'METHOD': 2,  # GEOS
+                'IGNORE_RING_SELF_INTERSECTION': False,
+                'VALID_OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+                'INVALID_OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+                'ERROR_OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+            })
+
+            invalid_layer = check_result.get('INVALID_OUTPUT')
+            error_layer = check_result.get('ERROR_OUTPUT')
+
+            # Count invalid features
+            invalid_count = 0
+            if isinstance(invalid_layer, QgsVectorLayer) and invalid_layer.isValid():
+                invalid_count = invalid_layer.featureCount()
+            elif isinstance(invalid_layer, str):
+                tmp = QgsVectorLayer(invalid_layer, "invalid", "ogr")
+                if tmp.isValid():
+                    invalid_count = tmp.featureCount()
+
+            if invalid_count == 0:
+                return
+
+            # Collect error details from error layer
+            error_messages = []
+            error_source = None
+            if isinstance(error_layer, QgsVectorLayer) and error_layer.isValid():
+                error_source = error_layer
+            elif isinstance(error_layer, str):
+                tmp = QgsVectorLayer(error_layer, "errors", "ogr")
+                if tmp.isValid():
+                    error_source = tmp
+
+            if error_source:
+                for i, feat in enumerate(error_source.getFeatures()):
+                    if i >= 5:
+                        break
+                    msg = feat.attribute("message") if feat.fields().indexFromName("message") >= 0 else ""
+                    if msg:
+                        error_messages.append(str(msg))
+
+            details = ""
+            if error_messages:
+                details = " Fehlertypen: " + "; ".join(error_messages) + "."
+
+            result.add_warning(
+                f"{layer_name}: 'qgis:checkvalidity' hat "
+                f"{invalid_count} ungültige Features gefunden.{details} "
+                f"Hinweis: Geometrien reparieren "
+                f"(native:fixgeometries)."
+            )
+
+        except Exception as e:
+            result.add_warning(
+                f"{layer_name}: 'qgis:checkvalidity' konnte nicht "
+                f"ausgeführt werden: {e}"
+            )
+
+    # ------------------------------------------------------------------
+    # Layer-specific checks
+    # ------------------------------------------------------------------
+
+    def _check_hu_layer(
+        self, layer: QgsVectorLayer, result: ValidationResult
+    ) -> None:
+        """Validate HU layer: polygon geometry and required fields."""
+        # Geometry type
+        if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+            geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
+            result.add_error(
+                f"Gebäudeumrisse (HU): Polygon-Geometrie erforderlich, "
+                f"aber {geom_type} gefunden. "
+                f"Hinweis: Einen Layer mit Polygon-Geometrie verwenden."
+            )
+
+        # Required field: fkt or funktion
+        field_names = [f.name() for f in layer.fields()]
+        fkt_field = None
+        for f in self.HU_REQUIRED_FIELDS:
+            if f in field_names:
+                fkt_field = f
+                break
+
+        if not fkt_field:
+            result.add_error(
+                f"Gebäudeumrisse (HU): Feld 'fkt' oder 'funktion' fehlt. "
+                f"Vorhandene Felder: {', '.join(field_names[:15])}. "
+                f"Hinweis: Ein Feld 'fkt' oder 'funktion' mit "
+                f"Gebäudefunktionscodes hinzufügen."
+            )
+            return
+
+        # Check field values: not empty, ATKIS format
+        null_count = 0
+        invalid_format = []
+        fkt_idx = layer.fields().indexFromName(fkt_field)
+
+        for feature in layer.getFeatures():
+            val = feature[fkt_idx]
+            if val is None or str(val).strip() == "" or str(val) == "NULL":
+                null_count += 1
+                continue
+            if not self.HU_FKT_PATTERN.match(str(val)):
+                if len(invalid_format) < 5:
+                    invalid_format.append(str(val)[:20])
+
+        if null_count > 0:
+            result.add_error(
+                f"Gebäudeumrisse (HU): {null_count} Features mit "
+                f"leerem/NULL-Wert im Feld '{fkt_field}'. "
+                f"Hinweis: Alle Features brauchen einen "
+                f"Gebäudefunktionscode."
+            )
+
+        if invalid_format:
+            result.add_warning(
+                f"Gebäudeumrisse (HU): Werte im Feld '{fkt_field}' "
+                f"entsprechen nicht dem ATKIS-Format (NNNNN_NNNN, "
+                f"z.B. 31001_1000). Beispiele: "
+                f"{', '.join(invalid_format)}. "
+                f"Hinweis: Nur die ersten 10 Zeichen werden "
+                f"fuer den Filterabgleich verwendet."
+            )
+
+    def _check_rn_layer(
+        self, layer: QgsVectorLayer, result: ValidationResult
+    ) -> None:
+        """Validate RN layer: must be LineString geometry."""
+        if layer.geometryType() != QgsWkbTypes.LineGeometry:
+            geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
+            result.add_error(
+                f"Straßennetz (RN): Linien-Geometrie erforderlich, "
+                f"aber {geom_type} gefunden. "
+                f"Hinweis: Einen Layer mit Linien-Geometrie verwenden."
+            )
+
+    def _check_part_layer(
+        self, layer: QgsVectorLayer, result: ValidationResult
+    ) -> None:
+        """Validate Part layer: NAME field and naming pattern."""
+        field_names = [f.name() for f in layer.fields()]
+
+        # Required field: NAME
+        if self.PART_REQUIRED_FIELD not in field_names:
+            result.add_error(
+                f"Partitionierung (Part): Feld "
+                f"'{self.PART_REQUIRED_FIELD}' fehlt. "
+                f"Vorhandene Felder: {', '.join(field_names[:15])}. "
+                f"Hinweis: Ein Textfeld 'NAME' mit Partitionsnamen "
+                f"(z.B. PART_123) hinzufügen."
+            )
+            return
+
+        # Check NAME values: not empty, must match PART_<number>
+        name_idx = layer.fields().indexFromName(self.PART_REQUIRED_FIELD)
+        null_count = 0
+        non_matching = []
+
+        for feature in layer.getFeatures():
+            val = feature[name_idx]
+            if val is None or str(val).strip() == "" or str(val) == "NULL":
+                null_count += 1
+                continue
+            name_val = str(val).strip()
+            if not self.PART_NAME_REGEX.match(name_val):
+                if len(non_matching) < 5:
+                    non_matching.append(name_val)
+
+        if null_count > 0:
+            result.add_error(
+                f"Partitionierung (Part): {null_count} Features mit "
+                f"leerem/NULL-Wert im Feld 'NAME'. "
+                f"Hinweis: Alle Partitionen brauchen einen Namen "
+                f"im Format PART_<Zahl>."
+            )
+
+        if non_matching:
+            result.add_error(
+                f"Partitionierung (Part): NAME-Werte entsprechen "
+                f"nicht dem Format PART_<Zahl>. "
+                f"Beispiele: {', '.join(non_matching)}. "
+                f"Hinweis: NAME-Werte muessen exakt dem Muster "
+                f"PART_123 folgen (z.B. PART_36, PART_433)."
+            )
+
+    # ------------------------------------------------------------------
+    # Multipart and ratio checks
+    # ------------------------------------------------------------------
+
     def _check_multipart_lines(
         self, layer: QgsVectorLayer, layer_name: str,
         result: ValidationResult
@@ -334,9 +485,9 @@ class InputValidator:
 
         if multipart_count > 0:
             result.add_warning(
-                f"{layer_name}: {multipart_count} Multipart-Geometrien gefunden. "
-                f"Hinweis: Sketcher vor der Verarbeitung auflösen "
-                f"(sketcher: native:multiparttosingleparts)."
+                f"{layer_name}: {multipart_count} Multipart-Geometrien "
+                f"gefunden. Hinweis: Vor der Verarbeitung "
+                f"auflösen (native:multiparttosingleparts)."
             )
 
     def _check_part_hu_ratio(
@@ -355,7 +506,71 @@ class InputValidator:
             result.add_warning(
                 f"Verhältnis Part:HU = 1:{ratio:.0f} "
                 f"(Schwellenwert: 1:{self.MAX_PART_TO_HU_RATIO}). "
-                f"Part hat {part_count} Features, HU hat {hu_count} Features. "
+                f"Part hat {part_count} Features, HU hat "
+                f"{hu_count} Features. "
                 f"Hinweis: Feinere Partitionierung verwenden, um die "
                 f"Verarbeitungszeit pro Partition zu reduzieren."
             )
+
+    # ------------------------------------------------------------------
+    # Filter file and output paths
+    # ------------------------------------------------------------------
+
+    def _check_filter_file(
+        self, filter_path: str, result: ValidationResult
+    ) -> None:
+        """Validate filter file existence and format."""
+        if not filter_path or not filter_path.strip():
+            result.add_error("Filterdatei: Kein Dateipfad angegeben.")
+            return
+
+        if not os.path.exists(filter_path):
+            result.add_error(
+                f"Filterdatei: Datei existiert nicht: {filter_path}"
+            )
+            return
+
+        try:
+            with open(filter_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            result.add_error(
+                f"Filterdatei: Datei kann nicht gelesen werden: {e}. "
+                f"Hinweis: Datei muss UTF-8-kodiert und lesbar sein."
+            )
+            return
+
+        if self.FILTER_SECTION_POSITIVE not in content:
+            result.add_error(
+                f"Filterdatei: Abschnitt "
+                f"'{self.FILTER_SECTION_POSITIVE}' fehlt. "
+                f"Hinweis: Zeile '{self.FILTER_SECTION_POSITIVE}' "
+                f"in der Datei ergänzen."
+            )
+        if self.FILTER_SECTION_NEGATIVE not in content:
+            result.add_error(
+                f"Filterdatei: Abschnitt "
+                f"'{self.FILTER_SECTION_NEGATIVE}' fehlt. "
+                f"Hinweis: Zeile '{self.FILTER_SECTION_NEGATIVE}' "
+                f"in der Datei ergänzen."
+            )
+
+    def _check_output_paths(
+        self, output_path: str, workspace_path: str,
+        result: ValidationResult
+    ) -> None:
+        """Validate output and workspace paths."""
+        if not output_path or not output_path.strip():
+            result.add_error("Ausgabedatei: Kein Pfad angegeben.")
+        else:
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                result.add_error(
+                    f"Ausgabedatei: Verzeichnis existiert nicht: "
+                    f"{output_dir}. "
+                    f"Hinweis: Verzeichnis anlegen oder anderen "
+                    f"Pfad wählen."
+                )
+
+        if not workspace_path or not workspace_path.strip():
+            result.add_error("Arbeitsverzeichnis: Kein Pfad angegeben.")
