@@ -19,8 +19,8 @@ from .geometry_utils import (
     create_empty_layer,
     create_linestring_layer_from_array,
     nodes_detect,
-    get_hole_polygons
-
+    get_hole_polygons,
+    intersect_polygons
 )
 from .data_loader import (
     select_HU_file,
@@ -48,6 +48,8 @@ from .logger import Logger
 
 from .message import msg
 
+from .check import InputValidator, ValidationResult
+
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
     "polyline2",
@@ -72,5 +74,8 @@ __all__ = [
     "get_hole_polygons",
     "version_check",
     "create_shortest_lines_to_roads",
-    "create_polygons_from_lines"
+    "create_polygons_from_lines",
+    "intersect_polygons",
+    "InputValidator",
+    "ValidationResult"
 ]

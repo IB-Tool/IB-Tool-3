@@ -28,6 +28,15 @@ def save_temp_layer_to_gpkg(layer, filename, workspace_path):
         Logger.log("Fehler: Der Layer {} ist ungültig.".format(layer))
         return
 
+    # Sicherstellen, dass das Zielverzeichnis existiert
+    if not os.path.exists(workspace_path):
+        try:
+            os.makedirs(workspace_path)
+            Logger.log(f"Verzeichnis {workspace_path} wurde erstellt.", "INFO")
+        except OSError as e:
+            Logger.log(f"Fehler beim Erstellen des Verzeichnisses {workspace_path}: {e}", "CRITICAL")
+            return
+
     # Ausgabe-Dateipfad
     gpkg_file = os.path.join(workspace_path, "{}.gpkg".format(filename))
 

@@ -117,7 +117,8 @@ def check_projection(SpatialReference, inputlist):
         sr_f = layer.crs()
 
         if sr_i.authid() != sr_f.authid():
-            Logger.log("Alert: Projection of {} is not {}, but {}!".format(f, sr_i.authid(), sr_f.authid()), level="CRITICAL"
+            actual_crs = sr_f.authid() if sr_f.authid() else "undefined/unknown"
+            Logger.log("Alert: Projection of {} is not {}, but {}!".format(f, sr_i.authid(), actual_crs), level="CRITICAL"
 )
 
 
@@ -126,8 +127,11 @@ def load_to_geopackage(input_layer, output_path, layer_name, SpatialReference):
     Lädt einen Eingabelayer in ein GeoPackage.
 
     :param input_layer: Pfad oder Quelldaten des Eingabelayers.
+    :param output_path: Pfad zur Ausgabe-GeoPackage-Datei.
     :param layer_name: Name des Layers im GeoPackage.
-    :return: True bei Erfolg, False bei Fehler.
+    :param SpatialReference: Koordinatenreferenzsystem für den Layer.
+    :return: QgsVectorLayer bei Erfolg.
+    :raises: Exception bei Fehler.
     """
 
     # Alte Datei entfernen, falls sie existiert
@@ -137,9 +141,9 @@ def load_to_geopackage(input_layer, output_path, layer_name, SpatialReference):
     # Eingabelayer laden
     layer = QgsVectorLayer(input_layer, layer_name, "ogr")
     if not layer.isValid():
-        Logger.log("Fehler: {} konnte nicht geladen werden.".format(input_layer), level="CRITICAL")
-
-        return False
+        error_msg = f"Fehler: {input_layer} konnte nicht geladen werden."
+        Logger.log(error_msg, level="CRITICAL")
+        raise Exception(error_msg)
 
     if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
         layer.dataProvider().createSpatialIndex()
@@ -618,3 +622,64 @@ def get_hole_polygons(layer1, layer2):
 
     return hole_layer
 
+def intersect_polygons(input_polygon):
+    """
+    Processes the input polygon to identify and extract intersecting polygons.
+
+    :param input_polygon: The input polygon layer to process.
+    :type input_polygon: QgsVectorLayer
+    :return: The output layer containing intersecting polygons.
+    :rtype: QgsVectorLayer
+    """
+    input_clean = processing.run("native:deleteduplicategeometries", {
+        'INPUT': input_polygon,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+    input_buff = processing.run("native:buffer", {
+        'INPUT': input_clean,
+        'DISTANCE': 70, 'SEGMENTS': 5, 'END_CAP_STYLE': 0, 'JOIN_STYLE': 0,
+        'MITER_LIMIT': 2, 'DISSOLVE': False, 'SEPARATE_DISJOINT': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+    input_lines = processing.run("native:polygonstolines", {
+        'INPUT': input_buff,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+
+    input_lines_poly = processing.run("native:polygonize", {
+        'INPUT': input_lines,
+        'KEEP_FIELDS': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        })['OUTPUT']
+
+    lines_poly_union = processing.run("native:union", {
+        'INPUT': input_lines_poly,
+        'OUTPUT':QgsProcessing.TEMPORARY_OUTPUT,
+        'GRID_SIZE':None
+        })['OUTPUT']
+
+    centroides = processing.run("native:centroids", {
+        'INPUT': lines_poly_union,
+        'ALL_PARTS':False,
+        'OUTPUT':'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+
+    input_lines_poly_count = processing.run("native:countpointsinpolygon", {
+        'POLYGONS': input_lines_poly,
+        'POINTS': centroides,
+        'WEIGHT':'',
+        'CLASSFIELD':'',
+        'FIELD':'NUMPOINTS',
+        'OUTPUT':'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+
+    intersect_poly = processing.run("native:extractbyattribute", {
+        'INPUT': input_lines_poly_count,
+        'FIELD': 'NUMPOINTS', 'OPERATOR': 2, 'VALUE': '1',
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+
+    return intersect_poly

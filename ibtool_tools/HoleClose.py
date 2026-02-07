@@ -30,7 +30,7 @@ def hole_close(input_layer, max_hole_size):
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-       # Step 4: Finde Löcher (Differenz zwischen ursprünglichen und neuen Polygonen)
+    # Step 4: Finde Löcher (Differenz zwischen ursprünglichen und neuen Polygonen)
     holes = get_hole_polygons(lines_poly, input_layer_diss)
 
     shp_area2(holes)

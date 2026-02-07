@@ -6,28 +6,28 @@
 name=IB-Tool
 qgisMinimumVersion=3.40
 pythonMinimumVersion=3.9
-description=This tool generates a partition of the dataset based on building footprints.
-version=0.1
+description=QGIS plugin for settlement delineation based on building footprints. Provides automated geospatial processing tools for clustering, density calculations, and minimum spanning tree (MST) analysis.
+version=0.2
 author=Oliver Harig
 email=ottmar.hittzfeld@web.de
 
-about=This tool generates a partition of the dataset based on building footprints.
+about=IBTool is a QGIS plugin for settlement delineation based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis, implementing complex algorithms for clustering, density calculations, and minimum spanning tree (MST) analysis. Features include automated building footprint filtering, road network analysis, partition-based processing, footprint density calculation, gap and hole closing, and comprehensive input data validation. For more information see the project repository: https://github.com/K3lT10N/IB-Tool-3
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/K3lT10N/IB-Tool-3/issues
+repository=https://github.com/K3lT10N/IB-Tool-3
 # End of mandatory metadata
 
 # Recommended items:
 
 hasProcessingProvider=no
-# Uncomment the following line and add your changelog:
-# changelog=
+changelog=0.2 - Added input data validation system with Check button, minimum feature counts, multipart geometry detection, Part-to-HU ratio check. Replaced check_projection with comprehensive InputValidator.
+    0.1 - Initial release with core processing pipeline.
 
 # Tags are comma separated with spaces allowed
-tags=python
+tags=python, settlement, building footprints, urban planning, clustering, MST, density, geodata, vector
 
-homepage=http://homepage
-category=Plugins
+homepage=https://github.com/K3lT10N/IB-Tool-3
+category=Vector
 icon=icon.png
 # experimental flag
 experimental=True
@@ -39,9 +39,6 @@ deprecated=False
 # (or upgraded) can be specified.
 # Check the documentation for more information.
 # plugin_dependencies=
-
-Category of the plugin: Raster, Vector, Database or Web
-# category=Vector
 
 # If the plugin can run on QGIS Server.
 server=False

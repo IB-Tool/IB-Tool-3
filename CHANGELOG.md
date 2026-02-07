@@ -5,6 +5,23 @@ All notable changes to IBTool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2025-02-07
+
+### Added
+- Input data validation system (`helpers/check.py`) with `InputValidator` class and `ValidationResult` dataclass
+- **Check button** in plugin dialog for pre-processing validation of all input data
+- Comprehensive validation checks: file existence, layer validity, CRS match, geometry types, required fields, filter file format, output paths, minimum feature counts (HU>=50, RN>=30, Aux>=10), multipart geometry detection, Part-to-HU ratio check
+- Clear success message ("Validierung erfolgreich") when all checks pass
+- Actionable error messages with hints for fixing issues (in German)
+- Start button is disabled when validation errors are found and re-enabled when input paths change
+
+### Changed
+- Replaced `check_projection()` call in `start_processing()` with comprehensive `InputValidator.validate_all()` gate
+- Processing now aborts with clear error messages if validation fails
+- Updated README.md with detailed input data requirements and validation documentation
+
+---
+
 ## 2025-01-19
 
 ### Added
