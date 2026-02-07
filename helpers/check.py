@@ -68,6 +68,7 @@ class InputValidator:
         output_path: str,
         workspace_path: str,
         spatial_reference: QgsCoordinateReferenceSystem,
+        params: dict = None,
     ) -> ValidationResult:
         """Run all validation checks and return aggregated result.
 
@@ -80,6 +81,11 @@ class InputValidator:
             output_path: Path for output file.
             workspace_path: Path for workspace directory.
             spatial_reference: Expected CRS for all layers.
+            params: Optional dict with UI parameter values, keys:
+                min_overlap_blocks, global_footprint_density,
+                min_area, min_bdg_count, min_patch_size,
+                max_hole_size, max_gap_size, spatial_reference_text,
+                part_start, part_end, part_list.
 
         Returns:
             ValidationResult with errors and warnings.
@@ -163,6 +169,10 @@ class InputValidator:
 
         # Output and workspace paths
         self._check_output_paths(output_path, workspace_path, result)
+
+        # UI parameter validation
+        if params:
+            self._check_params(params, result)
 
         return result
 
@@ -471,23 +481,33 @@ class InputValidator:
         self, layer: QgsVectorLayer, layer_name: str,
         result: ValidationResult
     ) -> None:
-        """Warn if line layer contains multipart geometries."""
+        """Check that each line feature contains exactly one line string.
+
+        OGC Simple Feature structure check:
+        - LineString -> OK
+        - MultiLineString with exactly 1 part -> OK
+        - MultiLineString with >1 parts -> Error
+        """
         if layer.geometryType() != QgsWkbTypes.LineGeometry:
             return
 
-        multipart_count = 0
+        multiline_count = 0
         for feature in layer.getFeatures():
             geom = feature.geometry()
             if geom.isNull():
                 continue
             if geom.isMultipart():
-                multipart_count += 1
+                parts = geom.asMultiPolyline()
+                if len(parts) > 1:
+                    multiline_count += 1
 
-        if multipart_count > 0:
-            result.add_warning(
-                f"{layer_name}: {multipart_count} Multipart-Geometrien "
-                f"gefunden. Hinweis: Vor der Verarbeitung "
-                f"auflösen (native:multiparttosingleparts)."
+        if multiline_count > 0:
+            result.add_error(
+                f"{layer_name}: {multiline_count} Features enthalten "
+                f"mehrere Linienzuege (MultiLineString mit >1 Teil). "
+                f"Jedes Feature darf nur einen Linienzug enthalten. "
+                f"Hinweis: Sketcher auflösen "
+                f"(native:multiparttosingleparts)."
             )
 
     def _check_part_hu_ratio(
@@ -519,7 +539,27 @@ class InputValidator:
     def _check_filter_file(
         self, filter_path: str, result: ValidationResult
     ) -> None:
-        """Validate filter file existence and format."""
+        """Validate filter file existence, format, and content.
+
+        Expected format:
+            #Filter positive
+            31001_1000, Wohngeb
+            31001_1010, Wohnhaus
+            ...
+
+            #Filter negative
+            31001_1310, Freizeit
+            31001_2600, Entsorgung
+            ...
+
+        Rules:
+        - Sections '#Filter positive' and '#Filter negative' required
+        - '#Filter positive' must appear before '#Filter negative'
+        - Each section must contain at least one entry
+        - Entries should start with ATKIS code (NNNNN_NNNN)
+        - Lines starting with '#' are comments, empty lines ignored
+        - Only first 10 characters per entry used for matching
+        """
         if not filter_path or not filter_path.strip():
             result.add_error("Filterdatei: Kein Dateipfad angegeben.")
             return
@@ -532,7 +572,7 @@ class InputValidator:
 
         try:
             with open(filter_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+                lines = f.readlines()
         except Exception as e:
             result.add_error(
                 f"Filterdatei: Datei kann nicht gelesen werden: {e}. "
@@ -540,19 +580,104 @@ class InputValidator:
             )
             return
 
-        if self.FILTER_SECTION_POSITIVE not in content:
+        # Parse structure: find sections and their entries
+        current_section = None
+        pos_line = None
+        neg_line = None
+        entries_positive = []
+        entries_negative = []
+        orphan_lines = []
+
+        for i, raw_line in enumerate(lines, 1):
+            line = raw_line.strip()
+
+            if line.startswith(self.FILTER_SECTION_POSITIVE):
+                current_section = "positive"
+                pos_line = i
+                continue
+            elif line.startswith(self.FILTER_SECTION_NEGATIVE):
+                current_section = "negative"
+                neg_line = i
+                continue
+            elif line.startswith("#") or not line:
+                continue
+
+            # Content line
+            if current_section == "positive":
+                entries_positive.append((i, line))
+            elif current_section == "negative":
+                entries_negative.append((i, line))
+            else:
+                orphan_lines.append((i, line))
+
+        # Check sections exist
+        if pos_line is None:
             result.add_error(
                 f"Filterdatei: Abschnitt "
                 f"'{self.FILTER_SECTION_POSITIVE}' fehlt. "
                 f"Hinweis: Zeile '{self.FILTER_SECTION_POSITIVE}' "
                 f"in der Datei ergänzen."
             )
-        if self.FILTER_SECTION_NEGATIVE not in content:
+        if neg_line is None:
             result.add_error(
                 f"Filterdatei: Abschnitt "
                 f"'{self.FILTER_SECTION_NEGATIVE}' fehlt. "
                 f"Hinweis: Zeile '{self.FILTER_SECTION_NEGATIVE}' "
                 f"in der Datei ergänzen."
+            )
+
+        # Check section order
+        if pos_line is not None and neg_line is not None:
+            if pos_line > neg_line:
+                result.add_error(
+                    f"Filterdatei: '{self.FILTER_SECTION_POSITIVE}' "
+                    f"(Zeile {pos_line}) muss vor "
+                    f"'{self.FILTER_SECTION_NEGATIVE}' "
+                    f"(Zeile {neg_line}) stehen."
+                )
+
+        # Check orphan lines (before any section header)
+        if orphan_lines:
+            samples = [f"Zeile {n}: {t[:30]}" for n, t in orphan_lines[:3]]
+            result.add_warning(
+                f"Filterdatei: {len(orphan_lines)} Zeilen stehen vor "
+                f"dem ersten Abschnittsheader und werden ignoriert. "
+                f"Beispiele: {'; '.join(samples)}."
+            )
+
+        # Check minimum entries per section
+        if pos_line is not None and len(entries_positive) == 0:
+            result.add_error(
+                f"Filterdatei: Abschnitt "
+                f"'{self.FILTER_SECTION_POSITIVE}' enthält keine "
+                f"Einträge. Hinweis: Mindestens einen "
+                f"Funktionscode hinzufügen."
+            )
+        if neg_line is not None and len(entries_negative) == 0:
+            result.add_error(
+                f"Filterdatei: Abschnitt "
+                f"'{self.FILTER_SECTION_NEGATIVE}' enthält keine "
+                f"Einträge. Hinweis: Mindestens einen "
+                f"Funktionscode hinzufügen."
+            )
+
+        # Check entry format (ATKIS code in first 10 chars)
+        invalid_entries = []
+        for line_nr, entry in entries_positive + entries_negative:
+            code = entry[:10].strip().rstrip(",")
+            if not self.HU_FKT_PATTERN.match(code):
+                if len(invalid_entries) < 5:
+                    invalid_entries.append(
+                        f"Zeile {line_nr}: {entry[:30]}"
+                    )
+
+        if invalid_entries:
+            result.add_warning(
+                f"Filterdatei: Einträge entsprechen nicht dem "
+                f"ATKIS-Format (NNNNN_NNNN). Beispiele: "
+                f"{'; '.join(invalid_entries)}. "
+                f"Hinweis: Nur die ersten 10 Zeichen werden "
+                f"für den Filterabgleich verwendet."
             )
 
     def _check_output_paths(
@@ -574,3 +699,121 @@ class InputValidator:
 
         if not workspace_path or not workspace_path.strip():
             result.add_error("Arbeitsverzeichnis: Kein Pfad angegeben.")
+
+    # ------------------------------------------------------------------
+    # Parameter validation
+    # ------------------------------------------------------------------
+
+    def _check_params(
+        self, params: dict, result: ValidationResult
+    ) -> None:
+        """Validate UI parameter values for type, range, and consistency.
+
+        Args:
+            params: Dict with raw string values from UI widgets.
+        """
+        # Numeric parameters: (key, label, type, min, max)
+        numeric_checks = [
+            ("min_overlap_blocks", "Min. Overlap Blocks (%)",
+             float, 0, 100),
+            ("global_footprint_density", "Globale Footprint-Dichte (%)",
+             float, 0, 100),
+            ("min_area", "Min. Gebaeude-Grundflaeche (qm)",
+             float, 10, 500),
+            ("min_bdg_count", "Min. Gebaeudeanzahl",
+             int, 1, 100),
+            ("min_patch_size", "Min. Patchgroesse (qm)",
+             float, 100, 100000),
+            ("max_hole_size", "Max. Lochgroesse (qm)",
+             float, 0, 100000),
+            ("max_gap_size", "Max. Lueckengroesse (qm)",
+             float, 0, 100000),
+        ]
+
+        parsed = {}
+        for key, label, num_type, min_val, max_val in numeric_checks:
+            raw = params.get(key)
+            if raw is None:
+                continue
+
+            raw_str = str(raw).strip()
+            if not raw_str:
+                result.add_error(
+                    f"Parameter '{label}': Kein Wert angegeben."
+                )
+                continue
+
+            try:
+                value = num_type(raw_str)
+            except (ValueError, TypeError):
+                expected = "Ganzzahl" if num_type == int else "Zahl"
+                result.add_error(
+                    f"Parameter '{label}': '{raw_str}' ist keine "
+                    f"gueltige {expected}."
+                )
+                continue
+
+            parsed[key] = value
+
+            if min_val is not None and value < min_val:
+                result.add_error(
+                    f"Parameter '{label}': Wert {value} ist kleiner "
+                    f"als das Minimum ({min_val})."
+                )
+            if max_val is not None and value > max_val:
+                result.add_error(
+                    f"Parameter '{label}': Wert {value} ist groesser "
+                    f"als das Maximum ({max_val})."
+                )
+
+        # Spatial reference check
+        sr_text = params.get("spatial_reference_text", "").strip()
+        if sr_text:
+            crs = QgsCoordinateReferenceSystem(sr_text)
+            if not crs.isValid():
+                result.add_error(
+                    f"Parameter 'CRS': '{sr_text}' ist "
+                    f"kein gueltiges CRS. "
+                    f"Hinweis: z.B. EPSG:25832 verwenden."
+                )
+            elif crs.isGeographic():
+                result.add_warning(
+                    f"Parameter 'CRS': '{sr_text}' ist "
+                    f"ein geographisches CRS (Grad). "
+                    f"Hinweis: Ein projiziertes CRS (Meter) wie "
+                    f"EPSG:25832 wird empfohlen."
+                )
+
+        # Partition range check
+        part_start = params.get("part_start", "").strip()
+        part_end = params.get("part_end", "").strip()
+        if part_start and part_end:
+            try:
+                ps = int(part_start)
+                pe = int(part_end)
+                if ps != -1 and pe != -1:
+                    if ps < 0:
+                        result.add_error(
+                            f"Parameter 'Partition Start': "
+                            f"Wert {ps} ist ungueltig. "
+                            f"Hinweis: -1 (alle) oder >= 0."
+                        )
+                    if pe < 0:
+                        result.add_error(
+                            f"Parameter 'Partition End': "
+                            f"Wert {pe} ist ungueltig. "
+                            f"Hinweis: -1 (alle) oder >= 0."
+                        )
+                    if ps >= 0 and pe >= 0 and ps >= pe:
+                        result.add_error(
+                            f"Parameter: Partition Start ({ps}) >= "
+                            f"Partition End ({pe}). "
+                            f"Hinweis: Start muss kleiner als "
+                            f"End sein."
+                        )
+            except ValueError:
+                result.add_error(
+                    f"Parameter 'Partition Start/End': "
+                    f"'{part_start}'/'{part_end}' sind keine "
+                    f"gueltigen Ganzzahlen."
+                )
