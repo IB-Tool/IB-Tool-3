@@ -48,6 +48,8 @@ from .logger import Logger
 
 from .message import msg
 
+from .check import InputValidator, ValidationResult
+
 # Exportierte Symbole für den einfachen Zugriff
 __all__ = [
     "polyline2",
@@ -73,5 +75,7 @@ __all__ = [
     "version_check",
     "create_shortest_lines_to_roads",
     "create_polygons_from_lines",
-    "intersect_polygons"
+    "intersect_polygons",
+    "InputValidator",
+    "ValidationResult"
 ]
