@@ -11,7 +11,8 @@
       "Bash(cp:*)",
       "Bash(docker build:*)",
       "Bash(powershell:*)",
-      "Bash(docker:*)"
+      "Bash(docker:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []
