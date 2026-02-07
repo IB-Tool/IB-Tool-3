@@ -91,6 +91,7 @@ from ibtool.helpers.system_utils import (
     version_check
 )
 from ibtool.helpers.message import msg
+from ibtool.helpers.check import InputValidator, ValidationResult
 from ibtool.helpers.data_loader import *
 
 from ibtool.ibtool_tools.FootprintDensity import (
@@ -105,6 +106,7 @@ from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
 from ibtool.ibtool_tools.EdgeCatch import edge_catch
 from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
+from ibtool.ibtool_tools.GapFix import gap_fix
 
 # Import the dialog class
 from ibtool.ibtool.ibtool_dialog import IBToolDialog
@@ -361,8 +363,17 @@ class IBTool:
             self.dlg.WorkspaceButton.clicked.connect(self.select_workspace_file)
             self.dlg.FilterButton.clicked.connect(self.select_filter_file)
             self.dlg.LogDirButton.clicked.connect(self.select_log_dir)
+            self.dlg.CheckButton.clicked.connect(self.run_validation)
             self.dlg.StartButton.clicked.connect(self.start_processing)
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
+            # Re-enable Start button when input paths change
+            for path_widget in [self.dlg.HuPath, self.dlg.RnPath,
+                                self.dlg.PartPath, self.dlg.AuxPath,
+                                self.dlg.FilterPath, self.dlg.OutputPath,
+                                self.dlg.WorkspacePath]:
+                path_widget.textChanged.connect(
+                    lambda: self.dlg.StartButton.setEnabled(True)
+                )
             self.dlg.LogLevelBox.currentTextChanged.connect(
                 lambda: logger.set_log_level(self.dlg.LogLevelBox.currentText())
             )
@@ -504,6 +515,67 @@ class IBTool:
                        level="CRITICAL")
             pass
 
+    def run_validation(self):
+        """Run input validation and display results in MessageBox."""
+        self.dlg.MessageBox.clear()
+
+        spatial_reference_text = self.dlg.SpatialReferenceBox.text()
+        spatial_reference = QgsCoordinateReferenceSystem(spatial_reference_text)
+
+        validator = InputValidator()
+        result = validator.validate_all(
+            hu_path=self.dlg.HuPath.text(),
+            rn_path=self.dlg.RnPath.text(),
+            part_path=self.dlg.PartPath.text(),
+            aux_path=self.dlg.AuxPath.text(),
+            filter_path=self.dlg.FilterPath.text(),
+            output_path=self.dlg.OutputPath.text(),
+            workspace_path=self.dlg.WorkspacePath.text(),
+            spatial_reference=spatial_reference,
+        )
+
+        self._display_validation_result(result)
+        self.dlg.StartButton.setEnabled(result.is_valid)
+
+    def _display_validation_result(self, result: ValidationResult) -> None:
+        """Format and display validation results in the MessageBox."""
+        if result.is_valid and not result.warnings:
+            logger.log(
+                "=== VALIDIERUNG ERFOLGREICH === "
+                "Alle Eingabedaten-Checks bestanden.",
+                level="INFO"
+            )
+            return
+
+        if result.errors:
+            logger.log(
+                f"=== VALIDIERUNGSFEHLER ({len(result.errors)}) ===",
+                level="CRITICAL"
+            )
+            for i, error in enumerate(result.errors, 1):
+                logger.log(f"  [{i}] {error}", level="CRITICAL")
+
+        if result.warnings:
+            logger.log(
+                f"=== WARNUNGEN ({len(result.warnings)}) ===",
+                level="WARNING"
+            )
+            for i, warning in enumerate(result.warnings, 1):
+                logger.log(f"  [{i}] {warning}", level="WARNING")
+
+        if result.is_valid:
+            logger.log(
+                "Validierung bestanden (mit Warnungen). "
+                "Verarbeitung kann gestartet werden.",
+                level="INFO"
+            )
+        else:
+            logger.log(
+                "Validierung fehlgeschlagen. "
+                "Bitte Fehler oben beheben, bevor gestartet wird.",
+                level="CRITICAL"
+            )
+
     def start_processing(self):
         """Start main process"""
 
@@ -598,8 +670,23 @@ class IBTool:
         OutputFile = self.dlg.OutputPath.text()
         msg(f"Outputfile={OutputFile}") #ToDO entfernen
 
-        check_projection(spatial_reference, [input_hu, InputRN,
-                                            InputAux, InputPart])
+        # Input validation (replaces old check_projection call)
+        validator = InputValidator()
+        validation_result = validator.validate_all(
+            hu_path=input_hu,
+            rn_path=InputRN,
+            part_path=InputPart,
+            aux_path=InputAux,
+            filter_path=input_filter,
+            output_path=OutputFile,
+            workspace_path=self.dlg.WorkspacePath.text(),
+            spatial_reference=spatial_reference,
+        )
+        self._display_validation_result(validation_result)
+        if not validation_result.is_valid:
+            logger.log("Verarbeitung abgebrochen wegen Validierungsfehlern.",
+                       level="CRITICAL")
+            return
 
         # Alle Eingabe-Shapefiles in das GeoPackage laden
 
@@ -633,6 +720,7 @@ class IBTool:
         merge_layer = create_empty_layer("global_merge_layer",
                                          "Polygon",
                                          spatial_reference.authid())
+        merge = merge_layer  # Initialize to avoid UnboundLocalError if loop doesn't execute
         # Partitionen aus Gesamtdatei für Debugging auswählen
         part_list = create_partitions_list(layer_part,
                                           part_list,
@@ -731,9 +819,13 @@ class IBTool:
             if anz_strassen < 5:
                 with open(PartLogFin, 'a') as part_log:
                     part_log.write("\n" + part_name)
-                logger.log("Warning: No or less than 5 roads selected in partition", 'WARNING')
+                logger.log(f"Warning: No or less than 5 roads selected in partition {part_name}", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, sel_part_layer)
+            save_temp_layer_to_gpkg(aux_lines_sel,
+                                    f"aux_lines_sel_{str((part_name))}",
+                                    workspace_path)
+
 
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
@@ -745,16 +837,41 @@ class IBTool:
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
             blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer)
+            save_temp_layer_to_gpkg(blocks,
+                                    f"blocks__{str((part_name))}",
+                                    workspace_path)
 
             hu_filter = input_hu_filter(sel_hu_layer, input_filter,min_area, 50, 200)
+            save_temp_layer_to_gpkg(hu_filter,
+                                    f"hu_filter_{str((part_name))}",
+                                    workspace_path)
 
             blocks_dense = identify_dense_blocks(hu_filter, blocks, min_overlap_blocks)
+            save_temp_layer_to_gpkg(blocks_dense,
+                                    f"blocks_dense_{str((part_name))}",
+                                    workspace_path)
 
             hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
+            save_temp_layer_to_gpkg(hu_filter_sel,
+                                    f"hu_filter_sel_{str((part_name))}",
+                                    workspace_path)
 
             mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
+            save_temp_layer_to_gpkg(mst_layer,
+                                    f"mst_layer_{str((part_name))}",
+                                    workspace_path)
+
+            # Check if MST calculation succeeded
+            if mst_layer is None:
+                with open(PartLogFin, 'a') as part_log:
+                    part_log.write("\n" + part_name)
+                logger.log(f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
+                continue
 
             hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
+            save_temp_layer_to_gpkg(hu_cluster_output,
+                                    f"hu_cluster_output_{str((part_name))}",
+                                    workspace_path)
 
             add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,  300)
 
@@ -765,6 +882,11 @@ class IBTool:
                 })['OUTPUT']
 
             snapped_rect = edge_catch(rect_merged, hu_filter_sel, sel_strassen_layer, blocks, spatial_reference, workspace_path)
+            save_temp_layer_to_gpkg(snapped_rect,
+                                    f"snapped_rect_{str((part_name))}",
+                                    workspace_path)
+
+
 
             gaps_colsed = gap_close(snapped_rect, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
 
@@ -776,7 +898,7 @@ class IBTool:
                                          min_bdg_count=min_bdg_count,
                                          footprint_area_sum=6000,
                                          footprint_density_threshold=18)
-            save_temp_layer_to_gpkg(patch_removed, "L_09_patch_removed", workspace_path)
+            save_temp_layer_to_gpkg(patch_removed, f"L_09_patch_removed_{str(part_name)}", workspace_path)
 
 
             # Fortschritt aktualisieren
@@ -791,6 +913,17 @@ class IBTool:
                 })['OUTPUT']
             merge_layer = merge
 
+        save_temp_layer_to_gpkg(merge, "out_global_merge", workspace_path)
+
+        # Load output from previous step
+        merge = QgsVectorLayer(os.path.join(workspace_path, "out_global_merge.gpkg"),
+                               "merge", "ogr")
+        if not merge.isValid():
+            logger.log("Failed to load final merge layer", "CRITICAL")
+            return
+
+        #gap_fixed = gap_fix(merge, layer_rn, workspace_path)
+
         # Split the OutputFile into path, filename, and extension
         output_folder, file_with_extension = os.path.split(OutputFile)
         output_filename, _ = os.path.splitext(file_with_extension)
@@ -799,4 +932,4 @@ class IBTool:
 
         save_temp_layer_to_gpkg(merge, str(output_filename), output_folder + "/")
 
-        logger.log("ERFOLG", "CRITICAL")
+        logger.log("ERFOLG", "SUCCESS")
