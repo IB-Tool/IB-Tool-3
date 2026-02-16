@@ -196,14 +196,34 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
 
     ############################################################
 
-    input_diss = safe_processing_run("native:dissolve", {
+    # Fix geometries, then dissolve via collect + buffer(0) workaround
+    # native:dissolve silently fails on large MultiPolygon sets (GEOS bug)
+    input_fixed = safe_processing_run("native:fixgeometries", {
         'INPUT': input_layer,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Collect all features into one multipart geometry
+    input_collected = safe_processing_run("native:collect", {
+        'INPUT': input_fixed,
         'FIELD': [],
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Buffer(0) forces a proper geometric union via GEOS
+    input_diss = safe_processing_run("native:buffer", {
+        'INPUT': input_collected,
+        'DISTANCE': 0,
+        'SEGMENTS': 5,
+        'END_CAP_STYLE': 0,
+        'JOIN_STYLE': 0,
+        'MITER_LIMIT': 2,
+        'DISSOLVE': True,
         'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
-    # Initial count of input layer
     input_layer_count = input_diss.featureCount()
 
     if input_layer_count > 0:
