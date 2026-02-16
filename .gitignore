@@ -56,11 +56,6 @@ htmlcov/
 # Debug-Skripte
 debug_*.py
 
-# Temporaere/experimentelle Tool-Varianten
-ibtool_tools/EdgeCatch[0-9]*.py
-helpers/edge_catch_utils[0-9]*.py
-ibtool_tools/fill_gaps.py
-
 # Alte Dateien
 /IB-Tool2.py
 
