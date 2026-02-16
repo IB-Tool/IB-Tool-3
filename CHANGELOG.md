@@ -5,6 +5,13 @@ All notable changes to IBTool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-02-17
+
+### Fixed
+- **GapClose produces empty output**: `native:dissolve` silently fails on large MultiPolygon sets (7801+ features), producing null geometry (`isEmpty=True, isNull=True, wkbType=Unknown`). Replaced with `native:collect` → `native:buffer(distance=0, dissolve=True)` workaround which forces a reliable GEOS union.
+
+---
+
 ## 2025-02-07
 
 ### Added
