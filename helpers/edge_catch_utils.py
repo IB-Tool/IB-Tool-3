@@ -424,6 +424,184 @@ def apply_filter_rules(line_data, min_lines_to_keep):
     return filtered
 
 
+def project_point_to_line(point, line_geom):
+    """
+    Projiziert einen Punkt auf eine Liniengeometrie.
+
+    Parameters:
+    -----------
+    point : QgsPointXY
+        Der zu projizierende Punkt
+    line_geom : QgsGeometry
+        Die Liniengeometrie auf die projiziert wird
+
+    Returns:
+    --------
+    tuple (QgsPointXY, float)
+        (Projizierter Punkt, Distanz). Bei Fehler (None, inf).
+    """
+    point_geom = QgsGeometry.fromPointXY(point)
+    closest = line_geom.nearestPoint(point_geom)
+    if closest.isNull():
+        return None, float('inf')
+    projected = closest.asPoint()
+    distance = point_geom.distance(closest)
+    return QgsPointXY(projected.x(), projected.y()), distance
+
+
+def extract_road_subline(foot_point_a, foot_point_b, road_features):
+    """
+    Führt Straßengeometrien zusammen und extrahiert die Teillinie zwischen
+    zwei Fußpunkten. Robust gegenüber Multi-Feature-Segmenten und T-Kreuzungen.
+
+    Parameters:
+    -----------
+    foot_point_a : QgsPointXY
+        Erster Fußpunkt auf der Straße (Projektion von edge_start)
+    foot_point_b : QgsPointXY
+        Zweiter Fußpunkt auf der Straße (Projektion von edge_end)
+    road_features : list oder QgsVectorLayer
+        Straßen-Features im relevanten Bereich
+
+    Returns:
+    --------
+    list of QgsPointXY
+        Nur die ZWISCHEN-Vertices der Straße zwischen den Fußpunkten
+        (ohne die Fußpunkte selbst). Kann leer sein bei gerader Straße.
+        None bei Fehler.
+    """
+    # Straßengeometrien sammeln
+    geom_list = []
+    if hasattr(road_features, 'getFeatures'):
+        features = road_features.getFeatures()
+    else:
+        features = road_features
+
+    for feat in features:
+        geom = feat.geometry()
+        if not geom.isNull() and not geom.isEmpty():
+            geom_list.append(geom)
+
+    if not geom_list:
+        Logger.log("extract_road_subline: Keine gültigen Straßengeometrien", level="WARNING")
+        return None
+
+    # Zu einer Geometrie zusammenführen und Linien mergen
+    collected = QgsGeometry.collectGeometry(geom_list)
+    merged = collected.mergeLines()
+
+    point_a_geom = QgsGeometry.fromPointXY(foot_point_a)
+    point_b_geom = QgsGeometry.fromPointXY(foot_point_b)
+
+    # Bei MultiLineString: den Linienteil finden der beiden Fußpunkten am nächsten ist
+    if merged.isMultipart():
+        best_line = None
+        best_total_dist = float('inf')
+        for part in merged.asGeometryCollection():
+            if part.isNull() or part.isEmpty():
+                continue
+            dist_a = part.distance(point_a_geom)
+            dist_b = part.distance(point_b_geom)
+            total = dist_a + dist_b
+            if total < best_total_dist:
+                best_total_dist = total
+                best_line = part
+        if best_line is None:
+            Logger.log("extract_road_subline: Kein passender Linienteil gefunden", level="WARNING")
+            return None
+        merged = best_line
+
+    # Distanzen entlang der Linie ermitteln
+    dist_a = merged.lineLocatePoint(point_a_geom)
+    dist_b = merged.lineLocatePoint(point_b_geom)
+
+    # Reihenfolge: von A nach B entlang der Linie
+    reversed_order = dist_a > dist_b
+    start_dist = min(dist_a, dist_b)
+    end_dist = max(dist_a, dist_b)
+
+    # curveSubstring ist eine Methode von QgsAbstractGeometry, nicht QgsGeometry
+    abstract_geom = merged.constGet()
+    sub_curve = abstract_geom.curveSubstring(start_dist, end_dist)
+    subline = QgsGeometry(sub_curve)
+
+    if subline.isNull() or subline.isEmpty():
+        Logger.log("extract_road_subline: curveSubstring ergab leere Geometrie", level="WARNING")
+        return None
+
+    # Alle Vertices der Teillinie extrahieren
+    all_vertices = []
+    for vertex in subline.vertices():
+        all_vertices.append(QgsPointXY(vertex.x(), vertex.y()))
+
+    # Erstes und letztes Vertex entfernen (das sind die re-projizierten Fußpunkte,
+    # die leicht von den echten Fußpunkten abweichen können)
+    if len(all_vertices) <= 2:
+        intermediate = []  # Gerade Straße, keine Zwischenvertices
+    else:
+        intermediate = all_vertices[1:-1]
+
+    # Reihenfolge korrigieren: Vertices von foot_a nach foot_b
+    if reversed_order:
+        intermediate.reverse()
+
+    return intermediate
+
+
+def build_catch_polygon(edge_start, edge_end, foot_a, foot_b, road_intermediate_vertices=None):
+    """
+    Baut ein Fangpolygon aus Gebäudekanten-Vertices, Fußpunkten und Straßenvertices.
+
+    Das Polygon wird gebildet aus:
+    edge_start → edge_end → foot_b → [Straßen-Zwischenvertices B→A] → foot_a → edge_start
+
+    Parameters:
+    -----------
+    edge_start : QgsPointXY
+        Startpunkt der Gebäudekante (auf dem Rechteck)
+    edge_end : QgsPointXY
+        Endpunkt der Gebäudekante (auf dem Rechteck)
+    foot_a : QgsPointXY
+        Fußpunkt auf der Straße bei edge_start (exakt aus Orthogonaler)
+    foot_b : QgsPointXY
+        Fußpunkt auf der Straße bei edge_end (exakt aus Orthogonaler)
+    road_intermediate_vertices : list of QgsPointXY, optional
+        Zwischen-Vertices der Straße von foot_a nach foot_b (ohne die
+        Fußpunkte selbst). Kann leer/None sein bei gerader Straße.
+
+    Returns:
+    --------
+    QgsGeometry oder None
+        Polygon-Geometrie, oder None bei Fehler.
+    """
+    if road_intermediate_vertices is None:
+        road_intermediate_vertices = []
+
+    # Polygon: edge_start → edge_end → foot_b → [Straße B→A] → foot_a → schließen
+    points = [edge_start, edge_end, foot_b]
+    # Zwischenvertices von B nach A (umgekehrte Reihenfolge da A→B geliefert)
+    points.extend(reversed(road_intermediate_vertices))
+    points.append(foot_a)
+    points.append(edge_start)  # Polygon schließen
+
+    if len(points) < 4:
+        return None
+
+    polygon = QgsGeometry.fromPolygonXY([points])
+
+    if polygon.isNull() or polygon.isEmpty():
+        Logger.log("build_catch_polygon: Erzeugtes Polygon ist ungültig", level="WARNING")
+        return None
+
+    # Geometrie reparieren falls nötig
+    if not polygon.isGeosValid():
+        polygon = polygon.makeValid()
+        if polygon.isNull() or polygon.isEmpty():
+            return None
+
+    return polygon
+
+
 def delete_first_point(layer):
     from qgis.core import QgsVectorLayer, QgsFeature
 

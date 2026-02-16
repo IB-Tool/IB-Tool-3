@@ -87,11 +87,4 @@ def add_single_bdg(input_hu: QgsVectorLayer,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
-    # Merge Rechtecke + ursprüngliches Merge-Rechteck
-    merged_result = processing.run("qgis:mergevectorlayers", {
-        'LAYERS': [hu_rect, processed_rect_merge],
-        'CRS': crs,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
-
-    return merged_result
+    return hu_rect

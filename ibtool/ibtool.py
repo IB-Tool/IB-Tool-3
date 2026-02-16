@@ -27,6 +27,14 @@ import os
 import sys
 import time
 
+from qgis._core import QgsFeatureRequest
+from qgis.core import QgsProcessingContext
+
+# In der edge_catch4 Funktion:
+context = QgsProcessingContext()
+context.setInvalidGeometryCheck(QgsFeatureRequest.GeometryNoCheck)
+
+
 # Constants for configuration
 PYTHONPATH = '/helpers'
 
@@ -104,6 +112,7 @@ from ibtool.ibtool_tools.CreateMST import calculate_mst
 from ibtool.ibtool_tools.MST_Clustering import mst_clustering
 from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
 from ibtool.ibtool_tools.EdgeCatch import edge_catch
+from ibtool.ibtool_tools.fill_gaps import fill_gaps
 from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
 from ibtool.ibtool_tools.GapFix import gap_fix
@@ -294,7 +303,7 @@ class IBTool:
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
 
-        icon_path = os.path.join(self.plugin_dir, 'icon.png')
+        icon_path = os.path.join(os.path.dirname(self.plugin_dir), 'icon.png')
         self.add_action(
             icon_path,
             text=self.tr(u'IB-Tool'),
@@ -825,7 +834,6 @@ class IBTool:
 
             # Gebäude-Features selektieren
             sel_hu_layer = select_and_save_by_location(layer_hu, sel_part_layer)
-            #save_temp_layer_to_gpkg(sel_hu_layer, f"L_01_SelHU_{part_name}", workspace_path)
 
             # Anzahl der ausgewählten Gebäude prüfen
             anz_hu = sel_hu_layer.featureCount()
@@ -838,7 +846,6 @@ class IBTool:
 
             # Straßen-Features selektieren
             sel_strassen_layer = select_and_save_by_location(layer_rn, sel_part_layer)
-            #save_temp_layer_to_gpkg(sel_strassen_layer, f"L_02_SelStrassen_{part_name}", workspace_path)
 
             # Anzahl der ausgewählten Straßen prüfen
             anz_strassen = sel_strassen_layer.featureCount()
@@ -849,8 +856,6 @@ class IBTool:
                 logger.log(f"Warning: No or less than 5 roads selected in partition {part_name}", 'WARNING')
 
             aux_lines_sel = select_and_save_by_location(aux_layers_line, sel_part_layer)
-            #save_temp_layer_to_gpkg(aux_lines_sel, f"L_03_aux_lines_sel_{part_name}", workspace_path)
-
 
             # Debug-Ausgaben
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
@@ -862,19 +867,14 @@ class IBTool:
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
             blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer)
-            #save_temp_layer_to_gpkg(blocks, f"L_04_blocks_{part_name}", workspace_path)
 
             hu_filter = input_hu_filter(sel_hu_layer, input_filter,min_area, 50, 200)
-            #save_temp_layer_to_gpkg(hu_filter, f"L_05_hu_filter_{part_name}",workspace_path)
 
             blocks_dense = identify_dense_blocks(hu_filter, blocks, min_overlap_blocks)
-            #save_temp_layer_to_gpkg(blocks_dense, f"L_06_blocks_dense_{part_name}", workspace_path)
 
             hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
-            #save_temp_layer_to_gpkg(hu_filter_sel, f"L_07_hu_filter_sel_{part_name}", workspace_path)
 
             mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
-            #save_temp_layer_to_gpkg(mst_layer, f"L_08_mst_layer_{part_name}", workspace_path)
 
             # Check if MST calculation succeeded
             if mst_layer is None:
@@ -884,26 +884,26 @@ class IBTool:
                 continue
 
             hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
-            #save_temp_layer_to_gpkg(hu_cluster_output, f"L_09_hu_cluster_output_{part_name}", workspace_path)
 
             add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,  300)
-            #save_temp_layer_to_gpkg(add_sing_bdg, f"L_10_add_sing_bdg_{part_name}", workspace_path)
 
             rect_merged = processing.run("qgis:mergevectorlayers", {
-                'LAYERS': [add_sing_bdg, blocks_dense],
+                'LAYERS': [add_sing_bdg, hu_cluster_output],
                 'CRS': spatial_reference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
 
-            #save_temp_layer_to_gpkg(rect_merged, f"L_11_rect_merged_{part_name}", workspace_path)
+            snapped_rect = edge_catch(rect_merged, hu_filter_sel,
+                                       sel_strassen_layer, blocks,
+                                       spatial_reference, workspace_path)
 
-            snapped_rect = edge_catch(rect_merged, hu_filter_sel, sel_strassen_layer, blocks, spatial_reference, workspace_path)
-            #save_temp_layer_to_gpkg(snapped_rect,  f"L_12_snapped_rect_{part_name}", workspace_path)
+            blocks_merge = processing.run("qgis:mergevectorlayers", {
+                'LAYERS': [snapped_rect, blocks_dense],
+                'CRS': spatial_reference,
+                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT            })['OUTPUT']
 
 
-
-            gaps_colsed = gap_close(snapped_rect, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
-            #save_temp_layer_to_gpkg(gaps_colsed, f"L_13_gaps_closed_{part_name}", workspace_path)
+            gaps_colsed = gap_close(blocks_merge, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
 
             patch_removed = patch_remove(gaps_colsed,
                                          sel_hu_layer,
@@ -913,8 +913,7 @@ class IBTool:
                                          min_bdg_count=min_bdg_count,
                                          footprint_area_sum=6000,
                                          footprint_density_threshold=18)
-            #save_temp_layer_to_gpkg(patch_removed, f"L_14_patch_removed_{part_name}", workspace_path)
-
+            save_temp_layer_to_gpkg(patch_removed, f"L_14_patch_removed_{part_name}", workspace_path)
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
@@ -927,8 +926,6 @@ class IBTool:
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
             merge_layer = merge
-
-        #save_temp_layer_to_gpkg(merge, "L_15_out_global_merge", workspace_path)
 
         # Load output from previous step
         merge = QgsVectorLayer(os.path.join(workspace_path, "L_15_out_global_merge.gpkg"),
@@ -947,4 +944,4 @@ class IBTool:
 
         save_temp_layer_to_gpkg(merge, str(output_filename), output_folder + "/")
 
-        logger.log("ERFOLG", "SUCCESS")
+        logger.log("ERFOLG", "INFO")
