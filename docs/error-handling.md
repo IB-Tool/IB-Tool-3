@@ -83,3 +83,5 @@ Activated via the "Fehlerhafte Features speichern" checkbox in the Debugging tab
 2. **Fail fast for invalid inputs** — validate before processing
 3. **Graceful degradation for processing** — log and continue where possible
 4. **Debug mode for diagnostics** — save state for post-mortem analysis
+
+
