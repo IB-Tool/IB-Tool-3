@@ -2,94 +2,94 @@
 
 ## Purpose
 
-Vorlage für die Implementierung neuer Funktionalität im IBTool-Projekt. Ziel: saubere Integration ohne bestehende Funktionalität zu beeinträchtigen.
+Template for implementing new functionality in the IBTool project. Goal: clean integration without affecting existing functionality.
 
 ## Scope
 
-- Neues Feature klar kapseln
-- Bestehende API nicht brechen
-- Dokumentation ergänzen
-- Tests für neues Feature schreiben
+- Encapsulate the new feature cleanly
+- Do not break the existing API
+- Add documentation
+- Write tests for the new feature
 
-## Vorgehensweise
+## Procedure
 
-### 1. Anforderungsklärung
+### 1. Requirements Clarification
 
-- [ ] Feature-Anforderung vollständig verstehen
-- [ ] Eingabe- und Ausgabedaten definieren
-- [ ] Abgrenzung: was gehört NICHT zum Feature?
-- [ ] Abhängigkeiten zu bestehenden Modulen identifizieren
+- [ ] Fully understand the feature requirements
+- [ ] Define input and output data
+- [ ] Define boundaries: what does NOT belong to this feature?
+- [ ] Identify dependencies on existing modules
 
-### 2. Architektur
+### 2. Architecture
 
-- [ ] Wo im Projektbaum gehört das Feature hin?
-- [ ] Neues Tool in `ibtool_tools/`? Neuer Helper in `helpers/`?
-- [ ] Schnittstellen zu bestehenden Modulen definieren
-- [ ] Parameter festlegen (Klassenkonstanten vs. QGIS-Defaults)
+- [ ] Where in the project tree does the feature belong?
+- [ ] New tool in `ibtool_tools/`? New helper in `helpers/`?
+- [ ] Define interfaces to existing modules
+- [ ] Determine parameters (class constants vs. QGIS defaults)
 
-### 3. Implementierung
+### 3. Implementation
 
-- [ ] Modul mit klarer Verantwortung erstellen
-- [ ] Stateless Processing-Funktion (Eingabe → Ausgabe)
-- [ ] Logging über Logger-System
-- [ ] Fehlerbehandlung mit `safe_processing_run()`
-- [ ] Debug-Modus-Unterstützung (`_dbg`-Dict)
+- [ ] Create module with a clear responsibility
+- [ ] Stateless processing function (input → output)
+- [ ] Logging via the Logger system
+- [ ] Error handling with `safe_processing_run()`
+- [ ] Debug mode support (`_dbg` dict)
 
 ### 4. Integration
 
-- [ ] Import in `ibtool/ibtool.py` (absolute Imports)
-- [ ] UI-Anbindung im Dialog falls nötig
-- [ ] Logging-Nachrichten für Fortschritt und Fehler
+- [ ] Import in `ibtool/ibtool.py` (absolute imports)
+- [ ] UI binding in the dialog if needed
+- [ ] Log messages for progress and errors
 
-### 5. Validierung
+### 5. Validation
 
-- [ ] Unit-Tests für das neue Modul
-- [ ] Integrationstests im Gesamtworkflow
-- [ ] Bestehende Tests unverändert grün
-- [ ] Geometrie-Validierung in Tests
+- [ ] Unit tests for the new module
+- [ ] Integration tests in the overall workflow
+- [ ] Existing tests unchanged and passing
+- [ ] Geometry validation in tests
 
-### 6. Dokumentation
+### 6. Documentation
 
-- [ ] Docstrings für alle neuen Funktionen/Klassen
-- [ ] CHANGELOG.md aktualisieren
-- [ ] CLAUDE.md aktualisieren falls Architektur sich ändert
+- [ ] Docstrings for all new functions/classes
+- [ ] Update CHANGELOG.md
+- [ ] Update CLAUDE.md if architecture changes
 
 ## Allowed Changes
 
-- Neues Modul in `ibtool_tools/` oder `helpers/`
-- Import des neuen Moduls in `ibtool/ibtool.py`
-- UI-Erweiterung im Dialog (neue Widgets, Tabs)
-- Neue Testdatei in `test/`
-- CHANGELOG- und CLAUDE.md-Aktualisierung
+- New module in `ibtool_tools/` or `helpers/`
+- Import of the new module in `ibtool/ibtool.py`
+- UI extension in the dialog (new widgets, tabs)
+- New test file in `test/`
+- CHANGELOG and CLAUDE.md updates
 
 ## Forbidden Changes
 
-- Bestehende öffentliche API ändern
-- Bestehende Tool-Funktionalität modifizieren
-- Neue externe Dependencies ohne Abstimmung
-- Bestehende Tests modifizieren (außer Ergänzung)
+- Changing the existing public API
+- Modifying existing tool functionality
+- New external dependencies without prior consultation
+- Modifying existing tests (except adding new ones)
 
 ## Checklist
 
 ```
-[ ] Anforderung klar definiert
-[ ] Architektur-Entscheidung dokumentiert
-[ ] Feature sauber gekapselt
-[ ] Stateless Processing-Funktion
-[ ] Debug-Modus unterstützt
-[ ] Unit-Tests geschrieben
-[ ] Bestehende Tests grün
-[ ] CHANGELOG aktualisiert
-[ ] Code-Review-ready
+[ ] Requirements clearly defined
+[ ] Architectural decision documented
+[ ] Feature cleanly encapsulated
+[ ] Stateless processing function
+[ ] Debug mode supported
+[ ] Unit tests written
+[ ] Existing tests pass
+[ ] CHANGELOG updated
+[ ] Ready for code review
 ```
 
-## Modul-Vorlage
+## Module Template
 
 ```python
 """
-Modulname — Kurzbeschreibung.
+ModuleName — Short description.
 
-Dieses Modul implementiert [Feature-Beschreibung].
+This module implements [feature description].
 """
 
 from .helpers.logger import Logger
@@ -98,24 +98,24 @@ logger = Logger()
 
 
 class FeatureName:
-    """Beschreibung der Klasse."""
+    """Description of the class."""
 
-    # Algorithmus-Parameter
-    PARAMETER_NAME = 42.0  # Beschreibung und Einheit
+    # Algorithm parameters
+    PARAMETER_NAME = 42.0  # Description and unit
 
     def process(self, input_layer, crs, debug_mode=False, workspace_path=None):
-        """Hauptverarbeitungsfunktion.
+        """Main processing function.
 
         Args:
-            input_layer: QgsVectorLayer mit Eingabedaten
+            input_layer: QgsVectorLayer with input data
             crs: QgsCoordinateReferenceSystem
-            debug_mode: Debug-Features aktivieren
-            workspace_path: Pfad für Debug-Ausgaben
+            debug_mode: Enable debug features
+            workspace_path: Path for debug output
 
         Returns:
-            QgsVectorLayer mit Ergebnis
+            QgsVectorLayer with the result
         """
         _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path,
                      tool_name="FeatureName")
-        # Verarbeitung...
+        # Processing...
 ```

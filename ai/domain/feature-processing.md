@@ -1,45 +1,45 @@
 # Feature Processing
 
-Regeln für den Umgang mit Features, Attributen und Layer-Operationen.
+Rules for working with features, attributes, and layer operations.
 
-## Feature-Iteration
+## Feature Iteration
 
-### Grundmuster
+### Basic Pattern
 
 ```python
 for feature in layer.getFeatures():
     if not feature.hasGeometry():
         continue
     geom = feature.geometry()
-    # Verarbeitung
+    # Processing
 ```
 
-### Mit Filter
+### With Filter
 
 ```python
-# Nach Ausdruck filtern
+# Filter by expression
 request = QgsFeatureRequest().setFilterExpression('"area" > 100')
 for feature in layer.getFeatures(request):
-    # Nur Features mit area > 100
+    # Only features with area > 100
 ```
 
-### Mit räumlichem Filter
+### With Spatial Filter
 
 ```python
 request = QgsFeatureRequest().setFilterRect(bounding_box)
 for feature in layer.getFeatures(request):
-    # Nur Features im Bounding-Box-Bereich
+    # Only features within the bounding box
 ```
 
-### Regeln
+### Rules
 
-- Immer `hasGeometry()` prüfen vor Geometriezugriff
-- Feature-Requests mit Filter bevorzugen statt nachträglichem Filtern
-- Bei großen Layern: räumlichen Index nutzen für Performance
+- Always check `hasGeometry()` before accessing geometry
+- Prefer feature requests with filters over post-hoc filtering
+- For large layers: use spatial index for performance
 
-## Attribute-Join
+## Attribute Join
 
-### Über Processing
+### Via Processing
 
 ```python
 result = processing.run("native:joinattributesbylocation", {
@@ -52,15 +52,15 @@ result = processing.run("native:joinattributesbylocation", {
 })
 ```
 
-### Regeln
+### Rules
 
-- Join-Felder explizit angeben — nicht alle Felder übernehmen
-- Join-Methode bewusst wählen (one-to-one vs. one-to-many)
-- Ergebnis auf unerwartete NULL-Werte prüfen
+- Specify join fields explicitly — do not copy all fields
+- Choose the join method deliberately (one-to-one vs. one-to-many)
+- Check the result for unexpected NULL values
 
-## Feldrechner-Operationen
+## Field Calculator Operations
 
-### Über Processing
+### Via Processing
 
 ```python
 result = processing.run("native:fieldcalculator", {
@@ -72,7 +72,7 @@ result = processing.run("native:fieldcalculator", {
 })
 ```
 
-### Über Expression
+### Via Expression
 
 ```python
 expression = QgsExpression('"length" < 50')
@@ -82,32 +82,32 @@ context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
 for feature in layer.getFeatures():
     context.setFeature(feature)
     if expression.evaluate(context):
-        # Feature erfüllt Bedingung
+        # Feature matches the condition
 ```
 
-### Regeln
+### Rules
 
-- Feldnamen in doppelten Anführungszeichen: `"field_name"`
-- Funktionsaufrufe ohne Anführungszeichen: `$area`, `$length`
-- Feldtyp explizit angeben (0=Float, 1=Integer, 2=String)
+- Field names in double quotes: `"field_name"`
+- Function calls without quotes: `$area`, `$length`
+- Specify field type explicitly (0=Float, 1=Integer, 2=String)
 
-## ID-Verarbeitung
+## ID Handling
 
-### Feature-IDs
+### Feature IDs
 
-- Feature-IDs (`feature.id()`) sind Layer-intern und nicht stabil über Operationen hinweg
-- Nach Processing-Operationen werden IDs neu vergeben
-- Niemals Feature-IDs als persistente Referenz verwenden
+- Feature IDs (`feature.id()`) are layer-internal and not stable across operations
+- After processing operations, IDs are reassigned
+- Never use feature IDs as persistent references
 
-### Eigene IDs
+### Custom IDs
 
-- Für stabile Referenzen: eigenes Attributfeld (`"orig_id"`) verwenden
-- ID-Feld vor der Verarbeitung anlegen und nach der Verarbeitung zurückjoinen
-- Bei Dissolve gehen individuelle IDs verloren — vorher sichern wenn nötig
+- For stable references: use a custom attribute field (`"orig_id"`)
+- Create the ID field before processing and join it back afterwards
+- Dissolve loses individual IDs — save them beforehand if needed
 
-## Layer-Erstellung
+## Layer Creation
 
-### Temporärer Layer
+### Temporary Layer
 
 ```python
 fields = QgsFields()
@@ -120,7 +120,7 @@ provider.addAttributes(fields.toList())
 layer.updateFields()
 ```
 
-### Features hinzufügen
+### Adding Features
 
 ```python
 provider = layer.dataProvider()
@@ -136,8 +136,8 @@ provider.addFeatures(new_features)
 layer.updateExtents()
 ```
 
-### Regeln
+### Rules
 
-- Features sammeln und in einem Batch hinzufügen (Performance)
-- `updateExtents()` nach dem Hinzufügen aufrufen
-- `updateFields()` nach Feldänderungen aufrufen
+- Collect features and add them in a single batch (performance)
+- Call `updateExtents()` after adding features
+- Call `updateFields()` after field changes

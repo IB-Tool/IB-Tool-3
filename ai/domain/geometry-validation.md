@@ -1,12 +1,12 @@
 # Geometry Validation
 
-Regeln und Prüfungen für geometrische Operationen im IBTool-Projekt.
+Rules and checks for geometric operations in the IBTool project.
 
-## Pflichtprüfungen
+## Mandatory Checks
 
-### Null-Geometrie
+### Null Geometry
 
-Vor jedem Zugriff auf Geometrie:
+Before any geometry access:
 
 ```python
 if not feature.hasGeometry():
@@ -19,23 +19,23 @@ if geom.isNull():
     continue
 ```
 
-### Leere Geometrie
+### Empty Geometry
 
-Nach jeder Verarbeitungsoperation:
+After every processing operation:
 
 ```python
 if geom.isEmpty():
     logger.warning("Operation produced empty geometry")
 ```
 
-Ursachen für leere Geometrien:
-- Dissolve auf zu großem Feature-Set (bekannter Bug bei 7801+ Features)
-- Intersection ohne Überlappung
-- Buffer mit negativem Abstand, der die Fläche eliminiert
+Common causes of empty geometries:
+- Dissolve on too-large feature sets (known bug at 7801+ features)
+- Intersection with no overlap
+- Buffer with negative distance that eliminates the area
 
-### Validität
+### Validity
 
-Nach geometrischen Operationen (dissolve, buffer, intersection):
+After geometric operations (dissolve, buffer, intersection):
 
 ```python
 if not geom.isGeosValid():
@@ -43,7 +43,7 @@ if not geom.isGeosValid():
     geom = geom.makeValid()
 ```
 
-Alternativ über Processing:
+Alternatively via Processing:
 
 ```python
 fixed = processing.run("native:fixgeometries", {
@@ -52,24 +52,24 @@ fixed = processing.run("native:fixgeometries", {
 })
 ```
 
-## Multipart-Prüfung
+## Multipart Check
 
-### Wann relevant
+### When Relevant
 
-- Nach `native:dissolve` — Ergebnis ist typischerweise MultiPolygon
-- Nach `native:collect` — sammelt Features zu Multipart
-- Bei Import externer Daten — Geometrietyp kann variieren
+- After `native:dissolve` — result is typically MultiPolygon
+- After `native:collect` — collects features into multipart
+- When importing external data — geometry type may vary
 
-### Prüfung und Konvertierung
+### Check and Conversion
 
 ```python
 if geom.isMultipart():
     parts = geom.asGeometryCollection()
     for part in parts:
-        # Verarbeite einzelne Teile
+        # Process individual parts
 ```
 
-Konvertierung über Processing:
+Conversion via Processing:
 
 ```python
 # Multipart → Singlepart
@@ -81,12 +81,12 @@ processing.run("native:collect", {...})
 
 ## Self-Intersection
 
-Self-Intersections entstehen häufig durch:
-- Ungenaue Digitalisierung
-- Puffer-Operationen an spitzen Winkeln
-- Import aus externen Quellen
+Self-intersections commonly arise from:
+- Inaccurate digitization
+- Buffer operations at sharp angles
+- Import from external sources
 
-Erkennung:
+Detection:
 
 ```python
 if not geom.isGeosValid():
@@ -95,11 +95,11 @@ if not geom.isGeosValid():
         logger.warning(f"Geometry error: {error.what()}")
 ```
 
-## Topology-Checks
+## Topology Checks
 
-### Überlappung
+### Overlap
 
-Zwischen Siedlungsgrenzen darf es keine Überlappungen geben:
+Settlement boundaries must not overlap:
 
 ```python
 intersection = geom_a.intersection(geom_b)
@@ -107,17 +107,17 @@ if not intersection.isEmpty():
     logger.warning("Overlapping geometries detected")
 ```
 
-### Lücken (Gaps)
+### Gaps
 
-Lücken zwischen benachbarten Polygonen werden durch `GapClose` und `GapFix` behandelt. Prüfung auf Vollständigkeit:
+Gaps between adjacent polygons are handled by `GapClose` and `GapFix`. Completeness check:
 
-- Vereinigung aller Polygone bilden
-- Mit erwarteter Begrenzung vergleichen
-- Differenz zeigt Lücken
+- Form the union of all polygons
+- Compare with the expected boundary
+- The difference reveals gaps
 
-### WKB-Typ-Prüfung
+### WKB Type Check
 
-Nach Layer-Erstellung den resultierenden Geometrietyp prüfen:
+After layer creation, verify the resulting geometry type:
 
 ```python
 wkb_type = result_layer.wkbType()
@@ -125,4 +125,4 @@ if wkb_type == QgsWkbTypes.Unknown:
     logger.critical("Result layer has unknown geometry type — processing failed")
 ```
 
-Dies ist ein Indikator für fehlgeschlagene Dissolve-Operationen.
+This is an indicator of failed dissolve operations.

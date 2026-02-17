@@ -2,93 +2,93 @@
 
 ## Purpose
 
-Vorlage für strukturelle Verbesserungen im IBTool-Projekt. Ziel: bessere Codestruktur ohne Änderung der fachlichen Logik.
+Template for structural improvements in the IBTool project. Goal: better code structure without changing business logic.
 
 ## Scope
 
-- Struktur und Lesbarkeit verbessern
-- Keine Logikänderungen
-- Bestehende Tests nicht brechen
-- API-Kompatibilität wahren
+- Improve structure and readability
+- No logic changes
+- Do not break existing tests
+- Maintain API compatibility
 
-## Vorgehensweise
+## Procedure
 
-### 1. Bestandsaufnahme
+### 1. Inventory
 
-- [ ] Aktuellen Code vollständig lesen und verstehen
-- [ ] Abhängigkeiten identifizieren (wer nutzt den Code?)
-- [ ] Bestehende Tests identifizieren und ausführen
-- [ ] Zielstruktur definieren
+- [ ] Read and fully understand the current code
+- [ ] Identify dependencies (who uses this code?)
+- [ ] Identify and run existing tests
+- [ ] Define the target structure
 
-### 2. Planung
+### 2. Planning
 
-- [ ] Refactoring-Schritte in kleine, testbare Einheiten aufteilen
-- [ ] Reihenfolge festlegen (innen nach außen)
-- [ ] Rückwärtskompatibilität sicherstellen
-- [ ] Zu löschenden Code identifizieren
+- [ ] Break the refactoring into small, testable steps
+- [ ] Determine the order (inside-out)
+- [ ] Ensure backward compatibility
+- [ ] Identify code to be removed
 
-### 3. Implementierung
+### 3. Implementation
 
-- [ ] Ein Schritt pro Commit
-- [ ] Nach jedem Schritt: Tests ausführen
-- [ ] Imports aktualisieren
-- [ ] Docstrings an neue Struktur anpassen
+- [ ] One step per commit
+- [ ] Run tests after each step
+- [ ] Update imports
+- [ ] Adjust docstrings to reflect the new structure
 
-### 4. Validierung
+### 4. Validation
 
-- [ ] Alle bestehenden Tests grün
-- [ ] Neue Tests für extrahierte Komponenten
-- [ ] Funktionalität manuell verifiziert
-- [ ] Keine verwaisten Imports oder toten Code
+- [ ] All existing tests pass
+- [ ] New tests for extracted components
+- [ ] Functionality verified manually
+- [ ] No orphaned imports or dead code
 
 ## Allowed Changes
 
-- Extraktion von Funktionen/Klassen
-- Umbenennung gemäß Naming Conventions
-- Verschieben von Code in passende Module
-- Entfernen von totem Code
-- Hinzufügen von Docstrings zu geändertem Code
-- Erstellung neuer Module für extrahierte Logik
+- Extracting functions/classes
+- Renaming per naming conventions
+- Moving code to appropriate modules
+- Removing dead code
+- Adding docstrings to changed code
+- Creating new modules for extracted logic
 
 ## Forbidden Changes
 
-- Änderung der fachlichen Logik
-- Änderung von Algorithmus-Parametern
-- Hinzufügen neuer Features
-- Änderung des externen Verhaltens
-- Entfernen oder Ändern bestehender Tests (außer Anpassung an neue Struktur)
+- Changing business logic
+- Changing algorithm parameters
+- Adding new features
+- Changing external behavior
+- Removing or modifying existing tests (except adapting to new structure)
 
 ## Checklist
 
 ```
-[ ] Alle bestehenden Tests grün vor Start
-[ ] Zielstruktur dokumentiert
-[ ] Schrittweise umgesetzt (nicht alles auf einmal)
-[ ] Tests nach jedem Schritt grün
-[ ] Keine Logikänderung
-[ ] API-Kompatibilität gewahrt
-[ ] CHANGELOG aktualisiert
+[ ] All existing tests pass before starting
+[ ] Target structure documented
+[ ] Implemented step by step (not all at once)
+[ ] Tests pass after each step
+[ ] No logic changes
+[ ] API compatibility maintained
+[ ] CHANGELOG updated
 ```
 
-## Typische Refactoring-Muster im Projekt
+## Typical Refactoring Patterns in the Project
 
-### Monolithische Funktion aufteilen
-
-```
-Vorher: eine_grosse_funktion(a, b, c, d, e)  # 500+ Zeilen
-Nachher:
-  - KlasseA.schritt_1(a, b)
-  - KlasseB.schritt_2(c)
-  - Orchestrator.ausfuehren(a, b, c, d, e)  # delegiert
-```
-
-### Parameter zu Klassenkonstanten
+### Splitting a monolithic function
 
 ```
-Vorher: funktion(x, threshold=50, buffer=5)
-Nachher:
+Before: one_large_function(a, b, c, d, e)  # 500+ lines
+After:
+  - ClassA.step_1(a, b)
+  - ClassB.step_2(c)
+  - Orchestrator.execute(a, b, c, d, e)  # delegates
+```
+
+### Parameters to class constants
+
+```
+Before: function(x, threshold=50, buffer=5)
+After:
   class Processor:
       THRESHOLD = 50
       BUFFER = 5
-      def verarbeite(self, x): ...
+      def process(self, x): ...
 ```

@@ -2,71 +2,71 @@
 
 ## Purpose
 
-Vorlage für Fehlerbehebungen im IBTool-Projekt. Ziel: minimale, gezielte Änderungen zur Behebung des gemeldeten Problems.
+Template for bug fixes in the IBTool project. Goal: minimal, targeted changes to resolve the reported issue.
 
 ## Scope
 
-- Nur den gemeldeten Fehler beheben
-- Keine Refactorings nebenbei
-- Keine Code-Verbesserungen außerhalb des Fehlerbereichs
-- Keine neuen Features einbauen
+- Fix only the reported bug
+- No side refactoring
+- No code improvements outside the affected area
+- No new features
 
-## Vorgehensweise
+## Procedure
 
-### 1. Analyse
+### 1. Analysis
 
-- [ ] Fehlerbeschreibung vollständig verstehen
-- [ ] Betroffenen Code lokalisieren und lesen
-- [ ] Reproduktionsszenario identifizieren
-- [ ] Root Cause bestimmen (nicht nur Symptom)
+- [ ] Fully understand the bug report
+- [ ] Locate and read the affected code
+- [ ] Identify a reproduction scenario
+- [ ] Determine the root cause (not just the symptom)
 
-### 2. Auswirkungsanalyse
+### 2. Impact Analysis
 
-- [ ] Welche anderen Module nutzen den betroffenen Code?
-- [ ] Kann der Fix Seiteneffekte haben?
-- [ ] Gibt es bestehende Tests für den betroffenen Bereich?
+- [ ] Which other modules use the affected code?
+- [ ] Can the fix have side effects?
+- [ ] Are there existing tests for the affected area?
 
-### 3. Implementierung
+### 3. Implementation
 
-- [ ] Minimale Änderung zur Fehlerbehebung
-- [ ] Bestehende Code-Konventionen einhalten
-- [ ] Docstrings aktualisieren falls nötig
-- [ ] Logger-Meldungen für neue Fehlerpfade
+- [ ] Minimal change to fix the bug
+- [ ] Follow existing code conventions
+- [ ] Update docstrings if necessary
+- [ ] Add logger messages for new error paths
 
-### 4. Validierung
+### 4. Validation
 
-- [ ] Bestehende Tests laufen weiter (keine Regression)
-- [ ] Neuer Test für den behobenen Fehler
-- [ ] Bei Geometrie-Fixes: Validitäts- und Multipart-Checks
-- [ ] Debug-Modus getestet (falls Processing-bezogen)
+- [ ] Existing tests still pass (no regression)
+- [ ] New test for the fixed bug
+- [ ] For geometry fixes: validity and multipart checks
+- [ ] Debug mode tested (if processing-related)
 
-### 5. Dokumentation
+### 5. Documentation
 
-- [ ] CHANGELOG.md aktualisieren
-- [ ] Commit-Message beschreibt den Fix klar
+- [ ] Update CHANGELOG.md
+- [ ] Commit message clearly describes the fix
 
 ## Allowed Changes
 
-- Bugfix im betroffenen Modul
-- Neuer Test für den Fix
-- CHANGELOG-Eintrag
-- Docstring-Anpassung im geänderten Code
+- Bug fix in the affected module
+- New test for the fix
+- CHANGELOG entry
+- Docstring adjustments in the changed code
 
 ## Forbidden Changes
 
-- Umbenennung von Variablen/Funktionen außerhalb des Fix-Bereichs
-- Hinzufügen von Imports die nicht für den Fix nötig sind
-- Refactoring benachbarter Funktionen
-- Änderung der öffentlichen API
-- Hinzufügen neuer Dependencies
+- Renaming variables/functions outside the fix area
+- Adding imports not needed for the fix
+- Refactoring adjacent functions
+- Changing the public API
+- Adding new dependencies
 
 ## Checklist
 
 ```
-[ ] Root Cause identifiziert
-[ ] Fix ist minimal und gezielt
-[ ] Keine Regression in bestehenden Tests
-[ ] Neuer Test deckt den Bug ab
-[ ] CHANGELOG aktualisiert
-[ ] Code-Review-ready
+[ ] Root cause identified
+[ ] Fix is minimal and targeted
+[ ] No regression in existing tests
+[ ] New test covers the bug
+[ ] CHANGELOG updated
+[ ] Ready for code review
 ```

@@ -1,37 +1,37 @@
 # Testing Rules
 
-## Vor jeder Code-Änderung
+## Before Every Code Change
 
-1. **Bestehende Logik verstehen**: Relevanten Code lesen, bevor Änderungen gemacht werden
-2. **Tests ausführen**: Bestehende Tests müssen vor und nach der Änderung grün sein
-3. **Keine Regression**: Keine bestehende Funktionalität darf durch Änderungen brechen
+1. **Understand existing logic**: Read the relevant code before making changes
+2. **Run tests**: Existing tests must pass before and after the change
+3. **No regression**: No existing functionality may break due to changes
 
-## Test-Framework
+## Test Framework
 
-- **pytest** als Test-Framework
-- Tests liegen in `test/` mit dem Muster `test_*.py`
-- `conftest.py` konfiguriert die Testumgebung (sys.path, QGIS-Initialisierung)
-- Docker-Umgebung für konsistente QGIS-Testausführung
+- **pytest** as the test framework
+- Tests reside in `test/` following the pattern `test_*.py`
+- `conftest.py` configures the test environment (sys.path, QGIS initialization)
+- Docker environment for consistent QGIS test execution
 
-## Test-Ausführung
+## Test Execution
 
 ```bash
-# Docker (empfohlen — konsistente Umgebung)
+# Docker (recommended — consistent environment)
 docker build -t qgis-plugin-test .
 docker run --rm qgis-plugin-test
 
-# Lokal (erfordert QGIS-Installation)
+# Local (requires QGIS installation)
 pytest test/ -v
 
-# Einzelner Test
+# Single test
 pytest test/test_blocker.py -v
 ```
 
-## Geometrie-Operationen testen
+## Testing Geometry Operations
 
-Bei jeder Geometrieoperation folgende Prüfungen einbauen:
+Include the following checks for every geometry operation:
 
-### Validitätsprüfung
+### Validity Check
 
 ```python
 result_geom = result_feature.geometry()
@@ -40,49 +40,49 @@ assert not result_geom.isEmpty(), "Geometry must not be empty"
 assert result_geom.isGeosValid(), "Geometry must be valid"
 ```
 
-### Multipart-Check
+### Multipart Check
 
 ```python
-# Prüfe erwarteten Geometrietyp
+# Verify expected geometry type
 if expect_singlepart:
     assert not result_geom.isMultipart(), "Expected singlepart geometry"
 ```
 
-### Feature-Count
+### Feature Count
 
 ```python
-# Stelle sicher, dass Features nicht verloren gehen
+# Ensure features are not lost
 assert result_layer.featureCount() > 0, "Result must contain features"
 ```
 
-## Fehlermeldungen
+## Error Messages
 
-- **Niemals stillschweigend verschlucken**: Jede erwartete Exception muss getestet werden
-- Teste, dass Fehlermeldungen aussagekräftig sind
-- Teste Edge Cases: leere Layer, None-Geometrien, falsche CRS
+- **Never silently swallow errors**: Every expected exception must be tested
+- Test that error messages are meaningful
+- Test edge cases: empty layers, None geometries, wrong CRS
 
-## Test-Struktur
+## Test Structure
 
 ```python
 class TestToolName:
-    """Tests für ToolName-Modul."""
+    """Tests for the ToolName module."""
 
     def test_normal_case(self, sample_layer):
-        """Standardfall mit gültigen Eingaben."""
+        """Standard case with valid inputs."""
         result = tool_function(sample_layer)
         assert result is not None
 
     def test_empty_input(self):
-        """Verhalten bei leerem Input-Layer."""
-        # Erwarte definiertes Verhalten, nicht Absturz
+        """Behavior with empty input layer."""
+        # Expect defined behavior, not a crash
 
     def test_invalid_geometry(self, invalid_layer):
-        """Verhalten bei ungültiger Geometrie."""
-        # Erwarte Fehlermeldung oder automatische Korrektur
+        """Behavior with invalid geometry."""
+        # Expect error message or automatic correction
 ```
 
 ## Coverage
 
-- Neue Features müssen mit Tests abgedeckt sein
-- Coverage-Reports via `pytest --cov=. --cov-report=html`
-- CI-Pipeline prüft Tests automatisch bei jedem Push
+- New features must be covered by tests
+- Coverage reports via `pytest --cov=. --cov-report=html`
+- CI pipeline checks tests automatically on every push

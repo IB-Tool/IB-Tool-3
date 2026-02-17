@@ -1,21 +1,21 @@
 # QGIS API Rules
 
-## Kern-Klassen
+## Core Classes
 
 ### QgsVectorLayer
 
 ```python
-# Erstellen eines temporären Layers
+# Create a temporary layer
 layer = QgsVectorLayer("Polygon?crs=EPSG:25832", "name", "memory")
 
-# Feature-Iteration
+# Feature iteration
 for feature in layer.getFeatures():
     geom = feature.geometry()
 ```
 
-- Immer `layer.isValid()` prüfen nach Erstellung
-- Temporäre Layer über `"memory"` Provider erstellen
-- Für Datei-basierte Layer: Pfad als ersten Parameter
+- Always check `layer.isValid()` after creation
+- Create temporary layers via `"memory"` provider
+- For file-based layers: path as the first parameter
 
 ### QgsFeature
 
@@ -25,9 +25,9 @@ feature.setGeometry(geometry)
 feature.setAttributes([value1, value2])
 ```
 
-- Geometrie und Attribute separat setzen
-- Feature-ID nicht manuell setzen — wird vom Layer vergeben
-- `feature.hasGeometry()` prüfen bevor auf Geometrie zugegriffen wird
+- Set geometry and attributes separately
+- Do not set feature IDs manually — assigned by the layer
+- Check `feature.hasGeometry()` before accessing geometry
 
 ### QgsGeometry
 
@@ -35,18 +35,18 @@ feature.setAttributes([value1, value2])
 geom = QgsGeometry.fromWkt(wkt_string)
 geom = feature.geometry()
 
-# Operationen
+# Operations
 buffered = geom.buffer(distance, segments)
 intersection = geom.intersection(other_geom)
 ```
 
-- Ergebnis von Geometrieoperationen immer auf Validität prüfen
-- `isNull()` und `isEmpty()` sind verschiedene Zustände — beide prüfen
-- Für komplexe Operationen QGIS Processing bevorzugen
+- Always validate the result of geometry operations
+- `isNull()` and `isEmpty()` are different states — check both
+- Prefer QGIS Processing for complex operations
 
 ## QGIS Processing
 
-### Bevorzugte Nutzung
+### Preferred Usage
 
 ```python
 result = processing.run("native:buffer", {
@@ -58,42 +58,42 @@ result = processing.run("native:buffer", {
 output_layer = result['OUTPUT']
 ```
 
-- `QgsProcessing.TEMPORARY_OUTPUT` für Zwischenergebnisse
-- Ergebnis-Layer aus dem Result-Dict extrahieren
-- `safe_processing_run()` Wrapper für Fehlerbehandlung nutzen
+- Use `QgsProcessing.TEMPORARY_OUTPUT` for intermediate results
+- Extract the result layer from the result dict
+- Use the `safe_processing_run()` wrapper for error handling
 
-### Häufig verwendete Algorithmen
+### Commonly Used Algorithms
 
-| Algorithmus | Zweck |
-|-------------|-------|
-| `native:buffer` | Pufferzone um Geometrien |
-| `native:dissolve` | Geometrien zusammenführen (Vorsicht bei großen Sets) |
-| `native:collect` | Features zu Multipart sammeln |
-| `native:fixgeometries` | Ungültige Geometrien reparieren |
-| `native:intersection` | Geometrische Verschneidung |
-| `native:difference` | Geometrische Differenz |
+| Algorithm | Purpose |
+|-----------|---------|
+| `native:buffer` | Buffer zone around geometries |
+| `native:dissolve` | Merge geometries (caution with large sets) |
+| `native:collect` | Collect features into multipart |
+| `native:fixgeometries` | Repair invalid geometries |
+| `native:intersection` | Geometric intersection |
+| `native:difference` | Geometric difference |
 | `native:multiparttosingleparts` | Multipart → Singlepart |
-| `native:extractbyexpression` | Features nach Ausdruck filtern |
+| `native:extractbyexpression` | Filter features by expression |
 
-## API-Versionskompatibilität
+## API Version Compatibility
 
-- **Zielversion**: QGIS 3.40–3.50
-- **Keine deprecated API** verwenden — prüfe die QGIS Python API Dokumentation
-- Bei Unsicherheit: QGIS PyQGIS Developer Cookbook als Referenz nutzen
-- `QgsWkbTypes` statt veralteter Enums für Geometrietypen
+- **Target version**: QGIS 3.40–3.50
+- **No deprecated API** — check the QGIS Python API documentation
+- When in doubt: use the QGIS PyQGIS Developer Cookbook as reference
+- Use `QgsWkbTypes` instead of deprecated enums for geometry types
 
-## Koordinatensysteme
+## Coordinate Reference Systems
 
 ```python
-# CRS aus Layer lesen
+# Read CRS from layer
 crs = layer.crs()
 
-# CRS-Objekt erstellen
+# Create CRS object
 crs = QgsCoordinateReferenceSystem("EPSG:25832")
 
 # Transformation
 transform = QgsCoordinateTransform(source_crs, dest_crs, QgsProject.instance())
 ```
 
-- Keine implizite Reprojektion — immer explizit transformieren
-- CRS-Konsistenz zwischen Input-Layern vor Verarbeitung prüfen
+- No implicit reprojection — always transform explicitly
+- Verify CRS consistency between input layers before processing

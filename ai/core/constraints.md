@@ -1,52 +1,64 @@
 # Constraints
 
-Verbindliche Regeln für alle Code-Änderungen im IBTool-Projekt.
+Binding rules for all code changes in the IBTool project.
 
-## Interface-Zugriff
+## Language
 
-- **Kein direkter Zugriff auf `iface`** außerhalb der Hauptklasse (`ibtool/ibtool.py`) und des Dialogs (`ibtool_dialog.py`)
-- Processing-Tools (`ibtool_tools/`) erhalten niemals `iface` als Parameter
-- Tools kommunizieren Ergebnisse über Rückgabewerte, nicht über UI-Aufrufe
+| Content Type | Language | Examples |
+|---|---|---|
+| Code (comments, docstrings, variable names) | **English** | `# Calculate buffer distance`, `"""Returns the MST edges."""` |
+| Developer documentation (`ai/`, `docs/`, `CLAUDE.md`) | **English** | All markdown files for AI/developer context |
+| Commit messages, CHANGELOG (technical) | **English** | `Fix dissolve bug on large MultiPolygon sets` |
+| UI strings (via `QCoreApplication.translate()`) | **German** (primary), English (fallback) | Dialog labels, message bar text |
+| Log messages visible to end-users | **German** | Logger output in plugin UI |
 
-## Variablen und Zustand
+When modifying existing code or documentation, apply these language rules to the parts you touch. Do not leave German comments or docstrings in code you are editing.
 
-- **Keine globalen Variablen** — alle Zustände werden als Parameter übergeben oder sind Klassenattribute
-- Processing-Tools müssen **zustandslos** (stateless) sein
-- Keine Seiteneffekte außerhalb des definierten Scopes einer Funktion
-- Keine Modifikation von Eingabeparametern (Input-Layer, Feature-Listen)
+## Interface Access
 
-## Dokumentation
+- **No direct access to `iface`** outside the main class (`ibtool/ibtool.py`) and dialog (`ibtool_dialog.py`)
+- Processing tools (`ibtool_tools/`) never receive `iface` as a parameter
+- Tools communicate results via return values, not UI calls
 
-- **Jede neue Funktion** erhält einen Google-style Docstring
-- **Jede neue Klasse** erhält einen Docstring mit Zweckbeschreibung
-- Parameter mit nicht-offensichtlicher Bedeutung werden im Docstring erklärt
+## Variables and State
 
-## Pfade und Konfiguration
+- **No global variables** — all state is passed as parameters or held as class attributes
+- Processing tools must be **stateless**
+- No side effects outside the defined scope of a function
+- No modification of input parameters (input layers, feature lists)
 
-- **Keine hardcodierten Pfade** — alle Pfade über Parameter oder `config_manager.py`
-- Workspace-Pfad wird vom Benutzer über die UI gesetzt
-- Temporäre Dateien über `QgsProcessing.TEMPORARY_OUTPUT`
+## Documentation
+
+- **Every new function** gets a Google-style docstring
+- **Every new class** gets a docstring describing its purpose
+- Parameters with non-obvious meaning are explained in the docstring
+
+## Paths and Configuration
+
+- **No hardcoded paths** — all paths via parameters or `config_manager.py`
+- Workspace path is set by the user through the UI
+- Temporary files via `QgsProcessing.TEMPORARY_OUTPUT`
 
 ## Dependencies
 
-- **Keine neuen Abhängigkeiten** ohne vorherige Abstimmung
-- Erlaubte Bibliotheken: numpy, scipy, sklearn, networkx, pandas, matplotlib, geopandas, shapely
-- QGIS-eigene Module (qgis.core, qgis.analysis, processing) unbeschränkt nutzbar
+- **No new dependencies** without prior consultation
+- Allowed libraries: numpy, scipy, sklearn, networkx, pandas, matplotlib, geopandas, shapely
+- QGIS-native modules (qgis.core, qgis.analysis, processing) unrestricted
 
-## Numerische Werte
+## Numeric Values
 
-- **Keine Magic Numbers** — alle Konstanten benennen und dokumentieren
-- Algorithmus-spezifische Parameter als Klassenkonstanten definieren
-- QGIS-technische Parameter in `helpers/qgis_defaults.py` zentralisieren
+- **No magic numbers** — all constants must be named and documented
+- Algorithm-specific parameters defined as class constants
+- QGIS technical parameters centralized in `helpers/qgis_defaults.py`
 
-## Fehlerbehandlung
+## Error Handling
 
-- Jede `processing.run()`-Operation muss Fehler abfangen
-- Kritische Fehler loggen und Verarbeitung abbrechen
-- Warnungen loggen und wenn möglich weitermachen
-- Im Debug-Modus Zwischenergebnisse speichern
+- Every `processing.run()` operation must catch errors
+- Critical errors: log and abort processing
+- Warnings: log and continue where possible
+- In debug mode: save intermediate results
 
 ## Strings
 
-- Alle benutzersichtbaren Strings über `QCoreApplication.translate()` übersetzbar machen
-- Interne Log-Nachrichten dürfen auf Englisch oder Deutsch sein
+- All user-visible strings must be translatable via `QCoreApplication.translate()`
+- Internal log messages may be in English or German (German preferred for end-user-visible logs)

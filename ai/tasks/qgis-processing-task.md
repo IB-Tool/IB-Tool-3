@@ -2,39 +2,39 @@
 
 ## Purpose
 
-Vorlage für Aufgaben, die QGIS Processing-Algorithmen nutzen oder neue Processing-basierte Verarbeitungsschritte implementieren.
+Template for tasks that use QGIS Processing algorithms or implement new processing-based steps.
 
 ## Scope
 
-- Verarbeitung über QGIS Processing Framework
-- Saubere Parameterdefinition
-- Fehlerbehandlung verpflichtend
-- Debug-Modus-Integration
+- Processing via the QGIS Processing framework
+- Clean parameter definition
+- Error handling mandatory
+- Debug mode integration
 
-## Vorgehensweise
+## Procedure
 
-### 1. Algorithmus-Auswahl
+### 1. Algorithm Selection
 
-- [ ] Passenden QGIS-Algorithmus identifizieren (`native:*`, `qgis:*`)
-- [ ] API-Dokumentation prüfen (Parameter, Typen, Verhalten)
-- [ ] Bekannte Bugs prüfen (z.B. `native:dissolve` bei großen Sets)
-- [ ] Alternativ-Algorithmen kennen für Fallbacks
+- [ ] Identify the appropriate QGIS algorithm (`native:*`, `qgis:*`)
+- [ ] Check API documentation (parameters, types, behavior)
+- [ ] Check for known bugs (e.g. `native:dissolve` on large sets)
+- [ ] Know alternative algorithms for fallbacks
 
-### 2. Parameterdefinition
+### 2. Parameter Definition
 
-- [ ] Alle Parameter explizit benennen (keine Defaults annehmen)
-- [ ] Algorithmuskonstanten als Klassenkonstanten
-- [ ] QGIS-technische Parameter aus `qgis_defaults.py`
-- [ ] `QgsProcessing.TEMPORARY_OUTPUT` für Zwischenergebnisse
+- [ ] Name all parameters explicitly (do not assume defaults)
+- [ ] Algorithm constants as class constants
+- [ ] QGIS technical parameters from `qgis_defaults.py`
+- [ ] `QgsProcessing.TEMPORARY_OUTPUT` for intermediate results
 
-### 3. Implementierung
+### 3. Implementation
 
 ```python
 from helpers.qgis_defaults import QGISDefaults
 
 qgis_defaults = QGISDefaults()
 
-# Über safe_processing_run für Fehlerbehandlung
+# Via safe_processing_run for error handling
 result = safe_processing_run("native:buffer", {
     'INPUT': input_layer,
     'DISTANCE': self.BUFFER_DISTANCE,
@@ -45,30 +45,30 @@ result = safe_processing_run("native:buffer", {
 }, **_dbg)
 ```
 
-### 4. Fehlerbehandlung
+### 4. Error Handling
 
-- [ ] `safe_processing_run()` statt direktem `processing.run()`
-- [ ] Ergebnis-Layer auf Validität prüfen
-- [ ] Leere Ergebnisse abfangen
-- [ ] WKB-Typ des Ergebnis-Layers prüfen
-- [ ] Debug-Layer speichern bei Fehlern
+- [ ] Use `safe_processing_run()` instead of direct `processing.run()`
+- [ ] Validate the result layer
+- [ ] Catch empty results
+- [ ] Check the WKB type of the result layer
+- [ ] Save debug layers on errors
 
-### 5. Validierung
+### 5. Validation
 
-- [ ] Ergebnis-Geometrien validieren (nicht null, nicht leer, gültig)
-- [ ] Feature-Count prüfen (erwarteter Bereich)
-- [ ] CRS des Ergebnis-Layers prüfen
-- [ ] Multipart/Singlepart-Typ wie erwartet
+- [ ] Validate result geometries (not null, not empty, valid)
+- [ ] Check feature count (expected range)
+- [ ] Check the CRS of the result layer
+- [ ] Multipart/singlepart type as expected
 
-## Bekannte Fallstricke
+## Known Pitfalls
 
 ### native:dissolve
 
-**Problem**: Silently fails bei 7801+ MultiPolygon Features, produziert leere Geometrie mit `wkbType=Unknown`.
+**Problem**: Silently fails on 7801+ MultiPolygon features, producing empty geometry with `wkbType=Unknown`.
 
 **Workaround**:
 ```python
-# Statt native:dissolve:
+# Instead of native:dissolve:
 collected = safe_processing_run("native:collect", {
     'INPUT': input_layer,
     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
@@ -82,22 +82,22 @@ dissolved = safe_processing_run("native:buffer", {
 }, **_dbg)['OUTPUT']
 ```
 
-### Verkettete Operationen
+### Chained Operations
 
-Bei mehreren aufeinanderfolgenden Processing-Schritten:
-- Zwischenergebnisse im Debug-Modus speichern
-- Jeden Schritt einzeln validieren
-- Nicht annehmen, dass der vorherige Schritt erfolgreich war
+For multiple sequential processing steps:
+- Save intermediate results in debug mode
+- Validate each step individually
+- Do not assume the previous step succeeded
 
 ## Checklist
 
 ```
-[ ] Algorithmus dokumentiert (welcher, warum)
-[ ] Parameter vollständig und explizit
-[ ] safe_processing_run() verwendet
-[ ] Ergebnis validiert (Geometrie, Feature-Count, CRS)
-[ ] Bekannte Bugs berücksichtigt
-[ ] Debug-Modus integriert
-[ ] Fehlerfall getestet
-[ ] Performance bei großen Datasets berücksichtigt
+[ ] Algorithm documented (which one, why)
+[ ] Parameters complete and explicit
+[ ] safe_processing_run() used
+[ ] Result validated (geometry, feature count, CRS)
+[ ] Known bugs accounted for
+[ ] Debug mode integrated
+[ ] Error case tested
+[ ] Performance with large datasets considered
 ```

@@ -1,27 +1,27 @@
 # MST Testing
 
-Test-Dokumentation für die MST-Funktionalität (Minimum Spanning Tree).
+Test documentation for the MST (Minimum Spanning Tree) functionality.
 
-## Test-Dateien
+## Test Files
 
-| Datei | Typ | Inhalt |
-|-------|-----|--------|
-| `test_fixtures_mst.py` | Fixtures | `MSTTestFixtures`-Klasse mit wiederverwendbaren Testdaten und Validierungshelfern |
-| `test_create_mst.py` | Integration | End-to-end MST-Generierung, Input-Validierung, CRS-Handling (12 Tests) |
-| `test_mst_components.py` | Unit | Helper-Funktionen: `unique()`, `create_layer_from_edges()`, `polygon_stuetzpunkte_dict()` (12 Tests) |
-| `test_mst_modules.py` | Modular | Refactored-Klassen: `DelaunayProcessor`, `StreetProcessor`, `MSTCalculator`, Data-Classes (17 Tests) |
-| `test_mst_performance_edge_cases.py` | Performance | Skalierung, Speicherverbrauch, Edge Cases: leere Inputs, ungültige Geometrien (13 Tests) |
+| File | Type | Content |
+|------|------|---------|
+| `test_fixtures_mst.py` | Fixtures | `MSTTestFixtures` class with reusable test data and validation helpers |
+| `test_create_mst.py` | Integration | End-to-end MST generation, input validation, CRS handling (12 tests) |
+| `test_mst_components.py` | Unit | Helper functions: `unique()`, `create_layer_from_edges()`, `polygon_stuetzpunkte_dict()` (12 tests) |
+| `test_mst_modules.py` | Modular | Refactored classes: `DelaunayProcessor`, `StreetProcessor`, `MSTCalculator`, data classes (17 tests) |
+| `test_mst_performance_edge_cases.py` | Performance | Scaling, memory usage, edge cases: empty inputs, invalid geometries (13 tests) |
 
-**Support-Dateien**: `run_mst_tests.py` (Test-Runner), `pytest_mst.ini` (Konfiguration)
+**Support files**: `run_mst_tests.py` (test runner), `pytest_mst.ini` (configuration)
 
-## Test-Ausführung
+## Test Execution
 
 ```bash
-# Alle MST-Tests
+# All MST tests
 python test/run_mst_tests.py
 python test/run_mst_tests.py integration|unit|modules|performance
 
-# Mit pytest direkt
+# With pytest directly
 pytest test/test_*mst*.py test/test_create_mst.py -v
 pytest test/test_create_mst.py -v --tb=short
 
@@ -29,7 +29,7 @@ pytest test/test_create_mst.py -v --tb=short
 pytest test/test_create_mst.py --cov=ibtool.ibtool_tools.CreateMST --cov-report=html
 pytest test/test_*mst*.py --cov=ibtool.ibtool_tools --cov-branch --cov-report=term-missing
 
-# Langsame Tests überspringen
+# Skip slow tests
 pytest test/test_create_mst.py -m "not slow"
 
 # Debugging
@@ -38,62 +38,62 @@ pytest test/test_create_mst.py --log-cli-level=DEBUG
 pytest test/test_create_mst.py --pdb
 ```
 
-## Pytest-Marker
+## Pytest Markers
 
-| Marker | Bedeutung |
-|--------|-----------|
-| `@pytest.mark.integration` | End-to-end-Tests |
-| `@pytest.mark.unit` | Einzelne Funktionen |
-| `@pytest.mark.performance` | Skalierungstests |
-| `@pytest.mark.edge_case` | Grenzfälle |
-| `@pytest.mark.modular` | Modulare Komponenten |
-| `@pytest.mark.slow` | Tests >5 Sekunden |
+| Marker | Meaning |
+|--------|---------|
+| `@pytest.mark.integration` | End-to-end tests |
+| `@pytest.mark.unit` | Individual functions |
+| `@pytest.mark.performance` | Scaling tests |
+| `@pytest.mark.edge_case` | Boundary conditions |
+| `@pytest.mark.modular` | Modular components |
+| `@pytest.mark.slow` | Tests >5 seconds |
 
-## Test-Fixtures
+## Test Fixtures
 
-| Fixture | Beschreibung |
-|---------|-------------|
-| Simple Building Layout | 4 rechteckige Gebäude im Rastermuster |
-| Complex Building Layout | Verschiedene Formen und Größen |
-| Simple Street Network | Verbundene Straßensegmente |
-| Large Datasets | Generierte Gebäude/Straßen für Performance-Tests |
+| Fixture | Description |
+|---------|------------|
+| Simple Building Layout | 4 rectangular buildings in a grid pattern |
+| Complex Building Layout | Various shapes and sizes |
+| Simple Street Network | Connected street segments |
+| Large Datasets | Generated buildings/streets for performance testing |
 
-**Erwartete MST-Eigenschaften** (4-Gebäude-Testfall):
-- 3 Kanten (n-1 für n Gebäude)
-- Alle Kantengewichte > 0
-- Minimale Gesamtdistanz
+**Expected MST properties** (4-building test case):
+- 3 edges (n-1 for n buildings)
+- All edge weights > 0
+- Minimum total distance
 
-## Performance-Benchmarks
+## Performance Benchmarks
 
-| Datensatz | Gebäude | Erwartete Zeit | Speicher |
-|-----------|---------|----------------|----------|
-| Klein | 4 | <1s | <10MB |
-| Mittel | 25 | <5s | <25MB |
-| Groß | 100 | <30s | <100MB |
+| Dataset | Buildings | Expected Time | Memory |
+|---------|-----------|---------------|--------|
+| Small | 4 | <1s | <10MB |
+| Medium | 25 | <5s | <25MB |
+| Large | 100 | <30s | <100MB |
 
-## Bekannte Issues
+## Known Issues
 
-### calculate_mst() gibt None zurück
+### calculate_mst() returns None
 
-**Ursache**: Fehlende Dependencies (scipy, networkx, numpy) oder QGIS-Processing nicht initialisiert.
+**Cause**: Missing dependencies (scipy, networkx, numpy) or QGIS Processing not initialized.
 
-**Lösung**: Tests verwenden defensive Programmierung:
+**Solution**: Tests use defensive programming:
 ```python
 result = calculate_mst(building_layer, street_layer, crs)
 if result is None:
     pytest.skip("MST calculation returned None - likely missing dependencies")
 ```
 
-### Funktionssignatur
+### Function Signature
 
-Aktuelle Signatur von `calculate_mst()`:
+Current signature of `calculate_mst()`:
 ```python
 def calculate_mst(input_bdg, streets_orig, SpatialReference, road_length=50)
 ```
 
-## Coverage-Ziele
+## Coverage Goals
 
-- **Gesamt MST**: >90%
-- **Kern-Algorithmen**: >95%
-- **Helper-Funktionen**: >85%
-- **Fehlerbehandlung**: >80%
+- **Overall MST**: >90%
+- **Core algorithms**: >95%
+- **Helper functions**: >85%
+- **Error handling**: >80%

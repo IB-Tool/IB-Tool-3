@@ -1,24 +1,24 @@
 # Naming Conventions
 
-## Python-Bezeichner
+## Python Identifiers
 
-| Element | Konvention | Beispiel |
-|---------|-----------|----------|
-| Funktionen | `snake_case` | `calculate_mst()`, `filter_short_streets()` |
-| Methoden | `snake_case` | `layer.get_features()` |
-| Klassen | `PascalCase` | `StreetProcessor`, `DelaunayProcessor` |
-| Klassenkonstanten | `UPPER_SNAKE_CASE` | `ROAD_LENGTH_THRESHOLD = 50.0` |
-| Lokale Variablen | `snake_case` | `feature_count`, `buffer_result` |
-| Module | `snake_case` | `geometry_utils.py`, `data_loader.py` |
-| Tool-Module | `PascalCase` | `GapClose.py`, `CreateMST.py` (historisch) |
+| Element | Convention | Example |
+|---------|-----------|---------|
+| Functions | `snake_case` | `calculate_mst()`, `filter_short_streets()` |
+| Methods | `snake_case` | `layer.get_features()` |
+| Classes | `PascalCase` | `StreetProcessor`, `DelaunayProcessor` |
+| Class constants | `UPPER_SNAKE_CASE` | `ROAD_LENGTH_THRESHOLD = 50.0` |
+| Local variables | `snake_case` | `feature_count`, `buffer_result` |
+| Modules | `snake_case` | `geometry_utils.py`, `data_loader.py` |
+| Tool modules | `PascalCase` | `GapClose.py`, `CreateMST.py` (historical) |
 | Packages | `snake_case` | `helpers`, `ibtool_tools` |
 
-## Erlaubte Abkürzungen
+## Allowed Abbreviations
 
-Diese Abkürzungen sind etabliert und dürfen ohne weitere Erklärung verwendet werden:
+These abbreviations are established and may be used without further explanation:
 
-| Abkürzung | Bedeutung |
-|-----------|-----------|
+| Abbreviation | Meaning |
+|-------------|---------|
 | `id` | Identifier |
 | `crs` | Coordinate Reference System |
 | `geom` | Geometry |
@@ -30,26 +30,26 @@ Diese Abkürzungen sind etabliert und dürfen ohne weitere Erklärung verwendet 
 | `wkt` | Well-Known Text |
 | `wkb` | Well-Known Binary |
 
-Alle anderen Begriffe ausschreiben.
+All other terms must be spelled out.
 
-## Layer-Namen
+## Layer Names
 
-- Eindeutig und beschreibend: `"dissolved_buildings"`, nicht `"temp1"`
-- Für temporäre Zwischenlayer: Präfix mit Arbeitsschritt, z.B. `"buffered_streets"`
-- Für Endresultate: Fachbegriff verwenden, z.B. `"settlement_boundary"`
+- Unique and descriptive: `"dissolved_buildings"`, not `"temp1"`
+- For temporary intermediate layers: prefix with processing step, e.g. `"buffered_streets"`
+- For final results: use domain terminology, e.g. `"settlement_boundary"`
 
-## Dateinamen
+## File Names
 
-| Typ | Konvention | Beispiel |
-|-----|-----------|----------|
-| Helper-Module | `snake_case.py` | `geometry_utils.py` |
-| Tool-Module | `PascalCase.py` | `GapClose.py` |
-| Test-Module | `test_*.py` | `test_blocker.py` |
-| Konfiguration | `snake_case.*` | `qgis_defaults.py` |
-| Dokumentation | `kebab-case.md` | `plugin-architecture.md` |
+| Type | Convention | Example |
+|------|-----------|---------|
+| Helper modules | `snake_case.py` | `geometry_utils.py` |
+| Tool modules | `PascalCase.py` | `GapClose.py` |
+| Test modules | `test_*.py` | `test_blocker.py` |
+| Configuration | `snake_case.*` | `qgis_defaults.py` |
+| Documentation | `kebab-case.md` | `plugin-architecture.md` |
 
-## Parameter-Namen
+## Parameter Names
 
-- Beschreibend, nicht generisch: `buffer_distance` statt `dist`
-- Einheit im Namen wenn nicht offensichtlich: `tolerance_meters`
-- Boolean-Variablen als Frage: `is_valid`, `has_geometry`, `debug_mode`
+- Descriptive, not generic: `buffer_distance` instead of `dist`
+- Include unit in name when not obvious: `tolerance_meters`
+- Boolean variables as questions: `is_valid`, `has_geometry`, `debug_mode`
