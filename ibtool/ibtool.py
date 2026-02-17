@@ -681,6 +681,7 @@ class IBTool:
 
         DelPartLog = self.dlg.PartLogBox.isChecked()
         msg(f"DelPartLog={DelPartLog}")
+        debug_mode = self.dlg.DebugModeBox.isChecked()
         spatial_reference = self.dlg.SpatialReferenceBox.text()
         spatial_reference = QgsCoordinateReferenceSystem(spatial_reference)
         logger.log("spatial_reference: {}".format(spatial_reference.authid()),
@@ -903,7 +904,8 @@ class IBTool:
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT            })['OUTPUT']
 
 
-            gaps_colsed = gap_close(blocks_merge, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30)
+            gaps_colsed = gap_close(blocks_merge, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30,
+                                    debug_mode=debug_mode, workspace_path=workspace_path)
 
             patch_removed = patch_remove(gaps_colsed,
                                          sel_hu_layer,
@@ -913,7 +915,6 @@ class IBTool:
                                          min_bdg_count=min_bdg_count,
                                          footprint_area_sum=6000,
                                          footprint_density_threshold=18)
-            save_temp_layer_to_gpkg(patch_removed, f"L_14_patch_removed_{part_name}", workspace_path)
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
@@ -928,8 +929,6 @@ class IBTool:
             merge_layer = merge
 
         # Load output from previous step
-        merge = QgsVectorLayer(os.path.join(workspace_path, "L_15_out_global_merge.gpkg"),
-                               "merge", "ogr")
         if not merge.isValid():
             logger.log("Failed to load final merge layer", "CRITICAL")
             return
