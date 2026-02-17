@@ -2,23 +2,44 @@ from qgis.core import QgsVectorLayer, QgsProcessing
 from qgis import processing
 
 from ..helpers.logger import Logger
+from ..helpers.debug_utils import save_debug_layer
 
-def safe_processing_run(algorithm_name, parameters, fix_geometries=True):
+def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
+                        debug_mode=False, workspace_path=None, tool_name="GapClose"):
     """
     Sicherer Wrapper für processing.run mit Geometriereparatur
-    
+
     Args:
         algorithm_name: Name des Algorithmus
         parameters: Parameter-Dictionary
         fix_geometries: Ob Geometrien vor der Verarbeitung repariert werden sollen
-    
+        debug_mode: Bei True werden fehlerhafte Input-Layer gespeichert
+        workspace_path: Workspace-Pfad für Debug-Ausgabe
+        tool_name: Name des Tools für Debug-Unterordner
+
     Returns:
         Ergebnis der Verarbeitung
     """
     try:
         return processing.run(algorithm_name, parameters)
     except Exception as e:
-        if fix_geometries and 'ungültige Geometrie' in str(e):
+        error_msg = str(e).lower()
+        geometry_error_hints = [
+            'ungültige geometrie', 'invalid geometry',
+            'objekt nicht schreiben', 'could not write',
+            'self-intersection', 'self intersection',
+        ]
+        is_geometry_error = any(hint in error_msg for hint in geometry_error_hints)
+
+        # Debug: Fehlerhafte Input-Layer speichern
+        if debug_mode and workspace_path:
+            for key, value in parameters.items():
+                if key in ['INPUT', 'OVERLAY', 'INTERSECT'] and hasattr(value, 'isValid'):
+                    step = f"{algorithm_name.replace(':', '_')}_{key}_error"
+                    save_debug_layer(value, tool_name, step, workspace_path)
+
+        if fix_geometries and is_geometry_error:
+            Logger.log(f"Geometry error in {algorithm_name}, attempting repair: {e}", level="WARNING")
             # Versuche alle Input-Layer zu reparieren
             repaired_params = parameters.copy()
             for key, value in parameters.items():
@@ -26,16 +47,18 @@ def safe_processing_run(algorithm_name, parameters, fix_geometries=True):
                     try:
                         repaired_layer = processing.run("native:fixgeometries", {
                             'INPUT': value,
+                            'METHOD': 1,
                             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                         })['OUTPUT']
                         repaired_params[key] = repaired_layer
                     except:
                         pass  # Falls Reparatur fehlschlägt, ursprünglichen Layer verwenden
-            
+
             # Erneut versuchen mit reparierten Geometrien
             try:
                 return processing.run(algorithm_name, repaired_params)
-            except:
+            except Exception as e2:
+                Logger.log(f"Retry after repair failed for {algorithm_name}: {e2}", level="WARNING")
                 # Letzter Versuch: Ungültige Geometrien ignorieren
                 if 'INVALID_FEATURE_HANDLING' not in repaired_params:
                     repaired_params['INVALID_FEATURE_HANDLING'] = 1
@@ -45,15 +68,20 @@ def safe_processing_run(algorithm_name, parameters, fix_geometries=True):
             raise e
 
 
-def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30):
+def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30,
+              debug_mode=False, workspace_path=None):
     """
     :param input_layer: Input polygon layer as QgsVectorLayer
     :param blocks: Street blocks polygon layer as QgsVectorLayer
     :param max_hole_size: Threshold value for holes
     :param max_gap_size: Threshold value for gaps
     :param gap_dist: Distance for double buffer
+    :param debug_mode: Bei True werden fehlerhafte Features gespeichert
+    :param workspace_path: Workspace-Pfad für Debug-Ausgabe
     :return: QgsVectorLayer containing refined polygons
     """
+    # Debug-Parameter für safe_processing_run vorbereiten
+    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name="GapClose")
 
     def gap_select(input_poly, input_gaps, crs, length_percentage):
         """
@@ -202,14 +230,14 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
         'INPUT': input_layer,
         'METHOD': 1,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, **_dbg)['OUTPUT']
 
     # Collect all features into one multipart geometry
     input_collected = safe_processing_run("native:collect", {
         'INPUT': input_fixed,
         'FIELD': [],
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, **_dbg)['OUTPUT']
 
     # Buffer(0) forces a proper geometric union via GEOS
     input_diss = safe_processing_run("native:buffer", {
@@ -222,7 +250,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
         'DISSOLVE': True,
         'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, **_dbg)['OUTPUT']
 
     input_layer_count = input_diss.featureCount()
 
@@ -234,12 +262,26 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Symmetrical difference between blocks and hole-closed polygons
-        block_sym_diff = safe_processing_run("qgis:symmetricaldifference", {
+        # Fix geometries on both inputs before symmetrical difference
+        blocks_fixed = safe_processing_run("native:fixgeometries", {
             'INPUT': blocks,
-            'OVERLAY': hole_closed,
+            'METHOD': 1,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
+
+        hole_closed_fixed = safe_processing_run("native:fixgeometries", {
+            'INPUT': hole_closed,
+            'METHOD': 1,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+        # Symmetrical difference between blocks and hole-closed polygons
+        block_sym_diff = safe_processing_run("qgis:symmetricaldifference", {
+            'INPUT': blocks_fixed,
+            'OVERLAY': hole_closed_fixed,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+            'GRID_SIZE': 0.00001
+        }, **_dbg)['OUTPUT']
 
         # Convert multipart polygons to singlepart
         block_sym_diff_single = safe_processing_run("native:multiparttosingleparts", {
@@ -265,7 +307,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
         dissolved_output = safe_processing_run("native:dissolve", {
             'INPUT': merged_output,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, **_dbg)['OUTPUT']
 
         initial_buffer = safe_processing_run("native:buffer", {
             'INPUT': dissolved_output,
@@ -288,15 +330,15 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
             'INPUT': initial_buffer,
             'OVERLAY': boundary_buffer,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            'GRID_SIZE': None,
-        })['OUTPUT']
+            'GRID_SIZE': 0.00001,
+        }, **_dbg)['OUTPUT']
 
         poly_cut_2 = safe_processing_run("native:difference", {
             'INPUT': poly_cut_1,
             'OVERLAY': input_layer,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            'GRID_SIZE': None,
-        })['OUTPUT']
+            'GRID_SIZE': 0.00001,
+        }, **_dbg)['OUTPUT']
 
         poly_singlepart = safe_processing_run("native:multiparttosingleparts", {
             'INPUT': poly_cut_2,
@@ -330,7 +372,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=30
         dissolved_final = safe_processing_run("native:dissolve", {
             'INPUT': repaired_output,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, **_dbg)['OUTPUT']
 
         # Close holes in the input polygons
         dissolved_final_hole_closed = safe_processing_run("native:deleteholes", {
