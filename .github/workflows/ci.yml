@@ -3,7 +3,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master, main]
   pull_request:
 
 jobs:
@@ -27,9 +27,11 @@ jobs:
 
       - name: Extract coverage reports
         run: |
-          # Tests already generate coverage files in mounted volume
-          # No need to extract since files are already available in host filesystem
           ls -la coverage.xml htmlcov/ || echo "Coverage files not found"
+          # Fix absolute container paths → relative repo paths for Codecov
+          if [ -f coverage.xml ]; then
+            sed -i 's|/plugins/ibtool/||g' coverage.xml
+          fi
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
