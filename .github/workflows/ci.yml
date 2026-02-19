@@ -23,7 +23,7 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          docker run --rm -v $(pwd):/app qgis-plugin-test
+          docker run --rm -v $(pwd):/plugins/ibtool qgis-plugin-test
 
       - name: Extract coverage reports
         run: |
