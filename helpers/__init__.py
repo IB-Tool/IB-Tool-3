@@ -48,6 +48,11 @@ from .logger import Logger
 
 from .message import msg
 
+from .debug_utils import (
+    save_debug_layer,
+    save_debug_features
+)
+
 from .check import InputValidator, ValidationResult
 
 # Exportierte Symbole für den einfachen Zugriff
@@ -77,5 +82,7 @@ __all__ = [
     "create_polygons_from_lines",
     "intersect_polygons",
     "InputValidator",
-    "ValidationResult"
+    "ValidationResult",
+    "save_debug_layer",
+    "save_debug_features"
 ]
