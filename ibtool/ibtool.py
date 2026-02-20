@@ -100,6 +100,7 @@ from ibtool.helpers.system_utils import (
 )
 from ibtool.helpers.message import msg
 from ibtool.helpers.check import InputValidator, ValidationResult
+from ibtool.helpers.config_manager import ConfigManager
 from ibtool.helpers.data_loader import *
 
 from ibtool.ibtool_tools.FootprintDensity import (
@@ -112,7 +113,6 @@ from ibtool.ibtool_tools.CreateMST import calculate_mst
 from ibtool.ibtool_tools.MST_Clustering import mst_clustering
 from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
 from ibtool.ibtool_tools.EdgeCatch import edge_catch
-from ibtool.ibtool_tools.fill_gaps import fill_gaps
 from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
 from ibtool.ibtool_tools.GapFix import gap_fix
@@ -154,6 +154,9 @@ class IBTool:
         self.iface = iface
         # Initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
+        # Initialize config manager (plugin root is one level above ibtool/ibtool/)
+        plugin_root = os.path.dirname(self.plugin_dir)
+        self.config_manager = ConfigManager(plugin_root)
         # Initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -375,6 +378,7 @@ class IBTool:
             self.dlg.CheckButton.clicked.connect(self.run_validation)
             self.dlg.StartButton.clicked.connect(self.start_processing)
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
+            self.dlg.SaveConfigButton.clicked.connect(self._save_config_from_ui)
             # Start button disabled by default — requires successful check
             self.dlg.StartButton.setEnabled(False)
             # Disable Start button when input paths change (re-check required)
@@ -388,6 +392,9 @@ class IBTool:
             self.dlg.LogLevelBox.currentTextChanged.connect(
                 lambda: logger.set_log_level(self.dlg.LogLevelBox.currentText())
             )
+
+        # Config aus CONFIG.ini in UI laden
+        self._apply_config_to_ui()
 
         # Automatische Aktualisierung der Textfelder bei Start
         file_path = self.dlg.FilterPath.text()  # Pfad aus dem QLineEdit abrufen
@@ -525,6 +532,101 @@ class IBTool:
             logger.log(f"Error while loading the filter file: {str(e)}",
                        level="CRITICAL")
             pass
+
+    def _apply_config_to_ui(self) -> None:
+        """Befüllt UI-Felder aus CONFIG.ini, wenn die Datei existiert und auto_load_last_used=True."""
+        if not self.config_manager.config_exists():
+            return
+        cfg = self.config_manager.get_config()
+        if not cfg.ui.auto_load_last_used:
+            return
+
+        # Pfad-Felder befüllen
+        self.config_manager.apply_to_ui_elements({
+            'HuPath': self.dlg.HuPath,
+            'RnPath': self.dlg.RnPath,
+            'PartPath': self.dlg.PartPath,
+            'AuxPath': self.dlg.AuxPath,
+            'FilterPath': self.dlg.FilterPath,
+            'WorkspacePath': self.dlg.WorkspacePath,
+            'OutputPath': self.dlg.OutputPath,
+            'LogDirPath': self.dlg.LogDirPath,
+        })
+
+        # CRS
+        if cfg.processing.crs_epsg:
+            self.dlg.SpatialReferenceBox.setText(f"EPSG:{cfg.processing.crs_epsg}")
+
+        # Log-Level
+        valid_levels = ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']
+        if cfg.ui.log_level in valid_levels:
+            self.dlg.LogLevelBox.setCurrentText(cfg.ui.log_level)
+
+        # Partitions-Parameter
+        if cfg.processing.part_start > 0:
+            self.dlg.partstartBox.setText(str(cfg.processing.part_start))
+        if cfg.processing.part_end > 0:
+            self.dlg.partendBox.setText(str(cfg.processing.part_end))
+        if cfg.processing.part_list:
+            self.dlg.partlistBox.setText(cfg.processing.part_list)
+
+        # Settlement-Analyse-Parameter (QSpinBox — nur wenn > 0)
+        p = cfg.processing
+        if p.min_building_count > 0:
+            self.dlg.MinBdgCountBox.setValue(int(p.min_building_count))
+        if p.min_overlap_blocks > 0:
+            self.dlg.MinOverlapBlocksBox.setValue(int(p.min_overlap_blocks))
+        if p.global_footprint_density > 0:
+            self.dlg.GlobalFootprintDensityBox.setValue(int(p.global_footprint_density))
+        if p.min_area > 0:
+            self.dlg.MinAreaBox.setValue(int(p.min_area))
+        if p.min_patch_size > 0:
+            self.dlg.MinPatchSizeBox.setValue(int(p.min_patch_size))
+        if p.max_hole_size > 0:
+            self.dlg.MaxHoleSizeBox.setValue(int(p.max_hole_size))
+        if p.max_gap_size > 0:
+            self.dlg.MaxGapSizeBox.setValue(int(p.max_gap_size))
+
+        # Filter-Datei laden, wenn gesetzt
+        filter_path = cfg.input_data.filter_file_path
+        if filter_path and os.path.exists(filter_path):
+            self.load_filter_file(filter_path)
+
+        logger.log("Konfiguration aus CONFIG.ini geladen.", level="INFO")
+
+    def _save_config_from_ui(self) -> None:
+        """Speichert den aktuellen UI-Zustand in CONFIG.ini."""
+        self.config_manager.update_config(
+            input_data={
+                'building_footprints_path': self.dlg.HuPath.text(),
+                'road_network_path': self.dlg.RnPath.text(),
+                'partitions_path': self.dlg.PartPath.text(),
+                'aux_layer_path': self.dlg.AuxPath.text(),
+                'filter_file_path': self.dlg.FilterPath.text(),
+            },
+            output={
+                'workspace_directory': self.dlg.WorkspacePath.text(),
+                'output_directory': self.dlg.OutputPath.text(),
+            },
+            ui={
+                'log_level': self.dlg.LogLevelBox.currentText(),
+                'log_directory': self.dlg.LogDirPath.text(),
+            },
+            processing={
+                'min_overlap_blocks': float(self.dlg.MinOverlapBlocksBox.value()),
+                'global_footprint_density': float(self.dlg.GlobalFootprintDensityBox.value()),
+                'min_area': float(self.dlg.MinAreaBox.value()),
+                'min_building_count': int(self.dlg.MinBdgCountBox.value()),
+                'min_patch_size': float(self.dlg.MinPatchSizeBox.value()),
+                'max_hole_size': float(self.dlg.MaxHoleSizeBox.value()),
+                'max_gap_size': float(self.dlg.MaxGapSizeBox.value()),
+                'part_start': int(self.dlg.partstartBox.text() or -1),
+                'part_end': int(self.dlg.partendBox.text() or -1),
+                'part_list': self.dlg.partlistBox.text(),
+            },
+        )
+        self.config_manager.save_config()
+        logger.log("Konfiguration in CONFIG.ini gespeichert.", level="INFO")
 
     def _collect_params(self) -> dict:
         """Collect all UI parameter values as raw strings."""
@@ -886,7 +988,8 @@ class IBTool:
 
             hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
 
-            add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,  300)
+            add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference, workspace_path)
+            save_temp_layer_to_gpkg(add_sing_bdg, f"{part_name}_single_buildings", workspace_path)
 
             rect_merged = processing.run("qgis:mergevectorlayers", {
                 'LAYERS': [add_sing_bdg, hu_cluster_output],
@@ -933,7 +1036,7 @@ class IBTool:
             logger.log("Failed to load final merge layer", "CRITICAL")
             return
 
-        #gap_fixed = gap_fix(merge, layer_rn, workspace_path)
+        gap_fixed = gap_fix(merge, layer_rn, workspace_path)
 
         # Split the OutputFile into path, filename, and extension
         output_folder, file_with_extension = os.path.split(OutputFile)

@@ -5,6 +5,44 @@ All notable changes to IBTool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-02-20
+
+### Added
+- **ConfigManager**: Integrated the existing (previously unused) `ConfigManager` into `IBTool.__init__` so `CONFIG.ini` is loaded automatically on plugin startup and all UI fields (paths, CRS, log level, partition params, settlement analysis parameters) are pre-filled.
+- **IBTool**: Added `_apply_config_to_ui()` method that reads `CONFIG.ini` and populates all dialog fields when `auto_load_last_used = True`.
+- **IBTool**: Added `_save_config_from_ui()` method that writes the current UI state back to `CONFIG.ini`.
+- **ibtool_dialog_base.ui**: Added `SaveConfigButton` ("Config speichern") to the bottom button bar for saving current UI settings to `CONFIG.ini`.
+- **ProcessingConfig**: Extended with six missing settlement-analysis fields (`min_overlap_blocks`, `global_footprint_density`, `min_area`, `min_patch_size`, `max_hole_size`, `max_gap_size`) so the full parameter set is covered by the config schema.
+- **docs/CONFIG.ini.example**: Documented the six new settlement-analysis parameters in the `[PROCESSING]` section.
+- **docs/CONFIG_README.md**: Rewrote configuration reference in English; corrected outdated API method names; added full parameter tables including the six new settlement-analysis fields and the save-button workflow.
+
+### Changed
+- **AddSingleBuilding**: Merge with `rect_merge` removed from `add_single_bdg` and delegated to the caller; the function now returns only the bounding rectangles for standalone buildings outside existing cluster polygons.
+
+### Fixed
+- **AddSingleBuilding**: `minimumboundinggeometry` incorrectly collapsed all buildings into a single bounding box because the grouping field `'node'` was not unique per feature — fixed by inserting an auto-incremental ID field before the operation.
+- **AddSingleBuilding**: Replaced `native:centroids` with `native:pointonsurface` to guarantee an interior point for irregular polygon geometries.
+
+---
+
+## 2026-02-19
+
+### Added
+- **ibtool_dialog_base.ui**: Added `DebugModeBox` checkbox ("Fehlerhafte Features speichern") to the debug tab for enabling debug mode from the UI.
+
+### Fixed
+- **CI**: Codecov received no coverage report because container-internal paths (`/plugins/ibtool/…`) were not stripped before upload — added `sed` step to normalize paths to repo-relative form.
+- **CI**: Branch trigger was set to `main` instead of `master`, so pushes to the main branch never triggered the pipeline.
+- **pytest.ini**: Section header `[tool:pytest]` was invalid for `pytest.ini` (only valid in `setup.cfg`) — corrected to `[pytest]`; `--cov` flags removed from `addopts` to avoid failures in environments without `pytest-cov`.
+- **.coveragerc**: `source` pointed to non-existent `ibtool/ibtool` subdirectory — corrected to `ibtool` (full package).
+
+### Removed
+- **Tests**: Deleted `test_mst_components.py`, `test_mst_performance_edge_cases.py`, and `test_mst_modules.py` — all tests were file-level skipped and referenced a modular MST architecture (`ibtool_tools/mst/`) that does not yet exist.
+- **Tests**: Deleted `qgis_interface.py` test helper — used deprecated QGIS 2.x API (`QgsMapLayerRegistry`) incompatible with QGIS 3.x.
+- **test_create_mst**: Removed 6 skipped test methods whose skip reason was `"MST core functionality not working — returns None"`.
+
+---
+
 ## 2026-02-17
 
 ### Fixed

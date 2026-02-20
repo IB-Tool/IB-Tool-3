@@ -35,6 +35,14 @@ max_distance = 200.0                # Maximum distance between cluster members (
 crs_epsg = 25832                    # EPSG code for coordinate reference system
 output_format = gpkg                # Output format: gpkg or shp
 
+# Settlement analysis parameters
+min_overlap_blocks = 0.0            # Minimum building coverage per block (0 = auto)
+global_footprint_density = 0.0      # Global footprint density threshold (0 = auto)
+min_area = 0.0                      # Minimum building area filter (m²)
+min_patch_size = 0.0                # Minimum settlement patch size (m²)
+max_hole_size = 0.0                 # Maximum hole size to close (m²)
+max_gap_size = 0.0                  # Maximum gap size to close (m²)
+
 [OUTPUT]
 # Output and workspace settings
 # workspace_directory = C:/Users/YourName/ibtool_workspace

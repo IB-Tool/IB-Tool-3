@@ -4,11 +4,12 @@ from qgis.core import (
 )
 
 from qgis import processing
+from ..helpers.geometry_utils import shp_area2
 
 def add_single_bdg(input_hu: QgsVectorLayer, 
                    rect_merge: QgsVectorLayer, 
-                   crs, 
-                   threshold=300) -> QgsVectorLayer:
+                   crs, workspace_path,
+                   threshold=300, ) -> QgsVectorLayer:
     """
     Processes building data and merges it with rectangular geometries after 
     filtering based on specific criteria.
@@ -32,9 +33,9 @@ def add_single_bdg(input_hu: QgsVectorLayer,
                       considered large and their geometries are transformed 
                       into rectangles. Default is 300.
     :type threshold: int, optional
-    :return: A merged QgsVectorLayer containing both the rectangular geometries 
-             derived from buildings and the original rectangular geometries 
-             from the `rect_merge` parameter.
+    :return: A QgsVectorLayer containing rectangular bounding geometries derived
+             from large buildings outside of existing cluster polygons. The
+             merge with `rect_merge` is performed by the caller.
     :rtype: QgsVectorLayer
     """
 
@@ -43,13 +44,15 @@ def add_single_bdg(input_hu: QgsVectorLayer,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
+    shp_area2(processed_input_hu)
+
     processed_rect_merge = processing.run("qgis:fixgeometries", {
         'INPUT': rect_merge,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
     # Gebäude außerhalb von rect_merge extrahieren (Disjoint)
-    hu_centroids = processing.run("native:centroids", {
+    hu_centroids = processing.run("native:pointonsurface", {
         'INPUT': processed_input_hu,
         'ALL_PARTS': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
@@ -79,11 +82,26 @@ def add_single_bdg(input_hu: QgsVectorLayer,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
-    # Erzeuge rechteckige Geometrien
-    hu_rect = processing.run("qgis:minimumboundinggeometry", {
+    # Eindeutige ID pro Feature hinzufügen (für Gruppierung in minimumboundinggeometry)
+    hu_huge_with_id = processing.run("native:addautoincrementalfield", {
         'INPUT': hu_huge,
-        'FIELD': 'node',
+        'FIELD_NAME': 'unique_id',
+        'START': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Erzeuge rechteckige Geometrien (je eine pro Feature)
+    hu_rect_raw = processing.run("qgis:minimumboundinggeometry", {
+        'INPUT': hu_huge_with_id,
+        'FIELD': 'unique_id',
         'TYPE': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Filtere leere/null Geometrien aus dem Ergebnis
+    hu_rect = processing.run("native:removenullgeometries", {
+        'INPUT': hu_rect_raw,
+        'REMOVE_EMPTY': True,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
