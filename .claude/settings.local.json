@@ -13,7 +13,13 @@
       "Bash(powershell:*)",
       "Bash(docker:*)",
       "Bash(grep:*)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(find:*)",
+      "Bash(git -C \"C:/Users/Oliver/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/ibtool\" diff HEAD -- ibtool_tools/AddSingleBuilding.py)",
+      "Bash(git -C \"C:/Users/Oliver/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/ibtool\" diff -- ibtool_tools/AddSingleBuilding.py)",
+      "Bash(git -C \"C:/Users/Oliver/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/ibtool\" status --short ibtool_tools/AddSingleBuilding.py)",
+      "Bash(git -C \"C:/Users/Oliver/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/ibtool\" log --oneline -5 -- ibtool_tools/AddSingleBuilding.py)",
+      "Bash(git -C \"C:/Users/Oliver/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/ibtool\" diff master..HEAD -- ibtool_tools/AddSingleBuilding.py)"
     ],
     "deny": [],
     "ask": []
