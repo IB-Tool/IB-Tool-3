@@ -43,10 +43,18 @@ class ProcessingConfig:
     part_start: int = 1
     part_end: int = -1  # -1 means process all
     part_list: str = ""  # Comma-separated list of partition IDs
-    
+
     # General processing
     crs_epsg: int = 25832  # Default EPSG code
     output_format: str = "gpkg"  # gpkg or shp
+
+    # Settlement analysis parameters (UI fields)
+    min_overlap_blocks: float = 0.0
+    global_footprint_density: float = 0.0
+    min_area: float = 0.0
+    min_patch_size: float = 0.0
+    max_hole_size: float = 0.0
+    max_gap_size: float = 0.0
 
 
 @dataclass
@@ -155,6 +163,12 @@ class ConfigManager:
             self.config.processing.part_start = section.getint('part_start', 1)
             self.config.processing.part_end = section.getint('part_end', -1)
             self.config.processing.part_list = section.get('part_list', '')
+            self.config.processing.min_overlap_blocks = section.getfloat('min_overlap_blocks', 0.0)
+            self.config.processing.global_footprint_density = section.getfloat('global_footprint_density', 0.0)
+            self.config.processing.min_area = section.getfloat('min_area', 0.0)
+            self.config.processing.min_patch_size = section.getfloat('min_patch_size', 0.0)
+            self.config.processing.max_hole_size = section.getfloat('max_hole_size', 0.0)
+            self.config.processing.max_gap_size = section.getfloat('max_gap_size', 0.0)
         
         # Load output configuration
         if config_parser.has_section('OUTPUT'):
@@ -202,7 +216,13 @@ class ConfigManager:
             'output_format': self.config.processing.output_format,
             'part_start': str(self.config.processing.part_start),
             'part_end': str(self.config.processing.part_end),
-            'part_list': self.config.processing.part_list
+            'part_list': self.config.processing.part_list,
+            'min_overlap_blocks': str(self.config.processing.min_overlap_blocks),
+            'global_footprint_density': str(self.config.processing.global_footprint_density),
+            'min_area': str(self.config.processing.min_area),
+            'min_patch_size': str(self.config.processing.min_patch_size),
+            'max_hole_size': str(self.config.processing.max_hole_size),
+            'max_gap_size': str(self.config.processing.max_gap_size),
         }
         
         # Add output section
@@ -401,5 +421,11 @@ remember_window_size = True
             'part_end': self.config.processing.part_end,
             'part_list': self.config.processing.part_list,
             'crs_epsg': self.config.processing.crs_epsg,
-            'output_format': self.config.processing.output_format
+            'output_format': self.config.processing.output_format,
+            'min_overlap_blocks': self.config.processing.min_overlap_blocks,
+            'global_footprint_density': self.config.processing.global_footprint_density,
+            'min_area': self.config.processing.min_area,
+            'min_patch_size': self.config.processing.min_patch_size,
+            'max_hole_size': self.config.processing.max_hole_size,
+            'max_gap_size': self.config.processing.max_gap_size,
         }
