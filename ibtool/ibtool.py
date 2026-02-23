@@ -903,17 +903,15 @@ class IBTool:
         anz_hu_sum = 0
 
 
-        for i in part_list:
-            logger.log("Check if {} is in Partlist.".format(str(i)), 
+        for a, i in enumerate(part_list, start=1):
+            logger.log("Check if {} is in Partlist.".format(str(i)),
                        'SUCCESS')
-            a = 1
             isin = False
             part_log = open(part_log_path, 'r+')
             for row in part_log:
                 part = str(row).replace('\n', '')
                 if part == i:
                     isin = True
-                a = a + 1
             if isin is False:
                 part_log.write("\n" + i)
                 part_log.close()
