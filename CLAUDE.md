@@ -92,6 +92,7 @@ make pylint
 - Use the centralized logging system for all output (not print)
 - All changes should include appropriate tests
 - Update `CHANGELOG.md` for significant changes
+- verifiy your changes. If verification is not possible, give tipps to verify it
 
 ## Detailed Documentation
 
