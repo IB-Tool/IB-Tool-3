@@ -5,6 +5,50 @@ All notable changes to IBTool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-02-23
+
+### Added
+- **GapClose**: Added `Logger.log` output for feature counts of `holes_closed`, `gap_poly_max_size`, and `final_gap2` (individually and as a combined summary) directly before the final merge, so filter results are always visible in the plugin log without requiring debug mode.
+- **GapClose**: Added missing `save_debug_layer` checkpoint for `holes_closed` (`07b_holes_closed`) after `native:deleteholes` in the main pipeline.
+
+### Changed
+- **GapFix**: Replaced the polygonize-based gap-fill algorithm with a buffer ring + pairwise spatial intersection approach: `fixgeometries` → hole closing (polygonize → collect → buffer(0, dissolve=True)) → singleparts with `gap_uid` → per-polygon buffer rings → pairwise ring intersection → validate (gap must intersect both source polygons) → merge into the neighbor with the longest shared boundary.
+- **GapClose**: Default `gap_dist` reduced from 30 m to 15 m to match empirical test results and the `gap_close_in_holes` default.
+- **GapClose**: `gap_select()` now logs per-call statistics (input gap count, overlapping segments, ratio-passed, matched FIDs) so filter behaviour is traceable without debug mode.
+- **system_utils**: `manage_directory()` now also deletes the `debug` folder when `del_part_log=True`, preventing stale debug files from accumulating between runs.
+
+### Fixed
+- **IBTool**: Final output was written from `merge` (the pre-GapFix layer) instead of `gap_fixed`, silently discarding all GapFix results; fixed by passing `gap_fixed` to `save_temp_layer_to_gpkg`.
+
+---
+
+## 2026-02-22
+
+### Added
+- **debug_utils**: Added `_next_debug_index()` helper that counts existing `.gpkg` files in the tool's debug folder to assign sequential step numbers, enabling chronological sorting in a GIS.
+- **GapFix**: Added `safe_processing_run()` module-level wrapper (mirroring `GapClose`) so all four QGIS algorithm calls are covered by debug-snapshot and geometry-repair error handling.
+- **GapClose**: Added `gap_close_in_holes()` function that closes gaps within holes via morphological closing (positive buffer → negative buffer, default 15 m), then removes any remaining holes smaller than `max_hole_size`.
+
+### Changed
+- **GapFix**: All four bare `processing.run()` calls replaced with `safe_processing_run()` via `_dbg` dict; the `except` block now saves the input layer as an `_err` debug snapshot when `debug_mode` is active.
+- **debug_utils**: `save_debug_layer()` and `save_debug_features()` now prefix filenames with a zero-padded 3-digit index (`NNN_`) and accept an `is_error` parameter; error snapshots additionally receive the `_err` suffix to distinguish failed processing steps from intentional checkpoints.
+- **GapClose**: `safe_processing_run()` now passes `is_error=True` to `save_debug_layer()` and omits the manual `_error` suffix from the step name, relying on the `is_error` convention instead.
+- **debug-mode.md**: Fully revised to document the numbered file naming convention, checkpoint vs. error distinction, and the `is_error` parameter on both debug functions.
+- **error-handling.md**: Updated output-path description to reflect the new `NNN_` prefix and `_err` suffix convention.
+
+### Fixed
+- **IBTool**: `debug_mode` was never forwarded to `gap_fix()` in `ibtool.py`, so no debug files were ever created despite the checkbox being active; fixed by passing `debug_mode=debug_mode` at the call site.
+- **GapFix**: No intermediate results were saved during a successful run; added numbered `save_debug_layer` checkpoints after each pipeline step (`fixed`, `densified`, `lines`, `faces`, `gap_fix_result`) so the full processing sequence can be traced visually in a GIS.
+
+---
+
+## 2026-02-21
+
+### Changed
+- **GapFix**: Replaced the broken ArcPy-style buffer/diff approach with a topological rebuild via polygonize — pipeline is now fixgeometries → densify → polygonstolines → polygonize → classify empty faces → merge narrow gaps (< `max_gap`, default 10 m) into the neighbor with the longest shared boundary; interior rings (holes) are preserved by skipping faces that touch only one input polygon. Added `max_gap` and `debug_mode` parameters; `InputRoadnetwork` and `bufferwidth` are retained for API compatibility but no longer used.
+
+---
+
 ## 2026-02-20
 
 ### Added

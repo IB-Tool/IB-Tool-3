@@ -1,149 +1,333 @@
 import processing
-from qgis.core import QgsVectorLayer, QgsProcessing
-from ibtool.helpers.logger import Logger
-from ibtool.helpers.geometry_utils import intersect_polygons
-from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
+from qgis.core import (
+    QgsVectorLayer,
+    QgsFeature,
+    QgsSpatialIndex,
+    QgsProcessing,
+)
 
-def gap_fix(Inputpoly, InputRoadnetwork, workspace_path, bufferwidth=70):
-    """
-    :param Inputpoly: Combined boundaries from all partitions as polygon shape
-    :param InputRoadnetwork: Road network
-    :param bufferwidth: Threshold for buffer
-    :return: Refined polygon shape
+from ..helpers.logger import Logger
+from ..helpers.debug_utils import save_debug_layer
 
-    - Closes gaps between boundaries of different partitions
+
+def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
+                        debug_mode=False, workspace_path=None, tool_name="GapFix"):
+    """Sicherer Wrapper für processing.run mit Debug-Unterstützung.
+
+    Bei einer Ausnahme werden die Input-Layer des fehlgeschlagenen Schritts
+    als nummerierte Fehlerdatei (``_err``-Suffix) gespeichert, sofern
+    debug_mode aktiv ist.
+
+    Args:
+        algorithm_name: QGIS-Algorithmusname (z.B. ``"native:dissolve"``).
+        parameters: Parameter-Dictionary für den Algorithmus.
+        fix_geometries: Bei True wird bei Geometriefehlern ein Reparatur-
+                        versuch unternommen, bevor die Ausnahme weitergegeben wird.
+        debug_mode: Bei True werden fehlerhafte Input-Layer gespeichert.
+        workspace_path: Workspace-Basispfad für Debug-Ausgabe.
+        tool_name: Name des Tools für den Debug-Unterordner.
+
+    Returns:
+        Ergebnis-Dictionary von processing.run.
+
+    Raises:
+        Exception: Weiterleitung der ursprünglichen Ausnahme nach Debug-Ausgabe.
     """
+    try:
+        return processing.run(algorithm_name, parameters)
+    except Exception as e:
+        error_msg = str(e).lower()
+        geometry_error_hints = [
+            'ungültige geometrie', 'invalid geometry',
+            'objekt nicht schreiben', 'could not write',
+            'self-intersection', 'self intersection',
+        ]
+        is_geometry_error = any(hint in error_msg for hint in geometry_error_hints)
+
+        if debug_mode and workspace_path:
+            for key, value in parameters.items():
+                if key in ['INPUT', 'OVERLAY', 'INTERSECT'] and hasattr(value, 'isValid'):
+                    step = f"{algorithm_name.replace(':', '_')}_{key}"
+                    save_debug_layer(value, tool_name, step, workspace_path, is_error=True)
+
+        if fix_geometries and is_geometry_error:
+            Logger.log(f"Geometry error in {algorithm_name}, attempting repair: {e}", level="WARNING")
+            repaired_params = parameters.copy()
+            for key, value in parameters.items():
+                if key in ['INPUT', 'OVERLAY', 'INTERSECT'] and hasattr(value, 'isValid'):
+                    try:
+                        repaired_layer = processing.run("native:fixgeometries", {
+                            'INPUT': value,
+                            'METHOD': 1,
+                            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                        })['OUTPUT']
+                        repaired_params[key] = repaired_layer
+                    except Exception:
+                        pass
+            return processing.run(algorithm_name, repaired_params)
+        else:
+            Logger.log(f"Processing error in {algorithm_name}: {e}", level="CRITICAL")
+            raise
+
+
+def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
+            bufferwidth=70, max_gap=10.0, debug_mode=False):
+    """
+    Closes narrow gaps between adjacent polygon features and removes interior
+    holes (inner rings) from input polygons.
+
+    Algorithm:
+      1. Fix geometries
+      2. Close holes: polygons → lines → polygonize → dissolve (fills inner rings)
+      3. Multipart → singlepart, assign unique integer field ``gap_uid``
+      4. Build buffer rings: buffer each polygon by max_gap, subtract all originals
+         → donut-shaped ring per polygon that covers only empty space
+      5. Pairwise intersect all buffer rings using a spatial index.
+         Intersection areas = gap zones between two polygons.
+      6. Validate each gap zone: keep only those that intersect both source polygons
+         (filters out exterior buffer fringes and artefacts)
+      7. Merge each valid gap zone into the adjacent polygon with the longer
+         shared boundary
+      8. Return updated layer
+
+    Note on attributes: the global dissolve in step 2 rebuilds polygon topology,
+    so original feature attributes are replaced by the new ``gap_uid`` field.
+
+    Note on native:dissolve: intentionally avoided — it silently fails on large
+    MultiPolygon datasets. The workaround native:collect + native:buffer(0,
+    dissolve=True) is used throughout.
+
+    Requires QGIS >= 3.20. Input layer must use a metric CRS (units = meters).
+
+    :param Inputpoly: Input polygon layer (QgsVectorLayer or path string).
+    :param InputRoadnetwork: Not used; kept for API compatibility.
+    :param workspace_path: Workspace path for debug output.
+    :param bufferwidth: Not used; kept for API compatibility.
+    :param max_gap: Buffer distance and effective maximum gap width to close (m).
+    :param debug_mode: If True, saves intermediate layers for debugging.
+    :return: QgsVectorLayer with interior holes removed and gaps filled.
+    """
+    Logger.log("GapFix Start", level="INFO")
+    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name="GapFix")
+    input_layer = None
 
     try:
-        Logger.log("GapFix Start", level="INFO")
-
+        # --- Input resolution ---
         if isinstance(Inputpoly, str):
             input_layer = QgsVectorLayer(Inputpoly, "input", "ogr")
         else:
             input_layer = Inputpoly
 
-        Anz_Input = input_layer.featureCount()
+        if not input_layer.isValid() or input_layer.featureCount() == 0:
+            Logger.log("GapFix: No valid input geometries, returning unchanged.", level="INFO")
+            return input_layer
 
-        save_temp_layer_to_gpkg(Inputpoly, "D_Inputpoly", workspace_path)
+        # --- Step 0: Fix geometries ---
+        fixed = safe_processing_run("native:fixgeometries", {
+            'INPUT': input_layer,
+            'METHOD': 1,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
+        if debug_mode and workspace_path:
+            save_debug_layer(fixed, "GapFix", "step0_fixed", workspace_path)
 
-        if Anz_Input > 0:
+        # --- Step 1: Close interior holes ---
+        # polygons → lines → polygonize → collect + buffer(0, dissolve=True)
+        # Polygonize creates faces for all enclosed rings (including hole areas).
+        # Dissolving everything merges hole faces into the surrounding polygon area.
+        Logger.log("GapFix: Step 1 – closing interior holes…", level="INFO")
 
-            ugb_intersect1 = intersect_polygons(Inputpoly)
+        lines = safe_processing_run("native:polygonstolines", {
+            'INPUT': fixed,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
 
-            ugb_intersect2 = intersect_polygons(ugb_intersect1)
+        faces = safe_processing_run("native:polygonize", {
+            'INPUT': lines,
+            'KEEP_FIELDS': False,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
 
-            save_temp_layer_to_gpkg(ugb_intersect1, "D_ugb_intersect1", workspace_path)
+        collected_faces = safe_processing_run("native:collect", {
+            'INPUT': faces,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
 
-            # arcpy.management.Dissolve(ugb_buff_intsec2, ugb_buff_intsec_diss, None, None, "SINGLE_PART", "DISSOLVE_LINES")
-            ugb_buff_intsec_diss = processing.run("native:dissolve", {
-                'INPUT': ugb_intersect2,
-                'FIELD': [],
-                'SEPARATE_DISJOINT': True,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
+        dissolved = safe_processing_run("native:buffer", {
+            'INPUT': collected_faces,
+            'DISTANCE': 0,
+            'DISSOLVE': True,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
 
-            ugb_symdiff = processing.run("native:symmetricaldifference", {
-                'INPUT': ugb_buff_intsec_diss,
-                'OVERLAY': input_layer,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
+        if debug_mode and workspace_path:
+            save_debug_layer(dissolved, "GapFix", "step1_dissolved", workspace_path)
 
-            processing.run("native:selectbylocation", {
-                'INPUT': ugb_symdiff,
-                'PREDICATE': [2],
-                'INTERSECT': input_layer,
-                'METHOD': 0})
+        # --- Step 2: Multipart → singlepart + unique ID field ---
+        Logger.log("GapFix: Step 2 – singleparts and unique IDs…", level="INFO")
 
-            ugb_symdiff.invertSelection()
+        singleparts = safe_processing_run("native:multiparttosingleparts", {
+            'INPUT': dissolved,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
 
-            ugb_symdiff_del1 = processing.run("native:saveselectedfeatures", {
-                'INPUT': ugb_symdiff,
-                'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+        clean_polys = safe_processing_run("native:addautoincrementalfield", {
+            'INPUT': singleparts,
+            'FIELD_NAME': 'gap_uid',
+            'START': 1,
+            'MODULUS': 0,
+            'GROUP_FIELDS': [],
+            'SORT_EXPRESSION': '',
+            'SORT_ASCENDING': True,
+            'SORT_NULLS_FIRST': False,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
 
-            processing.run("native:selectbylocation", {
-                'INPUT': ugb_symdiff_del1,
-                'PREDICATE': [0],
-                'INTERSECT': input_layer,
-                'METHOD': 0})
+        if debug_mode and workspace_path:
+            save_debug_layer(clean_polys, "GapFix", "step2_clean_polys", workspace_path)
 
-            ugb_symdiff_del1.invertSelection()
+        Logger.log(f"GapFix: {clean_polys.featureCount()} polygon(s) after step 2.", level="INFO")
 
-            ugb_symdiff_del2 = processing.run("native:saveselectedfeatures", {
-                'INPUT': ugb_symdiff_del1,
-                'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+        # --- Step 3: Buffer rings (buffer minus all originals = donut per polygon) ---
+        Logger.log(f"GapFix: Step 3 – building buffer rings (distance={max_gap})…", level="INFO")
 
-            Anz = ugb_symdiff_del2.featureCount()
-            Logger.log(f"Filtered features count: {Anz}", level="INFO")
+        buffered_polys = safe_processing_run("native:buffer", {
+            'INPUT': clean_polys,
+            'DISTANCE': max_gap,
+            'SEGMENTS': 5,
+            'END_CAP_STYLE': 0,
+            'JOIN_STYLE': 2,
+            'MITER_LIMIT': 2,
+            'DISSOLVE': False,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
 
-            if Anz > 0:
-                # arcpy.management.Merge([InputRoadnetwork, ugb_line], rn_merge)
-                if isinstance(InputRoadnetwork, str):
-                    road_layer = QgsVectorLayer(InputRoadnetwork, "roads", "ogr")
-                else:
-                    road_layer = InputRoadnetwork
+        # Subtract ALL original polygons from ALL buffer polygons.
+        # This ensures buffer rings contain only empty space, not polygon-occupied area.
+        buffer_rings = safe_processing_run("native:difference", {
+            'INPUT': buffered_polys,
+            'OVERLAY': clean_polys,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+            'GRID_SIZE': 0.00001,
+        }, **_dbg)['OUTPUT']
 
-                rn_merge = processing.run("native:mergevectorlayers", {
-                    'LAYERS': [road_layer, ugb_line],
-                    'CRS': input_layer.crs(),
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+        if debug_mode and workspace_path:
+            save_debug_layer(buffer_rings, "GapFix", "step3_buffer_rings", workspace_path)
 
-                rn_merge_ply = processing.run("native:polygonize", {
-                    'INPUT': rn_merge,
-                    'KEEP_FIELDS': False,
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-                })['OUTPUT']
+        # --- Step 4: Pairwise intersect buffer rings → gap zone candidates ---
+        # ring_i ∩ ring_j = area in the buffer zone of both i and j, in no polygon
+        #                  = the gap between polygon i and polygon j
+        Logger.log("GapFix: Step 4 – pairwise buffer ring intersections…", level="INFO")
 
-                rn_merge_ply_named = processing.run("native:fieldcalculator", {
-                    'INPUT': rn_merge_ply,
-                    'FIELD_NAME': 'Name',
-                    'FIELD_TYPE': 2,  # String
-                    'FIELD_LENGTH': 50,
-                    'FORMULA': "'RoBl_' || $id",
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+        ring_feats = {}
+        ring_idx = QgsSpatialIndex()
+        for f in buffer_rings.getFeatures():
+            g = f.geometry()
+            if g and not g.isEmpty():
+                ring_feats[f.id()] = (f['gap_uid'], g)
+                ring_idx.addFeature(f)
 
-                RoBl_split = processing.run("native:intersection", {
-                    'INPUT': ugb_symdiff,
-                    'OVERLAY': rn_merge_ply_named,
-                    'INPUT_FIELDS': [],
-                    'OVERLAY_FIELDS': ['Name'],
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+        gap_zones = []  # list of (gap_geom, uid_a, uid_b)
+        for fid_a, (uid_a, geom_a) in ring_feats.items():
+            for fid_b in ring_idx.intersects(geom_a.boundingBox()):
+                if fid_b <= fid_a:
+                    continue  # skip self and already-processed pairs (i < j only)
+                uid_b, geom_b = ring_feats[fid_b]
+                if uid_a == uid_b:
+                    continue  # same source polygon (safety check)
+                intersection = geom_a.intersection(geom_b)
+                if intersection and not intersection.isEmpty() and intersection.area() > 0:
+                    gap_zones.append((intersection, uid_a, uid_b))
 
-                RoBl_Merge = RoBl_split
+        Logger.log(f"GapFix: {len(gap_zones)} gap zone candidate(s) found.", level="INFO")
 
-                RoBl_sel = processing.run("native:extractbylocation", {
-                    'INPUT': rn_merge_ply_named,
-                    'PREDICATE': [2],  # within
-                    'INTERSECT': RoBl_Merge,
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+        # --- Step 5: Keep only gap zones that intersect both source polygons ---
+        # Exterior buffer fringes touch only 1 polygon → discarded.
+        # Artefacts from distant polygon pairs don't touch either → discarded.
+        Logger.log("GapFix: Step 5 – validating gap zones…", level="INFO")
 
-                inputpoly_merge = processing.run("native:mergevectorlayers", {
-                    'LAYERS': [input_layer, RoBl_sel],
-                    'CRS': input_layer.crs(),
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+        uid_to_geom = {}
+        uid_to_feat = {}
+        fid_to_uid = {}
+        orig_idx = QgsSpatialIndex()
+        for f in clean_polys.getFeatures():
+            g = f.geometry()
+            if g and not g.isEmpty():
+                uid = f['gap_uid']
+                uid_to_geom[uid] = g
+                uid_to_feat[uid] = f
+                fid_to_uid[f.id()] = uid
+                orig_idx.addFeature(f)
 
-                final_result = processing.run("native:dissolve", {
-                    'INPUT': inputpoly_merge,
-                    'FIELD': [],
-                    'SEPARATE_DISJOINT': True,
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+        valid_gaps = []
+        for gap_geom, uid_a, uid_b in gap_zones:
+            candidates = orig_idx.intersects(gap_geom.boundingBox())
+            touching_uids = set()
+            for cid in candidates:
+                cuid = fid_to_uid.get(cid)
+                if cuid is None:
+                    continue
+                cgeom = uid_to_geom.get(cuid)
+                if cgeom and cgeom.intersects(gap_geom):
+                    touching_uids.add(cuid)
+            if uid_a in touching_uids and uid_b in touching_uids:
+                valid_gaps.append((gap_geom, uid_a, uid_b))
 
-                # Get feature count for logging
-                result_count = final_result.featureCount() if hasattr(final_result, 'featureCount') else 0
-                Logger.log(f"GapFix End - Patches: {result_count}", level="INFO")
-                return final_result
+        Logger.log(
+            f"GapFix: {len(valid_gaps)} valid gap(s), "
+            f"{len(gap_zones) - len(valid_gaps)} exterior/artefact area(s) discarded.",
+            level="INFO",
+        )
+
+        # --- Step 6: Merge valid gap zones into adjacent polygons ---
+        gaps_merged = 0
+        for gap_geom, uid_a, uid_b in valid_gaps:
+            ga = uid_to_geom.get(uid_a)
+            gb = uid_to_geom.get(uid_b)
+            if ga is None or gb is None:
+                continue
+
+            # Assign to the neighbor with the longer shared boundary
+            shared_a = ga.intersection(gap_geom)
+            shared_b = gb.intersection(gap_geom)
+            len_a = shared_a.length() if (shared_a and not shared_a.isEmpty()) else 0.0
+            len_b = shared_b.length() if (shared_b and not shared_b.isEmpty()) else 0.0
+
+            if len_a >= len_b:
+                uid_to_geom[uid_a] = ga.combine(gap_geom)
             else:
-                Logger.log("No gaps to GapFix", level="INFO")
-                return Inputpoly
-        else:
-            Logger.log("No gaps to GapFix - input empty", level="INFO")
-            return Inputpoly
+                uid_to_geom[uid_b] = gb.combine(gap_geom)
+            gaps_merged += 1
+
+        Logger.log(f"GapFix: {gaps_merged} gap(s) merged into adjacent polygons.", level="INFO")
+
+        # --- Build output memory layer ---
+        crs = input_layer.crs()
+        mem_uri = f"MultiPolygon?crs={crs.authid()}"
+        out_layer = QgsVectorLayer(mem_uri, "gap_fix_result", "memory")
+        provider = out_layer.dataProvider()
+        provider.addAttributes(clean_polys.fields())
+        out_layer.updateFields()
+
+        out_feats = []
+        for uid, g in uid_to_geom.items():
+            f = uid_to_feat.get(uid)
+            if f is None:
+                continue
+            out_f = QgsFeature(clean_polys.fields())
+            out_f.setAttributes(f.attributes())
+            out_f.setGeometry(g)
+            out_feats.append(out_f)
+        provider.addFeatures(out_feats)
+
+        if debug_mode and workspace_path:
+            save_debug_layer(out_layer, "GapFix", "gap_fix_result", workspace_path)
+
+        Logger.log(f"GapFix End - Output features: {out_layer.featureCount()}", level="INFO")
+        return out_layer
 
     except Exception as e:
-        Logger.log(f"Error in GapFix operation: {str(e)}", level="CRITICAL")
-        raise e
+        if debug_mode and workspace_path and isinstance(input_layer, QgsVectorLayer):
+            save_debug_layer(input_layer, "GapFix", "exception_input", workspace_path, is_error=True)
+        Logger.log(f"Error in GapFix: {str(e)}", level="CRITICAL")
+        raise
