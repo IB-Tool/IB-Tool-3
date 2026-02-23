@@ -70,27 +70,33 @@ def save_temp_layer_to_gpkg(layer, filename, workspace_path):
 
 
 def manage_directory(workspace_path, del_part_log):
-    """
-    Löscht den Ordner 'IB_Tool_Results', wenn del_part_log True ist,
-    und stellt sicher, dass der Ordner neu erstellt wird.
+    """Manages the output directory structure at the start of a processing run.
 
-    Parameter:
-        path_common_workspace (str): Der Basis-Pfad, in dem der Ordner verwaltet wird.
-        del_part_log (bool): Gibt an, ob der Ordner gelöscht werden soll.
+    Deletes 'IB_Tool_Results' and 'debug' if del_part_log is True, then
+    ensures 'IB_Tool_Results' exists. The 'debug' folder is not recreated
+    here — it is created on demand by the debug utilities.
+
+    Args:
+        workspace_path: Base workspace path.
+        del_part_log: If True, existing output and debug folders are deleted.
     """
-    # Verzeichnispfad zusammensetzen
-    #path_common_workspace = r"{}".format(workspace_path)
-    #directory_path = f'"{os.path.join(path_common_workspace, "IB_Tool_Results")}"'
     directory_path = os.path.join(workspace_path, 'IB_Tool_Results')
+    debug_path = os.path.join(workspace_path, 'debug')
 
     try:
-        # Wenn del_part_log True ist und der Ordner existiert, löschen
-        if del_part_log and os.path.exists(directory_path):
-            shutil.rmtree(directory_path)
-            Logger.log(
-                f"Verzeichnis {directory_path} wurde erfolgreich gelöscht.",
-                "SUCCESS"
-            )
+        if del_part_log:
+            if os.path.exists(directory_path):
+                shutil.rmtree(directory_path)
+                Logger.log(
+                    f"Verzeichnis {directory_path} wurde erfolgreich gelöscht.",
+                    "SUCCESS"
+                )
+            if os.path.exists(debug_path):
+                shutil.rmtree(debug_path)
+                Logger.log(
+                    f"Verzeichnis {debug_path} wurde erfolgreich gelöscht.",
+                    "SUCCESS"
+                )
 
         # In jedem Fall den Ordner neu erstellen
         if not os.path.exists(directory_path):
