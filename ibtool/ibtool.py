@@ -1036,7 +1036,7 @@ class IBTool:
             logger.log("Failed to load final merge layer", "CRITICAL")
             return
 
-        gap_fixed = gap_fix(merge, layer_rn, workspace_path)
+        gap_fixed = gap_fix(merge, layer_rn, workspace_path, debug_mode=debug_mode)
 
         # Split the OutputFile into path, filename, and extension
         output_folder, file_with_extension = os.path.split(OutputFile)
@@ -1044,6 +1044,6 @@ class IBTool:
         msg(output_folder)
         msg(output_filename)
 
-        save_temp_layer_to_gpkg(merge, str(output_filename), output_folder + "/")
+        save_temp_layer_to_gpkg(gap_fixed, str(output_filename), output_folder + "/")
 
         logger.log("ERFOLG", "INFO")
