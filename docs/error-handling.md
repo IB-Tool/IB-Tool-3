@@ -62,8 +62,9 @@ The `safe_processing_run()` wrapper handles errors from QGIS Processing algorith
 
 Activated via the "Fehlerhafte Features speichern" checkbox in the Debugging tab:
 
-- Failed processing steps automatically save their input layers
-- Output path: `workspace/debug/{ToolName}/{step_name}.gpkg`
+- Failed processing steps automatically save their input layers with `is_error=True`
+- Output path: `workspace/debug/{ToolName}/{NNN}_{step_name}.gpkg` (checkpoint) or `{NNN}_{step_name}_err.gpkg` (error)
+- `NNN` is a sequential 3-digit index enabling chronological sorting in GIS
 - Manual debug points can be added with `save_debug_layer()` / `save_debug_features()`
 - When disabled: zero overhead, no folders created
 
