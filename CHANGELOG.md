@@ -5,6 +5,21 @@ All notable changes to IBTool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-02-24
+
+### Added
+- **safe_processing.py**: New shared helper module in `helpers/` that centralises `safe_processing_run()`, eliminating the duplicate definitions that previously existed in both `GapClose.py` and `GapFix.py`.
+
+### Changed
+- **GapClose**: Refactored into focused private helpers (`_dissolve_union`, `_gap_select`, `_close_block_gaps`, `_close_buffer_gaps`) so `gap_close()` is a short orchestrator; replaced all magic numbers with named module-level constants (`TOPOLOGY_SNAP_BUFFER_M`, `BOUNDARY_OVERLAP_THRESHOLD_PCT`, etc.).
+- **GapFix**: Removed local `safe_processing_run()` duplicate and switched to the shared `helpers/safe_processing` import.
+- **AddSingleBuilding**: Refactored — translated German inline comments to English, replaced magic numbers with named module-level constants (`_PREDICATE_DISJOINT`, `_PREDICATE_INTERSECTS`, `_OPERATOR_GREATER_THAN`, `DEFAULT_AREA_THRESHOLD`, etc.), converted docstring from Sphinx to Google style, and made `workspace_path` an optional keyword argument (`=None`) to align the signature with existing tests.
+- **Blocker**: Refactored `blocker()` into three focused private helpers (`_build_block_polygons`, `_remove_blocks_without_buildings`, `_assign_block_names`) so the public function is a short orchestrator; replaced the `'TEMPORARY_OUTPUT'` string literal with `QgsProcessing.TEMPORARY_OUTPUT`, named magic predicate/method codes as module constants, translated the German parameter name `strassen` → `road_network`, and converted the docstring to Google style. Added `debug_mode` / `workspace_path` parameters and `save_debug_layer` checkpoints at `roads_in_partition`, `blocks_raw`, and `blocks_with_buildings`; switched all `processing.run` calls to `safe_processing_run`.
+- **AddSingleBuilding**: Added `debug_mode` / `workspace_path` parameters and `save_debug_layer` checkpoints at `centroids_outside_cluster`, `buildings_outside_cluster`, `buildings_large`, and `bounding_rects`; switched all `processing.run` calls to `safe_processing_run`.
+- **Blocker, AddSingleBuilding, GapClose**: Debug output folders are now numbered by pipeline call order via `_DEBUG_TOOL_NAME` constants (`01_Blocker`, `02_AddSingleBuilding`, `03_GapClose`), so folders sort chronologically in the file system.
+
+---
+
 ## 2026-02-23
 
 ### Added
