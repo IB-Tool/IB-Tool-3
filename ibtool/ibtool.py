@@ -868,8 +868,6 @@ class IBTool:
 
         logger.log("Part list: {}".format(part_list), 'SUCCESS')
 
-        #global_footprint_density = 18  # TODO
-
         # calculate threshold value for footprint density
         if global_footprint_density == 0:
             global_footprint_density = calc_footprint_density(
@@ -901,7 +899,6 @@ class IBTool:
 
         anz_hu_gesamt = layer_hu.featureCount()
         anz_hu_sum = 0
-
 
         for a, i in enumerate(part_list, start=1):
             logger.log("Check if {} is in Partlist.".format(str(i)),
@@ -967,7 +964,8 @@ class IBTool:
 
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
-            blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer)
+            blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
+                             debug_mode=debug_mode, workspace_path=workspace_path)
 
             hu_filter = input_hu_filter(sel_hu_layer, input_filter,min_area, 50, 200)
 
@@ -986,8 +984,8 @@ class IBTool:
 
             hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
 
-            add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference, workspace_path)
-            save_temp_layer_to_gpkg(add_sing_bdg, f"{part_name}_single_buildings", workspace_path)
+            add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,
+                                          workspace_path, debug_mode=debug_mode)
 
             rect_merged = processing.run("qgis:mergevectorlayers", {
                 'LAYERS': [add_sing_bdg, hu_cluster_output],
@@ -1034,7 +1032,7 @@ class IBTool:
             logger.log("Failed to load final merge layer", "CRITICAL")
             return
 
-        gap_fixed = gap_fix(merge, layer_rn, workspace_path, debug_mode=debug_mode)
+        #gap_fixed = gap_fix(merge, layer_rn, workspace_path, debug_mode=debug_mode)
 
         # Split the OutputFile into path, filename, and extension
         output_folder, file_with_extension = os.path.split(OutputFile)
@@ -1042,6 +1040,6 @@ class IBTool:
         msg(output_folder)
         msg(output_filename)
 
-        save_temp_layer_to_gpkg(gap_fixed, str(output_filename), output_folder + "/")
+        save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
 
         logger.log("ERFOLG", "INFO")
