@@ -4,6 +4,7 @@ from qgis import processing
 from ..helpers.logger import Logger
 from ..helpers.debug_utils import save_debug_layer
 
+
 def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
                         debug_mode=False, workspace_path=None, tool_name="GapClose"):
     """Safe wrapper for processing.run with automatic geometry repair on failure.
@@ -35,7 +36,7 @@ def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
         ]
         is_geometry_error = any(hint in error_msg for hint in geometry_error_hints)
 
-        # Debug: Fehlerhafte Input-Layer speichern
+        # Save failing input layers as debug files for post-mortem analysis
         if debug_mode and workspace_path:
             for key, value in parameters.items():
                 if key in ['INPUT', 'OVERLAY', 'INTERSECT'] and hasattr(value, 'isValid'):
@@ -44,7 +45,7 @@ def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
 
         if fix_geometries and is_geometry_error:
             Logger.log(f"Geometry error in {algorithm_name}, attempting repair: {e}", level="WARNING")
-            # Versuche alle Input-Layer zu reparieren
+            # Attempt to repair all input layers before retrying
             repaired_params = parameters.copy()
             for key, value in parameters.items():
                 if key in ['INPUT', 'OVERLAY', 'INTERSECT'] and hasattr(value, 'isValid'):
@@ -56,14 +57,14 @@ def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
                         })['OUTPUT']
                         repaired_params[key] = repaired_layer
                     except:
-                        pass  # Falls Reparatur fehlschlägt, ursprünglichen Layer verwenden
+                        pass  # Keep original layer if repair fails
 
-            # Erneut versuchen mit reparierten Geometrien
+            # Retry with repaired geometries
             try:
                 return processing.run(algorithm_name, repaired_params)
             except Exception as e2:
                 Logger.log(f"Retry after repair failed for {algorithm_name}: {e2}", level="WARNING")
-                # Letzter Versuch: Ungültige Geometrien ignorieren
+                # Last resort: set INVALID_FEATURE_HANDLING=1 to skip invalid features
                 if 'INVALID_FEATURE_HANDLING' not in repaired_params:
                     repaired_params['INVALID_FEATURE_HANDLING'] = 1
                 return processing.run(algorithm_name, repaired_params)
@@ -96,11 +97,16 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
     Returns:
         QgsVectorLayer containing the settlement polygons with gaps closed.
     """
-    # Debug-Parameter für safe_processing_run vorbereiten
+    # Bundle debug parameters forwarded to every safe_processing_run call
     _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name="GapClose")
 
     def gap_select(input_poly, input_gaps, crs, length_percentage):
         """Selects gaps based on the share of their boundary overlapping with the input polygon.
+
+        The algorithm measures how much of each gap polygon's perimeter runs
+        along the settlement boundary. Only gaps whose overlapping share
+        exceeds ``length_percentage`` are returned, which filters out
+        gap candidates that are merely adjacent to or outside the settlement.
 
         Args:
             input_poly: Input polygon layer (QgsVectorLayer).
@@ -113,14 +119,13 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
         Returns:
             QgsVectorLayer containing the selected gap polygons.
         """
-
-        # Input Polygon auflösen
+        # Dissolve input polygon to a single geometry for boundary comparison
         input_poly_diss = safe_processing_run("qgis:dissolve", {
             'INPUT': input_poly,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Polygone in Linien umwandeln
+        # Convert settlement polygon and gap polygons to boundary lines
         input_poly_lines = safe_processing_run("native:polygonstolines", {
             'INPUT': input_poly_diss,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
@@ -131,13 +136,13 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Multipart zu Singlepart für Lückenlinien
+        # Explode multipart gap lines to singlepart for per-feature length measurement
         gap_lines_single = safe_processing_run("native:multiparttosingleparts", {
             'INPUT': gap_lines,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Felder hinzufügen und Längen berechnen
+        # Record total boundary length of each gap line (length_1) before splitting
         gap_lines_with_length = safe_processing_run("qgis:fieldcalculator", {
             'INPUT': gap_lines_single,
             'FIELD_NAME': 'length_1',
@@ -149,6 +154,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
+        # Copy the feature ID to a persistent field so it survives the dissolve step
         gap_lines_with_fid_copy = safe_processing_run("native:fieldcalculator", {
             'INPUT': gap_lines_with_length,
             'FIELD_NAME': 'fid_copy',
@@ -159,13 +165,14 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Linien an Schnittpunkten teilen
+        # Split gap boundary lines into short segments for fine-grained overlap measurement
         split_lines = safe_processing_run("native:splitlinesbylength", {
             'INPUT': gap_lines_with_fid_copy,
             'LENGTH': 10,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
+        # Buffer settlement boundary lines by 0.5 m to catch nearly-touching segments
         input_poly_lines_buff = safe_processing_run("native:buffer", {
             'INPUT': input_poly_lines,
             'DISTANCE': 0.5,
@@ -178,7 +185,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Überlappende Segmente extrahieren
+        # Keep only gap segments that intersect the settlement boundary buffer
         overlapping_segments = safe_processing_run("native:extractbylocation", {
             'INPUT': split_lines,
             'PREDICATE': [0],  # intersect
@@ -186,7 +193,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Segmente nach FID auflösen und neue Länge berechnen
+        # Dissolve matched segments by source gap ID to sum up the overlapping length (length_2)
         dissolved_segments = safe_processing_run("qgis:dissolve", {
             'INPUT': overlapping_segments,
             'FIELD': ['fid_copy'],
@@ -204,7 +211,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        # Längenverhältnis berechnen und filtern
+        # Keep gaps where the overlapping share (length_2 / length_1) exceeds the threshold
         final_selection = safe_processing_run("qgis:extractbyexpression", {
             'INPUT': lines_with_length_2,
             'EXPRESSION': f'("length_2" / "length_1") * 100 > {length_percentage}',
@@ -212,7 +219,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             'KEEP_FIELDS': True
         })['OUTPUT']
 
-        # Retrieve all values from the 'fid_copy' field in final_selection and store them in a list
+        # Collect the source gap IDs that passed the overlap filter
         fid_copy_values = [
             feature['fid_copy']
             for feature in final_selection.getFeatures()
@@ -223,27 +230,25 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
             f"input_gaps={input_gaps.featureCount()}, "
             f"overlapping_segments={overlapping_segments.featureCount()}, "
             f"ratio_passed={final_selection.featureCount()}, "
-            f"matched_fids={len(fid_copy_values)}"
+            f"matched_fids={len(fid_copy_values)}",
+            level="INFO"
         )
 
         if not fid_copy_values:
             Logger.log(
                 f"GapClose/gap_select(threshold={length_percentage}%): "
                 f"no gaps passed the boundary-overlap filter → returning empty layer",
-                level="WARNING"
+                level="INFO"
             )
-            # Erstelle leeres Polygon mit gleicher Struktur wie input_gaps
+            # Return an empty layer with the same schema as input_gaps
             empty_layer = QgsVectorLayer("Polygon", "empty", "memory")
             empty_layer.setCrs(input_gaps.crs())
-
-            # Kopiere Felder vom input_gaps
             provider = empty_layer.dataProvider()
             provider.addAttributes(input_gaps.fields())
             empty_layer.updateFields()
-
             return empty_layer
 
-        # Ansonsten normale Filterung durchführen
+        # Select the original gap polygons by spatial relation to the passing lines
         filtered_features = safe_processing_run("native:extractbylocation", {
             'INPUT': input_gaps,
             'PREDICATE': [0, 4],
@@ -253,10 +258,9 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
 
         return filtered_features
 
-    ############################################################
-
-    # Fix geometries, then dissolve via collect + buffer(0) workaround
-    # native:dissolve silently fails on large MultiPolygon sets (GEOS bug)
+    # ── Input preparation ────────────────────────────────────────────────────
+    # Fix geometries, then dissolve via collect + buffer(0) workaround.
+    # native:dissolve silently fails on large MultiPolygon sets (GEOS bug).
     input_fixed = safe_processing_run("native:fixgeometries", {
         'INPUT': input_layer,
         'METHOD': 1,
@@ -270,7 +274,7 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
-    # Buffer(0) forces a proper geometric union via GEOS
+    # Buffer(0) with DISSOLVE=True forces a proper geometric union via GEOS
     input_diss = safe_processing_run("native:buffer", {
         'INPUT': input_collected,
         'DISTANCE': 0,
@@ -283,231 +287,252 @@ def gap_close(input_layer, blocks, max_hole_size, max_gap_size, crs, gap_dist=15
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
-    input_layer_count = input_diss.featureCount()
-
-    if input_layer_count > 0:
-        # ── Prozess 1: Block-basierter Gap Close ─────────────────────────────
-        # Identifiziert kleine Lücken innerhalb von Straßenblöcken via
-        # symmetrischer Differenz (Blocks XOR Siedlung).
-
-        # Close holes in the input polygons
-        hole_closed = safe_processing_run("native:deleteholes", {
-            'INPUT': input_diss,
-            'MIN_AREA': max_hole_size,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(hole_closed, "GapClose", "01_hole_closed", workspace_path)
-
-        # Fix geometries on both inputs before symmetrical difference
-        blocks_fixed = safe_processing_run("native:fixgeometries", {
-            'INPUT': blocks,
-            'METHOD': 1,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(blocks_fixed, "GapClose", "02_blocks_fixed", workspace_path)
-
-        hole_closed_fixed = safe_processing_run("native:fixgeometries", {
-            'INPUT': hole_closed,
-            'METHOD': 1,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        # Symmetrical difference between blocks and hole-closed polygons
-        block_sym_diff = safe_processing_run("qgis:symmetricaldifference", {
-            'INPUT': blocks_fixed,
-            'OVERLAY': hole_closed_fixed,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            'GRID_SIZE': 0.00001
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(block_sym_diff, "GapClose", "03_block_sym_diff", workspace_path)
-
-        # Convert multipart polygons to singlepart
-        block_sym_diff_single = safe_processing_run("native:multiparttosingleparts", {
-            'INPUT': block_sym_diff,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        # Filter areas smaller than max_gap_size
-        selected_areas = safe_processing_run("qgis:extractbyexpression", {
-            'INPUT': block_sym_diff_single,
-            'EXPRESSION': f"area($geometry) < {max_gap_size}",
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(selected_areas, "GapClose", "04_selected_areas", workspace_path)
-
-        # Merge selected gaps with hole_closed polygons
-        merged_gap = gap_select(hole_closed, selected_areas, crs, 70)
-        if debug_mode and workspace_path:
-            save_debug_layer(merged_gap, "GapClose", "05_merged_gap", workspace_path)
-
-        merged_output = safe_processing_run("native:mergevectorlayers", {
-            'LAYERS': [merged_gap, hole_closed],
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        dissolved_output = safe_processing_run("native:dissolve", {
-            'INPUT': merged_output,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(dissolved_output, "GapClose", "06_dissolved_output", workspace_path)
-
-        # ── Prozess 1.5: Lücken in Löchern schließen ─────────────────────────
-        dissolved_output = gap_close_in_holes(
-            dissolved_output, max_hole_size,
-            debug_mode=debug_mode, workspace_path=workspace_path
-        )
-        if debug_mode and workspace_path:
-            save_debug_layer(dissolved_output, "GapClose", "07_hole_gaps_closed", workspace_path)
-
-        holes_closed = safe_processing_run("native:deleteholes", {
-            'INPUT': dissolved_output,
-            'MIN_AREA': max_hole_size,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(holes_closed, "GapClose", "07b_holes_closed", workspace_path)
-        Logger.log(f"GapClose – holes_closed: {holes_closed.featureCount()} features after deleteholes (min_area={max_hole_size})")
-
-        # ── Prozess 2: Puffer-basierter Gap Close ────────────────────────────
-        # Identifiziert Lücken zwischen Siedlungsclustern via Doppelpufferung.
-
-        # DISSOLVE=True is essential: merges all cluster buffers into one polygon so that
-        # the gap area between clusters becomes part of the interior (not near the outer
-        # boundary). Without dissolve, each cluster's boundary_buffer removes its own
-        # 15m buffer ring → the inter-cluster gap never reaches poly_cut_1.
-        initial_buffer = safe_processing_run("native:buffer", {
-            'INPUT': holes_closed,
-            'DISTANCE': gap_dist,
-            'DISSOLVE': True,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(initial_buffer, "GapClose", "08_initial_buffer", workspace_path)
-
-        boundary_line = safe_processing_run("native:polygonstolines", {
-            'INPUT': initial_buffer,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        boundary_buffer = safe_processing_run("native:buffer", {
-            'INPUT': boundary_line,
-            'DISTANCE': gap_dist + 0.3,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(boundary_buffer, "GapClose", "09_boundary_buffer", workspace_path)
-
-        poly_cut_1 = safe_processing_run("native:difference", {
-            'INPUT': initial_buffer,
-            'OVERLAY': boundary_buffer,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            'GRID_SIZE': 0.00001,
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(poly_cut_1, "GapClose", "10_poly_cut_inner_ring", workspace_path)
-
-        poly_cut_2 = safe_processing_run("native:difference", {
-            'INPUT': poly_cut_1,
-            'OVERLAY': input_layer,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            'GRID_SIZE': 0.00001,
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(poly_cut_2, "GapClose", "11_poly_cut_minus_buildings", workspace_path)
-
-        poly_cut_2_puffer = safe_processing_run("native:buffer", {
-            'INPUT': poly_cut_2,
-            'DISTANCE': 0.3,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-
-        poly_singlepart = safe_processing_run("native:multiparttosingleparts", {
-            'INPUT': poly_cut_2_puffer,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        # Critter 1: Remove small polygons based on area relative to gap distance
-        small_removed = safe_processing_run("qgis:extractbyexpression", {
-            'INPUT': poly_singlepart,
-            'EXPRESSION': f'area($geometry) > {200 * gap_dist / 15}',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(small_removed, "GapClose", "12_small_removed", workspace_path)
-
-        # Critter 2: Select gaps whose boundary overlaps the settlement by at least 70%.
-        # Uses holes_closed (1 dissolved feature) instead of input_layer (N buildings):
-        # qgis:dissolve silently fails on large building datasets (same GEOS bug as
-        # native:dissolve), producing an empty dissolve result → input_poly_lines_buff
-        # becomes empty → overlapping_segments=0 for every gap polygon.
-        # holes_closed is geometrically correct here: inter-cluster gap edges lie on
-        # the outer settlement boundary, which is exactly holes_closed's perimeter.
-        final_gap1 = gap_select(holes_closed, small_removed, crs, 70)
-        if debug_mode and workspace_path:
-            save_debug_layer(final_gap1, "GapClose", "13.1_final_gap1_70pct", workspace_path)
-        Logger.log(f"GapClose – final_gap1 (70%): {final_gap1.featureCount()} features")
-
-        # Critter 3: Stricter gap selection — boundary overlap at least 90%
-        final_gap2 = gap_select(holes_closed, small_removed, crs, 90)
-        if debug_mode and workspace_path:
-            save_debug_layer(final_gap2, "GapClose", "13.2_final_gap2_90pct", workspace_path)
-        Logger.log(f"GapClose – final_gap2 (90%): {final_gap2.featureCount()} features")
-
-        # Critter 2b: From the 70%-selection, keep only polygons smaller than max_gap_size
-        gap_poly_max_size = safe_processing_run("qgis:extractbyexpression", {
-            'INPUT': final_gap1,
-            'EXPRESSION': f'area($geometry) < {max_gap_size}',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(gap_poly_max_size, "GapClose", "14_gap_poly_max_size", workspace_path)
-        Logger.log(f"GapClose – gap_poly_max_size: {gap_poly_max_size.featureCount()} features after area filter (< {max_gap_size} m²)")
-
-        Logger.log(
-            f"GapClose – merge input counts: "
-            f"gap_poly_max_size={gap_poly_max_size.featureCount()}, "
-            f"final_gap2={final_gap2.featureCount()}, "
-            f"holes_closed={holes_closed.featureCount()}"
-        )
-        merged_final = safe_processing_run("native:mergevectorlayers", {
-            'LAYERS': [gap_poly_max_size, final_gap2, holes_closed],
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        repaired_output = safe_processing_run("qgis:deleteduplicategeometries", {
-            'INPUT': merged_final,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        dissolved_final = safe_processing_run("native:dissolve", {
-            'INPUT': repaired_output,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }, **_dbg)['OUTPUT']
-
-        # Close holes in the input polygons
-        dissolved_final_hole_closed = safe_processing_run("native:deleteholes", {
-            'INPUT': dissolved_final,
-            'MIN_AREA': max_hole_size,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(dissolved_final_hole_closed, "GapClose", "15_result", workspace_path)
-
-        final_buffer = safe_processing_run("native:buffer", {
-            'INPUT': dissolved_final_hole_closed,
-            'DISTANCE': 0.1,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
-
-        return final_buffer
-    else:
+    if input_diss.featureCount() == 0:
+        # Nothing to process after dissolve — return unchanged
         return input_layer
+
+    # ── Process 1: Block-based gap close ────────────────────────────────────
+    # Identifies small gaps inside street blocks by computing the symmetrical
+    # difference between the block layer and the dissolved settlement polygon
+    # (blocks XOR settlement = areas in blocks but not in settlement = gaps).
+
+    # Fill interior holes smaller than max_hole_size before the sym-diff step
+    # so that holes are not mistaken for gaps
+    hole_closed = safe_processing_run("native:deleteholes", {
+        'INPUT': input_diss,
+        'MIN_AREA': max_hole_size,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(hole_closed, "GapClose", "01_hole_closed", workspace_path)
+
+    # Fix geometries on both inputs to prevent sym-diff failures
+    blocks_fixed = safe_processing_run("native:fixgeometries", {
+        'INPUT': blocks,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    hole_closed_fixed = safe_processing_run("native:fixgeometries", {
+        'INPUT': hole_closed,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Symmetrical difference: result contains both block areas outside the
+    # settlement and settlement areas outside blocks; the latter are removed
+    # later by gap_select based on boundary overlap
+    block_sym_diff = safe_processing_run("qgis:symmetricaldifference", {
+        'INPUT': blocks_fixed,
+        'OVERLAY': hole_closed_fixed,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        'GRID_SIZE': 0.00001
+    }, **_dbg)['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(block_sym_diff, "GapClose", "03_block_sym_diff", workspace_path)
+
+    # Explode multipart polygons so that each gap fragment is a separate feature
+    block_sym_diff_single = safe_processing_run("native:multiparttosingleparts", {
+        'INPUT': block_sym_diff,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Keep only small fragments — these are the candidate gap areas inside blocks
+    selected_areas = safe_processing_run("qgis:extractbyexpression", {
+        'INPUT': block_sym_diff_single,
+        'EXPRESSION': f"area($geometry) < {max_gap_size}",
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(selected_areas, "GapClose", "04_selected_areas", workspace_path)
+
+    # Confirm that candidate gaps share at least 70 % of their boundary with
+    # the settlement boundary — filters out block fragments that are not actual gaps
+    merged_gap = gap_select(hole_closed, selected_areas, crs, 70)
+    if debug_mode and workspace_path:
+        save_debug_layer(merged_gap, "GapClose", "05_merged_gap", workspace_path)
+
+    # Merge confirmed gap polygons with the settlement polygon and dissolve
+    # to absorb the gaps into the settlement area
+    merged_output = safe_processing_run("native:mergevectorlayers", {
+        'LAYERS': [merged_gap, hole_closed],
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    dissolved_output = safe_processing_run("native:dissolve", {
+        'INPUT': merged_output,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(dissolved_output, "GapClose", "06_dissolved_output", workspace_path)
+
+    # ── Process 1.5: Close gaps within holes ────────────────────────────────
+    # Applies a morphological closing to gaps that are embedded inside large
+    # interior holes, which are missed by the block-based and buffer-based
+    # approaches because they do not touch the outer settlement boundary.
+    dissolved_output = gap_close_in_holes(
+        dissolved_output, max_hole_size,
+        debug_mode=debug_mode, workspace_path=workspace_path
+    )
+    if debug_mode and workspace_path:
+        save_debug_layer(dissolved_output, "GapClose", "07_hole_gaps_closed", workspace_path)
+
+    # Final hole removal after gap_close_in_holes to clean up any remaining
+    # small interior rings that were not absorbed
+    holes_closed = safe_processing_run("native:deleteholes", {
+        'INPUT': dissolved_output,
+        'MIN_AREA': max_hole_size,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    Logger.log(f"GapClose – holes_closed: {holes_closed.featureCount()} features after deleteholes (min_area={max_hole_size})", level="INFO")
+
+    # ── Process 2: Buffer-based gap close ───────────────────────────────────
+    # Detects gaps between settlement clusters using a double-buffer approach:
+    # expand by gap_dist → remove outer buffer ring → subtract original buildings.
+    # The remaining interior area represents the gaps between clusters.
+
+    # Expand the settlement by gap_dist with DISSOLVE=True so that clusters
+    # whose separation is smaller than 2×gap_dist merge into one polygon and
+    # the inter-cluster space becomes interior area of the buffered polygon.
+    # Without DISSOLVE=True, each cluster's boundary_buffer later removes its
+    # own buffer ring and the inter-cluster gap never reaches poly_cut_1.
+    initial_buffer = safe_processing_run("native:buffer", {
+        'INPUT': holes_closed,
+        'DISTANCE': gap_dist,
+        'DISSOLVE': True,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(initial_buffer, "GapClose", "08_initial_buffer", workspace_path)
+
+    # Extract the outer boundary of the expanded polygon as lines
+    boundary_line = safe_processing_run("native:polygonstolines", {
+        'INPUT': initial_buffer,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Buffer the outer boundary by gap_dist + 0.3 m to create an edge zone
+    # that covers the full outer buffer ring (the area not between clusters)
+    boundary_buffer = safe_processing_run("native:buffer", {
+        'INPUT': boundary_line,
+        'DISTANCE': gap_dist + 0.3,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    # Remove the outer buffer ring from the expanded polygon, leaving only
+    # the interior area — which contains the inter-cluster gaps
+    poly_cut_1 = safe_processing_run("native:difference", {
+        'INPUT': initial_buffer,
+        'OVERLAY': boundary_buffer,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        'GRID_SIZE': 0.00001,
+    }, **_dbg)['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(poly_cut_1, "GapClose", "10_poly_cut_inner_ring", workspace_path)
+
+    # Subtract the original buildings so that gap candidates contain only empty space
+    poly_cut_2 = safe_processing_run("native:difference", {
+        'INPUT': poly_cut_1,
+        'OVERLAY': input_layer,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        'GRID_SIZE': 0.00001,
+    }, **_dbg)['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(poly_cut_2, "GapClose", "11_poly_cut_minus_buildings", workspace_path)
+
+    # Small positive buffer to close sub-metre topology gaps in the candidates
+    poly_cut_2_puffer = safe_processing_run("native:buffer", {
+        'INPUT': poly_cut_2,
+        'DISTANCE': 0.3,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Explode multipart result so each gap candidate is a separate feature
+    poly_singlepart = safe_processing_run("native:multiparttosingleparts", {
+        'INPUT': poly_cut_2_puffer,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Filter 1: Remove tiny artefacts — minimum area scales with gap_dist
+    small_removed = safe_processing_run("qgis:extractbyexpression", {
+        'INPUT': poly_singlepart,
+        'EXPRESSION': f'area($geometry) > {200 * gap_dist / 15}',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(small_removed, "GapClose", "12_small_removed", workspace_path)
+
+    # Filter 2: Keep gaps where at least 70 % of the boundary touches the settlement.
+    # Uses holes_closed (1 dissolved feature) instead of input_layer (N buildings):
+    # qgis:dissolve silently fails on large building datasets (same GEOS bug as
+    # native:dissolve), producing an empty dissolve result → input_poly_lines_buff
+    # becomes empty → overlapping_segments=0 for every gap polygon.
+    # holes_closed is geometrically correct here: inter-cluster gap edges lie on
+    # the outer settlement boundary, which is exactly holes_closed's perimeter.
+    final_gap1 = gap_select(holes_closed, small_removed, crs, 70)
+    if debug_mode and workspace_path:
+        save_debug_layer(final_gap1, "GapClose", "13.1_final_gap1_70pct", workspace_path)
+    Logger.log(f"GapClose – final_gap1 (70%): {final_gap1.featureCount()} features", level="INFO")
+
+    # Filter 3: Stricter variant — boundary overlap at least 90 %; captures
+    # larger gaps that are almost entirely enclosed by the settlement boundary
+    final_gap2 = gap_select(holes_closed, small_removed, crs, 90)
+    if debug_mode and workspace_path:
+        save_debug_layer(final_gap2, "GapClose", "13.2_final_gap2_90pct", workspace_path)
+    Logger.log(f"GapClose – final_gap2 (90%): {final_gap2.featureCount()} features", level="INFO")
+
+    # Filter 2b: From the 70 %-selection, keep only polygons smaller than
+    # max_gap_size to avoid closing gaps that should remain open
+    gap_poly_max_size = safe_processing_run("qgis:extractbyexpression", {
+        'INPUT': final_gap1,
+        'EXPRESSION': f'area($geometry) < {max_gap_size}',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(gap_poly_max_size, "GapClose", "14_gap_poly_max_size", workspace_path)
+    Logger.log(f"GapClose – gap_poly_max_size: {gap_poly_max_size.featureCount()} features after area filter (< {max_gap_size} m²)", level="INFO")
+
+    # Merge size-filtered gaps (Filter 2b), large enclosed gaps (Filter 3),
+    # and the settlement polygon; dissolve to absorb all gap areas at once
+    Logger.log(
+        f"GapClose – merge input counts: "
+        f"gap_poly_max_size={gap_poly_max_size.featureCount()}, "
+        f"final_gap2={final_gap2.featureCount()}, "
+        f"holes_closed={holes_closed.featureCount()}",
+        level="INFO"
+    )
+    merged_final = safe_processing_run("native:mergevectorlayers", {
+        'LAYERS': [gap_poly_max_size, final_gap2, holes_closed],
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    # Remove duplicate geometries that can arise from overlapping gap polygons
+    repaired_output = safe_processing_run("qgis:deleteduplicategeometries", {
+        'INPUT': merged_final,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    dissolved_final = safe_processing_run("native:dissolve", {
+        'INPUT': repaired_output,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Final hole removal to fill any remaining interior rings smaller than max_hole_size
+    dissolved_final_hole_closed = safe_processing_run("native:deleteholes", {
+        'INPUT': dissolved_final,
+        'MIN_AREA': max_hole_size,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(dissolved_final_hole_closed, "GapClose", "15_result", workspace_path)
+
+    # Tiny positive buffer to snap any sub-millimetre topology gaps in the result
+    final_buffer = safe_processing_run("native:buffer", {
+        'INPUT': dissolved_final_hole_closed,
+        'DISTANCE': 0.1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    return final_buffer
 
 
 def gap_close_in_holes(input_layer, max_hole_size, buffer_dist=15,
@@ -599,20 +624,25 @@ def gap_close_in_holes(input_layer, max_hole_size, buffer_dist=15,
     if holes.featureCount() == 0:
         return input_layer
 
+    # Explode multipart hole result to singlepart for individual processing
     holes_single = safe_processing_run("native:multiparttosingleparts", {
         'INPUT': holes,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
     # --- Step 2: Double buffer on holes (morphological closing) ---
-    # Positive buffer: merges holes that are close together, fills narrow gaps within them
+    # Goal: merge narrowly separated sub-holes inside each large hole and then
+    # shrink back to approximately the original shape, leaving only gap-free area.
 
-    # Convert expanded hole polygons to boundary lines
+    # Convert hole polygons to boundary lines so the subsequent buffer expands
+    # outward from the hole perimeter rather than filling the interior
     holes_single_lines = safe_processing_run("native:polygonstolines", {
         'INPUT': holes_single,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
+    # Positive buffer: expands the hole boundary by buffer_dist, merging nearby
+    # holes into one shape and bridging narrow internal gaps
     holes_expanded = safe_processing_run("native:buffer", {
         'INPUT': holes_single_lines,
         'DISTANCE': buffer_dist,
@@ -624,16 +654,14 @@ def gap_close_in_holes(input_layer, max_hole_size, buffer_dist=15,
         'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
-    if debug_mode and workspace_path:
-        save_debug_layer(holes_expanded, "GapClose", "07.2_holes_expanded", workspace_path)
-
-    # Convert expanded hole polygons to boundary lines
+    # Convert the expanded polygon to boundary lines for the negative buffer step
     holes_lines = safe_processing_run("native:polygonstolines", {
         'INPUT': holes_expanded,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
-    # Buffer the boundary lines to create an edge zone (band around the perimeter)
+    # Buffer the boundary lines inward by buffer_dist + 0.3 m to create an edge
+    # zone that covers the full outer expansion ring
     holes_line_buffer = safe_processing_run("native:buffer", {
         'INPUT': holes_lines,
         'DISTANCE': buffer_dist + 0.3,
@@ -646,7 +674,8 @@ def gap_close_in_holes(input_layer, max_hole_size, buffer_dist=15,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
-    # Subtract the edge zone from the expanded holes to restore approximate original shape
+    # Subtract the edge zone from the expanded polygon to restore the approximate
+    # original hole shape with internal gaps now closed
     holes_shrunk = safe_processing_run("native:difference", {
         'INPUT': holes_expanded,
         'OVERLAY': holes_line_buffer,
@@ -656,6 +685,8 @@ def gap_close_in_holes(input_layer, max_hole_size, buffer_dist=15,
     if debug_mode and workspace_path:
         save_debug_layer(holes_shrunk, "GapClose", "07.3_holes_shrunk", workspace_path)
 
+    # Tiny positive buffer to close sub-metre topology gaps introduced by the
+    # difference operation before splitting to singlepart
     holes_shrunk_puffer = safe_processing_run("native:buffer", {
         'INPUT': holes_shrunk,
         'DISTANCE': 0.4,
@@ -668,13 +699,15 @@ def gap_close_in_holes(input_layer, max_hole_size, buffer_dist=15,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
-
+    # Explode multipart result to singlepart for per-hole area filtering
     holes_shrunk_single = safe_processing_run("native:multiparttosingleparts", {
         'INPUT': holes_shrunk_puffer,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 
-    # --- Step 3: Select holes whose processed area is below the threshold ---
+    # --- Step 3: Filter holes by minimum area ---
+    # Only keep processed hole areas larger than 500 m² to avoid filling
+    # tiny artefacts that result from the morphological closing
     holes_to_close = safe_processing_run("qgis:extractbyexpression", {
         'INPUT': holes_shrunk_single,
         'EXPRESSION': f'area($geometry) > 500',
