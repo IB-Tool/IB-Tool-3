@@ -16,6 +16,10 @@ Template for structural improvements in the IBTool project. Goal: better code st
 ### 1. Inventory
 
 - [ ] Read and fully understand the current code
+- [ ] Read the binding rules that apply to touched code:
+  - `ai/core/constraints.md` — language rules (English for all code), named constants, no global state
+  - `ai/core/naming-conventions.md` — snake_case / PascalCase / UPPER_SNAKE_CASE
+  - `ai/core/debug-mode.md` — `save_debug_layer` conventions and `_dbg` dict pattern
 - [ ] Identify dependencies (who uses this code?)
 - [ ] Identify and run existing tests
 - [ ] Define the target structure
@@ -26,6 +30,7 @@ Template for structural improvements in the IBTool project. Goal: better code st
 - [ ] Determine the order (inside-out)
 - [ ] Ensure backward compatibility
 - [ ] Identify code to be removed
+- [ ] Identify intermediate results that lack a `save_debug_layer` checkpoint
 
 ### 3. Implementation
 
@@ -33,6 +38,8 @@ Template for structural improvements in the IBTool project. Goal: better code st
 - [ ] Run tests after each step
 - [ ] Update imports
 - [ ] Adjust docstrings to reflect the new structure
+- [ ] Translate any German comments, docstrings, or variable names in touched code to English (required by `constraints.md`)
+- [ ] Add missing `save_debug_layer` checkpoints for significant intermediate results (see `ai/core/debug-mode.md` for naming conventions)
 
 ### 4. Validation
 
@@ -40,6 +47,8 @@ Template for structural improvements in the IBTool project. Goal: better code st
 - [ ] New tests for extracted components
 - [ ] Functionality verified manually
 - [ ] No orphaned imports or dead code
+- [ ] No German text remains in touched code
+- [ ] All significant intermediate layers have a `save_debug_layer` checkpoint
 
 ## Allowed Changes
 
@@ -49,6 +58,8 @@ Template for structural improvements in the IBTool project. Goal: better code st
 - Removing dead code
 - Adding docstrings to changed code
 - Creating new modules for extracted logic
+- Translating German comments, docstrings, and variable names to English in touched code
+- Adding missing `save_debug_layer` checkpoints for intermediate processing results
 
 ## Forbidden Changes
 
@@ -62,11 +73,14 @@ Template for structural improvements in the IBTool project. Goal: better code st
 
 ```
 [ ] All existing tests pass before starting
+[ ] Binding rules read (constraints.md, naming-conventions.md, debug-mode.md)
 [ ] Target structure documented
 [ ] Implemented step by step (not all at once)
 [ ] Tests pass after each step
 [ ] No logic changes
 [ ] API compatibility maintained
+[ ] No German text remaining in touched code
+[ ] Missing save_debug_layer checkpoints added
 [ ] CHANGELOG updated
 ```
 
