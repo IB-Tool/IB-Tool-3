@@ -23,19 +23,26 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          docker run --rm -v $(pwd):/plugins/ibtool qgis-plugin-test
+          # Run container; coverage.xml is written to /plugins/ibtool/ which maps
+          # to $(pwd) via the volume mount, so it appears on the host automatically.
+          docker run --rm \
+            -v $(pwd):/plugins/ibtool \
+            qgis-plugin-test
 
-      - name: Extract coverage reports
+      - name: Verify and fix coverage report
         run: |
-          ls -la coverage.xml htmlcov/ || echo "Coverage files not found"
-          # Fix absolute container paths → relative repo paths for Codecov
-          if [ -f coverage.xml ]; then
-            sed -i 's|/plugins/ibtool/||g' coverage.xml
+          if [ ! -f coverage.xml ]; then
+            echo "ERROR: coverage.xml not found after test run"
+            exit 1
           fi
+          # Fix absolute container paths → relative repo paths for Codecov
+          sed -i 's|/plugins/ibtool/||g' coverage.xml
+          echo "coverage.xml found and paths fixed"
+          head -5 coverage.xml
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./coverage.xml
-          fail_ci_if_error: false  # Wichtig: CI nicht wegen Coverage-Upload-Fehler scheitern lassen
+          files: ./coverage.xml
+          fail_ci_if_error: true
