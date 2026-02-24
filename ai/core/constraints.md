@@ -54,9 +54,11 @@ When modifying existing code or documentation, apply these language rules to the
 ## Error Handling
 
 - Every `processing.run()` operation must catch errors
-- Critical errors: log and abort processing
-- Warnings: log and continue where possible
+- Critical errors: log `CRITICAL` and abort processing
+- Unexpected situations (e.g. geometry repair triggered): log `WARNING` and continue
+- Normal processing outcomes (progress, counts, empty results): log `INFO`
 - In debug mode: save intermediate results
+- **Always pass `level=` explicitly to `Logger.log()`** — the default is `"WARNING"`, which is misleading for status messages
 
 ## Strings
 
