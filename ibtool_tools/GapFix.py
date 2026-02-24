@@ -1,4 +1,3 @@
-import processing
 from qgis.core import (
     QgsVectorLayer,
     QgsFeature,
@@ -8,66 +7,7 @@ from qgis.core import (
 
 from ..helpers.logger import Logger
 from ..helpers.debug_utils import save_debug_layer
-
-
-def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
-                        debug_mode=False, workspace_path=None, tool_name="GapFix"):
-    """Sicherer Wrapper für processing.run mit Debug-Unterstützung.
-
-    Bei einer Ausnahme werden die Input-Layer des fehlgeschlagenen Schritts
-    als nummerierte Fehlerdatei (``_err``-Suffix) gespeichert, sofern
-    debug_mode aktiv ist.
-
-    Args:
-        algorithm_name: QGIS-Algorithmusname (z.B. ``"native:dissolve"``).
-        parameters: Parameter-Dictionary für den Algorithmus.
-        fix_geometries: Bei True wird bei Geometriefehlern ein Reparatur-
-                        versuch unternommen, bevor die Ausnahme weitergegeben wird.
-        debug_mode: Bei True werden fehlerhafte Input-Layer gespeichert.
-        workspace_path: Workspace-Basispfad für Debug-Ausgabe.
-        tool_name: Name des Tools für den Debug-Unterordner.
-
-    Returns:
-        Ergebnis-Dictionary von processing.run.
-
-    Raises:
-        Exception: Weiterleitung der ursprünglichen Ausnahme nach Debug-Ausgabe.
-    """
-    try:
-        return processing.run(algorithm_name, parameters)
-    except Exception as e:
-        error_msg = str(e).lower()
-        geometry_error_hints = [
-            'ungültige geometrie', 'invalid geometry',
-            'objekt nicht schreiben', 'could not write',
-            'self-intersection', 'self intersection',
-        ]
-        is_geometry_error = any(hint in error_msg for hint in geometry_error_hints)
-
-        if debug_mode and workspace_path:
-            for key, value in parameters.items():
-                if key in ['INPUT', 'OVERLAY', 'INTERSECT'] and hasattr(value, 'isValid'):
-                    step = f"{algorithm_name.replace(':', '_')}_{key}"
-                    save_debug_layer(value, tool_name, step, workspace_path, is_error=True)
-
-        if fix_geometries and is_geometry_error:
-            Logger.log(f"Geometry error in {algorithm_name}, attempting repair: {e}", level="WARNING")
-            repaired_params = parameters.copy()
-            for key, value in parameters.items():
-                if key in ['INPUT', 'OVERLAY', 'INTERSECT'] and hasattr(value, 'isValid'):
-                    try:
-                        repaired_layer = processing.run("native:fixgeometries", {
-                            'INPUT': value,
-                            'METHOD': 1,
-                            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                        })['OUTPUT']
-                        repaired_params[key] = repaired_layer
-                    except Exception:
-                        pass
-            return processing.run(algorithm_name, repaired_params)
-        else:
-            Logger.log(f"Processing error in {algorithm_name}: {e}", level="CRITICAL")
-            raise
+from ..helpers.safe_processing import safe_processing_run
 
 
 def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,

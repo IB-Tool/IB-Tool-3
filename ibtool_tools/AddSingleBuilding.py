@@ -1,108 +1,161 @@
+"""AddSingleBuilding: Filter large isolated buildings and convert them to bounding rectangles."""
+
 from qgis.core import (
     QgsVectorLayer,
     QgsProcessing
 )
 
-from qgis import processing
 from ..helpers.geometry_utils import shp_area2
+from ..helpers.debug_utils import save_debug_layer
+from ..helpers.safe_processing import safe_processing_run
 
-def add_single_bdg(input_hu: QgsVectorLayer, 
-                   rect_merge: QgsVectorLayer, 
-                   crs, workspace_path,
-                   threshold=300, ) -> QgsVectorLayer:
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "02_AddSingleBuilding"
+
+# ---------------------------------------------------------------------------
+# QGIS predicate codes (used in native:extractbylocation)
+# ---------------------------------------------------------------------------
+_PREDICATE_INTERSECTS = 0   # keep features that intersect the reference layer
+_PREDICATE_DISJOINT = 2     # keep features that are disjoint from the reference layer
+
+# QGIS attribute filter operator code (used in native:extractbyattribute)
+_OPERATOR_GREATER_THAN = 2
+
+# native:pointonsurface — skip invalid geometries instead of raising an error
+_INVALID_GEOMETRY_SKIP = 1
+
+# native:addautoincrementalfield — first value of the auto-increment sequence
+_AUTOINCREMENT_START = 1
+
+# qgis:minimumboundinggeometry — type 1 produces an oriented bounding rectangle
+_BOUNDING_TYPE_RECTANGLE = 1
+
+# Default minimum area (m²) for a building to be considered "large"
+DEFAULT_AREA_THRESHOLD = 300
+
+
+def add_single_bdg(
+    input_hu: QgsVectorLayer,
+    rect_merge: QgsVectorLayer,
+    crs,
+    workspace_path=None,
+    threshold: int = DEFAULT_AREA_THRESHOLD,
+    debug_mode: bool = False,
+) -> QgsVectorLayer:
+    """Filter large isolated buildings and convert them to bounding rectangles.
+
+    Identifies buildings whose centroid lies outside *rect_merge* cluster
+    polygons and whose area exceeds *threshold*, then converts each such
+    building to its oriented bounding rectangle.
+
+    The result is intended to be merged with *rect_merge* by the caller.
+
+    Debug checkpoints written to ``workspace/debug/AddSingleBuilding/``:
+
+    1. ``centroids_outside_cluster`` — representative points outside cluster polygons
+    2. ``buildings_outside_cluster`` — full building footprints outside cluster
+    3. ``buildings_large`` — footprints that also exceed the area threshold
+    4. ``bounding_rects`` — final oriented bounding rectangles
+
+    Args:
+        input_hu: Input layer containing building footprint polygons.
+        rect_merge: Layer containing existing cluster polygons used as
+            the spatial reference for the disjoint filter.
+        crs: Coordinate reference system for the output layer.
+        workspace_path: Base path for debug output files. Required when
+            ``debug_mode`` is True. Defaults to ``None``.
+        threshold: Minimum area (m²) a building must exceed to be included.
+            Defaults to ``DEFAULT_AREA_THRESHOLD`` (300 m²).
+        debug_mode: If True, saves intermediate results as numbered GeoPackages
+            under ``workspace/debug/AddSingleBuilding/``. Defaults to False.
+
+    Returns:
+        A QgsVectorLayer containing one oriented bounding rectangle per
+        qualifying building.
     """
-    Processes building data and merges it with rectangular geometries after 
-    filtering based on specific criteria.
+    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name=_DEBUG_TOOL_NAME)
 
-    The function takes a layer containing building polygons and another layer 
-    with rectangular geometries. It then identifies buildings that do not 
-    intersect with the provided rectangular geometries, filters large buildings 
-    above a specified area threshold, and transforms the large buildings into 
-    rectangular bounding geometries. These rectangular geometries are finally 
-    merged with the original rectangular geometries.
-
-    :param input_hu: The input layer containing building polygons to process.
-    :type input_hu: QgsVectorLayer
-    :param rect_merge: The input layer containing rectangular geometries to
-    merge.
-    :type rect_merge: QgsVectorLayer
-    :param crs: The coordinate reference system for merging the layers. 
-                The type is left generic as it can vary depending on the 
-                software or library.
-    :param threshold: The area threshold value above which buildings are 
-                      considered large and their geometries are transformed 
-                      into rectangles. Default is 300.
-    :type threshold: int, optional
-    :return: A QgsVectorLayer containing rectangular bounding geometries derived
-             from large buildings outside of existing cluster polygons. The
-             merge with `rect_merge` is performed by the caller.
-    :rtype: QgsVectorLayer
-    """
-
-    processed_input_hu = processing.run("qgis:fixgeometries", {
+    # Repair geometries in both input layers before any spatial operation
+    processed_input_hu = safe_processing_run("qgis:fixgeometries", {
         'INPUT': input_hu,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
 
     shp_area2(processed_input_hu)
 
-    processed_rect_merge = processing.run("qgis:fixgeometries", {
+    processed_rect_merge = safe_processing_run("qgis:fixgeometries", {
         'INPUT': rect_merge,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
 
-    # Gebäude außerhalb von rect_merge extrahieren (Disjoint)
-    hu_centroids = processing.run("native:pointonsurface", {
+    # Derive one representative point per building for the spatial filter
+    hu_centroids = safe_processing_run("native:pointonsurface", {
         'INPUT': processed_input_hu,
         'ALL_PARTS': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        'INVALID_HANDLING': 1  # 1 für ignorieren
-    })['OUTPUT']
+        'INVALID_HANDLING': _INVALID_GEOMETRY_SKIP,
+    }, **_dbg)['OUTPUT']
 
-    hu_centroids_sel = processing.run("native:extractbylocation", {
+    # Select only the centroids that lie outside all cluster polygons
+    hu_centroids_outside = safe_processing_run("native:extractbylocation", {
         'INPUT': hu_centroids,
-        'PREDICATE': [2],  # getrennt
+        'PREDICATE': [_PREDICATE_DISJOINT],
         'INTERSECT': processed_rect_merge,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
 
-    hu_sel = processing.run("native:extractbylocation", {
+    if debug_mode and workspace_path:
+        save_debug_layer(hu_centroids_outside, _DEBUG_TOOL_NAME, "centroids_outside_cluster", workspace_path)
+
+    # Retrieve the corresponding full building polygons
+    hu_outside = safe_processing_run("native:extractbylocation", {
         'INPUT': processed_input_hu,
-        'PREDICATE': [0],  # schneidet
-        'INTERSECT': hu_centroids_sel,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'PREDICATE': [_PREDICATE_INTERSECTS],
+        'INTERSECT': hu_centroids_outside,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
 
-    # Filtere große Gebäude (Fläche > threshold)
-    hu_huge = processing.run("native:extractbyattribute", {
-        'INPUT': hu_sel,
+    if debug_mode and workspace_path:
+        save_debug_layer(hu_outside, _DEBUG_TOOL_NAME, "buildings_outside_cluster", workspace_path)
+
+    # Keep only buildings whose area exceeds the threshold
+    hu_large = safe_processing_run("native:extractbyattribute", {
+        'INPUT': hu_outside,
         'FIELD': 'Area',
-        'OPERATOR': 2,
+        'OPERATOR': _OPERATOR_GREATER_THAN,
         'VALUE': threshold,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
 
-    # Eindeutige ID pro Feature hinzufügen (für Gruppierung in minimumboundinggeometry)
-    hu_huge_with_id = processing.run("native:addautoincrementalfield", {
-        'INPUT': hu_huge,
+    if debug_mode and workspace_path:
+        save_debug_layer(hu_large, _DEBUG_TOOL_NAME, "buildings_large", workspace_path)
+
+    # Assign a unique ID per feature so each gets its own bounding rectangle
+    hu_large_with_id = safe_processing_run("native:addautoincrementalfield", {
+        'INPUT': hu_large,
         'FIELD_NAME': 'unique_id',
-        'START': 1,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'START': _AUTOINCREMENT_START,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
 
-    # Erzeuge rechteckige Geometrien (je eine pro Feature)
-    hu_rect_raw = processing.run("qgis:minimumboundinggeometry", {
-        'INPUT': hu_huge_with_id,
+    # Create one oriented bounding rectangle per feature
+    hu_rect_raw = safe_processing_run("qgis:minimumboundinggeometry", {
+        'INPUT': hu_large_with_id,
         'FIELD': 'unique_id',
-        'TYPE': 1,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'TYPE': _BOUNDING_TYPE_RECTANGLE,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
 
-    # Filtere leere/null Geometrien aus dem Ergebnis
-    hu_rect = processing.run("native:removenullgeometries", {
+    # Remove any null or empty geometries produced by the bounding step
+    hu_rect = safe_processing_run("native:removenullgeometries", {
         'INPUT': hu_rect_raw,
         'REMOVE_EMPTY': True,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
+
+    if debug_mode and workspace_path:
+        save_debug_layer(hu_rect, _DEBUG_TOOL_NAME, "bounding_rects", workspace_path)
 
     return hu_rect

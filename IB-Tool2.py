@@ -8,7 +8,7 @@
 # Created:     10.05.2021
 # Cite:        Oliver Harig (2021). Toolset for the delineation of settlements on the basis building footprints, road network and land use data (v1.0) https://doi.org/10.26084/IOERFDZ-SOFT-001    
 # Licence:     MIT License
-               Copyright 2025 Oliver Harig
+#              Copyright 2025 Oliver Harig
 #
 #              Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
 #              associated documentation files (the "Software"), to deal in the Software without restriction, including

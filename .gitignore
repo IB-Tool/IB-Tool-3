@@ -46,6 +46,7 @@ htmlcov/
 
 # === QGIS Plugin generierte Dateien ===
 *.qm
+CONFIG.ini
 
 # === Projektspezifische Ausschluesse ===
 # Backup/Kopie-Dateien

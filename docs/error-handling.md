@@ -4,12 +4,27 @@
 
 The plugin uses a centralized logging system (`helpers/logger.py`) with four levels:
 
-| Level | Usage |
-|-------|-------|
-| `CRITICAL` | Unrecoverable errors that stop processing |
-| `WARNING` | Issues that allow continued processing but may affect results |
-| `INFO` | Progress updates and status messages |
-| `SUCCESS` | Confirmation of completed operations |
+| Level | Usage | Examples |
+|-------|-------|---------|
+| `CRITICAL` | Unrecoverable errors that stop processing | Algorithm crash, unhandled exception |
+| `WARNING` | Unexpected situations that allow continued processing but may affect results | Geometry error detected → repair attempted, retry failed |
+| `INFO` | Progress updates, status messages, and normal processing outcomes | Step started, feature count, empty result after filter |
+| `SUCCESS` | Confirmation of completed operations | Tool finished successfully |
+
+> **Important:** `Logger.log()` defaults to `level="WARNING"` when no level is specified.
+> **Always pass `level=` explicitly** to avoid false warnings in the log.
+
+### When to use WARNING vs INFO
+
+Use `WARNING` only when something **unexpected** happened that the user or developer should be aware of:
+- An algorithm failed and a repair/retry was triggered
+- Input data has a quality issue (e.g. invalid geometry detected)
+- A fallback path was taken that may silently change the result
+
+Use `INFO` for all **normal processing outcomes**, even if the result is empty:
+- Step progress ("Step 3: building buffer rings…")
+- Feature counts after each processing step
+- Empty layer returned because no features passed a filter
 
 ### Output Destinations
 
@@ -20,6 +35,7 @@ The plugin uses a centralized logging system (`helpers/logger.py`) with four lev
 ### Rules
 
 - Always use the Logger class — never use `print()` statements
+- **Always specify `level=` explicitly** — the default is `WARNING`, which is wrong for status messages
 - Log level is user-configurable through the plugin UI
 - Log directory is selectable through the plugin interface
 - Include context (tool name, step) in log messages
@@ -73,9 +89,9 @@ Activated via the "Fehlerhafte Features speichern" checkbox in the Debugging tab
 | Category | Handling | Example |
 |----------|----------|---------|
 | Missing input | Block with QMessageBox | No HU layer selected |
-| Invalid geometry | Log warning, attempt fix | Self-intersecting polygon |
-| Processing failure | Log critical, save debug | Algorithm crash |
-| Empty result | Log warning, continue | No features after filter |
+| Invalid geometry | Log **WARNING**, attempt fix | Self-intersecting polygon detected → repair triggered |
+| Processing failure | Log **CRITICAL**, save debug | Algorithm crash |
+| Empty result | Log **INFO**, continue | No features passed the boundary-overlap filter |
 | CRS mismatch | Block with QMessageBox | Layers in different CRS |
 
 ## Principles
