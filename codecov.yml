@@ -1,0 +1,28 @@
+# codecov.yml — Codecov configuration for ibtool QGIS plugin
+# Docs: https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  branch: master
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"   # 70% = red, 100% = green
+
+  status:
+    project:
+      default:
+        target: auto        # compare against base commit (no regression)
+        threshold: 1%       # allow 1% drop before failing
+        informational: true # don't fail PR, only inform
+    patch:
+      default:
+        target: 50%         # new code in PR must be ≥50% covered
+        informational: true
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default         # post comment on every PR, update on new commits
+  require_changes: false    # always post, even if coverage didn't change
+  require_base: false       # post even without base report
+  require_head: true        # only post if HEAD report exists
