@@ -148,22 +148,31 @@ class TestAddSingleBuilding:
 
     @pytest.mark.integration
     def test_custom_threshold_respected(self):
-        """Custom threshold value filters correctly (Area > threshold).
+        """Custom threshold value filters correctly (geometric area > threshold).
 
         Note: an empty cluster layer causes all centroids to be treated as
         disjoint (no polygon to intersect with), so all buildings are candidates.
+
+        shp_area2 (called inside add_single_bdg) overwrites the Area attribute
+        with the polygon's computed geometric area, so polygon size determines
+        which features pass the threshold filter — not the Area value passed to
+        _add_building.
+          Building 1: 10×10 = 100 m²  →  below threshold 200  →  excluded
+          Building 2: 20×20 = 400 m²  →  above threshold 200  →  included
         """
         crs = "EPSG:25833"
         cluster = _make_polygon_layer(crs)  # empty — all buildings outside
 
         buildings = _make_polygon_layer(crs)
-        _add_building(buildings, 1, 150.0, [(0,  0),  (15, 0),  (15, 15), (0,  15), (0,  0)])   # below 200
-        _add_building(buildings, 2, 250.0, [(50, 50), (70, 50), (70, 70), (50, 70), (50, 50)])   # above 200
+        # 10×10 square → geometric area 100 m² < threshold 200
+        _add_building(buildings, 1, 100.0, [(0,  0),  (10, 0),  (10, 10), (0,  10), (0,  0)])
+        # 20×20 square → geometric area 400 m² > threshold 200
+        _add_building(buildings, 2, 400.0, [(50, 50), (70, 50), (70, 70), (50, 70), (50, 50)])
 
         result = add_single_bdg(buildings, cluster, self.crs, threshold=200)
 
         assert result.featureCount() == 1, (
-            f"Only building with Area=250 should pass threshold=200, got {result.featureCount()}"
+            f"Only the 20x20 building (400 m²) should pass threshold=200, got {result.featureCount()}"
         )
 
     # --- edge cases -----------------------------------------------------
