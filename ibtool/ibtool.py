@@ -587,6 +587,10 @@ class IBTool:
         if p.max_gap_size > 0:
             self.dlg.MaxGapSizeBox.setValue(int(p.max_gap_size))
 
+        # Checkboxen
+        self.dlg.DebugModeBox.setChecked(cfg.processing.debug_mode)
+        self.dlg.PartLogBox.setChecked(cfg.processing.delete_part_log)
+
         # Filter-Datei laden, wenn gesetzt
         filter_path = cfg.input_data.filter_file_path
         if filter_path and os.path.exists(filter_path):
@@ -623,6 +627,9 @@ class IBTool:
                 'part_start': int(self.dlg.partstartBox.text() or -1),
                 'part_end': int(self.dlg.partendBox.text() or -1),
                 'part_list': self.dlg.partlistBox.text(),
+                'crs_epsg': int(self.dlg.SpatialReferenceBox.text().split(":")[-1].strip() or 25832),
+                'debug_mode': self.dlg.DebugModeBox.isChecked(),
+                'delete_part_log': self.dlg.PartLogBox.isChecked(),
             },
         )
         self.config_manager.save_config()
@@ -995,7 +1002,8 @@ class IBTool:
 
             snapped_rect = edge_catch(rect_merged, hu_filter_sel,
                                        sel_strassen_layer, blocks,
-                                       spatial_reference, workspace_path)
+                                       spatial_reference, workspace_path,
+                                       debug_mode=debug_mode)
 
             blocks_merge = processing.run("qgis:mergevectorlayers", {
                 'LAYERS': [snapped_rect, blocks_dense],
