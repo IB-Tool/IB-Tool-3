@@ -56,6 +56,10 @@ class ProcessingConfig:
     max_hole_size: float = 0.0
     max_gap_size: float = 0.0
 
+    # Debug / run control
+    debug_mode: bool = False
+    delete_part_log: bool = True
+
 
 @dataclass
 class OutputConfig:
@@ -169,6 +173,8 @@ class ConfigManager:
             self.config.processing.min_patch_size = section.getfloat('min_patch_size', 0.0)
             self.config.processing.max_hole_size = section.getfloat('max_hole_size', 0.0)
             self.config.processing.max_gap_size = section.getfloat('max_gap_size', 0.0)
+            self.config.processing.debug_mode = section.getboolean('debug_mode', False)
+            self.config.processing.delete_part_log = section.getboolean('delete_part_log', True)
         
         # Load output configuration
         if config_parser.has_section('OUTPUT'):
@@ -223,6 +229,8 @@ class ConfigManager:
             'min_patch_size': str(self.config.processing.min_patch_size),
             'max_hole_size': str(self.config.processing.max_hole_size),
             'max_gap_size': str(self.config.processing.max_gap_size),
+            'debug_mode': str(self.config.processing.debug_mode),
+            'delete_part_log': str(self.config.processing.delete_part_log),
         }
         
         # Add output section
