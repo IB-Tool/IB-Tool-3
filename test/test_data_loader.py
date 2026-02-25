@@ -106,3 +106,35 @@ class TestCreatePartitionsList:
         with pytest.raises(ValueError):
             data_loader.create_partitions_list(invalid, ['#'], -1, -1)
 
+    def test_create_empty_layer_returns_empty_list(self):
+        """Empty layer with '#' sentinel and -1/-1 returns empty list."""
+        empty_layer = QgsVectorLayer('Point?crs=EPSG:4326', 'empty', 'memory')
+        pr = empty_layer.dataProvider()
+        pr.addAttributes([QgsField('NAME', QVariant.String, 'varchar', 255, 0)])
+        empty_layer.updateFields()
+        result = data_loader.create_partitions_list(empty_layer, ['#'], -1, -1)
+        assert result == []
+
+    def test_create_range_returns_correct_slice(self):
+        """partstart/partend slicing is [start:end] (Python list slice)."""
+        result = data_loader.create_partitions_list(self.layer, ['#'], 1, 3)
+        assert result == ['B', 'C']
+
+    def test_create_from_list_strips_newlines(self):
+        """Newline characters are stripped from every entry in an explicit list."""
+        result = data_loader.create_partitions_list(self.layer, ['A\n', 'B\n'], -1, -1)
+        assert result == ['A', 'B']
+
+    @pytest.mark.edge_case
+    def test_create_from_single_item_list(self):
+        """A single-element explicit list works correctly."""
+        result = data_loader.create_partitions_list(self.layer, ['C'], -1, -1)
+        assert result == ['C']
+
+    @pytest.mark.edge_case
+    def test_create_all_with_partstart_zero(self):
+        """partstart=0, partend=-1 returns all partitions (slices from 0)."""
+        result = data_loader.create_partitions_list(self.layer, ['#'], 0, -1)
+        # partend=-1 means process all, so the elif branch collects all without slicing
+        assert set(result) == {'A', 'B', 'C'}
+
