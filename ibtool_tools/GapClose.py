@@ -26,7 +26,7 @@ from ..helpers.safe_processing import safe_processing_run
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
 # ---------------------------------------------------------------------------
-_DEBUG_TOOL_NAME = "03_GapClose"
+_DEBUG_TOOL_NAME = "04_GapClose"
 
 # ---------------------------------------------------------------------------
 # Module-level constants

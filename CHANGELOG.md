@@ -5,6 +5,23 @@ All notable changes to IBTool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-02-25
+
+### Added
+- **EdgeCatch**: New preprocessing step `_filter_roads_near_buildings()` that splits the road network into 10 m segments, stamps a stable `seg_id` field onto each segment, buffers each segment by 25 m, and retains only segments whose buffer intersects a building footprint; matching is done via `seg_id` attribute (not FID or spatial overlap) so neighbouring segments outside a qualifying buffer are never accidentally included.
+- **EdgeCatch**: Extracted per-feature loop body into `process_single_feature()`; moved all private helpers and algorithm constants to `helpers/edge_catch_utils.py` per project convention; added `debug_mode` parameter to `edge_catch`, `filter_roads_near_buildings`, and `process_single_feature`; added `save_debug_layer` checkpoints at `road_segs_near_buildings`, `roads_selection`, `ortho_lines`, `polygons_in_block`, `result_polygons`, and `polygons_merged`; switched all `processing.run` calls in helpers to `safe_processing_run`; removed unused imports, dead inner functions, and dead constants; translated German docstring and comments to English; fixed `polygones_merge` typo to `polygons_merge`.
+
+### Changed
+- **EdgeCatch**: Per-feature `save_debug_layer` calls inside `process_single_feature()` removed — only two global checkpoints remain (`road_segs_near_buildings`, `polygons_merged`) to prevent hundreds of files being written per run; `DEBUG_TOOL_NAME` renamed to `"03_EdgeCatch"` to match the numbered pipeline-order convention.
+- **GapClose**: `_DEBUG_TOOL_NAME` renamed from `"03_GapClose"` to `"04_GapClose"` to maintain correct call-order numbering after EdgeCatch was inserted at position 03.
+- **ConfigManager**: Added `debug_mode` and `delete_part_log` boolean fields to `ProcessingConfig` with full read/write support in `load_config()` and `save_config()`; `_save_config_from_ui()` now also persists `SpatialReferenceBox` (as `crs_epsg`), `DebugModeBox`, and `PartLogBox`; `_apply_config_to_ui()` now restores both checkbox states on dialog open.
+
+### Fixed
+- **EdgeCatch**: `debug_mode` was not forwarded to the `edge_catch()` call in `ibtool.py`, causing all debug checkpoints to be silently skipped; fixed by passing `debug_mode=debug_mode` to the call.
+- **InputValidator**: `fkt` field values were read by numeric index (`feature[fkt_idx]`) which could resolve to a wrong field when provider and `QgsFields` orderings diverge; switched to name-based access (`feature[fkt_field]`). Buildings with `fkt = "0"` (no function code assigned) are now silently skipped instead of being flagged as ATKIS-format violations.
+
+---
+
 ## 2026-02-24
 
 ### Added

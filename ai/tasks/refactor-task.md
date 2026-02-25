@@ -86,6 +86,30 @@ Template for structural improvements in the IBTool project. Goal: better code st
 
 ## Typical Refactoring Patterns in the Project
 
+### Where to place extracted helpers
+
+Every tool module `ibtool_tools/Foo.py` has a dedicated utils file
+`helpers/foo_utils.py`.  When extracting private helpers during a refactor:
+
+| Situation | Where to place the helper |
+|---|---|
+| `helpers/{toolname}_utils.py` **already exists** | Always move there — regardless of caller count |
+| No utils file exists yet | Keep in the module until ≥ 2 callers share the code, then create the utils file |
+
+**Naming rule for moved helpers:**
+- Functions used only *within* the utils file itself → keep `_` prefix
+- Functions explicitly imported by the owner tool module → **no** `_` prefix
+  (they are intentionally cross-module; the leading underscore would mislead)
+
+**Example:**
+```
+helpers/edge_catch_utils.py
+  _normalize_node()              # internal to utils — keep _
+  _build_minimized_lines(...)    # internal to utils — keep _
+  filter_roads_near_buildings()  # imported by EdgeCatch.py — no _
+  process_single_feature()       # imported by EdgeCatch.py — no _
+```
+
 ### Splitting a monolithic function
 
 ```

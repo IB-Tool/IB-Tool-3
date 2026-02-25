@@ -621,10 +621,10 @@
       </rect>
      </property>
      <property name="currentText">
-      <string>INFO</string>
+      <string>WARNING</string>
      </property>
      <property name="currentIndex">
-      <number>3</number>
+      <number>0</number>
      </property>
      <item>
       <property name="text">
@@ -883,7 +883,7 @@
   <widget class="QPushButton" name="SaveConfigButton">
    <property name="geometry">
     <rect>
-     <x>540</x>
+     <x>20</x>
      <y>530</y>
      <width>103</width>
      <height>28</height>
