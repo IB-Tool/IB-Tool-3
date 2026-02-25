@@ -1,5 +1,18 @@
 # coding=utf-8
-"""Dialog test."""
+"""
+Tests for ibtool/ibtool_dialog.py — IBToolDialog widget structure and behaviour.
+
+IBToolDialog is a thin UI wrapper (setupUi only, no custom logic).
+These tests verify:
+  - All expected widgets exist and have the correct Qt type
+  - Default values match the .ui file definitions
+  - Widgets accept input correctly (setText / setValue / setChecked)
+  - Tab widget structure is intact
+  - Dialog accept / reject behaviour is correct
+  - Buttons outside tabs (Start, Cancel, CheckButton, SaveConfigButton)
+"""
+
+import pytest
 
 from qgis.PyQt.QtWidgets import (
     QDialog,
@@ -10,436 +23,393 @@ from qgis.PyQt.QtWidgets import (
     QComboBox,
     QCheckBox,
     QSpinBox,
+    QTabWidget,
 )
 
-from ibtool_dialog import IBToolDialog
+from ibtool.ibtool.ibtool_dialog import IBToolDialog
 from .utilities import get_qgis_app
 
-__author__ = 'Tim Sutton <tim@linfiniti.com>'
-__date__ = '2011-04-22'
-__license__ = "GPL"
+# QGIS must be initialised before any Qt widget is created
+QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 
+
+# ---------------------------------------------------------------------------
+# Fixtures / shared setup
+# ---------------------------------------------------------------------------
 
 class TestIBToolDialog:
-    """Test dialog works."""
+    """Tests for IBToolDialog widget structure and default values."""
 
     def setup_method(self, method):
-        """Runs before each test."""
-        self.qgis_app = get_qgis_app()
         self.dialog = IBToolDialog(None)
 
     def teardown_method(self, method):
-        """Runs after each test."""
+        self.dialog.close()
         self.dialog = None
 
-    def test_dialog_creation(self):
-        """Test that dialog can be created without errors."""
-        dialog = IBToolDialog()
-        assert dialog is not None
-        assert isinstance(dialog, QDialog)
+    # -----------------------------------------------------------------------
+    # Creation
+    # -----------------------------------------------------------------------
 
-    # Test alle File-Selection Buttons
-    def test_file_selection_buttons(self):
-        """Test that all file selection buttons exist and are functional."""
-        file_buttons = [
-            'HuButton',      # Building footprints file
-            'RnButton',      # Road network file  
-            'PartButton',    # Partitions file
-            'AuxButton',     # Auxiliary data file
-            'OutputButton',  # Output file
-            'WorkspaceButton', # Workspace folder
-            'FilterButton',  # Filter config file
-            'LogDirButton'   # Log directory
-        ]
-        
-        for button_name in file_buttons:
-            assert hasattr(self.dialog, button_name), f"Button {button_name} missing"
-            button = getattr(self.dialog, button_name)
-            assert button is not None
-            assert isinstance(button, QPushButton)
-            assert button.isEnabled()
-            # Test button click (should not raise exception)
-            button.click()
+    @pytest.mark.unit
+    def test_dialog_can_be_created(self):
+        """IBToolDialog can be instantiated without errors."""
+        assert self.dialog is not None
+        assert isinstance(self.dialog, QDialog)
 
-    # Test alle Path-Input Felder
-    def test_path_input_fields(self):
-        """Test that all path input fields exist and are functional."""
-        path_fields = [
-            'HuPath',        # Building footprints path
-            'RnPath',        # Road network path
-            'PartPath',      # Partitions path
-            'AuxPath',       # Auxiliary data path
-            'OutputPath',    # Output path
-            'WorkspacePath', # Workspace path
-            'FilterPath',    # Filter config path
-            'LogDirPath'     # Log directory path
-        ]
-        
-        for field_name in path_fields:
-            assert hasattr(self.dialog, field_name), f"Field {field_name} missing"
-            field = getattr(self.dialog, field_name)
-            assert field is not None
-            assert isinstance(field, QLineEdit)
-            # Test text setting and getting
-            test_text = f"test_path_{field_name}"
-            field.setText(test_text)
-            assert field.text() == test_text
-            field.clear()
-            assert field.text() == ""
+    @pytest.mark.unit
+    def test_dialog_has_tab_widget(self):
+        """The main tab widget (tabWidget) is present."""
+        assert hasattr(self.dialog, "tabWidget")
+        assert isinstance(self.dialog.tabWidget, QTabWidget)
 
-    # Test Processing Control Buttons
-    def test_processing_control_buttons(self):
-        """Test processing control buttons."""
-        control_buttons = [
-            'StartButton',   # Start processing
-            'CancelButton'   # Cancel processing
-        ]
-        
-        for button_name in control_buttons:
-            assert hasattr(self.dialog, button_name), f"Button {button_name} missing"
-            button = getattr(self.dialog, button_name)
-            assert button is not None
-            assert isinstance(button, QPushButton)
-            assert button.isEnabled()
-            # Test button click
-            button.click()
+    @pytest.mark.unit
+    def test_tab_widget_has_four_tabs(self):
+        """tabWidget exposes exactly 4 tabs (Datenpfade, Parameter, Settings, Filtering)."""
+        assert self.dialog.tabWidget.count() == 4
 
-    # Test Parameter Input Boxes (gemischte Widget-Typen)
-    def test_parameter_input_boxes(self):
-        """Test that all parameter input boxes exist and are functional."""
-        # Test QSpinBox Parameter
-        spinbox_parameters = [
-            'MinOverlapBlocksBox',      # Minimum overlap blocks
-            'GlobalFootprintDensityBox', # Global footprint density
-            'MinBdgCountBox',           # Minimum building count      
-            'MaxHoleSizeBox',           # Maximum hole size
-            'MaxGapSizeBox',            # Maximum gap size
-            'MinAreaBox',               # Minimum area
-            'MinPatchSizeBox',          # Minimum patch size
-        ]
-        
-        # Test QLineEdit Parameter
-        lineedit_parameters = [
-            'partlistBox',              # Partition list
-            'SpatialReferenceBox',      # Spatial reference
-            'partstartBox',             # Partition start
-            'partendBox',               # Partition end
-        ]
-        
-        # Teste die SpinBox-Parameter
-        for box_name in spinbox_parameters:
-            assert hasattr(self.dialog, box_name), f"SpinBox {box_name} missing"
-            box = getattr(self.dialog, box_name)
-            assert box is not None
-            assert isinstance(box, QSpinBox)
+    # -----------------------------------------------------------------------
+    # Path input widgets (Tab 1 — Datenpfade)
+    # -----------------------------------------------------------------------
 
-            # Test für QSpinBox
-            original_value = box.value()
-            test_value = 42
-            box.setValue(test_value)
-            assert box.value() == test_value
-            box.setValue(original_value)
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", [
+        "HuPath", "RnPath", "PartPath", "AuxPath",
+        "OutputPath", "WorkspacePath", "FilterPath", "LogDirPath",
+    ])
+    def test_path_lineedit_exists_and_is_qlineedit(self, name):
+        """All 8 path input fields exist and are QLineEdit."""
+        assert hasattr(self.dialog, name), f"Missing widget: {name}"
+        assert isinstance(getattr(self.dialog, name), QLineEdit)
 
-        # Teste die LineEdit-Parameter
-        for box_name in lineedit_parameters:
-            assert hasattr(self.dialog, box_name), f"LineEdit {box_name} missing"
-            box = getattr(self.dialog, box_name)
-            assert box is not None
-            assert isinstance(box, QLineEdit)
-            # Test text input
-            test_value = "123.45"
-            box.setText(test_value)
-            assert box.text() == test_value
-            box.clear()
-            assert box.text() == ""
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", [
+        "HuPath", "RnPath", "PartPath", "AuxPath",
+        "OutputPath", "WorkspacePath", "FilterPath", "LogDirPath",
+    ])
+    def test_path_lineedit_accepts_and_clears_text(self, name):
+        """Path fields accept setText and clear correctly."""
+        widget = getattr(self.dialog, name)
+        widget.setText(f"/test/{name}")
+        assert widget.text() == f"/test/{name}"
+        widget.clear()
+        assert widget.text() == ""
 
-    # Test UI Display Elements
-    def test_ui_display_elements(self):
-        """Test UI display elements."""
-        # Progress Bar
-        assert hasattr(self.dialog, 'ProgressBar')
-        progress_bar = self.dialog.ProgressBar
-        assert progress_bar is not None
-        assert isinstance(progress_bar, QProgressBar)
-        # Test progress bar functionality
-        progress_bar.setValue(50)
-        assert progress_bar.value() == 50
-        progress_bar.setValue(0)
-        assert progress_bar.value() == 0
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", [
+        "HuButton", "RnButton", "PartButton", "AuxButton",
+        "OutputButton", "WorkspaceButton", "FilterButton", "LogDirButton",
+    ])
+    def test_file_select_button_exists_enabled(self, name):
+        """All 8 file-select buttons exist, are QPushButton, and are enabled."""
+        assert hasattr(self.dialog, name), f"Missing button: {name}"
+        btn = getattr(self.dialog, name)
+        assert isinstance(btn, QPushButton)
+        assert btn.isEnabled()
 
-        # Message Box
-        assert hasattr(self.dialog, 'MessageBox')
-        message_box = self.dialog.MessageBox
-        assert message_box is not None
-        assert isinstance(message_box, QPlainTextEdit)
-        # Test message box functionality
-        test_message = "Test message"
-        message_box.setPlainText(test_message)
-        assert message_box.toPlainText() == test_message
-        message_box.clear()
-        assert message_box.toPlainText() == ""
+    # -----------------------------------------------------------------------
+    # Parameter spinboxes (Tab 2 — Parameter)
+    # -----------------------------------------------------------------------
 
-    # Test Log Level ComboBox
-    def test_log_level_combobox(self):
-        """Test log level combo box."""
-        assert hasattr(self.dialog, 'LogLevelBox')
-        log_level_box = self.dialog.LogLevelBox
-        assert log_level_box is not None
-        assert isinstance(log_level_box, QComboBox)
-        
-        # Test if it has items (should be populated by setup_logging_in_plugin)
-        # Note: This might be 0 if not initialized in test environment
-        assert log_level_box.count() >= 0
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", [
+        "MinOverlapBlocksBox",
+        "GlobalFootprintDensityBox",
+        "MinBdgCountBox",
+        "MinAreaBox",
+        "MinPatchSizeBox",
+        "MaxHoleSizeBox",
+        "MaxGapSizeBox",
+    ])
+    def test_spinbox_exists_and_is_qspinbox(self, name):
+        """All 7 parameter spinboxes exist and are QSpinBox."""
+        assert hasattr(self.dialog, name), f"Missing spinbox: {name}"
+        assert isinstance(getattr(self.dialog, name), QSpinBox)
 
-    # Test CheckBox
-    def test_checkbox_elements(self):
-        """Test checkbox elements."""
-        assert hasattr(self.dialog, 'PartLogBox')
-        part_log_box = self.dialog.PartLogBox
-        assert part_log_box is not None
-        assert isinstance(part_log_box, QCheckBox)
-        
-        # Test checkbox functionality
-        part_log_box.setChecked(True)
-        assert part_log_box.isChecked()
-        part_log_box.setChecked(False)
-        assert not part_log_box.isChecked()
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", [
+        "MinOverlapBlocksBox",
+        "GlobalFootprintDensityBox",
+        "MinBdgCountBox",
+        "MinAreaBox",
+        "MinPatchSizeBox",
+        "MaxHoleSizeBox",
+        "MaxGapSizeBox",
+    ])
+    def test_spinbox_accepts_and_restores_value(self, name):
+        """SpinBoxes store set values within their bounds."""
+        box = getattr(self.dialog, name)
+        original = box.value()
+        # Use a value well within any spinbox range
+        test_val = min(box.maximum(), max(box.minimum(), 42))
+        box.setValue(test_val)
+        assert box.value() == test_val
+        box.setValue(original)
 
-    # Test Filter Text Areas
-    def test_filter_text_areas(self):
-        """Test filter text areas."""
-        filter_areas = [
-            'txtPositive',  # Positive filters
-            'txtNegative'   # Negative filters
-        ]
-        
-        for area_name in filter_areas:
-            assert hasattr(self.dialog, area_name), f"Text area {area_name} missing"
-            area = getattr(self.dialog, area_name)
-            assert area is not None
-            assert isinstance(area, QPlainTextEdit)
-            # Test text functionality
-            test_text = f"Test filter for {area_name}"
-            area.setPlainText(test_text)
-            assert area.toPlainText() == test_text
-            area.clear()
-            assert area.toPlainText() == ""
+    # -----------------------------------------------------------------------
+    # Settings tab (Tab 3)
+    # -----------------------------------------------------------------------
 
-    # Test Dialog Behavior
-    def test_dialog_accept_reject(self):
-        """Test standard dialog behavior."""
-        # Test accept
+    @pytest.mark.unit
+    def test_log_level_combobox_exists(self):
+        """LogLevelBox exists and is a QComboBox."""
+        assert hasattr(self.dialog, "LogLevelBox")
+        assert isinstance(self.dialog.LogLevelBox, QComboBox)
+
+    @pytest.mark.unit
+    def test_log_level_combobox_has_four_items(self):
+        """LogLevelBox contains exactly 4 log-level entries."""
+        assert self.dialog.LogLevelBox.count() == 4
+
+    @pytest.mark.unit
+    def test_log_level_combobox_contains_expected_levels(self):
+        """LogLevelBox items include WARNING, CRITICAL, SUCCESS, INFO."""
+        box = self.dialog.LogLevelBox
+        items = [box.itemText(i) for i in range(box.count())]
+        for level in ("WARNING", "CRITICAL", "SUCCESS", "INFO"):
+            assert level in items, f"Log level '{level}' missing from LogLevelBox"
+
+    @pytest.mark.unit
+    def test_log_level_default_is_warning(self):
+        """LogLevelBox default selection is WARNING (as defined in .ui file)."""
+        assert self.dialog.LogLevelBox.currentText() == "WARNING"
+
+    @pytest.mark.unit
+    def test_spatial_reference_box_default(self):
+        """SpatialReferenceBox defaults to 'EPSG:25832' as defined in .ui."""
+        assert hasattr(self.dialog, "SpatialReferenceBox")
+        assert self.dialog.SpatialReferenceBox.text() == "EPSG:25832"
+
+    @pytest.mark.unit
+    def test_spatial_reference_box_accepts_text(self):
+        """SpatialReferenceBox can be changed and cleared."""
+        box = self.dialog.SpatialReferenceBox
+        box.setText("EPSG:25833")
+        assert box.text() == "EPSG:25833"
+        box.clear()
+        assert box.text() == ""
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", ["partstartBox", "partendBox", "partlistBox"])
+    def test_partition_lineedit_exists(self, name):
+        """Partition input fields exist and are QLineEdit."""
+        assert hasattr(self.dialog, name), f"Missing widget: {name}"
+        assert isinstance(getattr(self.dialog, name), QLineEdit)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", ["partstartBox", "partendBox", "partlistBox"])
+    def test_partition_lineedit_accepts_text(self, name):
+        """Partition input fields accept and clear text."""
+        widget = getattr(self.dialog, name)
+        widget.setText("42")
+        assert widget.text() == "42"
+        widget.clear()
+        assert widget.text() == ""
+
+    @pytest.mark.unit
+    def test_part_log_box_exists_and_is_checkbox(self):
+        """PartLogBox (delete partition log) exists and is a QCheckBox."""
+        assert hasattr(self.dialog, "PartLogBox")
+        assert isinstance(self.dialog.PartLogBox, QCheckBox)
+
+    @pytest.mark.unit
+    def test_part_log_box_default_is_checked(self):
+        """PartLogBox is checked by default (as defined in .ui file)."""
+        assert self.dialog.PartLogBox.isChecked()
+
+    @pytest.mark.unit
+    def test_part_log_box_can_be_toggled(self):
+        """PartLogBox can be programmatically checked and unchecked."""
+        box = self.dialog.PartLogBox
+        box.setChecked(False)
+        assert not box.isChecked()
+        box.setChecked(True)
+        assert box.isChecked()
+
+    @pytest.mark.unit
+    def test_debug_mode_box_exists_and_is_checkbox(self):
+        """DebugModeBox exists and is a QCheckBox."""
+        assert hasattr(self.dialog, "DebugModeBox"), \
+            "DebugModeBox missing — was it added in the recent commit?"
+        assert isinstance(self.dialog.DebugModeBox, QCheckBox)
+
+    @pytest.mark.unit
+    def test_debug_mode_box_default_is_unchecked(self):
+        """DebugModeBox is unchecked by default (as defined in .ui file)."""
+        assert not self.dialog.DebugModeBox.isChecked()
+
+    @pytest.mark.unit
+    def test_debug_mode_box_can_be_toggled(self):
+        """DebugModeBox can be programmatically toggled."""
+        box = self.dialog.DebugModeBox
+        box.setChecked(True)
+        assert box.isChecked()
+        box.setChecked(False)
+        assert not box.isChecked()
+
+    # -----------------------------------------------------------------------
+    # Filter tab (Tab 4 — Filtering)
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", ["txtPositive", "txtNegative"])
+    def test_filter_text_area_exists(self, name):
+        """Filter text areas exist and are QPlainTextEdit."""
+        assert hasattr(self.dialog, name), f"Missing widget: {name}"
+        assert isinstance(getattr(self.dialog, name), QPlainTextEdit)
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name", ["txtPositive", "txtNegative"])
+    def test_filter_text_area_accepts_and_clears_text(self, name):
+        """Filter text areas accept setPlainText and clear correctly."""
+        widget = getattr(self.dialog, name)
+        widget.setPlainText("31001_1000, Wohnhaus")
+        assert "31001_1000" in widget.toPlainText()
+        widget.clear()
+        assert widget.toPlainText() == ""
+
+    # -----------------------------------------------------------------------
+    # Main-dialog widgets (outside tabs)
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.unit
+    def test_start_button_exists_and_enabled(self):
+        """StartButton exists, is a QPushButton, and is enabled."""
+        assert hasattr(self.dialog, "StartButton")
+        assert isinstance(self.dialog.StartButton, QPushButton)
+        assert self.dialog.StartButton.isEnabled()
+
+    @pytest.mark.unit
+    def test_cancel_button_exists_and_enabled(self):
+        """CancelButton exists, is a QPushButton, and is enabled."""
+        assert hasattr(self.dialog, "CancelButton")
+        assert isinstance(self.dialog.CancelButton, QPushButton)
+        assert self.dialog.CancelButton.isEnabled()
+
+    @pytest.mark.unit
+    def test_save_config_button_exists_and_enabled(self):
+        """SaveConfigButton exists and is enabled (added in recent commit)."""
+        assert hasattr(self.dialog, "SaveConfigButton"), \
+            "SaveConfigButton missing — was it added in the recent UI commit?"
+        btn = self.dialog.SaveConfigButton
+        assert isinstance(btn, QPushButton)
+        assert btn.isEnabled()
+
+    @pytest.mark.unit
+    def test_check_button_exists_and_enabled(self):
+        """CheckButton (input validation) exists and is enabled."""
+        assert hasattr(self.dialog, "CheckButton"), "CheckButton missing"
+        btn = self.dialog.CheckButton
+        assert isinstance(btn, QPushButton)
+        assert btn.isEnabled()
+
+    @pytest.mark.unit
+    def test_progress_bar_exists(self):
+        """ProgressBar exists and is a QProgressBar."""
+        assert hasattr(self.dialog, "ProgressBar")
+        assert isinstance(self.dialog.ProgressBar, QProgressBar)
+
+    @pytest.mark.unit
+    def test_progress_bar_accepts_values(self):
+        """ProgressBar accepts values between 0 and 100."""
+        bar = self.dialog.ProgressBar
+        bar.setValue(50)
+        assert bar.value() == 50
+        bar.setValue(0)
+        assert bar.value() == 0
+        bar.setValue(100)
+        assert bar.value() == 100
+
+    @pytest.mark.unit
+    def test_message_box_exists(self):
+        """MessageBox (log output) exists and is a QPlainTextEdit."""
+        assert hasattr(self.dialog, "MessageBox")
+        assert isinstance(self.dialog.MessageBox, QPlainTextEdit)
+
+    @pytest.mark.unit
+    def test_message_box_accepts_text(self):
+        """MessageBox accepts text and can be cleared."""
+        box = self.dialog.MessageBox
+        box.setPlainText("Processing started…")
+        assert "Processing" in box.toPlainText()
+        box.clear()
+        assert box.toPlainText() == ""
+
+    # -----------------------------------------------------------------------
+    # Dialog behaviour
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.unit
+    def test_dialog_accept_sets_accepted_result(self):
+        """Calling accept() sets result to QDialog.Accepted."""
         self.dialog.accept()
         assert self.dialog.result() == QDialog.Accepted
-        
-        # Create new dialog for reject test
-        dialog = IBToolDialog()
-        dialog.reject()
-        assert dialog.result() == QDialog.Rejected
 
-    # Test Widget Relationships
-    def test_widget_relationships(self):
-        """Test that widgets are properly related to dialog."""
-        # Test that all widgets have the dialog as parent or are contained within it
-        widgets_to_test = [
-            'HuButton', 'RnButton', 'PartButton', 'AuxButton', 'OutputButton',
-            'WorkspaceButton', 'FilterButton', 'LogDirButton', 'StartButton', 
-            'CancelButton', 'HuPath', 'RnPath', 'PartPath', 'AuxPath', 
-            'OutputPath', 'WorkspacePath', 'FilterPath', 'LogDirPath',
-            'ProgressBar', 'MessageBox', 'LogLevelBox', 'MinOverlapBlocksBox',
-            'GlobalFootprintDensityBox', 'MinBdgCountBox',
-            'MaxHoleSizeBox', 'MaxGapSizeBox', 'MinAreaBox', 'MinPatchSizeBox',
-            'partstartBox', 'partendBox', 'partlistBox', 'PartLogBox',
-            'SpatialReferenceBox', 'txtPositive', 'txtNegative'
-        ]
-        
-        for widget_name in widgets_to_test:
-            if hasattr(self.dialog, widget_name):
-                widget = getattr(self.dialog, widget_name)
-                assert widget is not None
-                # Widget should be a Qt widget
-                assert hasattr(widget, 'objectName')
+    @pytest.mark.unit
+    def test_dialog_reject_sets_rejected_result(self):
+        """Calling reject() sets result to QDialog.Rejected."""
+        dlg = IBToolDialog(None)
+        dlg.reject()
+        assert dlg.result() == QDialog.Rejected
 
-    # Test Parameter Widget Types
-    def test_parameter_widget_types(self):
-        """Test that parameter widgets are of correct type."""
-        # Expected widget types mapping
-        widget_types = {
-            # SpinBox Widgets
-            'MinOverlapBlocksBox': QSpinBox,
-            'GlobalFootprintDensityBox': QSpinBox,
-            'MinBdgCountBox': QSpinBox,
-            'MaxHoleSizeBox': QSpinBox,
-            'MaxGapSizeBox': QSpinBox,
-            'MinAreaBox': QSpinBox,
-            'MinPatchSizeBox': QSpinBox,
-            
-            # LineEdit Widgets    
-            'partlistBox': QLineEdit,
-            'SpatialReferenceBox': QLineEdit,
-            'partstartBox': QLineEdit,
-            'partendBox': QLineEdit,
+    # -----------------------------------------------------------------------
+    # Complete widget inventory
+    # -----------------------------------------------------------------------
 
-            # Other widgets
-            'ProgressBar': QProgressBar,
-            'MessageBox': QPlainTextEdit,
-            'LogLevelBox': QComboBox,
-            'PartLogBox': QCheckBox,
-            'txtPositive': QPlainTextEdit,
-            'txtNegative': QPlainTextEdit,
-        }
-        
-        for widget_name, expected_type in widget_types.items():
-            assert hasattr(self.dialog, widget_name), f"Widget {widget_name} missing from dialog"
-            widget = getattr(self.dialog, widget_name)
-            assert widget is not None
-            assert isinstance(widget, expected_type), f"{widget_name} should be {expected_type.__name__}"
-
-    # Test Numeric Input Validation
-    def test_numeric_input_validation(self):
-        """Test that numeric parameter boxes handle numeric input correctly."""
-        # SpinBox Tests
-        spinbox_tests = [
-            ('MinOverlapBlocksBox', 10, 50),
-            ('GlobalFootprintDensityBox', 5, 50),
-            ('MinBdgCountBox', 5, 100),
-            ('MaxHoleSizeBox', 5, 100),
-            ('MaxGapSizeBox', 5, 100),
-            ('MinAreaBox', 10, 1000),
-            ('MinPatchSizeBox', 10, 1000),
-        ]
-        
-        for box_name, min_val, max_val in spinbox_tests:
-            assert hasattr(self.dialog, box_name), f"SpinBox {box_name} missing"
-            box = getattr(self.dialog, box_name)
-            assert isinstance(box, QSpinBox), f"{box_name} should be QSpinBox"
-
-            # Test value setting
-            test_value = min_val + 1
-            box.setValue(test_value)
-            assert box.value() == test_value
-
-            # Test bounds
-            if box.minimum() <= min_val:
-                box.setValue(min_val)
-                assert box.value() >= min_val
-
-            if box.maximum() >= max_val:
-                box.setValue(max_val)
-                assert box.value() <= max_val
-        
-        # QLineEdit Tests für numerische Eingabefelder
-        lineedit_tests = [
-            'partstartBox',
-            'partendBox',
-        ]
-        
-        for box_name in lineedit_tests:
-            assert hasattr(self.dialog, box_name), f"LineEdit {box_name} missing"
-            box = getattr(self.dialog, box_name)
-            assert isinstance(box, QLineEdit), f"{box_name} should be QLineEdit"
-
-            # Test numeric input
-            test_values = ["123", "45", "0", "1000"]
-            for test_val in test_values:
-                box.setText(test_val)
-                assert box.text() == test_val
-
-            # Test clearing
-            box.clear()
-            assert box.text() == ""
-
-    # Test Special Text Inputs
-    def test_special_text_inputs(self):
-        """Test special text input fields."""
-        special_boxes = {
-            'partlistBox': ['1,2,3,4', '10,20,30', '#comment'],
-            'SpatialReferenceBox': ['EPSG:4326', 'EPSG:3857', 'EPSG:25832'],
-        }
-        
-        for box_name, test_values in special_boxes.items():
-            assert hasattr(self.dialog, box_name), f"LineEdit {box_name} missing"
-            box = getattr(self.dialog, box_name)
-            assert isinstance(box, QLineEdit), f"{box_name} should be QLineEdit"
-
-            for test_val in test_values:
-                box.setText(test_val)
-                assert box.text() == test_val
-
-            box.clear()
-            assert box.text() == ""
-
-    # Test Widget Enablement
-    def test_widget_enablement(self):
-        """Test that widgets are enabled/disabled appropriately."""
-        # Test that input widgets are enabled
-        input_widgets = [
-            'HuPath', 'RnPath', 'PartPath', 'AuxPath', 'OutputPath',
-            'WorkspacePath', 'FilterPath', 'LogDirPath',
-            'MinOverlapBlocksBox', 'GlobalFootprintDensityBox',
-            'MinAreaBox', 'MinBdgCountBox', 'MinPatchSizeBox',
-            'MaxHoleSizeBox', 'MaxGapSizeBox', 'partstartBox',
-            'partendBox', 'partlistBox', 'SpatialReferenceBox'
-        ]
-        
-        for widget_name in input_widgets:
-            assert hasattr(self.dialog, widget_name), f"Widget {widget_name} missing"
-            widget = getattr(self.dialog, widget_name)
-            assert widget.isEnabled(), f"{widget_name} should be enabled"
-
-    # Test Complete Widget Inventory
-    def test_complete_widget_inventory(self):
-        """Test complete inventory of all GUI widgets."""
-        expected_widgets = {
-            # Buttons
-            'HuButton': QPushButton,
-            'RnButton': QPushButton,
-            'PartButton': QPushButton,
-            'AuxButton': QPushButton,
-            'OutputButton': QPushButton,
-            'WorkspaceButton': QPushButton,
-            'FilterButton': QPushButton,
-            'LogDirButton': QPushButton,
-            'StartButton': QPushButton,
-            'CancelButton': QPushButton,
-            
-            # Path Fields
-            'HuPath': QLineEdit,
-            'RnPath': QLineEdit,
-            'PartPath': QLineEdit,
-            'AuxPath': QLineEdit,
-            'OutputPath': QLineEdit,
-            'WorkspacePath': QLineEdit,
-            'FilterPath': QLineEdit,
-            'LogDirPath': QLineEdit,
-            
-            # Parameter Boxes - QSpinBox
-            'MinOverlapBlocksBox': QSpinBox,
-            'GlobalFootprintDensityBox': QSpinBox, 
-            'MinBdgCountBox': QSpinBox,
-            'MaxHoleSizeBox': QSpinBox,
-            'MaxGapSizeBox': QSpinBox,
-            'MinAreaBox': QSpinBox,
-            'MinPatchSizeBox': QSpinBox,
-            
-            # Parameter Boxes - QLineEdit
-            'partlistBox': QLineEdit,
-            'SpatialReferenceBox': QLineEdit,
-            'partstartBox': QLineEdit,
-            'partendBox': QLineEdit,
-            
-            # Display Elements
-            'ProgressBar': QProgressBar,
-            'MessageBox': QPlainTextEdit,
-            'LogLevelBox': QComboBox,
-            'PartLogBox': QCheckBox,
-            'txtPositive': QPlainTextEdit,
-            'txtNegative': QPlainTextEdit,
-        }
-        
-        for widget_name, expected_type in expected_widgets.items():
-            assert hasattr(self.dialog, widget_name), f"Widget {widget_name} missing from dialog"
-            widget = getattr(self.dialog, widget_name)
-            assert widget is not None
-            assert isinstance(widget, expected_type), f"{widget_name} should be {expected_type.__name__}"
-
+    @pytest.mark.unit
+    @pytest.mark.parametrize("name,expected_type", [
+        # File-select buttons
+        ("HuButton", QPushButton),
+        ("RnButton", QPushButton),
+        ("PartButton", QPushButton),
+        ("AuxButton", QPushButton),
+        ("OutputButton", QPushButton),
+        ("WorkspaceButton", QPushButton),
+        ("FilterButton", QPushButton),
+        ("LogDirButton", QPushButton),
+        # Path LineEdits
+        ("HuPath", QLineEdit),
+        ("RnPath", QLineEdit),
+        ("PartPath", QLineEdit),
+        ("AuxPath", QLineEdit),
+        ("OutputPath", QLineEdit),
+        ("WorkspacePath", QLineEdit),
+        ("FilterPath", QLineEdit),
+        ("LogDirPath", QLineEdit),
+        # SpinBoxes
+        ("MinOverlapBlocksBox", QSpinBox),
+        ("GlobalFootprintDensityBox", QSpinBox),
+        ("MinBdgCountBox", QSpinBox),
+        ("MinAreaBox", QSpinBox),
+        ("MinPatchSizeBox", QSpinBox),
+        ("MaxHoleSizeBox", QSpinBox),
+        ("MaxGapSizeBox", QSpinBox),
+        # Settings LineEdits
+        ("SpatialReferenceBox", QLineEdit),
+        ("partstartBox", QLineEdit),
+        ("partendBox", QLineEdit),
+        ("partlistBox", QLineEdit),
+        # Settings checkboxes
+        ("PartLogBox", QCheckBox),
+        ("DebugModeBox", QCheckBox),
+        # Settings ComboBox
+        ("LogLevelBox", QComboBox),
+        # Filter text areas
+        ("txtPositive", QPlainTextEdit),
+        ("txtNegative", QPlainTextEdit),
+        # Main-dialog widgets
+        ("StartButton", QPushButton),
+        ("CancelButton", QPushButton),
+        ("SaveConfigButton", QPushButton),
+        ("CheckButton", QPushButton),
+        ("ProgressBar", QProgressBar),
+        ("MessageBox", QPlainTextEdit),
+    ])
+    def test_widget_type_inventory(self, name, expected_type):
+        """Every widget in the .ui file exists and has the expected Qt type."""
+        assert hasattr(self.dialog, name), \
+            f"Widget '{name}' missing from IBToolDialog"
+        widget = getattr(self.dialog, name)
+        assert isinstance(widget, expected_type), \
+            f"'{name}' should be {expected_type.__name__}, " \
+            f"got {type(widget).__name__}"
