@@ -26,7 +26,7 @@ from qgis.PyQt.QtWidgets import (
     QTabWidget,
 )
 
-from ibtool.ibtool_dialog import IBToolDialog
+from ibtool.ibtool.ibtool_dialog import IBToolDialog
 from .utilities import get_qgis_app
 
 # QGIS must be initialised before any Qt widget is created
