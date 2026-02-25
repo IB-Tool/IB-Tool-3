@@ -383,12 +383,14 @@ class InputValidator:
         # Check field values: not empty, ATKIS format
         null_count = 0
         invalid_format = []
-        fkt_idx = layer.fields().indexFromName(fkt_field)
 
         for feature in layer.getFeatures():
-            val = feature[fkt_idx]
-            if val is None or str(val).strip() == "" or str(val) == "NULL":
+            val = feature[fkt_field]
+            if val is None or str(val).strip() in ("", "NULL"):
                 null_count += 1
+                continue
+            # "0" means no function code assigned — valid for uncategorised buildings, skip silently
+            if str(val).strip() == "0":
                 continue
             if not self.HU_FKT_PATTERN.match(str(val)):
                 if len(invalid_format) < 5:
