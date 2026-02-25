@@ -1,6 +1,10 @@
 # .coveragerc
 [run]
-source = ibtool
+source =
+    ibtool
+    ibtool_tools
+    helpers
+    scripts
 omit =
     */test/*
     */tests/*
