@@ -1,20 +1,29 @@
+import math
+from collections import defaultdict
+
 from qgis.core import (
     QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY,
     QgsField, QgsFields, QgsWkbTypes, QgsProject,
     QgsFeatureSink, QgsProcessingUtils, QgsCoordinateReferenceSystem,
-    QgsMessageLog, Qgis
+    QgsMessageLog, Qgis, QgsProcessing,
 )
-from PyQt5.QtCore import QVariant
-import math
-
-from qgis.core import QgsVectorLayer, QgsProcessing
+from qgis.PyQt.QtCore import QVariant
 from qgis import processing
 
-
-from collections import defaultdict
-
+from .geometry_utils import shp_area2, create_empty_layer
 from .system_utils import save_temp_layer_to_gpkg
 from .logger import Logger
+from .debug_utils import save_debug_layer
+from .safe_processing import safe_processing_run
+
+
+# ── EdgeCatch algorithm constants ─────────────────────────────────────────────
+DEBUG_TOOL_NAME = "03_EdgeCatch"   # Sub-folder name for debug output files
+
+ROAD_SEGMENT_LENGTH = 20    # Maximum segment length for road splitting (meters)
+ROAD_BUFFER_DISTANCE = 25   # Buffer radius for building-proximity check (meters)
+LINE_EXTEND_DISTANCE = 1    # Distance by which lines are extended before polygonizing (meters)
+AREA_FILTER_FACTOR = 2      # Candidate polygons larger than source_area × factor are discarded
 
 def create_shortest_lines_to_roads(point_layer, line_layer,
                                    plugin_instance=None):
@@ -194,8 +203,6 @@ def filter_ortho_lines(hu_ortho, min_lines_to_keep=2):
     Filtert die orthogonalen Linien basierend auf definierten Regeln.
     Gruppiert Linien die zu denselben 4 Eckpunkten eines Features gehören.
     """
-    import math
-    from collections import defaultdict
 
     filtered_layer = QgsVectorLayer(
         f"LineString?crs={hu_ortho.crs().authid()}",
@@ -620,3 +627,345 @@ def delete_first_point(layer):
     new_layer.dataProvider().addFeatures(features[1:])
 
     return new_layer
+
+
+# ── Road network preprocessing ────────────────────────────────────────────────
+
+def _normalize_node(point):
+    """Create a hashable node key with limited coordinate precision."""
+    return (round(point.x(), 8), round(point.y(), 8))
+
+
+def _build_minimized_lines_from_selection(road_network_sel, crs):
+    """Reduce a selected road network to the minimum number of line features.
+
+    Decomposes all polylines into vertex-to-vertex segments, removes duplicates,
+    builds an adjacency graph, and reassembles the segments into chains running
+    from one intersection/endpoint to the next.  Straight sequences of degree-2
+    nodes are merged into a single feature; closed rings with no dedicated
+    endpoint are handled in a second pass.
+
+    Args:
+        road_network_sel: QgsVectorLayer - pre-selected road line layer.
+        crs: QgsCoordinateReferenceSystem - CRS for the output layer.
+
+    Returns:
+        QgsVectorLayer - road lines reassembled as minimal chains.
+    """
+    if road_network_sel.featureCount() == 0:
+        return road_network_sel
+
+    unique_segments = {}
+    adjacency = defaultdict(set)
+
+    for feature in road_network_sel.getFeatures():
+        geometry = feature.geometry()
+        if not geometry or geometry.isEmpty():
+            continue
+
+        parts = geometry.asMultiPolyline() if geometry.isMultipart() else [geometry.asPolyline()]
+
+        for part in parts:
+            if len(part) < 2:
+                continue
+            for start, end in zip(part[:-1], part[1:]):
+                start_key = _normalize_node(start)
+                end_key = _normalize_node(end)
+                if start_key == end_key:
+                    continue
+
+                segment_key = tuple(sorted([start_key, end_key]))
+                if segment_key in unique_segments:
+                    continue
+
+                unique_segments[segment_key] = (start_key, end_key)
+                adjacency[start_key].add(end_key)
+                adjacency[end_key].add(start_key)
+
+    if not unique_segments:
+        return road_network_sel
+
+    visited_segments = set()
+    result_layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "road_network_reduced", "memory")
+    result_provider = result_layer.dataProvider()
+    result_provider.addAttributes([QgsField("src_count", QVariant.Int)])
+    result_layer.updateFields()
+
+    def traverse_chain(start_node, next_node):
+        chain = [start_node, next_node]
+        prev_node = start_node
+        curr_node = next_node
+
+        while len(adjacency[curr_node]) == 2:
+            candidates = [node for node in adjacency[curr_node] if node != prev_node]
+            if not candidates:
+                break
+            forward_node = candidates[0]
+            segment = tuple(sorted([curr_node, forward_node]))
+            if segment in visited_segments:
+                break
+            chain.append(forward_node)
+            prev_node = curr_node
+            curr_node = forward_node
+
+        return chain
+
+    start_nodes = [node for node, neighbors in adjacency.items() if len(neighbors) != 2]
+    if not start_nodes:
+        start_nodes = [next(iter(adjacency.keys()))]
+
+    features_to_add = []
+    for start_node in start_nodes:
+        for neighbor in adjacency[start_node]:
+            segment = tuple(sorted([start_node, neighbor]))
+            if segment in visited_segments:
+                continue
+
+            chain = traverse_chain(start_node, neighbor)
+            for a, b in zip(chain[:-1], chain[1:]):
+                visited_segments.add(tuple(sorted([a, b])))
+
+            new_feature = QgsFeature(result_layer.fields())
+            new_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in chain]))
+            new_feature["src_count"] = len(chain) - 1
+            features_to_add.append(new_feature)
+
+    # Handle closed rings that have no start/end node with degree != 2
+    for segment in unique_segments:
+        if segment in visited_segments:
+            continue
+        start_node, next_node = segment
+        chain = traverse_chain(start_node, next_node)
+        for a, b in zip(chain[:-1], chain[1:]):
+            visited_segments.add(tuple(sorted([a, b])))
+
+        new_feature = QgsFeature(result_layer.fields())
+        new_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in chain]))
+        new_feature["src_count"] = len(chain) - 1
+        features_to_add.append(new_feature)
+
+    result_provider.addFeatures(features_to_add)
+    return result_layer
+
+
+def filter_roads_near_buildings(road_network, hu_input, segment_length, buffer_distance,
+                                debug_mode=False, workspace_path=None):
+    """Filter road segments to only those adjacent to building footprints.
+
+    Splits the road network into segments of ``segment_length`` meters, stamps a
+    stable ``seg_id`` attribute onto each segment, creates a symmetric buffer of
+    ``buffer_distance`` around each segment, and retains only segments whose
+    buffer intersects at least one building footprint.  The match is done via
+    the ``seg_id`` attribute (not spatial overlap of the segments themselves) so
+    that neighbouring segments outside a qualifying buffer are never accidentally
+    included.
+
+    Debug checkpoint (when ``debug_mode`` is active):
+
+    - ``road_segs_near_buildings`` — road segments whose buffer touches a building
+
+    Args:
+        road_network: QgsVectorLayer - input road line layer.
+        hu_input: QgsVectorLayer - building footprints layer.
+        segment_length: float - maximum segment length in map units (meters).
+        buffer_distance: float - buffer radius in map units (meters) applied
+            symmetrically on both sides of each road segment.
+        debug_mode: If True, saves intermediate results as numbered GeoPackages.
+        workspace_path: Base path for debug output files.
+
+    Returns:
+        QgsVectorLayer - road segments that are adjacent to buildings.
+    """
+    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name=DEBUG_TOOL_NAME)
+
+    # Split road network into fixed-length segments
+    road_segs = safe_processing_run("native:splitlinesbylength", {
+        'INPUT': road_network,
+        'LENGTH': segment_length,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Stamp a stable integer ID onto each segment before buffering.
+    # native:buffer does not guarantee FID preservation, so a dedicated
+    # attribute field is the only reliable way to join buffers back to segments.
+    road_segs = safe_processing_run("native:fieldcalculator", {
+        'INPUT': road_segs,
+        'FIELD_NAME': 'seg_id',
+        'FIELD_TYPE': 1,       # Integer
+        'FIELD_LENGTH': 10,
+        'FORMULA': '$id',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Create a symmetric buffer around each segment.
+    # The buffer inherits the seg_id field from its source segment.
+    road_segs_buf = safe_processing_run("native:buffer", {
+        'INPUT': road_segs,
+        'DISTANCE': buffer_distance,
+        'SEGMENTS': 5,
+        'END_CAP_STYLE': 0,
+        'JOIN_STYLE': 0,
+        'MITER_LIMIT': 2,
+        'DISSOLVE': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Keep only buffers that intersect at least one building footprint
+    road_segs_buf_near_bdgs = safe_processing_run("native:extractbylocation", {
+        'INPUT': road_segs_buf,
+        'PREDICATE': [0],  # intersects
+        'INTERSECT': hu_input,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Collect the seg_id values of the qualifying buffers.
+    # Using the dedicated attribute field (not $id) makes the join independent
+    # of any internal FID handling by the Processing framework.
+    near_bdg_seg_ids = {f['seg_id'] for f in road_segs_buf_near_bdgs.getFeatures()}
+
+    if not near_bdg_seg_ids:
+        return road_segs_buf_near_bdgs  # empty layer with correct schema
+
+    # Select exactly the matching road segments by seg_id.
+    # This avoids any spatial bleed-over from the larger buffer geometry.
+    id_list = ", ".join(str(sid) for sid in near_bdg_seg_ids)
+    road_segs_near_bdgs = safe_processing_run("native:extractbyexpression", {
+        'INPUT': road_segs,
+        'EXPRESSION': f'"seg_id" IN ({id_list})',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    if debug_mode and workspace_path:
+        save_debug_layer(road_segs_near_bdgs, DEBUG_TOOL_NAME, "road_segs_near_buildings", workspace_path)
+
+    return road_segs_near_bdgs
+
+
+def process_single_feature(feature, road_network, bloecke, crs,
+                           debug_mode=False, workspace_path=None):
+    """Run the edge-catch pipeline for one grouped building feature.
+
+    Creates a temporary single-feature layer, projects the building outline onto
+    the adjacent road network via orthogonal lines, polygonizes the combined line
+    geometry, clips the result to the relevant city block, and returns only
+    polygons no larger than ``AREA_FILTER_FACTOR`` times the source area.
+
+    Args:
+        feature: QgsFeature - a single grouped building polygon; must already
+            have an ``Area`` attribute populated by ``shp_area2``.
+        road_network: QgsVectorLayer - pre-filtered road segment layer.
+        bloecke: QgsVectorLayer - city block polygon layer.
+        crs: QgsCoordinateReferenceSystem - CRS used for all temporary layers.
+        debug_mode: If True, saves intermediate results as numbered GeoPackages.
+        workspace_path: Base path for debug output files.
+
+    Returns:
+        QgsVectorLayer with candidate polygons, or None if the feature is skipped.
+    """
+    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name=DEBUG_TOOL_NAME)
+
+    fid = feature.id()
+    area = feature['Area']
+    if area is None or area == 0:
+        Logger.log(f"Feature {fid}: Area is None or 0, skipping", level="WARNING")
+        return None
+
+    # Create a temporary single-feature layer and repair its geometry
+    temp_layer = QgsVectorLayer(f"Polygon?crs={crs.authid()}", f"temp_feature_{fid}", "memory")
+    temp_layer.dataProvider().addFeatures([QgsFeature(feature)])
+    temp_layer = safe_processing_run("native:fixgeometries", {
+        'INPUT': temp_layer,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Extract outline vertices (first point removed to avoid closure duplication)
+    outline_points = safe_processing_run("native:extractvertices", {
+        'INPUT': temp_layer,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    outline_points = delete_first_point(outline_points)
+
+    # Find the city block(s) and road segments relevant to this feature
+    block_sel = safe_processing_run("native:extractbylocation", {
+        'INPUT': bloecke,
+        'PREDICATE': [0],  # intersects
+        'INTERSECT': outline_points,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    road_network_sel = safe_processing_run("native:extractbylocation", {
+        'INPUT': road_network,
+        'PREDICATE': [0],  # intersects
+        'INTERSECT': block_sel,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    road_network_sel = _build_minimized_lines_from_selection(road_network_sel, crs)
+
+    # Build orthogonal projection lines from the building outline to the roads
+    hu_ortho = create_shortest_lines_to_roads(outline_points, road_network_sel)
+    hu_ortho_filter = filter_ortho_lines(hu_ortho)
+
+    # Decompose the building polygon boundary into individual line segments
+    group_outline = safe_processing_run("native:polygonstolines", {
+        'INPUT': temp_layer,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    group_outline_split = safe_processing_run("native:explodelines", {
+        'INPUT': group_outline,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Merge all line inputs, extend slightly, repair geometry, then polygonize
+    lines_merged = safe_processing_run("native:mergevectorlayers", {
+        'LAYERS': [road_network_sel, hu_ortho_filter, group_outline_split],
+        'CRS': crs,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    lines_extended = safe_processing_run("native:extendlines", {
+        'INPUT': lines_merged,
+        'START_DISTANCE': LINE_EXTEND_DISTANCE,
+        'END_DISTANCE': LINE_EXTEND_DISTANCE,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    lines_fixed = safe_processing_run("native:fixgeometries", {
+        'INPUT': lines_extended,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    polygons = safe_processing_run("native:polygonize", {
+        'INPUT': lines_fixed,
+        'KEEP_FIELDS': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Keep only polygons overlapping the source feature and the city block
+    polygons_in_feature = safe_processing_run("native:extractbylocation", {
+        'INPUT': polygons,
+        'PREDICATE': [0],  # intersects
+        'INTERSECT': temp_layer,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+    polygons_in_block = safe_processing_run("native:intersection", {
+        'INPUT': polygons_in_feature,
+        'OVERLAY': block_sel,
+        'INPUT_FIELDS': [],
+        'OVERLAY_FIELDS': [],
+        'OVERLAY_FIELDS_PREFIX': '',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        'GRID_SIZE': None
+    }, **_dbg)['OUTPUT']
+    polygons_in_block = safe_processing_run("native:fixgeometries", {
+        'INPUT': polygons_in_block,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    # Discard polygons larger than AREA_FILTER_FACTOR × source area
+    shp_area2(polygons_in_block)
+    polygons_small = safe_processing_run("native:extractbyexpression", {
+        'INPUT': polygons_in_block,
+        'EXPRESSION': f'"Area" < {area * AREA_FILTER_FACTOR}',  # TODO: verify operator direction
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    return polygons_small
