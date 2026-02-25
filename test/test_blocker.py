@@ -9,11 +9,22 @@ from pathlib import Path
 from qgis.core import (
     QgsVectorLayer,
     QgsProject,
-    QgsWkbTypes,  # Wichtig: Import für Geometrietypen
+    QgsWkbTypes,
     QgsFeature,
+    QgsGeometry,
+    QgsPointXY,
+    QgsField,
 )
+from PyQt5.QtCore import QVariant
 from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
 
+# Private helpers under test
+from ibtool.ibtool_tools.Blocker import (
+    blocker,
+    _assign_block_names,
+    _remove_blocks_without_buildings,
+    _build_block_polygons,
+)
 
 # Import utilities for QGIS setup
 from .utilities import get_qgis_app
@@ -271,6 +282,7 @@ class TestBlockerIntegration:
             f"got {report['feature_count']['actual']}"
         )
 
+    @pytest.mark.integration
     def test_blocker_standard_case(self):
         """Haupttest mit Standard-Dummy-Daten"""
         self.logger.info("Running standard case test...")
@@ -294,6 +306,7 @@ class TestBlockerIntegration:
         # Compare with expected result
         self.assert_layers_similar(expected_result, result, "standard_case")
 
+    @pytest.mark.integration
     def test_blocker_geometry_validation(self):
         """Test der Geometriegültigkeit"""
         self.logger.info("Running geometry validation test...")
@@ -319,6 +332,7 @@ class TestBlockerIntegration:
             if feature.geometry():
                 assert feature.geometry().type() == QgsWkbTypes.PolygonGeometry, "All features should be polygons"
 
+    @pytest.mark.integration
     def test_blocker_spatial_relationships(self):
         """Test räumlicher Beziehungen"""
         self.logger.info("Running spatial relationships test...")
@@ -354,6 +368,7 @@ class TestBlockerIntegration:
 
         assert blocks_with_buildings > 0, "At least one block should contain buildings"
 
+    @pytest.mark.integration
     def test_blocker_attribute_correctness(self):
         """Test der Attributkorrektheit"""
         self.logger.info("Running attribute correctness test...")
@@ -382,6 +397,8 @@ class TestBlockerIntegration:
             assert name is not None, "NAME value should not be None"
             assert name.startswith('Block_'), f"NAME value '{name}' should start with 'Block_'"
 
+    @pytest.mark.integration
+    @pytest.mark.edge_case
     def test_blocker_with_empty_layers(self):
         """Test mit leeren Eingabe-Layern"""
         self.logger.info("Running empty layers test...")
@@ -408,6 +425,8 @@ class TestBlockerIntegration:
             # If function fails with empty inputs, that's acceptable
             self.logger.warning(f"Function failed with empty inputs: {e}")
 
+    @pytest.mark.integration
+    @pytest.mark.slow
     def test_blocker_performance(self):
         """Einfacher Performance-Test"""
         self.logger.info("Running performance test...")
@@ -438,7 +457,275 @@ class TestBlockerIntegration:
 
     @classmethod
     def teardown_class(cls):
-        """Cleanup nach allen Tests"""
-        if hasattr(cls, 'QGIS_APP') and cls.QGIS_APP:
-            cls.QGIS_APP.exitQgis()
+        """Cleanup nach allen Tests — QGIS-Instanz bleibt aktiv für weitere Tests."""
+        QgsProject.instance().clear()
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for _assign_block_names (no Processing algorithms required)
+# ---------------------------------------------------------------------------
+
+class TestAssignBlockNames:
+    """Unit tests for the _assign_block_names helper."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    def _make_polygon_layer(self, n: int = 3) -> QgsVectorLayer:
+        """Create an in-memory polygon layer with n simple square features."""
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "blocks", "memory")
+        feats = []
+        for i in range(n):
+            f = QgsFeature()
+            x = float(i * 10)
+            f.setGeometry(QgsGeometry.fromPolygonXY([[
+                QgsPointXY(x, 0), QgsPointXY(x + 9, 0),
+                QgsPointXY(x + 9, 9), QgsPointXY(x, 9),
+                QgsPointXY(x, 0),
+            ]]))
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        layer.updateExtents()
+        return layer
+
+    @pytest.mark.unit
+    def test_name_field_is_created_when_absent(self):
+        """NAME field must not exist before and must exist after the call."""
+        layer = self._make_polygon_layer()
+        assert layer.fields().indexFromName("NAME") < 0, "NAME must not exist yet"
+        _assign_block_names(layer)
+        assert layer.fields().indexFromName("NAME") >= 0
+
+    @pytest.mark.unit
+    def test_all_features_receive_name_value(self):
+        """Every feature gets a non-None NAME starting with 'Block_'."""
+        layer = self._make_polygon_layer(4)
+        _assign_block_names(layer)
+        for feat in layer.getFeatures():
+            val = feat["NAME"]
+            assert val is not None, "NAME must not be None"
+            assert str(val).startswith("Block_"), f"Expected Block_<id>, got '{val}'"
+
+    @pytest.mark.unit
+    def test_name_values_follow_block_id_pattern(self):
+        """NAME values must match 'Block_<integer>' exactly."""
+        import re
+        pattern = re.compile(r"^Block_\d+$")
+        layer = self._make_polygon_layer(3)
+        _assign_block_names(layer)
+        for feat in layer.getFeatures():
+            assert pattern.match(str(feat["NAME"])), f"Pattern mismatch: '{feat['NAME']}'"
+
+    @pytest.mark.unit
+    def test_name_values_are_unique(self):
+        """No two features share the same NAME value."""
+        layer = self._make_polygon_layer(5)
+        _assign_block_names(layer)
+        names = [feat["NAME"] for feat in layer.getFeatures()]
+        assert len(names) == len(set(names)), "Duplicate NAME values detected"
+
+    @pytest.mark.unit
+    def test_name_field_not_duplicated_when_already_present(self):
+        """If NAME field already exists, no second NAME field is added."""
+        layer = self._make_polygon_layer(2)
+        layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        layer.updateFields()
+        field_count_before = layer.fields().count()
+        _assign_block_names(layer)
+        assert layer.fields().count() == field_count_before, \
+            "NAME field must not be added twice"
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_empty_layer_no_crash(self):
+        """Calling on an empty layer must not raise and must add NAME field."""
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "empty", "memory")
+        _assign_block_names(layer)
+        assert layer.fields().indexFromName("NAME") >= 0
+        assert layer.featureCount() == 0
+
+
+# ---------------------------------------------------------------------------
+# Integration tests for _remove_blocks_without_buildings
+# ---------------------------------------------------------------------------
+
+class TestRemoveBlocksWithoutBuildings:
+    """Integration tests for _remove_blocks_without_buildings (needs Processing)."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    def _make_two_block_layer(self) -> QgsVectorLayer:
+        """Two non-overlapping polygon blocks — A at (0-100) and B at (200-300)."""
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "blocks", "memory")
+        geoms = [
+            QgsGeometry.fromPolygonXY([[      # Block A
+                QgsPointXY(0, 0), QgsPointXY(100, 0),
+                QgsPointXY(100, 100), QgsPointXY(0, 100), QgsPointXY(0, 0),
+            ]]),
+            QgsGeometry.fromPolygonXY([[      # Block B — far away
+                QgsPointXY(200, 200), QgsPointXY(300, 200),
+                QgsPointXY(300, 300), QgsPointXY(200, 300), QgsPointXY(200, 200),
+            ]]),
+        ]
+        feats = [QgsFeature() for _ in geoms]
+        for f, g in zip(feats, geoms):
+            f.setGeometry(g)
+        layer.dataProvider().addFeatures(feats)
+        layer.updateExtents()
+        return layer
+
+    def _make_building_in_block_a(self) -> QgsVectorLayer:
+        """Single building inside Block A (overlaps → intersects)."""
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "buildings", "memory")
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromPolygonXY([[
+            QgsPointXY(40, 40), QgsPointXY(60, 40),
+            QgsPointXY(60, 60), QgsPointXY(40, 60), QgsPointXY(40, 40),
+        ]]))
+        layer.dataProvider().addFeatures([f])
+        layer.updateExtents()
+        return layer
+
+    @pytest.mark.integration
+    def test_feature_count_reduced_to_one(self):
+        """Two blocks, one building — exactly one block must survive."""
+        blocks = self._make_two_block_layer()
+        buildings = self._make_building_in_block_a()
+        assert blocks.featureCount() == 2
+        _remove_blocks_without_buildings(blocks, buildings)
+        assert blocks.featureCount() == 1
+
+    @pytest.mark.integration
+    def test_surviving_block_is_the_one_with_building(self):
+        """The surviving block must be Block A (contains the building)."""
+        blocks = self._make_two_block_layer()
+        buildings = self._make_building_in_block_a()
+        _remove_blocks_without_buildings(blocks, buildings)
+        remaining = list(blocks.getFeatures())
+        assert len(remaining) == 1
+        centroid = remaining[0].geometry().centroid().asPoint()
+        # Block A centroid is around (50, 50); Block B is around (250, 250)
+        assert centroid.x() < 150, \
+            f"Expected Block A to survive (centroid ~50), got x={centroid.x()}"
+
+    @pytest.mark.integration
+    @pytest.mark.edge_case
+    def test_all_blocks_removed_when_buildings_layer_is_empty(self):
+        """When no buildings intersect any block, all blocks are removed."""
+        blocks = self._make_two_block_layer()
+        empty_buildings = QgsVectorLayer(
+            "Polygon?crs=EPSG:25833", "empty_buildings", "memory"
+        )
+        _remove_blocks_without_buildings(blocks, empty_buildings)
+        assert blocks.featureCount() == 0
+
+
+# ---------------------------------------------------------------------------
+# Integration tests for _build_block_polygons
+# ---------------------------------------------------------------------------
+
+class TestBuildBlockPolygons:
+    """Integration tests for _build_block_polygons using test data files."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+        cls.test_data_dir = Path(__file__).parent / "dummy_data"
+
+    def _load(self, filename: str) -> QgsVectorLayer:
+        path = str(self.test_data_dir / filename)
+        name = os.path.splitext(filename)[0]
+        layer = QgsVectorLayer(path, name, "ogr")
+        assert layer.isValid(), f"Could not load test data: {filename}"
+        return layer
+
+    @pytest.mark.integration
+    def test_returns_valid_qgsvectorlayer(self):
+        """_build_block_polygons returns a non-None, valid QgsVectorLayer."""
+        rn = self._load("dummy_rn.gpkg")
+        part = self._load("dummy_part.gpkg")
+        result = _build_block_polygons(rn, part)
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert result.isValid()
+
+    @pytest.mark.integration
+    def test_output_geometry_type_is_polygon(self):
+        """Output layer geometry type must be PolygonGeometry."""
+        rn = self._load("dummy_rn.gpkg")
+        part = self._load("dummy_part.gpkg")
+        result = _build_block_polygons(rn, part)
+        assert result.geometryType() == QgsWkbTypes.PolygonGeometry
+
+    @pytest.mark.integration
+    def test_produces_at_least_one_polygon(self):
+        """A road cutting through a partition must produce at least one block."""
+        rn = self._load("dummy_rn.gpkg")
+        part = self._load("dummy_part.gpkg")
+        result = _build_block_polygons(rn, part)
+        assert result.featureCount() > 0, "Expected at least one raw block polygon"
+
+
+# ---------------------------------------------------------------------------
+# Additional result-quality tests for the public blocker() function
+# ---------------------------------------------------------------------------
+
+class TestBlockerResultQuality:
+    """Additional output quality assertions for blocker() using real test data."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+        cls.test_data_dir = Path(__file__).parent / "dummy_data"
+
+        rn = QgsVectorLayer(str(cls.test_data_dir / "dummy_rn.gpkg"), "rn", "ogr")
+        hu = QgsVectorLayer(str(cls.test_data_dir / "dummy_hu.gpkg"), "hu", "ogr")
+        part = QgsVectorLayer(str(cls.test_data_dir / "dummy_part.gpkg"), "part", "ogr")
+        assert rn.isValid() and hu.isValid() and part.isValid()
+
+        cls.result = blocker(rn, hu, part)
+
+    @pytest.mark.integration
+    def test_result_feature_count_greater_zero(self):
+        """blocker() must return at least one block for real data."""
+        assert self.result.featureCount() > 0
+
+    @pytest.mark.integration
+    def test_no_null_geometries_in_result(self):
+        """No feature in the result layer may have a null geometry."""
+        for feat in self.result.getFeatures():
+            geom = feat.geometry()
+            assert not geom.isNull(), f"Null geometry found for FID {feat.id()}"
+            assert not geom.isEmpty(), f"Empty geometry found for FID {feat.id()}"
+
+    @pytest.mark.integration
+    def test_all_geometries_geos_valid(self):
+        """Every output geometry must pass GEOS validity check."""
+        for feat in self.result.getFeatures():
+            geom = feat.geometry()
+            if not geom.isNull():
+                assert geom.isGeosValid(), \
+                    f"Invalid geometry at FID {feat.id()}: {geom.validateGeometry()}"
+
+    @pytest.mark.integration
+    def test_all_name_values_are_unique(self):
+        """NAME attribute must be unique across all output blocks."""
+        names = [feat["NAME"] for feat in self.result.getFeatures()]
+        assert len(names) == len(set(names)), \
+            f"Duplicate NAME values: {[n for n in names if names.count(n) > 1]}"
+
+    @pytest.mark.integration
+    def test_debug_mode_true_does_not_crash(self, tmp_path):
+        """blocker() with debug_mode=True must not raise and must return a valid layer."""
+        test_data_dir = Path(__file__).parent / "dummy_data"
+        rn = QgsVectorLayer(str(test_data_dir / "dummy_rn.gpkg"), "rn", "ogr")
+        hu = QgsVectorLayer(str(test_data_dir / "dummy_hu.gpkg"), "hu", "ogr")
+        part = QgsVectorLayer(str(test_data_dir / "dummy_part.gpkg"), "part", "ogr")
+        result = blocker(rn, hu, part, debug_mode=True, workspace_path=str(tmp_path))
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert result.isValid()
 
