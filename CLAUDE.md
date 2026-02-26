@@ -104,6 +104,7 @@ For task-specific rules and deeper context, consult these files:
 | [plugin-architecture.md](docs/plugin-architecture.md) | Plugin structure, entry points, UI/logic separation, config files, CI/CD, input data |
 | [geometry-model.md](docs/geometry-model.md) | Geometry types, multipart handling, validation, CRS, topology |
 | [error-handling.md](docs/error-handling.md) | Logging system, error categories, safe_processing_run, debug mode overview |
+| [test-strategy.md](docs/test-strategy.md) | Holistic test strategy, taxonomy, coverage targets, gap backlog |
 
 ### `ai/core/` — Binding Rules for All Code Changes
 | File | Content |
