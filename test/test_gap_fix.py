@@ -42,31 +42,14 @@ from PyQt5.QtCore import QVariant
 from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import make_polygon_layer, make_square_geom, add_feature_to_layer
 
 from ibtool.ibtool_tools.GapFix import gap_fix
 
 
 # ---------------------------------------------------------------------------
-# Geometry / layer factory helpers
+# Domain-specific geometry helpers (not shared)
 # ---------------------------------------------------------------------------
-
-def _polygon_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """Empty in-memory polygon layer."""
-    layer = QgsVectorLayer(f"Polygon?crs={crs}", "test", "memory")
-    layer.updateFields()
-    return layer
-
-
-def _square(x0: float, y0: float, size: float) -> QgsGeometry:
-    """Axis-aligned square polygon."""
-    return QgsGeometry.fromPolygonXY([[
-        QgsPointXY(x0,        y0),
-        QgsPointXY(x0 + size, y0),
-        QgsPointXY(x0 + size, y0 + size),
-        QgsPointXY(x0,        y0 + size),
-        QgsPointXY(x0,        y0),
-    ]])
-
 
 def _square_with_hole(outer: float, hx: float, hy: float, hole: float) -> QgsGeometry:
     """Outer square with an interior square hole."""
@@ -83,14 +66,6 @@ def _square_with_hole(outer: float, hx: float, hy: float, hole: float) -> QgsGeo
         QgsPointXY(hx,        hy),
     ]
     return QgsGeometry.fromPolygonXY([outer_ring, hole_ring])
-
-
-def _add(layer: QgsVectorLayer, geom: QgsGeometry) -> QgsFeature:
-    feat = QgsFeature(layer.fields())
-    feat.setGeometry(geom)
-    layer.dataProvider().addFeatures([feat])
-    layer.updateExtents()
-    return feat
 
 
 def _total_area(layer: QgsVectorLayer) -> float:
@@ -113,7 +88,7 @@ class TestGapFixEarlyReturn:
     @pytest.mark.edge_case
     def test_empty_layer_returns_input_unchanged(self):
         """gap_fix on a valid but empty layer must return the input layer."""
-        layer = _polygon_layer()    # 0 features
+        layer = make_polygon_layer()    # 0 features
 
         result = gap_fix(layer)
 
@@ -144,8 +119,8 @@ class TestGapFixIntegration:
     @pytest.mark.integration
     def test_returns_valid_qgsvectorlayer(self):
         """gap_fix returns a non-None, valid QgsVectorLayer."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_fix(layer)
 
@@ -156,8 +131,8 @@ class TestGapFixIntegration:
     @pytest.mark.integration
     def test_result_has_at_least_one_feature(self):
         """Non-empty input must produce at least one output feature."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_fix(layer)
 
@@ -166,8 +141,8 @@ class TestGapFixIntegration:
     @pytest.mark.integration
     def test_no_null_or_empty_geometries_in_result(self):
         """No null or empty geometries in the output."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_fix(layer)
 
@@ -179,8 +154,8 @@ class TestGapFixIntegration:
     @pytest.mark.integration
     def test_result_geometries_are_geos_valid(self):
         """All output geometries must pass GEOS validity check."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_fix(layer)
 
@@ -203,8 +178,8 @@ class TestGapFixIntegration:
 
         gap_fix closes holes → expected output area ≈ 10 000 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square_with_hole(outer=100, hx=40, hy=40, hole=20))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, _square_with_hole(outer=100, hx=40, hy=40, hole=20))
         input_area = _total_area(layer)  # ≈ 9 600
 
         result = gap_fix(layer)
@@ -221,8 +196,8 @@ class TestGapFixIntegration:
 
         Setup: 100 × 100 = 10 000 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
         input_area = _total_area(layer)
 
         result = gap_fix(layer)
@@ -236,9 +211,9 @@ class TestGapFixIntegration:
     @pytest.mark.integration
     def test_gap_uid_field_present_in_result(self):
         """Output layer must contain a 'gap_uid' field."""
-        layer = _polygon_layer()
-        _add(layer, _square(0,   0, 100))
-        _add(layer, _square(108, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0,   0, 100))
+        add_feature_to_layer(layer, make_square_geom(108, 0, 100))
 
         result = gap_fix(layer, max_gap=10)
 
@@ -258,9 +233,9 @@ class TestGapFixIntegration:
 
         Expected total output area ≈ 10 000 + 10 000 + 800 = 20 800 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square(0,   0, 100))
-        _add(layer, _square(108, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0,   0, 100))
+        add_feature_to_layer(layer, make_square_geom(108, 0, 100))
         input_area = _total_area(layer)  # 20 000
 
         result = gap_fix(layer, max_gap=10)
@@ -280,9 +255,9 @@ class TestGapFixIntegration:
           Gap:      50 m wide
           max_gap = 10  →  2×10=20 < 50  →  gap NOT bridged
         """
-        layer = _polygon_layer()
-        _add(layer, _square(0,   0, 100))
-        _add(layer, _square(150, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0,   0, 100))
+        add_feature_to_layer(layer, make_square_geom(150, 0, 100))
         input_area = _total_area(layer)  # 20 000
 
         result = gap_fix(layer, max_gap=10)
@@ -298,8 +273,8 @@ class TestGapFixIntegration:
     @pytest.mark.integration
     def test_debug_mode_does_not_crash(self, tmp_path):
         """gap_fix with debug_mode=True must not raise an exception."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_fix(layer, workspace_path=str(tmp_path), debug_mode=True)
 
