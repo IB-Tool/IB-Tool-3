@@ -38,6 +38,7 @@ from PyQt5.QtCore import QVariant
 from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import make_polygon_layer, make_square_geom, add_feature_to_layer
 
 from ibtool.ibtool_tools.FootprintDensity import (
     footprint_density,
@@ -47,36 +48,12 @@ from ibtool.ibtool_tools.FootprintDensity import (
 
 
 # ---------------------------------------------------------------------------
-# Geometry / layer factory helpers
+# Domain-specific layer helpers
 # ---------------------------------------------------------------------------
-
-def _polygon_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """Empty in-memory polygon layer."""
-    return QgsVectorLayer(f"Polygon?crs={crs}", "test", "memory")
-
-
-def _square(x0: float, y0: float, size: float) -> QgsGeometry:
-    """Axis-aligned square polygon."""
-    return QgsGeometry.fromPolygonXY([[
-        QgsPointXY(x0,        y0),
-        QgsPointXY(x0 + size, y0),
-        QgsPointXY(x0 + size, y0 + size),
-        QgsPointXY(x0,        y0 + size),
-        QgsPointXY(x0,        y0),
-    ]])
-
-
-def _add(layer: QgsVectorLayer, geom: QgsGeometry) -> QgsFeature:
-    feat = QgsFeature(layer.fields())
-    feat.setGeometry(geom)
-    layer.dataProvider().addFeatures([feat])
-    layer.updateExtents()
-    return feat
-
 
 def _block_layer_with_name(crs: str = "EPSG:25833") -> QgsVectorLayer:
     """City block layer with a NAME field (required by footprint_density)."""
-    layer = _polygon_layer(crs)
+    layer = make_polygon_layer(crs)
     layer.dataProvider().addAttributes([QgsField("NAME", QVariant.Int)])
     layer.updateFields()
     return layer
@@ -85,7 +62,7 @@ def _block_layer_with_name(crs: str = "EPSG:25833") -> QgsVectorLayer:
 def _add_named_block(layer: QgsVectorLayer, x0: float, y0: float,
                      size: float, name: int):
     feat = QgsFeature(layer.fields())
-    feat.setGeometry(_square(x0, y0, size))
+    feat.setGeometry(make_square_geom(x0, y0, size))
     feat.setAttribute("NAME", name)
     layer.dataProvider().addFeatures([feat])
     layer.updateExtents()
@@ -93,11 +70,11 @@ def _add_named_block(layer: QgsVectorLayer, x0: float, y0: float,
 
 def _building_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
     """Multiple small buildings arranged in a grid."""
-    layer = _polygon_layer(crs)
+    layer = make_polygon_layer(crs)
     for i in range(16):
         x = float((i % 4) * 20 + 5)
         y = float((i // 4) * 20 + 5)
-        _add(layer, _square(x, y, 10))
+        add_feature_to_layer(layer, make_square_geom(x, y, 10))
     return layer
 
 
