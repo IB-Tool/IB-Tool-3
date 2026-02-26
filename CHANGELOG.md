@@ -5,6 +5,13 @@ All notable changes to IBTool will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 2026-02-26
+
+### Added
+- **Tests**: Added test coverage for six previously untested `helpers/` modules — `test_safe_processing.py` (success path, geometry-repair flow, debug-mode), `test_mst_utils.py` (`unique_items`, `rounded_edge_key`, `join_array_to_polygons`, `polygon_support_points_dict`), `test_debug_utils.py` (`_next_debug_index`, `save_debug_layer`, `save_debug_features`), `test_geometry_utils.py` (`create_empty_layer`, `create_linestring_layer_from_array`, `shp_area2`, `get_hole_polygons`), `test_edge_catch_utils.py` (`_normalize_node`, `apply_filter_rules`, `build_catch_polygon`, `project_point_to_line`, `create_shortest_lines_to_roads` validation); extended `test_manage_directory.py` with `save_temp_layer_to_gpkg`, `copy_shapefile`, `get_feature_count`, and `version_check` tests.
+
+---
+
 ## 2026-02-25
 
 ### Added
