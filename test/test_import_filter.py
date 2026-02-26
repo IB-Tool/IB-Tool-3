@@ -40,22 +40,18 @@ from PyQt5.QtCore import QVariant
 from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import make_polygon_layer
 
 from ibtool.ibtool_tools.ImportFilter import import_filter, input_hu_filter
 
 
 # ---------------------------------------------------------------------------
-# Geometry / layer factory helpers
+# Domain-specific layer helpers
 # ---------------------------------------------------------------------------
-
-def _polygon_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """Empty in-memory polygon layer."""
-    return QgsVectorLayer(f"Polygon?crs={crs}", "test", "memory")
-
 
 def _polygon_layer_with_field(field_name: str, crs: str = "EPSG:25833") -> QgsVectorLayer:
     """In-memory polygon layer with a single string field."""
-    layer = _polygon_layer(crs)
+    layer = make_polygon_layer(crs)
     layer.dataProvider().addAttributes([QgsField(field_name, QVariant.String)])
     layer.updateFields()
     return layer
@@ -121,7 +117,7 @@ class TestImportFilter:
     def test_missing_fkt_and_funktion_field_raises_exception(self, tmp_path):
         """Layer without 'fkt' or 'funktion' field must raise Exception."""
         filter_path = _write_filter_file(tmp_path / "f.txt", ["1010"], [])
-        layer = _polygon_layer()   # no fkt/funktion field
+        layer = make_polygon_layer()   # no fkt/funktion field
 
         with pytest.raises(Exception, match="weder.*fkt.*funktion"):
             import_filter(filter_path, layer)

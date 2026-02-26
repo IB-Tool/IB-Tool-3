@@ -107,3 +107,42 @@ class TestLogger:
         assert self.logger_mod.Logger._qgis_level('WARNING') == DummyQgis.Warning
         assert self.logger_mod.Logger._qgis_level('CRITICAL') == DummyQgis.Critical
         assert self.logger_mod.Logger._qgis_level('SUCCESS') == DummyQgis.Success
+
+    def test_warning_routed_to_qgis_warning_level(self):
+        """log(..., level='WARNING') routes to QgsMessageLog with Qgis.Warning."""
+        DummyQgsMessageLog.logs.clear()
+        self.logger.log('test warning', level='WARNING')
+        assert DummyQgsMessageLog.logs[-1] == ('test warning', 'IBTool', DummyQgis.Warning)
+
+    def test_critical_routed_to_qgis_critical_level(self):
+        """log(..., level='CRITICAL') routes to QgsMessageLog with Qgis.Critical."""
+        DummyQgsMessageLog.logs.clear()
+        self.logger.log('test critical', level='CRITICAL')
+        assert DummyQgsMessageLog.logs[-1] == ('test critical', 'IBTool', DummyQgis.Critical)
+
+    def test_log_file_formatter_produces_expected_format(self):
+        """File handler formatter produces 'LEVELNAME HH:MM:SS - message' lines."""
+        import logging as _logging
+        handler = self.logger_mod.Logger.file_handler
+        record = _logging.LogRecord(
+            name='test', level=_logging.INFO,
+            pathname='', lineno=0,
+            msg='format check', args=(), exc_info=None,
+        )
+        line = handler.formatter.format(record)
+        assert line.startswith('INFO '), f"Expected line to start with 'INFO ', got: {line!r}"
+        assert ' - format check' in line, f"Expected ' - format check' in line, got: {line!r}"
+
+    def test_close_logger_called_twice_does_not_raise(self):
+        """close_logger() is idempotent — calling it twice must not raise."""
+        self.logger_mod.Logger.close_logger()
+        self.logger_mod.Logger.close_logger()
+
+    def test_log_without_message_box_calls_msg(self):
+        """When no message box is set, log() calls msg() with a level-prefixed message."""
+        self.logger_mod.Logger.message_box = None
+        before = len(self.dummy_msg.messages)
+        self.logger.log('no box message', level='INFO')
+        assert len(self.dummy_msg.messages) > before
+        last_text = self.dummy_msg.messages[-1][0]
+        assert last_text == 'INFO: no box message'

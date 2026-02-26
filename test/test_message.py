@@ -53,3 +53,25 @@ class TestMessage:
         self.message_mod.msg(123, level=DummyQgis.Warning)
         assert DummyQgsMessageLog.logs[-1] == ('123', 'Meldungen', DummyQgis.Warning)
 
+    def test_msg_without_message_box_does_not_raise(self):
+        """msg() works standalone — it requires no Logger message box to function."""
+        # msg() delegates directly to QgsMessageLog; no additional setup must be needed
+        try:
+            self.message_mod.msg('standalone call')
+        except Exception as exc:
+            raise AssertionError(f"msg() raised unexpectedly: {exc}")
+        assert DummyQgsMessageLog.logs[-1][0] == 'standalone call'
+
+    def test_msg_empty_string(self):
+        """msg('') does not raise and logs an empty string."""
+        DummyQgsMessageLog.logs.clear()
+        self.message_mod.msg('')
+        assert len(DummyQgsMessageLog.logs) == 1
+        assert DummyQgsMessageLog.logs[-1][0] == ''
+
+    def test_msg_none_coerced_to_string(self):
+        """msg(None) coerces the value to the string 'None' before logging."""
+        DummyQgsMessageLog.logs.clear()
+        self.message_mod.msg(None)
+        assert DummyQgsMessageLog.logs[-1][0] == 'None'
+

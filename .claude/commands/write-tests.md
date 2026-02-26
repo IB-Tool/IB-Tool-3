@@ -22,7 +22,8 @@ Read the file completely. Identify:
 - Input parameters and their types
 - Return values and their types
 - Error conditions and how they are handled
-- Any calls to `processing.run()` or `safe_processing_run()`
+- Any calls to `processing.run()` or `safe_processing_run()` — these determine the tier (see Step 3)
+- Whether the module has a `debug_mode` parameter
 
 ## Step 2 — Check for existing tests
 
@@ -33,97 +34,132 @@ Search `test/` for an existing test file for `$ARGUMENTS`:
 If a test file **exists**: extend it, do not replace it.
 If no test file exists: create `test/test_<snake_case_name>.py`.
 
+Also check `docs/test-strategy.md` §6 (Module-to-Test Mapping) to understand the current test count and documented gaps for this module.
+
 ## Step 3 — Consult project rules (mandatory)
 
-Read these three files before writing any code:
-- `ai/core/testing-rules.md`
-- `ai/core/qgis-api-rules.md`
-- `ai/domain/geometry-validation.md`
+Read **all** of these files before writing any code:
 
-Also read `test/utilities.py` and `test/conftest.py` to understand the QGIS setup.
+1. `docs/test-strategy.md` — **authoritative reference**: tier definitions, coverage targets, module mapping, gap backlog, edge case catalog, fixture scope rules
+2. `ai/core/testing-rules.md` — tactical rules: geometry checks, structure, framework
+3. `ai/core/qgis-api-rules.md` — QGIS API compatibility rules
+4. `ai/domain/geometry-validation.md` — null/empty/validity check patterns
+
+Also read:
+- `test/utilities.py` — QGIS app initialisation helper
+- `test/layer_factories.py` — shared factory functions (import AFTER `get_qgis_app()`)
 
 For an example of a well-structured test file, read `test/test_blocker.py`.
 
+If the module under test is in `ibtool_tools/CreateMST.py`, `helpers/mst_utils.py`, or `ibtool_tools/MST_Clustering.py`, also read `ai/domain/mst-testing.md`.
+
 ## Step 4 — Write the test file
+
+### Tier decision (from `docs/test-strategy.md` §2.2 and §3)
+
+```
+Does the function under test call processing.run()?
+├── No  → @pytest.mark.unit
+└── Yes → @pytest.mark.integration  (requires Docker / local QGIS)
+
+Is this a boundary or degenerate input?
+└── Yes → additionally add @pytest.mark.edge_case
+
+Will the test use >50 features or measure time/memory?
+└── Yes → additionally add @pytest.mark.performance AND @pytest.mark.slow
+```
 
 ### Required structure
 
 ```python
 import pytest
-from unittest.mock import Mock, patch
 from qgis.core import (
-    QgsVectorLayer, QgsFeature, QgsGeometry, QgsField,
-    QgsCoordinateReferenceSystem, QgsPointXY
+    QgsVectorLayer, QgsFeature, QgsGeometry,
+    QgsCoordinateReferenceSystem, QgsPointXY,
 )
-from PyQt5.QtCore import QVariant
-from test.utilities import get_qgis_app
 
-# Import the module under test (adjust path as needed)
-from ibtool.ibtool_tools.$ARGUMENTS import ...
+from .utilities import get_qgis_app
+
+QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import make_polygon_layer, make_line_layer, make_square_geom, add_feature_to_layer
+
+from ibtool.ibtool_tools.$ARGUMENTS import <function_or_class>
 
 
 class Test$ARGUMENTS:
+    """Tests for <module_name>.<function_or_class>."""
+
+    CRS_ID = "EPSG:25833"
 
     @classmethod
     def setup_class(cls):
-        cls.qgis_app, cls.canvas, cls.iface, cls.parent = get_qgis_app()
+        cls.crs = QgsCoordinateReferenceSystem(cls.CRS_ID)
 
-    # --- Fixtures ---
+    # --- domain-specific helpers (only if not covered by conftest factories) ---
 
-    @staticmethod
-    def _create_test_layer(crs_epsg: str = "EPSG:25833") -> QgsVectorLayer:
-        """Create a minimal in-memory polygon layer for testing."""
-        layer = QgsVectorLayer(f"Polygon?crs={crs_epsg}", "test_layer", "memory")
-        provider = layer.dataProvider()
-        provider.addAttributes([
-            QgsField("id", QVariant.Int),
-        ])
-        layer.updateFields()
-        assert layer.isValid(), "Test layer must be valid"
-        return layer
+    # --- tests ---
 
-    # --- Tests ---
-
+    @pytest.mark.unit          # or @pytest.mark.integration
     def test_normal_case(self):
-        """Test standard behavior with valid input."""
-        ...
-
-    def test_empty_input(self):
-        """Test behavior when input layer has no features."""
-        ...
-
-    def test_invalid_geometry(self):
-        """Test behavior with null or invalid geometry."""
+        """<Imperative description of what this test verifies.>"""
         ...
 ```
 
-### Required geometry assertions
+**Important:** Import shared factories from `layer_factories.py` instead of defining local equivalents. Only define local helpers for domain-specific geometry layouts (e.g. `_make_two_block_layer()`). The import must come AFTER `get_qgis_app()` — never before, and never from `conftest.py`.
 
-Always assert after any geometry operation:
+**QgsVectorLayer scope:** Always create layers inside test methods, never at class level. Layers are mutable — sharing them across tests causes interference (see `docs/test-strategy.md` §5.2).
+
+### Required geometry assertions (mandatory after every geometry operation)
+
 ```python
-assert not geom.isNull(), "Geometry must not be null"
-assert not geom.isEmpty(), "Geometry must not be empty"
-assert geom.isGeosValid(), "Geometry must be GEOS-valid"
+assert result_layer is not None
+assert result_layer.featureCount() > 0          # or == expected_count
+for feat in result_layer.getFeatures():
+    geom = feat.geometry()
+    assert not geom.isNull(),   "Geometry must not be null"
+    assert not geom.isEmpty(),  "Geometry must not be empty"
+    assert geom.isGeosValid(),  "Geometry must be GEOS-valid"
 ```
-
-### Required pytest markers
-
-- `@pytest.mark.integration` — tests that run QGIS Processing algorithms
-- `@pytest.mark.unit` — tests for pure Python logic without Processing
-- `@pytest.mark.slow` — tests that take more than 5 seconds
-- `@pytest.mark.edge_case` — empty input, null geometry, zero features
 
 ### Mandatory test cases (minimum)
 
-1. **Normal case** — valid input, check output is not None, geometry is valid
-2. **Empty layer** — input with 0 features, verify graceful handling (no crash)
-3. **Invalid/null geometry** — at least one feature with null geometry, verify no crash
-4. At least one **edge case** relevant to the module's domain logic
+1. **Normal case** — valid input; check return value, feature count, geometry validity
+2. **Empty input layer** — 0 features; verify graceful handling (no crash, defined return)
+3. **Null geometry on one feature** — layer with one null-geometry feature; verify no crash
+4. At least one **domain-specific edge case** (`@pytest.mark.edge_case`) from this catalog:
+   - Layer with 0 features after filtering
+   - Mismatched CRS between inputs
+   - Multipart geometry where singlepart is expected
+   - Partition ID `-1` (unassigned features in Blocker output)
+
+### debug_mode invariant (mandatory if the module has debug_mode)
+
+If the module accepts a `debug_mode` parameter, add this test:
+
+```python
+@pytest.mark.integration
+def test_debug_mode_does_not_change_result(self, tmp_path):
+    """Debug mode produces same feature count as non-debug mode."""
+    result_normal = tool_function(sample_layer, debug_mode=False)
+    result_debug  = tool_function(sample_layer, debug_mode=True,
+                                  workspace_path=str(tmp_path))
+    assert result_debug.featureCount() == result_normal.featureCount()
+```
+
+### Docstring rule (mandatory)
+
+Every test method must have a one-line docstring in the imperative mood:
+
+```python
+def test_gap_is_closed_when_below_threshold(self):
+    """Closes gaps smaller than the threshold distance."""
+```
 
 ## Step 5 — Output
 
 Report:
 1. Path of the created/modified test file
 2. List of test methods written and what each covers
-3. Which test markers were applied and why
-4. Any assumptions made about expected behavior (if the module's behavior was unclear)
+3. Which tier markers were applied and why
+4. Whether the `debug_mode` invariant was tested
+5. Any assumptions made about expected behavior (if the module's behavior was unclear)

@@ -21,7 +21,10 @@
       "Bash(git -C \"C:/Users/Oliver/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/ibtool\" log --oneline -5 -- ibtool_tools/AddSingleBuilding.py)",
       "Bash(git -C \"C:/Users/Oliver/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/ibtool\" diff master..HEAD -- ibtool_tools/AddSingleBuilding.py)",
       "WebFetch(domain:docs.codecov.com)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

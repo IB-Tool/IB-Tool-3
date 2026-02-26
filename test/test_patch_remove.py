@@ -28,38 +28,9 @@ from qgis.core import (
 from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import make_polygon_layer, make_square_geom, add_feature_to_layer
 
 from ibtool.ibtool_tools.PatchRemove import patch_remove
-
-
-# ---------------------------------------------------------------------------
-# Geometry / layer factory helpers
-# ---------------------------------------------------------------------------
-
-def _polygon_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """Empty in-memory polygon layer."""
-    layer = QgsVectorLayer(f"Polygon?crs={crs}", "test", "memory")
-    layer.updateFields()
-    return layer
-
-
-def _square(x0: float, y0: float, size: float) -> QgsGeometry:
-    """Axis-aligned square polygon."""
-    return QgsGeometry.fromPolygonXY([[
-        QgsPointXY(x0,        y0),
-        QgsPointXY(x0 + size, y0),
-        QgsPointXY(x0 + size, y0 + size),
-        QgsPointXY(x0,        y0 + size),
-        QgsPointXY(x0,        y0),
-    ]])
-
-
-def _add(layer: QgsVectorLayer, geom: QgsGeometry) -> QgsFeature:
-    feat = QgsFeature(layer.fields())
-    feat.setGeometry(geom)
-    layer.dataProvider().addFeatures([feat])
-    layer.updateExtents()
-    return feat
 
 
 # ---------------------------------------------------------------------------
@@ -77,25 +48,25 @@ class TestPatchRemove:
 
     # --- helpers ---
 
-    def _large_polygon_layer(self) -> QgsVectorLayer:
+    def _largemake_polygon_layer(self) -> QgsVectorLayer:
         """Single polygon 200 × 200 m = 40 000 m²."""
-        layer = _polygon_layer(self.CRS_ID)
-        _add(layer, _square(0, 0, 200))
+        layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(layer, make_square_geom(0, 0, 200))
         return layer
 
-    def _small_polygon_layer(self) -> QgsVectorLayer:
+    def _smallmake_polygon_layer(self) -> QgsVectorLayer:
         """Single polygon 50 × 50 m = 2 500 m²."""
-        layer = _polygon_layer(self.CRS_ID)
-        _add(layer, _square(0, 0, 50))
+        layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(layer, make_square_geom(0, 0, 50))
         return layer
 
     def _building_layer(self, count: int = 25) -> QgsVectorLayer:
         """Grid of `count` small (8 × 8 m) buildings."""
-        layer = _polygon_layer(self.CRS_ID)
+        layer = make_polygon_layer(self.CRS_ID)
         for i in range(count):
             x = float((i % 10) * 15)
             y = float((i // 10) * 15)
-            _add(layer, _square(x, y, 8))
+            add_feature_to_layer(layer, make_square_geom(x, y, 8))
         return layer
 
     # --- integration tests ---
@@ -104,7 +75,7 @@ class TestPatchRemove:
     def test_returns_valid_qgsvectorlayer(self):
         """patch_remove returns a non-None, valid QgsVectorLayer."""
         result = patch_remove(
-            self._large_polygon_layer(),
+            self._largemake_polygon_layer(),
             self._building_layer(25),
             self.crs,
             workspace_path=None,
@@ -119,7 +90,7 @@ class TestPatchRemove:
     def test_result_has_polygon_geometry(self):
         """Output geometry type must be PolygonGeometry."""
         result = patch_remove(
-            self._large_polygon_layer(),
+            self._largemake_polygon_layer(),
             self._building_layer(25),
             self.crs,
             workspace_path=None,
@@ -135,8 +106,8 @@ class TestPatchRemove:
         """Polygon below min_patch_size with no buildings must be filtered out."""
         # 2 500 m² polygon, 0 buildings, threshold 10 000 m²
         result = patch_remove(
-            self._small_polygon_layer(),
-            _polygon_layer(self.CRS_ID),     # 0 buildings
+            self._smallmake_polygon_layer(),
+            make_polygon_layer(self.CRS_ID),     # 0 buildings
             self.crs,
             workspace_path=None,
             min_patch_size=10_000,
@@ -151,8 +122,8 @@ class TestPatchRemove:
     def test_empty_building_layer_is_handled_gracefully(self):
         """patch_remove must not crash when the building layer is empty."""
         result = patch_remove(
-            self._large_polygon_layer(),
-            _polygon_layer(self.CRS_ID),     # 0 buildings
+            self._largemake_polygon_layer(),
+            make_polygon_layer(self.CRS_ID),     # 0 buildings
             self.crs,
             workspace_path=None,
             min_patch_size=5000,
@@ -165,7 +136,7 @@ class TestPatchRemove:
     def test_large_polygon_with_many_buildings_produces_output(self):
         """Large polygon with enough buildings must appear in the result."""
         result = patch_remove(
-            self._large_polygon_layer(),     # 40 000 m²
+            self._largemake_polygon_layer(),     # 40 000 m²
             self._building_layer(30),
             self.crs,
             workspace_path=None,
@@ -183,7 +154,7 @@ class TestPatchRemove:
     def test_no_null_geometries_in_result(self):
         """All output geometries must be non-null and non-empty."""
         result = patch_remove(
-            self._large_polygon_layer(),
+            self._largemake_polygon_layer(),
             self._building_layer(25),
             self.crs,
             workspace_path=None,
