@@ -41,31 +41,14 @@ from qgis.core import (
 from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import make_polygon_layer, make_square_geom, add_feature_to_layer
 
 from ibtool.ibtool_tools.GapClose import gap_close, gap_close_in_holes
 
 
 # ---------------------------------------------------------------------------
-# Geometry / layer factory helpers
+# Domain-specific geometry helpers (not shared)
 # ---------------------------------------------------------------------------
-
-def _polygon_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """Empty in-memory polygon layer."""
-    layer = QgsVectorLayer(f"Polygon?crs={crs}", "test", "memory")
-    layer.updateFields()
-    return layer
-
-
-def _square(x0: float, y0: float, size: float) -> QgsGeometry:
-    """Axis-aligned square polygon."""
-    return QgsGeometry.fromPolygonXY([[
-        QgsPointXY(x0,        y0),
-        QgsPointXY(x0 + size, y0),
-        QgsPointXY(x0 + size, y0 + size),
-        QgsPointXY(x0,        y0 + size),
-        QgsPointXY(x0,        y0),
-    ]])
-
 
 def _square_with_hole(outer: float,
                       hx: float, hy: float, hole: float) -> QgsGeometry:
@@ -83,14 +66,6 @@ def _square_with_hole(outer: float,
         QgsPointXY(hx,        hy),
     ]
     return QgsGeometry.fromPolygonXY([outer_ring, hole_ring])
-
-
-def _add(layer: QgsVectorLayer, geom: QgsGeometry) -> QgsFeature:
-    feat = QgsFeature(layer.fields())
-    feat.setGeometry(geom)
-    layer.dataProvider().addFeatures([feat])
-    layer.updateExtents()
-    return feat
 
 
 def _total_area(layer: QgsVectorLayer) -> float:
@@ -116,8 +91,8 @@ def _block_layer(crs: str = "EPSG:25833",
                  x0: float = -100, y0: float = -100,
                  size: float = 600) -> QgsVectorLayer:
     """Single large block covering the entire test area."""
-    layer = _polygon_layer(crs)
-    _add(layer, _square(x0, y0, size))
+    layer = make_polygon_layer(crs)
+    add_feature_to_layer(layer, make_square_geom(x0, y0, size))
     return layer
 
 
@@ -131,8 +106,8 @@ class TestGapCloseInHoles:
     @pytest.mark.integration
     def test_result_is_valid_qgsvectorlayer(self):
         """gap_close_in_holes returns a non-None, valid QgsVectorLayer."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_close_in_holes(layer)
 
@@ -146,8 +121,8 @@ class TestGapCloseInHoles:
 
         Setup: 100 × 100 = 10 000 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
         input_area = _total_area(layer)
 
         result = gap_close_in_holes(layer)
@@ -167,8 +142,8 @@ class TestGapCloseInHoles:
 
         Expected: hole area (900 m²) added back → result ≈ 10 000 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square_with_hole(outer=100, hx=35, hy=35, hole=30))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, _square_with_hole(outer=100, hx=35, hy=35, hole=30))
         input_area = _total_area(layer)  # ≈ 9 100
 
         result = gap_close_in_holes(layer, buffer_dist=15)
@@ -189,8 +164,8 @@ class TestGapCloseInHoles:
 
         Expected: result_area ≈ 9 775 m² (hole kept)
         """
-        layer = _polygon_layer()
-        _add(layer, _square_with_hole(outer=100, hx=42, hy=42, hole=15))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, _square_with_hole(outer=100, hx=42, hy=42, hole=15))
         input_area = _total_area(layer)  # ≈ 9 775
 
         result = gap_close_in_holes(layer, buffer_dist=15)
@@ -203,8 +178,8 @@ class TestGapCloseInHoles:
     @pytest.mark.integration
     def test_result_geometries_are_geos_valid(self):
         """All output geometries must pass GEOS validity check."""
-        layer = _polygon_layer()
-        _add(layer, _square_with_hole(outer=100, hx=35, hy=35, hole=30))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, _square_with_hole(outer=100, hx=35, hy=35, hole=30))
 
         result = gap_close_in_holes(layer)
 
@@ -215,7 +190,7 @@ class TestGapCloseInHoles:
     @pytest.mark.edge_case
     def test_empty_layer_returns_valid_result(self):
         """gap_close_in_holes on empty layer must not crash."""
-        layer = _polygon_layer()
+        layer = make_polygon_layer()
 
         result = gap_close_in_holes(layer)
 
@@ -225,8 +200,8 @@ class TestGapCloseInHoles:
     @pytest.mark.integration
     def test_debug_mode_does_not_crash(self, tmp_path):
         """gap_close_in_holes with debug_mode=True must not raise."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_close_in_holes(
             layer, workspace_path=str(tmp_path), debug_mode=True
@@ -252,8 +227,8 @@ class TestGapClose:
     @pytest.mark.integration
     def test_returns_valid_qgsvectorlayer(self):
         """gap_close returns a non-None, valid QgsVectorLayer."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_close(
             layer, _block_layer(), max_hole_size=1000, max_gap_size=5000,
@@ -267,8 +242,8 @@ class TestGapClose:
     @pytest.mark.integration
     def test_result_has_at_least_one_feature(self):
         """Non-empty input must produce at least one output feature."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_close(
             layer, _block_layer(), max_hole_size=1000, max_gap_size=5000,
@@ -280,8 +255,8 @@ class TestGapClose:
     @pytest.mark.integration
     def test_result_geometries_are_geos_valid(self):
         """All output geometries must pass GEOS validity check."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_close(
             layer, _block_layer(), max_hole_size=1000, max_gap_size=5000,
@@ -297,8 +272,8 @@ class TestGapClose:
 
         Input: 200 × 200 m = 40 000 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 200))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 200))
         input_area = _total_area(layer)
 
         result = gap_close(
@@ -322,9 +297,9 @@ class TestGapClose:
 
         Expected: result area > 80 000 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square(0,   0, 200))
-        _add(layer, _square(215, 0, 200))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0,   0, 200))
+        add_feature_to_layer(layer, make_square_geom(215, 0, 200))
         input_area = _total_area(layer)  # 80 000
 
         blocks = _block_layer(x0=-50, y0=-50, size=500)
@@ -348,8 +323,8 @@ class TestGapClose:
 
         Expected: result area ≈ 10 000 m²
         """
-        layer = _polygon_layer()
-        _add(layer, _square_with_hole(outer=100, hx=40, hy=40, hole=20))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, _square_with_hole(outer=100, hx=40, hy=40, hole=20))
         input_area = _total_area(layer)  # ≈ 9 600
 
         blocks = _block_layer()
@@ -367,7 +342,7 @@ class TestGapClose:
     @pytest.mark.edge_case
     def test_empty_input_handled_gracefully(self):
         """gap_close on an empty layer must not crash."""
-        layer = _polygon_layer()
+        layer = make_polygon_layer()
 
         result = gap_close(
             layer, _block_layer(), max_hole_size=1000, max_gap_size=5000,
@@ -380,8 +355,8 @@ class TestGapClose:
     @pytest.mark.integration
     def test_debug_mode_does_not_crash(self, tmp_path):
         """gap_close with debug_mode=True must not raise an exception."""
-        layer = _polygon_layer()
-        _add(layer, _square(0, 0, 100))
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 100))
 
         result = gap_close(
             layer, _block_layer(), max_hole_size=1000, max_gap_size=5000,
