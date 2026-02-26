@@ -13,7 +13,16 @@ Unit tests cover:
 Integration tests cover:
   - returns a valid QgsVectorLayer
   - output geometry type is PolygonGeometry
+  - all output geometries are GEOS-valid
+  - road between groups triggers snapping algorithm (non-empty output)
   - debug_mode=True does not raise
+  - debug_mode does not change feature count (invariant)
+
+Edge case tests cover:
+  - road layer with mismatched CRS does not crash
+
+Performance tests cover:
+  - 100 road segments complete within 30 seconds
 """
 
 import pytest
@@ -30,45 +39,9 @@ from .utilities import get_qgis_app
 
 # QGIS must be initialised before any layer is created
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import make_polygon_layer, make_line_layer, make_square_geom, add_feature_to_layer
 
 from ibtool.ibtool_tools.EdgeCatch import edge_catch
-
-
-# ---------------------------------------------------------------------------
-# Geometry / layer factory helpers
-# ---------------------------------------------------------------------------
-
-def _polygon_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """Empty in-memory polygon layer."""
-    layer = QgsVectorLayer(f"Polygon?crs={crs}", "test_poly", "memory")
-    layer.updateFields()
-    return layer
-
-
-def _line_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """Empty in-memory line layer."""
-    layer = QgsVectorLayer(f"LineString?crs={crs}", "test_line", "memory")
-    layer.updateFields()
-    return layer
-
-
-def _square(x0: float, y0: float, size: float) -> QgsGeometry:
-    """Axis-aligned square polygon."""
-    return QgsGeometry.fromPolygonXY([[
-        QgsPointXY(x0,        y0),
-        QgsPointXY(x0 + size, y0),
-        QgsPointXY(x0 + size, y0 + size),
-        QgsPointXY(x0,        y0 + size),
-        QgsPointXY(x0,        y0),
-    ]])
-
-
-def _add(layer: QgsVectorLayer, geom: QgsGeometry) -> QgsFeature:
-    feat = QgsFeature(layer.fields())
-    feat.setGeometry(geom)
-    layer.dataProvider().addFeatures([feat])
-    layer.updateExtents()
-    return feat
 
 
 # ---------------------------------------------------------------------------
@@ -88,24 +61,24 @@ class TestEdgeCatch:
 
     def _grouped_buildings(self) -> QgsVectorLayer:
         """Two non-overlapping building groups."""
-        layer = _polygon_layer(self.CRS_ID)
-        _add(layer, _square(0,   0, 80))
-        _add(layer, _square(200, 0, 80))
+        layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(layer, make_square_geom(0,   0, 80))
+        add_feature_to_layer(layer, make_square_geom(200, 0, 80))
         return layer
 
     def _hu_input(self) -> QgsVectorLayer:
         """Individual building footprints inside the groups."""
-        layer = _polygon_layer(self.CRS_ID)
-        _add(layer, _square(10, 10, 20))
-        _add(layer, _square(210, 10, 20))
+        layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(layer, make_square_geom(10, 10, 20))
+        add_feature_to_layer(layer, make_square_geom(210, 10, 20))
         return layer
 
     def _empty_road_layer(self) -> QgsVectorLayer:
-        return _line_layer(self.CRS_ID)
+        return make_line_layer(self.CRS_ID)
 
     def _road_layer_near_buildings(self) -> QgsVectorLayer:
         """A road segment running between the two building groups."""
-        layer = _line_layer(self.CRS_ID)
+        layer = make_line_layer(self.CRS_ID)
         feat = QgsFeature(layer.fields())
         feat.setGeometry(QgsGeometry.fromPolylineXY([
             QgsPointXY(150, -20), QgsPointXY(150, 120),
@@ -116,8 +89,8 @@ class TestEdgeCatch:
 
     def _block_layer(self) -> QgsVectorLayer:
         """One large block covering the full test area."""
-        layer = _polygon_layer(self.CRS_ID)
-        _add(layer, _square(-50, -50, 450))
+        layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(layer, make_square_geom(-50, -50, 450))
         return layer
 
     # --- unit tests ---
@@ -142,7 +115,7 @@ class TestEdgeCatch:
     @pytest.mark.edge_case
     def test_empty_grouped_buildings_no_crash(self):
         """Empty grouped_bdgs layer must not raise an exception."""
-        grouped = _polygon_layer(self.CRS_ID)  # 0 features
+        grouped = make_polygon_layer(self.CRS_ID)  # 0 features
 
         result = edge_catch(
             grouped, self._hu_input(), self._empty_road_layer(),
@@ -206,3 +179,113 @@ class TestEdgeCatch:
 
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
+
+    # --- new tests (test-plan step 5) ---
+
+    @pytest.mark.integration
+    def test_output_geometries_are_geos_valid(self):
+        """All output geometries pass GEOS validity when the road network is present."""
+        result = edge_catch(
+            self._grouped_buildings(), self._hu_input(),
+            self._road_layer_near_buildings(), self._block_layer(),
+            self.crs, workspace_path=None,
+        )
+
+        assert result is not None
+        for feat in result.getFeatures():
+            geom = feat.geometry()
+            if geom and not geom.isNull() and not geom.isEmpty():
+                assert geom.isGeosValid(), \
+                    f"GEOS-invalid geometry at FID {feat.id()}: {geom.lastError()}"
+
+    @pytest.mark.integration
+    def test_road_between_groups_produces_non_empty_output(self):
+        """Road running between building groups triggers snapping and yields at least one feature."""
+        result = edge_catch(
+            self._grouped_buildings(), self._hu_input(),
+            self._road_layer_near_buildings(), self._block_layer(),
+            self.crs, workspace_path=None,
+        )
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert result.featureCount() >= 1
+        for feat in result.getFeatures():
+            geom = feat.geometry()
+            if not geom.isNull() and not geom.isEmpty():
+                assert geom.isGeosValid(), f"GEOS-invalid at FID {feat.id()}"
+
+    @pytest.mark.integration
+    @pytest.mark.edge_case
+    def test_mismatched_crs_road_layer_does_not_crash(self):
+        """Road layer in EPSG:4326 must not raise — roads will not overlap buildings and are filtered out."""
+        road_wgs84 = make_line_layer("EPSG:4326")
+        feat = QgsFeature(road_wgs84.fields())
+        feat.setGeometry(QgsGeometry.fromPolylineXY([
+            QgsPointXY(13.4, 52.5), QgsPointXY(13.5, 52.5),
+        ]))
+        road_wgs84.dataProvider().addFeatures([feat])
+        road_wgs84.updateExtents()
+
+        result = edge_catch(
+            self._grouped_buildings(), self._hu_input(),
+            road_wgs84, self._block_layer(),
+            self.crs, workspace_path=None,
+        )
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+
+    @pytest.mark.integration
+    def test_debug_mode_produces_same_feature_count(self, tmp_path):
+        """Debug mode does not alter the feature count of the result."""
+        result_normal = edge_catch(
+            self._grouped_buildings(), self._hu_input(),
+            self._road_layer_near_buildings(), self._block_layer(),
+            self.crs, workspace_path=None, debug_mode=False,
+        )
+        result_debug = edge_catch(
+            self._grouped_buildings(), self._hu_input(),
+            self._road_layer_near_buildings(), self._block_layer(),
+            self.crs, workspace_path=str(tmp_path), debug_mode=True,
+        )
+
+        assert result_debug.featureCount() == result_normal.featureCount()
+
+    @pytest.mark.integration
+    @pytest.mark.performance
+    @pytest.mark.slow
+    def test_performance_with_large_road_network(self, tmp_path):
+        """edge_catch with 100 road segments completes within 30 seconds."""
+        import time
+
+        grouped = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(grouped, make_square_geom(0,   0, 200))
+        add_feature_to_layer(grouped, make_square_geom(400, 0, 200))
+
+        hu = make_polygon_layer(self.CRS_ID)
+        for i in range(10):
+            add_feature_to_layer(hu, make_square_geom(float(i * 18),       10.0, 14))
+            add_feature_to_layer(hu, make_square_geom(float(400 + i * 18), 10.0, 14))
+
+        road = make_line_layer(self.CRS_ID)
+        for i in range(100):
+            y = float(i * 3)
+            seg = QgsFeature(road.fields())
+            seg.setGeometry(QgsGeometry.fromPolylineXY([
+                QgsPointXY(260.0, y), QgsPointXY(340.0, y),
+            ]))
+            road.dataProvider().addFeatures([seg])
+        road.updateExtents()
+
+        blocks = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(blocks, make_square_geom(-50, -50, 750))
+
+        start = time.time()
+        result = edge_catch(grouped, hu, road, blocks, self.crs,
+                            workspace_path=str(tmp_path))
+        elapsed = time.time() - start
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert elapsed < 30.0, f"edge_catch took {elapsed:.1f}s — expected < 30s"
