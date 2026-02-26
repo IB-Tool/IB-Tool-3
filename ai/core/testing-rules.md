@@ -1,5 +1,7 @@
 # Testing Rules
 
+> For the full test strategy — tier definitions, coverage targets, module mapping, and gap backlog — see [`docs/test-strategy.md`](../../docs/test-strategy.md). This file contains the tactical rules (geometry checks, framework, structure) that apply to every test.
+
 ## Before Every Code Change
 
 1. **Understand existing logic**: Read the relevant code before making changes
