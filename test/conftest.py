@@ -28,3 +28,20 @@ print(f"✅ conftest.py: All required directories found")
 print(f"   - helpers/: {(plugin_root / 'helpers').exists()}")
 print(f"   - ibtool_tools/: {(plugin_root / 'ibtool_tools').exists()}")
 print(f"   - ibtool/: {(plugin_root / 'ibtool').exists()}")
+
+
+# ---------------------------------------------------------------------------
+# Shared layer / geometry factory helpers
+#
+# These live in test/layer_factories.py (a regular Python module, not a
+# pytest plugin).  Import them in test files AFTER calling get_qgis_app():
+#
+#   QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+#   from .layer_factories import (
+#       make_polygon_layer, make_line_layer, make_square_geom, add_feature_to_layer
+#   )
+#
+# Factories must NOT be imported from conftest.py because conftest runs as a
+# pytest plugin before QGIS is initialised, and its module context causes
+# QGIS' import hook (qgis.utils._import) to trigger a circular-import error.
+# ---------------------------------------------------------------------------
