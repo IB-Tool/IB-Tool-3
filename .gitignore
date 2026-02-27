@@ -63,3 +63,6 @@ debug_*.py
 # Claude Code
 /.claude/settings.local.json
 /.claude
+/ai
+CLAUDE.md
+
