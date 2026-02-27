@@ -227,3 +227,34 @@ class TestFootprintDensityIntegration:
             geom = feat.geometry()
             assert not geom.isNull(),  f"Null geometry at FID {feat.id()}"
             assert not geom.isEmpty(), f"Empty geometry at FID {feat.id()}"
+
+    @pytest.mark.integration
+    @pytest.mark.performance
+    @pytest.mark.slow
+    def test_performance_with_100_buildings(self):
+        """footprint_density completes within 30 s for 100 buildings across 4 blocks."""
+        import time
+
+        # 4 blocks in a 2×2 grid, each 200×200 m
+        blocks = _block_layer_with_name(self.CRS_ID)
+        _add_named_block(blocks,   0,   0, 200, 1)
+        _add_named_block(blocks, 200,   0, 200, 2)
+        _add_named_block(blocks,   0, 200, 200, 3)
+        _add_named_block(blocks, 200, 200, 200, 4)
+
+        # 100 buildings in a 10×10 grid (12×12 m each, 38 m spacing)
+        buildings = make_polygon_layer(self.CRS_ID)
+        for i in range(100):
+            x = float((i % 10) * 38 + 5)
+            y = float((i // 10) * 38 + 5)
+            add_feature_to_layer(buildings, make_square_geom(x, y, 12))
+
+        assert buildings.featureCount() == 100
+
+        start = time.time()
+        result = footprint_density(buildings, blocks, footprint_density_threshold=0)
+        elapsed = time.time() - start
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert elapsed < 30, f"footprint_density took {elapsed:.1f} s (limit: 30 s)"

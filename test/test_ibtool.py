@@ -327,3 +327,43 @@ class TestIBTool:
         with patch.object(self.tool.config_manager, "update_config"), \
              patch.object(self.tool.config_manager, "save_config"):
             self.tool._save_config_from_ui()  # Must not raise
+
+    # --- run() orchestration (STEP 10 — test-plan.md) ---
+
+    @pytest.mark.unit
+    def test_run_with_mock_iface_does_not_raise(self):
+        """run() must not raise when version_check and _apply_config_to_ui are patched."""
+        tool = _make_tool()
+        tool.first_start = True  # trigger the first-start dialog initialisation branch
+
+        with patch("ibtool.ibtool.ibtool.version_check"), \
+             patch.object(tool, "_apply_config_to_ui"):
+            tool.run()  # must complete without raising
+
+    @pytest.mark.unit
+    def test_run_shows_dialog(self):
+        """run() calls show() on the dialog to display it to the user."""
+        tool = _make_tool()
+        tool.first_start = False  # skip first-start branch so dlg is not replaced
+
+        with patch("ibtool.ibtool.ibtool.version_check"), \
+             patch.object(tool, "_apply_config_to_ui"), \
+             patch.object(tool.dlg, "show") as mock_show:
+            tool.run()
+
+        mock_show.assert_called_once()
+
+    @pytest.mark.unit
+    def test_run_on_second_call_does_not_replace_dialog(self):
+        """Second run() call must reuse the existing dialog instance, not replace it."""
+        tool = _make_tool()
+        tool.first_start = False  # simulate state after the first run
+        original_dlg = tool.dlg
+
+        with patch("ibtool.ibtool.ibtool.version_check"), \
+             patch.object(tool, "_apply_config_to_ui"), \
+             patch.object(tool.dlg, "show"):
+            tool.run()
+
+        assert tool.dlg is original_dlg, \
+            "Second run() call must not replace tool.dlg with a new IBToolDialog instance"

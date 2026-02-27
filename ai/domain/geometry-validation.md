@@ -95,6 +95,14 @@ if not geom.isGeosValid():
         logger.warning(f"Geometry error: {error.what()}")
 ```
 
+## Coordinate Reference Systems
+
+- All layers in a processing run must use the same CRS.
+- CRS is propagated from input to output layers automatically.
+- **No on-the-fly reprojection** within tools — the user must ensure CRS consistency before processing. Mismatched CRS causes silent geometry errors, not exceptions.
+
+---
+
 ## Topology Checks
 
 ### Overlap

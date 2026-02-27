@@ -88,11 +88,18 @@ class MSTTestFixtures:
 
     @staticmethod
     def create_simple_street_layer():
-        """Create a simple street network connecting building areas."""
+        """Create a street network that lies outside the building cluster.
+
+        Building centroids sit at (5,5), (25,5), (5,25), (25,25).  The
+        streets are deliberately placed far below and to the left of that
+        cluster so they do not intersect any Delaunay triangulation edge.
+        This lets the MST integration tests exercise the algorithm itself
+        without the street filter removing all candidate edges.
+        """
         crs = MSTTestFixtures.create_test_crs()
         layer = QgsVectorLayer(f"LineString?crs={crs.toWkt()}", "test_streets", "memory")
         provider = layer.dataProvider()
-        
+
         # Add standard fields
         provider.addAttributes([
             QgsField("id", QVariant.Int),
@@ -101,33 +108,21 @@ class MSTTestFixtures:
         ])
         layer.updateFields()
 
-        # Create street network
+        # Streets outside the building extent (x: 0–30, y: 0–30).
+        # Both are long enough (> ROAD_LENGTH_THRESHOLD = 50 m) to survive
+        # the dead-end filter and realistic enough to validate the processing
+        # pipeline, but they do not cross any centroid-to-centroid edge.
         streets = [
-            # Horizontal street connecting buildings 1-2
+            # Long horizontal road south of the building cluster
             {
-                'points': [QgsPointXY(10, 5), QgsPointXY(20, 5)],
-                'id': 1, 'name': 'Street1', 'length': 10.0
+                'points': [QgsPointXY(-50, -100), QgsPointXY(80, -100)],
+                'id': 1, 'name': 'SouthRoad', 'length': 130.0
             },
-            # Vertical street connecting buildings 1-3
+            # Long vertical road west of the building cluster
             {
-                'points': [QgsPointXY(5, 10), QgsPointXY(5, 20)],
-                'id': 2, 'name': 'Street2', 'length': 10.0
+                'points': [QgsPointXY(-100, -50), QgsPointXY(-100, 80)],
+                'id': 2, 'name': 'WestRoad', 'length': 130.0
             },
-            # Horizontal street connecting buildings 3-4
-            {
-                'points': [QgsPointXY(10, 25), QgsPointXY(20, 25)],
-                'id': 3, 'name': 'Street3', 'length': 10.0
-            },
-            # Vertical street connecting buildings 2-4
-            {
-                'points': [QgsPointXY(25, 10), QgsPointXY(25, 20)],
-                'id': 4, 'name': 'Street4', 'length': 10.0
-            },
-            # Long diagonal street (should be filtered out with road_length=50)
-            {
-                'points': [QgsPointXY(-10, -10), QgsPointXY(40, 40)],
-                'id': 5, 'name': 'LongStreet', 'length': 70.7
-            }
         ]
 
         features = []

@@ -58,8 +58,7 @@ class TestCreateMST:
             print(f"DEBUG: Found {len(centroids_result.centroids)} centroids")
 
             if len(centroids_result.centroids) == 0:
-                print("ERROR: No building centroids found!")
-                return
+                pytest.fail("No building centroids found!")
 
             # Step 2: Test triangulation
             print("DEBUG: Step 2 - Creating triangulation...")
@@ -86,16 +85,15 @@ class TestCreateMST:
             print(f"DEBUG: {len(filtered_edges)} edges remaining after filtering")
 
             if len(filtered_edges) == 0:
-                print("ERROR: No triangulation edges remaining after filtering!")
-                print(f"DEBUG: Triangulation layer features: {triangulation_layer.featureCount()}")
-                print(f"DEBUG: Filtered streets features: {street_result.filtered_streets.featureCount()}")
-                return
+                pytest.fail(
+                    f"No triangulation edges remaining after street filtering. "
+                    f"Triangulation features: {triangulation_layer.featureCount()}, "
+                    f"Street features: {street_result.filtered_streets.featureCount()}"
+                )
 
         except Exception as e:
-            print(f"ERROR: Detailed debugging failed: {str(e)}")
             import traceback
-            traceback.print_exc()
-            return
+            pytest.fail(f"Unexpected error during MST step-by-step debug: {e}\n{traceback.format_exc()}")
 
         # Execute MST calculation
         result = calculate_mst(building_layer, street_layer, crs)
@@ -186,12 +184,147 @@ class TestCreateMST:
 
     @patch('ibtool.ibtool_tools.CreateMST.Logger')
     def test_calculate_mst_logging(self, mock_logger):
-        """Test that MST calculation logs appropriate messages."""
+        """Logger.log is called with the correct warning when buildings layer is empty."""
+        empty_building_layer = self.fixtures.create_empty_layer("Polygon")
+        street_layer = self.fixtures.create_simple_street_layer()
+        crs = self.fixtures.create_test_crs()
+
+        result = calculate_mst(empty_building_layer, street_layer, crs)
+
+        assert result is None, "Empty buildings should produce no MST"
+        mock_logger.log.assert_called_once_with(
+            "No building centroids found", level="WARNING"
+        )
+
+    # ------------------------------------------------------------------
+    # Extended tests (STEP 9 — test-plan.md)
+    # ------------------------------------------------------------------
+
+    @pytest.mark.integration
+    def test_mst_produces_n_minus_1_edges(self):
+        """MST edge count equals number of buildings minus one (fundamental MST property)."""
         building_layer = self.fixtures.create_simple_building_layer()
         street_layer = self.fixtures.create_simple_street_layer()
         crs = self.fixtures.create_test_crs()
 
-        calculate_mst(building_layer, street_layer, crs)
+        result = calculate_mst(building_layer, street_layer, crs)
 
-        # Verify that logging was called
-        mock_logger.log.assert_called()
+        assert result is not None, (
+            "calculate_mst returned None — street filter removed all triangulation edges. "
+            "Check test_calculate_mst_with_simple_buildings for a step-by-step diagnosis."
+        )
+        assert result.isValid(), "Returned layer must be valid"
+
+        expected_edges = building_layer.featureCount() - 1
+        assert result.featureCount() == expected_edges, (
+            f"MST must have exactly n-1 edges. "
+            f"Got {result.featureCount()}, expected {expected_edges} "
+            f"(n={building_layer.featureCount()} buildings)"
+        )
+
+    @pytest.mark.integration
+    def test_all_edge_weights_are_positive(self):
+        """All edges in the MST layer carry a positive weight value."""
+        building_layer = self.fixtures.create_simple_building_layer()
+        street_layer = self.fixtures.create_simple_street_layer()
+        crs = self.fixtures.create_test_crs()
+
+        result = calculate_mst(building_layer, street_layer, crs)
+
+        assert result is not None, (
+            "calculate_mst returned None — street filter removed all triangulation edges"
+        )
+
+        field_names = [field.name() for field in result.fields()]
+        assert "weight" in field_names, "MST layer must contain a 'weight' field"
+
+        for feat in result.getFeatures():
+            weight = feat["weight"]
+            assert weight is not None, "weight field must not be NULL"
+            assert weight > 0, (
+                f"Every MST edge weight must be positive, got {weight}"
+            )
+
+    @pytest.mark.integration
+    def test_output_layer_crs_matches_input(self):
+        """Output layer CRS matches the CRS passed to calculate_mst."""
+        building_layer = self.fixtures.create_simple_building_layer()
+        street_layer = self.fixtures.create_simple_street_layer()
+        crs = self.fixtures.create_test_crs()
+
+        result = calculate_mst(building_layer, street_layer, crs)
+
+        assert result is not None, (
+            "calculate_mst returned None — street filter removed all triangulation edges"
+        )
+        assert result.crs().authid() == crs.authid(), (
+            f"Output CRS must match input CRS. "
+            f"Expected {crs.authid()}, got {result.crs().authid()}"
+        )
+
+    @pytest.mark.integration
+    def test_with_complex_building_layout(self):
+        """Handles a complex building layout with irregular shapes and sizes."""
+        building_layer = self.fixtures.create_complex_building_layer()
+        street_layer = self.fixtures.create_simple_street_layer()
+        crs = self.fixtures.create_test_crs()
+
+        result = calculate_mst(building_layer, street_layer, crs)
+
+        assert result is not None, \
+            "calculate_mst must not return None for the complex 4-building layout"
+        assert result.isValid(), "Result layer must be valid"
+        assert result.featureCount() > 0, \
+            "Result layer must contain at least one edge"
+
+        for feat in result.getFeatures():
+            geom = feat.geometry()
+            assert not geom.isNull(), "Edge geometry must not be null"
+            assert not geom.isEmpty(), "Edge geometry must not be empty"
+            assert geom.isGeosValid(), "Edge geometry must be GEOS-valid"
+
+    @pytest.mark.integration
+    def test_get_detailed_result_returns_mst_result_object(self):
+        """get_detailed_result() returns a populated MSTResult with a valid mst_layer."""
+        from ibtool.ibtool_tools.mst import MSTResult
+
+        building_layer = self.fixtures.create_simple_building_layer()
+        street_layer = self.fixtures.create_simple_street_layer()
+        crs = self.fixtures.create_test_crs()
+
+        creator = CreateMST()
+        detailed = creator.get_detailed_result(building_layer, street_layer, crs)
+
+        assert detailed is not None, (
+            "get_detailed_result() returned None — street filter removed all triangulation edges"
+        )
+        assert isinstance(detailed, MSTResult), \
+            f"get_detailed_result() must return an MSTResult, got {type(detailed)}"
+        assert detailed.mst_layer is not None, \
+            "MSTResult.mst_layer must not be None"
+        assert detailed.mst_layer.isValid(), \
+            "MSTResult.mst_layer must be a valid QgsVectorLayer"
+
+    @pytest.mark.integration
+    def test_output_geometries_are_geos_valid(self):
+        """Every geometry in the MST output layer passes the GEOS validity check."""
+        building_layer = self.fixtures.create_simple_building_layer()
+        street_layer = self.fixtures.create_simple_street_layer()
+        crs = self.fixtures.create_test_crs()
+
+        result = calculate_mst(building_layer, street_layer, crs)
+
+        assert result is not None, (
+            "calculate_mst returned None — street filter removed all triangulation edges"
+        )
+        assert result.featureCount() > 0, \
+            "Result layer must contain at least one edge"
+
+        for feat in result.getFeatures():
+            geom = feat.geometry()
+            assert not geom.isNull(), \
+                f"Feature {feat.id()}: geometry must not be null"
+            assert not geom.isEmpty(), \
+                f"Feature {feat.id()}: geometry must not be empty"
+            assert geom.isGeosValid(), \
+                f"Feature {feat.id()}: geometry must be GEOS-valid"

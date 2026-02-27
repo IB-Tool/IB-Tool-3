@@ -6,38 +6,49 @@
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 
 
-## Projektbeschreibung
+## Description
 
-**IBTool** ist ein QGIS-Plugin, das Werkzeuge zur Verfügung stellt, um Siedlungen basierend auf Gebäudeumrissen zu analysieren und abzugrenzen. Es automatisiert komplexe Geodatenprozesse wie Clustering, Mindestflächenberechnungen und die Erstellung von Minimum Spanning Trees (MST) zur Identifikation von urbanen Strukturen.
+**IBTool** is a QGIS plugin for the automatic delineation of **Urban Growth Boundaries (UGBs)** based on building footprints and topographic data. It implements the method described in:
 
----
+> Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. **Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study.** *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
 
-## Funktionen
-
-- **Automatisierte Verarbeitung von Geodaten:**
-  - Filterung und Clusterbildung basierend auf Gebäudeumrissen.
-  - Berechnung lokaler und globaler Gebäudeabdeckungsdichten.
-  - Erkennung dichter Blockstrukturen aus Straßen- und Gebäude-Daten.
-
-- **Interaktives GUI-Design:**
-  - Fortschrittsbalken zur Echtzeit-Überwachung von Prozessen.
-  - Filtereinstellungen für spezifische Eingabedaten über Dialoge.
-
-- **Integration in QGIS:**
-  - Unterstützung von QGIS-Logik zur Layerauswahl, Verarbeitung und Ergebnisanzeigen in Geopackages.
-
-- **Effiziente Datenverarbeitung:**
-  - Export und Speicherung selektierter oder berechneter Layer.
-  - Optimierung der Ergebnisse durch Parametereinstellungen (z.B. Mindestüberlappungsraten, Gebäudeanzahl etc.).
+The plugin delineates settlement boundaries at a fine-grained level — the boundary follows individual buildings rather than administrative units. It processes large datasets partition by partition and produces GeoPackage output ready for use in spatial analysis and planning.
 
 ---
 
-## Voraussetzungen
+## Features
 
-- **QGIS**: Version 3.40-3.50
+- **Semantic and spatial building filtering:**
+  - Three-stage filter: negative function-code filter → spatial density filter → minimum size filter.
+  - Configurable positive/negative filter lists based on ATKIS building function codes (BauGB § 35).
+
+- **Block-based density analysis:**
+  - Derives street blocks and city blocks from the road and auxiliary network.
+  - Calculates local and global building coverage ratio (BCR) per block.
+  - Classifies blocks with BCR > 18% as densely developed (directly assigned to the UGB).
+
+- **MST-based building aggregation:**
+  - Delaunay triangulation on building centroids, edge-weighted by building-edge distance.
+  - Minimum Spanning Tree (Kruskal algorithm via networkx); road-crossing edges removed.
+  - Iterative grouping into oriented Minimum Bounding Rectangles (MBRs) with BCR validation.
+
+- **Boundary refinement:**
+  - EdgeCatch: snaps MBR boundaries to the nearest road segments.
+  - GapClose: closes holes (> 1 ha removed) and bridges narrow gaps (≤ 70 m) via double-buffer.
+  - PatchRemove: removes splinter areas (< 1 ha, < 20 buildings).
+
+- **QGIS integration:**
+  - Processes `.shp` and `.gpkg` inputs; writes results as GeoPackages.
+  - Built-in input validation with Check button; progress bar; configurable log levels.
+
+---
+
+## Requirements
+
+- **QGIS**: Version 3.40–3.50
 - **Python**: Version >= 3.11
 
-- Installierte Python-Bibliotheken:
+- Required Python libraries:
   - `numpy`
   - `pytest`
   - `scipy`
@@ -50,107 +61,125 @@
 
 ## Installation
 
-1. **Herunterladen**:
-   - Lade die Repository-Dateien als ZIP herunter oder klone das Repository:
-     ```bash
-     git clone https://github.com/dein-repository/ibtool.git
-     ```
-2. **Installation im QGIS-Plugin-Ordner**:
-   - Extrahiere die Projektdateien in deinen QGIS-Plugins-Ordner:
-     - Windows: `C:\Users\<Benutzername>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
-     - Linux: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
-     - Hinweis: Installationspfad kann unsichtbar sein und muss dann erst über die Ordnereinstellung sichtbar gemacht werden
-3. **QGIS-Pfad konfigurieren (optional)**:
-   - IBTool erkennt QGIS automatisch über die Umgebungsvariable `QGIS_PREFIX_PATH` oder übliche Installationsorte.
-   - Ist QGIS an einem anderen Ort installiert, setze `QGIS_PREFIX_PATH` manuell, z.B.:
+### Option 1 — Install from ZIP (recommended)
+
+The easiest way to install IBTool is to download the ready-to-use ZIP file from the [GitHub Releases](https://github.com/K3lT10N/IB-Tool-3/releases) page and install it directly inside QGIS:
+
+1. Go to the [Releases](https://github.com/K3lT10N/IB-Tool-3/releases) page and download the latest `ibtool_<version>.zip`.
+2. Open QGIS.
+3. In the menu bar, click **Plugins → Manage and Install Plugins…**
+4. Switch to the **Install from ZIP** tab.
+5. Click the **…** button, select the downloaded ZIP file, then click **Install Plugin**.
+6. The plugin is now available under **Plugins → IB-Tool**.
+
+> The ZIP file is a self-contained plugin package and does not require any manual path configuration.
+
+---
+
+### Option 2 — Manual installation (not recommended)
+
+> **Note:** The repository contains many files that are not needed at runtime — documentation, tests, CI configuration, etc. Installing from the repository ZIP will copy all of these into your plugins folder. Use Option 1 (install from ZIP release) for a clean, production-ready install.
+
+1. **Download** the repository as a ZIP or clone it:
+   ```bash
+   git clone https://github.com/K3lT10N/IB-Tool-3.git
+   ```
+2. **Copy to the QGIS plugins folder:**
+   - Windows: `C:\Users\<username>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
+   - Linux: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
+   - Note: The AppData folder may be hidden — enable "Show hidden items" in the Explorer settings.
+3. **Configure the QGIS path (optional):**
+   - IBTool detects QGIS automatically via the `QGIS_PREFIX_PATH` environment variable or common install locations.
+   - If QGIS is installed in a non-standard location, set `QGIS_PREFIX_PATH` manually, e.g.:
      ```bash
      export QGIS_PREFIX_PATH=/opt/qgis
      ```
-4. **Aktivieren des Plugins**:
-   - Starte QGIS und aktiviere IBTool in der "Plugin-Verwaltung".
+4. **Activate the plugin:**
+   - Start QGIS and enable IBTool in **Plugins → Manage and Install Plugins**.
 
 ---
 
-## Verwendung
+## Usage
 
-1. Starte das Plugin über die QGIS-Menüleiste unter **Plugins > IB-Tool**.
-2. Lade deine Geodaten (z.B. Gebäudeumrisse, Straßennetzwerke) direkt über die Benutzeroberfläche des Tools.
-3. Lege einen Workspace-Ordner fest. Dieser dient zum Abspeichern von Zwischen- und Endergebnissen.
-4. Konfiguriere die Parametereinstellungen im Dialogfenster.
-5. Beginne die Verarbeitung:
-   - Überwache den Fortschritt im Fortschrittsbalken.
-   - Ergebnisse werden als .gpkg-Dateien gespeichert.
+1. Launch the plugin from the QGIS menu bar under **Plugins → IB-Tool**.
+2. Load your geodata (e.g. building footprints, road networks) directly through the tool's interface.
+3. Set a workspace folder — this is used to store intermediate and final results.
+4. Configure the parameter settings in the dialog window.
+5. Click the **Check** button to validate all input data before processing. Fix any reported errors before continuing.
+6. Start processing:
+   - Monitor progress in the progress bar.
+   - Results are saved as `.gpkg` files.
 
 ---
 
-## Eingabedateien
+## Input Data
 
-Das Plugin arbeitet mit verschiedenen Eingabedateien. Diese beinhalten:
+The plugin works with several input files:
 
-- **HU (Building Footprints)**: Gebäudeumrisse.
-- **RN (Road Network)**: Straßennetzwerke.
-- **Part (Partitioning)**: Zonierung zur Eingrenzung des Analysebereichs.
-- **Aux (Auxiliary Layers)**: Hilfsebenen zur Verfeinerung der Analysen.
-- **Filter-Datei**: Eine .txt-Datei zur Definition von positiven und negativen Filtern.
+- **HU (Building Footprints)**: Building outlines.
+- **RN (Road Network)**: Road network.
+- **Part (Partitioning)**: Zoning to restrict the analysis area.
+- **Aux (Auxiliary Layers)**: Helper layers for refining analyses.
+- **Filter File**: A `.txt` file defining positive and negative filters.
 
-### Voraussetzungen für Eingabedaten
+### Input Data Requirements
 
-#### Allgemeine Regeln
+#### General Rules
 
-- Alle Layer müssen dasselbe **Koordinatenreferenzsystem (CRS)** verwenden. Das CRS wird in der Plugin-Oberfläche festgelegt (z.B. `EPSG:25832`).
-- Alle Layer müssen als gültige QGIS-Vektorlayer ladbar sein (Shapefile `.shp` oder GeoPackage `.gpkg`).
-- Kein Layer darf leer sein (0 Features).
-- Linien-Layer (RN, Aux) sollten keine **Multipart-Geometrien** enthalten. Falls vorhanden, sollten diese vor der Verarbeitung aufgelöst werden (`native:multiparttosingleparts`).
+- All layers must use the same **Coordinate Reference System (CRS)**. The CRS is set in the plugin interface (e.g. `EPSG:25832`).
+- All layers must be loadable as valid QGIS vector layers (Shapefile `.shp` or GeoPackage `.gpkg`).
+- No layer may be empty (0 features).
+- Line layers (RN, Aux) should not contain **multipart geometries**. If present, these should be dissolved before processing (`native:multiparttosingleparts`).
 
-#### HU – Gebäudeumrisse (Building Footprints)
+#### HU — Building Footprints
 
-| Eigenschaft | Anforderung                                                                                                                                                          |
-|-------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Geometrietyp | **Polygon** (keine Punkte oder Linien)                                                                                                                               |
-| Mindest-Features | 50                                                                                                                                                                   |
-| Pflichtfeld | `fkt` oder `funktion` — enthält den Gebäudefunktionscode nach ATKIS-Objektartenkatalog (z.B. 31001_1000 für Wohngebäude). Wird für die Filterung verwendet. |
+| Property | Requirement |
+|----------|-------------|
+| Geometry type | **Polygon** (no points or lines) |
+| Minimum features | 50 |
+| Required field | `fkt` or `funktion` — contains the building function code per the ATKIS object type catalogue (e.g. `31001_1000` for residential buildings). Used for filtering. |
 
-Das Feld `fkt` bzw. `funktion` wird mit der Filter-Datei abgeglichen. Nur die ersten 10 Zeichen des Funktionscodes werden für den Vergleich herangezogen.
+The `fkt` / `funktion` field is matched against the filter file. Only the first 10 characters of the function code are used for comparison.
 
-#### RN – Straßennetz (Road Network)
+#### RN — Road Network
 
-| Eigenschaft | Anforderung |
-|-------------|-------------|
-| Geometrietyp | **LineString** (keine Polygone oder Punkte) |
-| Mindest-Features | 30 |
-| Multipart | Nicht empfohlen — Singlepart-Geometrien verwenden |
+| Property | Requirement |
+|----------|-------------|
+| Geometry type | **LineString** (no polygons or points) |
+| Minimum features | 30 |
+| Multipart | Not recommended — use single-part geometries |
 
-Das Feld `length` wird bei der Verarbeitung automatisch berechnet und muss nicht vorhanden sein. Straßenabschnitte kürzer als 50 m (Sackgassen) werden bei der MST-Berechnung automatisch gefiltert.
+The `length` field is calculated automatically during processing and does not need to be present. Road segments shorter than 50 m (dead ends) are automatically filtered during MST calculation.
 
-#### Part – Partitionierung (Partitioning)
+#### Part — Partitioning
 
-| Eigenschaft | Anforderung |
-|-------------|-------------|
-| Geometrietyp | **Polygon** |
-| Pflichtfeld | `NAME` — Partitionsbezeichnung, z.B. `PART_123` |
-| Namensformat | Werte im Feld `NAME` sollten dem Muster `PART_<Nummer>` folgen (z.B. `PART_36`, `PART_433`) |
-| Verhältnis Part:HU | Das Verhältnis von Part-Features zu HU-Features sollte nicht größer als 1:10.000 sein. Bei zu wenigen Partitionen wird die Verarbeitungszeit pro Partition sehr hoch. |
+| Property | Requirement |
+|----------|-------------|
+| Geometry type | **Polygon** |
+| Required field | `NAME` — partition label, e.g. `PART_123` |
+| Name format | Values in the `NAME` field should follow the pattern `PART_<number>` (e.g. `PART_36`, `PART_433`) |
+| Part:HU ratio | The ratio of Part features to HU features should not exceed 1:10,000. Too few partitions will result in very long processing times per partition. |
 
-Die Partitionierung definiert die Analysebereiche. Pro Partition werden Gebäude und Straßen selektiert und separat verarbeitet. In der Plugin-Oberfläche kann eine Liste von Partitionsnamen oder ein Bereich (Start/Ende) angegeben werden.
+The partitioning defines the analysis areas. Per partition, buildings and roads are selected and processed separately. In the plugin interface a list of partition names or a range (start/end) can be specified.
 
-#### Aux – Hilfsebenen (Auxiliary Layers)
+#### Aux — Auxiliary Layers
 
-| Eigenschaft | Anforderung |
-|-------------|-------------|
-| Geometrietyp | Polygon oder LineString |
-| Mindest-Features | 10 |
+| Property | Requirement |
+|----------|-------------|
+| Geometry type | Polygon or LineString |
+| Minimum features | 10 |
 
-Der Aux-Layer wird mit dem RN-Layer zusammengeführt und dient zur Verfeinerung der Analyse (z.B. zusätzliche Barrieren oder Grenzen).
+The Aux layer is merged with the RN layer and used to refine the analysis (e.g. additional barriers or boundaries).
 
-#### Filter-Datei
+#### Filter File
 
-| Eigenschaft | Anforderung |
-|-------------|-------------|
-| Dateiformat | Textdatei (`.txt`) |
-| Kodierung | UTF-8 |
-| Pflichtabschnitte | `#Filter positive` und `#Filter negative` |
+| Property | Requirement |
+|----------|-------------|
+| File format | Text file (`.txt`) |
+| Encoding | UTF-8 |
+| Required sections | `#Filter positive` and `#Filter negative` |
 
-Die Filter-Datei steuert, welche Gebäude in die Analyse einbezogen bzw. ausgeschlossen werden. Aufbau:
+The filter file controls which buildings are included or excluded from the analysis. Structure:
 
 ```
 #Filter positive
@@ -166,7 +195,6 @@ Die Filter-Datei steuert, welche Gebäude in die Analyse einbezogen bzw. ausgesc
 31001_1310, Freizeit
 31001_2600, Entsorgung
 31001_2720, GebLandForst
-31001_2720, GebLandForst
 31001_2721, Scheune
 31001_2723, Schuppen
 31001_2724, Stall
@@ -174,219 +202,126 @@ Die Filter-Datei steuert, welche Gebäude in die Analyse einbezogen bzw. ausgesc
 
 ```
 
-- Zeilen, die mit `#` beginnen, sind Abschnittsüberschriften oder Kommentare.
-- Leere Zeilen werden ignoriert.
-- Nur die **ersten 10 Zeichen** jeder Zeile werden für den Abgleich mit dem Feld `fkt`/`funktion` verwendet.
-- **Positiver Filter**: Nur Gebäude, deren Funktionscode einem dieser Einträge entspricht, werden einbezogen.
-- **Negativer Filter**: Gebäude, deren Funktionscode einem dieser Einträge entspricht, werden ausgeschlossen.
+- Lines starting with `#` are section headers or comments.
+- Empty lines are ignored.
+- Only the **first 10 characters** of each line are used for matching against the `fkt`/`funktion` field.
+- **Positive filter**: Only buildings whose function code matches one of these entries are included.
+- **Negative filter**: Buildings whose function code matches one of these entries are excluded.
 
-#### Ausgabe- und Arbeitspfade
+#### Output and Working Paths
 
-| Eigenschaft | Anforderung |
-|-------------|-------------|
-| Ausgabedatei | Pfad für die Ergebnis-Datei (`.gpkg`). Das übergeordnete Verzeichnis muss existieren. |
-| Arbeitsverzeichnis | Pfad für Zwischenergebnisse. Wird bei der Verarbeitung angelegt, das übergeordnete Verzeichnis muss existieren. |
+| Property | Requirement |
+|----------|-------------|
+| Output file | Path for the result file (`.gpkg`). The parent directory must exist. |
+| Working directory | Path for intermediate results. Created during processing — the parent directory must exist. |
 
-### Eingabedaten-Validierung
+### Input Data Validation
 
-Das Plugin bietet eine integrierte Validierung aller Eingabedaten. Über den **Check**-Button im Dialog können die Daten vor der Verarbeitung geprüft werden. Folgende Prüfungen werden durchgeführt:
+The plugin includes built-in validation for all input data. The **Check** button in the dialog validates the data before processing. The following checks are performed:
 
-| Prüfung | Typ | Beschreibung |
-|---------|-----|--------------|
-| Dateipfade | Fehler | Alle Pfade müssen angegeben sein und existieren |
-| Layer-Ladbarkeit | Fehler | Dateien müssen als gültige QGIS-Layer ladbar sein |
-| Leere Layer | Fehler | Layer dürfen nicht leer sein (0 Features) |
-| Mindest-Features HU | Fehler | Mindestens 50 Features erforderlich |
-| Mindest-Features RN | Fehler | Mindestens 30 Features erforderlich |
-| Mindest-Features Aux | Fehler | Mindestens 10 Features erforderlich |
-| CRS-Übereinstimmung | Fehler | Alle Layer müssen das in der UI gewählte CRS verwenden |
-| HU-Geometrietyp | Fehler | Muss Polygon-Geometrie sein |
-| HU-Pflichtfeld | Fehler | Feld `fkt` oder `funktion` muss vorhanden sein |
-| RN-Geometrietyp | Fehler | Muss Linien-Geometrie sein |
-| Multipart-Geometrien | Warnung | Linien-Layer sollten keine Multipart-Geometrien enthalten |
-| Part-Pflichtfeld | Fehler | Feld `NAME` muss vorhanden sein |
-| Part-Namensformat | Warnung | NAME-Werte sollten dem Muster `PART_` entsprechen |
-| Part:HU-Verhältnis | Warnung | Verhältnis Part zu HU sollte nicht größer als 1:10.000 sein |
-| Filterdatei-Format | Fehler | Abschnitte `#Filter positive` und `#Filter negative` erforderlich |
-| Ausgabepfade | Fehler | Ausgabe- und Arbeitsverzeichnisse müssen existieren |
+| Check | Type | Description |
+|-------|------|-------------|
+| File paths | Error | All paths must be specified and exist |
+| Layer loadability | Error | Files must be loadable as valid QGIS layers |
+| Empty layers | Error | Layers must not be empty (0 features) |
+| Minimum features HU | Error | At least 50 features required |
+| Minimum features RN | Error | At least 30 features required |
+| Minimum features Aux | Error | At least 10 features required |
+| CRS match | Error | All layers must use the CRS selected in the UI |
+| HU geometry type | Error | Must be polygon geometry |
+| HU required field | Error | Field `fkt` or `funktion` must be present |
+| RN geometry type | Error | Must be line geometry |
+| Multipart geometries | Warning | Line layers should not contain multipart geometries |
+| Part required field | Error | Field `NAME` must be present |
+| Part name format | Warning | NAME values should match the `PART_` pattern |
+| Part:HU ratio | Warning | Ratio of Part to HU should not exceed 1:10,000 |
+| Filter file format | Error | Sections `#Filter positive` and `#Filter negative` required |
+| Output paths | Error | Output and working directories must exist |
 
-Bei kritischen Fehlern wird der **Start**-Button deaktiviert, bis die Fehler behoben sind. Warnungen werden angezeigt, blockieren die Verarbeitung aber nicht. Die Validierung wird auch automatisch beim Start der Verarbeitung durchgeführt.
-
----
-
-## Entwicklerhinweise
-
-### Continuous Integration mit GitHub Actions und Docker
-
-Das Projekt nutzt GitHub Actions für automatisierte Tests in einer Docker-Umgebung. Die CI-Pipeline wird bei jedem Push auf den `main`-Branch und bei Pull Requests ausgeführt.
-
-#### CI-Workflow (`.github/workflows/ci.yml`)
-
-Der CI-Workflow:
-1. Checkt den Repository-Code aus
-2. Richtet Docker Buildx ein
-3. Baut das Docker-Image basierend auf dem `Dockerfile`
-4. Führt die Tests im Container aus
-
-```bash
-    yaml name: CI
-    on: push: branches: [main] pull_request:
-    jobs: test: runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      
-      - name: Build Docker image
-        run: |
-          docker build --pull -t qgis-plugin-test .
-      
-      - name: Run tests
-        run: |
-          docker run --rm qgis-plugin-test
-```
-
-#### Docker-Umgebung
-
-Das `Dockerfile` basiert auf dem offiziellen QGIS-Image `3liz/qgis-platform:3.40` und:
-
-- Installiert alle benötigten Python-Abhängigkeiten (numpy, pandas, matplotlib, scipy, sklearn, etc.)
-- Konfiguriert eine headless X-Server-Umgebung (xvfb) für GUI-Tests
-- Setzt die notwendigen Umgebungsvariablen für QGIS
-- Initialisiert den QGIS Processing Provider
-- Führt die Tests mit pytest aus
-
-#### Lokale Entwicklung mit Docker
-
-Für die lokale Entwicklung können Sie das Docker-Image verwenden:
-
-
-```bash
-    # Docker-Image bauen
-    docker build -t qgis-plugin-test .
-    # Tests ausführen
-    docker run --rm qgis-plugin-test
-    # Interaktive Shell im Container
-    docker run --rm -it qgis-plugin-test /bin/bash
-```
-
-#### Test-Struktur
-
-Die Tests befinden sich im `test/`-Verzeichnis und werden mit pytest ausgeführt:
-
-- `test_init.py`: Plugin-Initialisierung
-- `test_logger.py`: Logging-System
-- `test_blocker.py`: Blocker-Funktionalität
-- `test_message.py`: Nachrichtensystem
-- `test_resources.py`: Ressourcen-Management
-- `test_data_loader.py`: Datenlade-Funktionen
-- `test_translations.py`: Übersetzungen
-- `test_ibtool_dialog.py`: Dialog-Funktionalität
-- `test_manage_directory.py`: Verzeichnis-Management
-- `test_qgis_environment.py`: QGIS-Umgebung
-
-#### Debugging
-
-Bei Problemen mit der CI-Pipeline:
-
-1. Überprüfen Sie die GitHub Actions-Logs für detaillierte Fehlermeldungen
-2. Testen Sie das Docker-Image lokal mit den gleichen Befehlen
-3. Stellen Sie sicher, dass neue Tests die Docker-Umgebung unterstützen (headless mode)
-
-#### Anpassung der CI-Pipeline
-
-Für Änderungen an der CI-Pipeline bearbeiten Sie:
-
-- `.github/workflows/ci.yml`: Workflow-Konfiguration
-- `Dockerfile`: Docker-Umgebung und Dependencies
-- `test/`: Test-Dateien und Testdaten
-
-#### Abhängigkeiten
-
-Die Docker-Umgebung installiert folgende Systemabhängigkeiten:
-
-- `xvfb`: X Virtual Framebuffer für headless GUI-Tests
-- `python3-pytest`: Test-Framework
-- `python3-numpy`, `python3-pandas`, `python3-matplotlib`: Numerische Bibliotheken
-- `python3-scipy`, `python3-sklearn`: Wissenschaftliche Bibliotheken
-- `python3-networkx`: Netzwerkanalyse
-- `python3-geopandas`, `python3-gdal`: Geodaten-Verarbeitung
-- `python3-psycopg2`: PostgreSQL-Verbindung
-- `python3-shapely`, `python3-fiona`: Geometrie-Verarbeitung
+Critical errors disable the **Start** button until resolved. Warnings are shown but do not block processing. Validation also runs automatically when processing starts.
 
 ---
 
-## Logging-System
+## How It Works
 
-Das IBTool verfügt über ein umfassendes Logging-System, das Meldungen an drei verschiedenen Stellen ausgibt:
+The plugin processes each partition through a fixed sequence of steps:
 
-1. In der Benutzeroberfläche (Nachrichtenfenster)
-2. In einer Logdatei im konfigurierbaren Log-Verzeichnis
-3. In den QGIS-Meldungen
+1. **Blocker** — derives street and city blocks from the road + auxiliary network
+2. **ImportFilter** — 3-stage semantic/spatial/size filter removes non-UGB buildings
+3. **FootprintDensity** — calculates building coverage ratio (BCR); classifies dense blocks (BCR > 18%)
+4. **CreateMST** — Delaunay triangulation → MST (Kruskal); removes road-crossing edges
+5. **MST_Clustering** — groups buildings into oriented MBRs, validated by local BCR threshold
+6. **AddSingleBuilding** — adds bounding rectangles for large isolated buildings (> 300 m²)
+7. **EdgeCatch** — snaps boundaries to road network (nearest road within 25 m)
+8. **GapClose** — closes holes > 1 ha; bridges gaps ≤ 70 m (4,900 m²) via double-buffer
+9. **PatchRemove** — removes splinter areas (< 1 ha and < 20 buildings)
 
-### Log-Levels
-
-Das System unterstützt vier verschiedene Log-Levels, die in absteigender Priorität sind:
-
-- **CRITICAL**: Kritische Fehler, die die Ausführung beeinträchtigen
-- **WARNING**: Warnungen, die auf mögliche Probleme hinweisen
-- **INFO**: Informationsmeldungen über den normalen Ablauf
-- **SUCCESS**: Detaillierte Erfolgs- und Debug-Meldungen
-
-Bei der Auswahl eines Log-Levels werden alle Nachrichten dieses Levels und der höheren Priorität angezeigt. Beispiel: Bei Auswahl von "INFO" werden INFO-, WARNING- und CRITICAL-Meldungen angezeigt, aber keine SUCCESS-Meldungen.
-
-### Konfiguration
-
-Das Log-Level kann über die Benutzeroberfläche eingestellt werden:
-
-1. Wählen Sie im Dropdown-Menü "Log-Level" den gewünschten Detaillierungsgrad aus.
-2. Optional: Wählen Sie ein anderes Verzeichnis für die Logdateien über den "Log-Verzeichnis" Button.
-
-### Logdateien
-
-Die Logdateien werden standardmäßig im Unterverzeichnis "logs" des Plugins gespeichert und mit einem Zeitstempel im Format `logfile_YYYY-MM-DD_HH-MM-SS.txt` versehen. Bei jedem Start des Plugins wird eine neue Logdatei erstellt.
+For the full algorithmic description including pseudocode, parameter references, and accuracy results, see **[docs/how-it-works.md](docs/how-it-works.md)**.
 
 ---
 
-## Lizenz
+## Contributing & Development
 
-Dieses Plugin wurde unter der **GNU General Public License v2.0** lizenziert. Sie können es frei verwenden, verändern und weitergeben, solange die Bedingungen der GPL eingehalten werden.
+The project uses GitHub Actions and Docker for CI, and pytest for the test suite.
 
----
-
-## Entwickler
-
-- **Autor**: Oliver Harig
-- **Erstellt mit Unterstützung von**: [QGIS Plugin Builder](http://g-sherman.github.io/Qgis-Plugin-Builder/)
+For the full development setup, CI/CD pipeline details, Docker environment, test structure, and code quality tooling, see **[docs/contributing.md](docs/contributing.md)**.
 
 ---
 
-## Code Linting
+## Logging System
 
-Um die Codequalität sicherzustellen, wird [pylint](https://pylint.pycqa.org/) verwendet.
-Die Standardkonfiguration befindet sich in der Datei `.pylintrc` im
-Projektwurzelverzeichnis. Einige Regeln wie `missing-docstring` und
-`invalid-name` sind dort deaktiviert, bis der Code entsprechend angepasst ist.
+IBTool includes a comprehensive logging system that outputs messages to three locations:
 
-Pylint kann lokal wie folgt ausgeführt werden:
+1. The user interface (message window)
+2. A log file in the configurable log directory
+3. The QGIS message log
 
-```bash
-pip install pylint
-pylint $(git ls-files '*.py')
-```
+### Log Levels
+
+The system supports four log levels in descending priority:
+
+- **CRITICAL**: Critical errors that affect execution
+- **WARNING**: Warnings indicating possible issues
+- **INFO**: Informational messages about normal operation
+- **SUCCESS**: Detailed success and debug messages
+
+Selecting a log level shows all messages at that level and higher priority. Example: selecting "INFO" shows INFO, WARNING, and CRITICAL messages, but not SUCCESS messages.
+
+### Configuration
+
+The log level can be set in the user interface:
+
+1. Select the desired level of detail from the "Log Level" dropdown.
+2. Optionally: choose a different directory for log files via the "Log Directory" button.
+
+### Log Files
+
+Log files are stored by default in the `logs` subdirectory of the plugin and are named with a timestamp in the format `logfile_YYYY-MM-DD_HH-MM-SS.txt`. A new log file is created each time the plugin starts.
 
 ---
 
-## Fehlerbehebung
+## License
 
-- Nutze den **Check**-Button, um Eingabedaten vor der Verarbeitung zu prüfen. Die Fehlermeldungen enthalten konkrete Hinweise zur Behebung.
-- Stelle sicher, dass deine Eingabedaten sich im gleichen **CRS** (Koordinatensystem) befinden.
-- Überprüfe, ob Abhängigkeiten (z.B. Bibliotheken) korrekt installiert sind.
-- Konsultiere die Log-Nachrichten im Message-Fenster des Plugins, um Fehler zu identifizieren.
+This plugin is licensed under the **GNU General Public License v2.0**. You are free to use, modify, and redistribute it as long as the conditions of the GPL are met.
 
 ---
 
-Viel Spaß beim Verwenden des **IBTool**-Plugins!
+## Author
 
+- **Author**: Oliver Harig — Leibniz Institute of Ecological Urban and Regional Development (IOER), Dresden
+- **Created with support from**: [QGIS Plugin Builder](http://g-sherman.github.io/Qgis-Plugin-Builder/)
+
+### Publication
+
+If you use IBTool in research, please cite:
+
+> Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study. *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
+
+---
+
+## Troubleshooting
+
+- Use the **Check** button to validate input data before processing. Error messages contain specific hints for fixing issues.
+- Make sure all input data uses the same **CRS** (coordinate reference system).
+- Verify that all dependencies (e.g. libraries) are correctly installed.
+- Consult the log messages in the plugin's message window to identify errors.

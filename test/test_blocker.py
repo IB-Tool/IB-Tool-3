@@ -450,6 +450,73 @@ class TestBlockerIntegration:
         assert execution_time < 60, "Function should complete within 60 seconds"
         
 
+    @pytest.mark.integration
+    @pytest.mark.performance
+    @pytest.mark.slow
+    def test_performance_with_200_buildings(self):
+        """blocker() completes within 60 s and does not crash for 200 synthetic buildings.
+
+        Synthetic dataset:
+          - 200 buildings in a 20×10 grid (10×10 m each, 15 m spacing → 300×150 m area)
+          - Road network: 3 vertical + 2 horizontal lines cutting through the area
+          - Partition: one polygon enclosing the entire area
+        """
+        import time
+
+        CRS = "EPSG:25833"
+
+        # Partition: bounding polygon
+        partition = QgsVectorLayer(f"Polygon?crs={CRS}", "partition", "memory")
+        p_feat = QgsFeature()
+        p_feat.setGeometry(QgsGeometry.fromPolygonXY([[
+            QgsPointXY(-5,  -5), QgsPointXY(305,  -5),
+            QgsPointXY(305, 155), QgsPointXY(-5,  155),
+            QgsPointXY(-5,  -5),
+        ]]))
+        partition.dataProvider().addFeatures([p_feat])
+        partition.updateExtents()
+
+        # Road network: 3 vertical + 2 horizontal lines
+        roads = QgsVectorLayer(f"LineString?crs={CRS}", "roads", "memory")
+        road_geoms = [
+            QgsGeometry.fromPolylineXY([QgsPointXY(75,  -5), QgsPointXY(75,  155)]),
+            QgsGeometry.fromPolylineXY([QgsPointXY(150, -5), QgsPointXY(150, 155)]),
+            QgsGeometry.fromPolylineXY([QgsPointXY(225, -5), QgsPointXY(225, 155)]),
+            QgsGeometry.fromPolylineXY([QgsPointXY(-5, 50),  QgsPointXY(305, 50)]),
+            QgsGeometry.fromPolylineXY([QgsPointXY(-5, 100), QgsPointXY(305, 100)]),
+        ]
+        road_feats = [QgsFeature() for _ in road_geoms]
+        for f, g in zip(road_feats, road_geoms):
+            f.setGeometry(g)
+        roads.dataProvider().addFeatures(road_feats)
+        roads.updateExtents()
+
+        # 200 buildings in a 20×10 grid (10×10 m each, 15 m spacing)
+        buildings = QgsVectorLayer(f"Polygon?crs={CRS}", "buildings", "memory")
+        bdg_feats = []
+        for i in range(200):
+            x = float((i % 20) * 15)
+            y = float((i // 20) * 15)
+            f = QgsFeature()
+            f.setGeometry(QgsGeometry.fromPolygonXY([[
+                QgsPointXY(x,      y),      QgsPointXY(x + 10, y),
+                QgsPointXY(x + 10, y + 10), QgsPointXY(x,      y + 10),
+                QgsPointXY(x,      y),
+            ]]))
+            bdg_feats.append(f)
+        buildings.dataProvider().addFeatures(bdg_feats)
+        buildings.updateExtents()
+
+        assert buildings.featureCount() == 200
+
+        start = time.time()
+        result = self.blocker_function(roads, buildings, partition)
+        elapsed = time.time() - start
+
+        assert result is not None, "blocker() must not return None"
+        assert isinstance(result, QgsVectorLayer), "Result must be a QgsVectorLayer"
+        assert elapsed < 60, f"blocker() took {elapsed:.1f} s (limit: 60 s)"
+
     def teardown_method(self, method):
         """Cleanup nach jedem Test"""
         # Clear any temporary layers
