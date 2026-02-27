@@ -8,6 +8,7 @@ Handles Delaunay triangulation and geometric operations for MST calculations.
 from typing import List, Tuple, Set
 import numpy as np
 from scipy.spatial import Delaunay
+from scipy.spatial._qhull import QhullError
 
 from qgis.core import (
     QgsVectorLayer, QgsField, QgsFeature, QgsGeometry, 
@@ -82,10 +83,22 @@ class DelaunayProcessor:
             List of EdgeData objects representing triangulation edges
         """
         points_array = centroids_result.points_array
-        
+
+        if len(points_array) < 3:
+            # Delaunay requires at least 3 non-collinear points
+            return []
+
         # Perform Delaunay triangulation
-        tri = Delaunay(points_array)
-        
+        try:
+            tri = Delaunay(points_array)
+        except QhullError as e:
+            # Points are collinear or otherwise degenerate
+            self.logger.log(
+                f"Delaunay triangulation failed (degenerate input): {e}",
+                level="WARNING"
+            )
+            return []
+
         edges = []
         for simplex in tri.simplices:
             # Create edges from each triangle (3 edges per triangle)
