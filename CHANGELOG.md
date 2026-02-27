@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## 2026-02-27
+
+### Added
+- **Tests**: Added performance integration tests for `blocker()` (200 synthetic buildings), `footprint_density` (100 buildings across 4 blocks), and `gap_fix` (100 polygons across 2 partition groups) to establish runtime baselines and catch regressions in the core processing pipeline.
+- **Tests**: Added integration tests for `patch_remove` covering GEOS validity preservation and empty building-layer edge case.
+- **Tests**: Added unit tests for `IBTool.run()` orchestration in `test_ibtool.py`, verifying signal forwarding, thread lifecycle, and output-file creation.
+- **Tests**: Refactored `test_create_mst.py` — replaced `print`-based error handling with `pytest.fail`; added comprehensive integration tests for MST properties (edge count, connectivity, weight ordering) and edge cases (degenerate inputs, single-node graphs).
+
+### Changed
+- **README**: Comprehensive rewrite with detailed feature descriptions, installation instructions, input data requirements, usage guides, troubleshooting tips, and citation details.
+- **.gitignore**: Extended to exclude the `/ai` rule-set directory and `CLAUDE.md` from version tracking.
+
+### Fixed
+- **Logger**: Caught `RuntimeError` when appending log messages to a deleted Qt widget, preventing plugin crashes during rapid session teardown.
+- **CreateMST**: Added guard against degenerate Delaunay triangulation input (fewer than 3 unique points); `scipy.spatial.Delaunay` `QhullError` is now caught and logged gracefully instead of raising an unhandled exception.
+- **Package registration**: `ibtool` package is now registered dynamically to align import paths across local development, Docker, and QGIS environments, preventing `ModuleNotFoundError` caused by mismatched folder naming.
+
+### Removed
+- **ai/**: Outdated task templates and architecture rule files (`architecture-guidelines.md`, `bugfix-task.md`, `constraints.md`, `debug-mode.md`, `feature-processing.md`, `geometry-validation.md`, `mst-architecture.md`, `mst-testing.md`, `naming-conventions.md`, `new-feature-task.md`) removed from version control.
+
+---
+
 ## 2026-02-26
 
 ### Added
