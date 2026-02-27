@@ -280,3 +280,36 @@ class TestGapFixIntegration:
 
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
+
+    @pytest.mark.integration
+    @pytest.mark.performance
+    @pytest.mark.slow
+    def test_performance_with_100_block_partition(self):
+        """gap_fix completes within 30 s for 100 polygon blocks in two partition groups.
+
+        Group A: 50 polygons in a 10×5 grid with 2 m internal gaps.
+        Group B: 50 polygons offset 300 m to the right (gap too wide to fill).
+        """
+        import time
+
+        layer = make_polygon_layer()
+        # Group A: 50 polygons in a 10×5 grid (20×20 m each, 2 m gap between them)
+        for i in range(50):
+            x = float((i % 10) * 22)
+            y = float((i // 10) * 22)
+            add_feature_to_layer(layer, make_square_geom(x, y, 20))
+        # Group B: 50 polygons with a 300 m gap to group A (not filled by gap_fix)
+        for i in range(50):
+            x = float(300 + (i % 10) * 22)
+            y = float((i // 10) * 22)
+            add_feature_to_layer(layer, make_square_geom(x, y, 20))
+
+        assert layer.featureCount() == 100
+
+        start = time.time()
+        result = gap_fix(layer, max_gap=5.0)
+        elapsed = time.time() - start
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert elapsed < 30, f"gap_fix took {elapsed:.1f} s (limit: 30 s)"
