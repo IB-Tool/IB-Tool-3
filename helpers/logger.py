@@ -98,7 +98,12 @@ class Logger:
 
             # Nachricht im Nachrichtenfenster anzeigen
             if cls.message_box:
-                cls.message_box.appendPlainText(f"{level}: {message}")
+                try:
+                    cls.message_box.appendPlainText(f"{level}: {message}")
+                except RuntimeError:
+                    # Qt widget was deleted (e.g. dialog closed in test teardown)
+                    cls.message_box = None
+                    msg(f"{level}: {message}")
             else:
                 msg(f"{level}: {message}")
 
