@@ -124,7 +124,7 @@ It is the working backlog for test work — update status fields as steps are co
 - `test_debug_mode_does_not_change_feature_count` — result with `debug_mode=True` equals result without
 - `test_empty_polygon_input_returns_empty_or_valid_layer` — `@pytest.mark.edge_case` — 0 polygons in → valid (possibly empty) layer out
 
-**Status:** `[ ]`
+**Status:** `[x]`
 
 ---
 
@@ -142,7 +142,7 @@ It is the working backlog for test work — update status fields as steps are co
 #### 7c — `test_blocker.py`
 - `test_performance_with_200_buildings` — 200 buildings, must complete in <60 s, no memory crash
 
-**Status:** `[ ]`
+**Status:** `[x]`
 
 ---
 
@@ -166,7 +166,7 @@ Tests to cover:
 - `polygon_stuetzpunkte_dict()` maps polygon ID to list of support points
 - `polygon_stuetzpunkte_dict()` with empty polygon layer → empty dict
 
-**Status:** `[ ]`
+**Status:** `[x]`
 
 #### 8b — `test_mst_modules.py` (CREATE NEW)
 **Tier:** `@pytest.mark.unit`
@@ -179,9 +179,9 @@ Tests to cover:
 - MST calculator produces exactly n-1 edges for n connected nodes
 - Data class field validation (type assertions)
 
-**Note:** Only add if classes are extracted from `CreateMST.py`. If not yet refactored, skip and add to STEP 9 backlog.
+**Note:** Classes are extracted and fully implemented — test file created.
 
-**Status:** `[ ]`
+**Status:** `[x]`
 
 #### 8c — `test_mst_performance_edge_cases.py` (CREATE NEW)
 **Tiers:** `@pytest.mark.performance @pytest.mark.slow` + `@pytest.mark.edge_case`
@@ -196,7 +196,7 @@ Tests to cover:
 - Single building → graceful return (0 or 1 edges)
 - All buildings collinear → valid tree produced
 
-**Status:** `[ ]`
+**Status:** `[x]`
 
 ---
 
@@ -213,7 +213,7 @@ Tests to cover:
 - `test_debug_mode_does_not_change_edge_count` — debug mode invariant
 - `test_road_length_parameter_affects_result` — varying `road_length` produces different edge sets
 
-**Status:** `[ ]`
+**Status:** `[x]`
 
 ---
 
@@ -229,7 +229,7 @@ Tests to cover:
 
 **Note:** Requires careful mocking of the Qt widget layer. Only implement if mocking can be done without running the Qt event loop.
 
-**Status:** `[ ]`
+**Status:** `[x]`
 
 ---
 
@@ -242,15 +242,15 @@ Tests to cover:
 | 3 | `test_message.py` | EXTEND (+3 tests) | P1 | `[x]` |
 | 4 | `conftest.py` + `layer_factories.py` | CONSOLIDATE factories | P2 | `[x]` |
 | 5 | `test_edge_catch.py` | EXTEND (+5 tests) | P2 | `[x]` |
-| 6 | `test_patch_remove.py` | EXTEND (+3 tests) | P2 | `[ ]` |
-| 7a | `test_footprint_density.py` | EXTEND (+1 perf test) | P2 | `[ ]` |
-| 7b | `test_gap_fix.py` | EXTEND (+1 perf test) | P2 | `[ ]` |
-| 7c | `test_blocker.py` | EXTEND (+1 perf test) | P2 | `[ ]` |
-| 8a | `test_mst_components.py` | CREATE (~12 tests) | P3 | `[ ]` |
-| 8b | `test_mst_modules.py` | CREATE (~17 tests) | P3 | `[ ]` |
-| 8c | `test_mst_performance_edge_cases.py` | CREATE (~13 tests) | P3 | `[ ]` |
-| 9 | `test_create_mst.py` | EXTEND (+6 tests) | P3 | `[ ]` |
-| 10 | `test_ibtool.py` | EXTEND (+3 tests) | P3 | `[ ]` |
+| 6 | `test_patch_remove.py` | EXTEND (+3 tests) | P2 | `[x]` |
+| 7a | `test_footprint_density.py` | EXTEND (+1 perf test) | P2 | `[x]` |
+| 7b | `test_gap_fix.py` | EXTEND (+1 perf test) | P2 | `[x]` |
+| 7c | `test_blocker.py` | EXTEND (+1 perf test) | P2 | `[x]` |
+| 8a | `test_mst_components.py` | CREATE (~12 tests) | P3 | `[x]` |
+| 8b | `test_mst_modules.py` | CREATE (~17 tests) | P3 | `[x]` |
+| 8c | `test_mst_performance_edge_cases.py` | CREATE (~13 tests) | P3 | `[x]` |
+| 9 | `test_create_mst.py` | EXTEND (+6 tests) | P3 | `[x]` |
+| 10 | `test_ibtool.py` | EXTEND (+3 tests) | P3 | `[x]` |
 
 ---
 
