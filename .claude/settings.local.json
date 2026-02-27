@@ -24,7 +24,8 @@
       "Bash(git:*)",
       "Bash(ls:*)",
       "Bash(wc:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
