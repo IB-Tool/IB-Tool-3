@@ -165,3 +165,46 @@ class TestPatchRemove:
             geom = feat.geometry()
             assert not geom.isNull(),  f"Null geometry at FID {feat.id()}"
             assert not geom.isEmpty(), f"Empty geometry at FID {feat.id()}"
+
+    @pytest.mark.integration
+    def test_output_geometries_are_geos_valid(self):
+        """All output geometries pass GEOS validity check."""
+        result = patch_remove(
+            self._largemake_polygon_layer(),
+            self._building_layer(25),
+            self.crs,
+            workspace_path=None,
+            min_patch_size=5000,
+        )
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        for feat in result.getFeatures():
+            geom = feat.geometry()
+            assert not geom.isNull(),    f"Null geometry at FID {feat.id()}"
+            assert not geom.isEmpty(),   f"Empty geometry at FID {feat.id()}"
+            assert geom.isGeosValid(),   f"Invalid GEOS geometry at FID {feat.id()}"
+
+    # NOTE: test_debug_mode_does_not_change_feature_count is intentionally
+    # omitted — patch_remove() has no debug_mode parameter.
+
+    @pytest.mark.integration
+    @pytest.mark.edge_case
+    def test_empty_polygon_input_returns_empty_or_valid_layer(self):
+        """Returns a valid (possibly empty) layer when the polygon input has 0 features."""
+        result = patch_remove(
+            make_polygon_layer(self.CRS_ID),   # 0 polygons
+            self._building_layer(5),
+            self.crs,
+            workspace_path=None,
+            min_patch_size=5000,
+        )
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert result.isValid()
+        for feat in result.getFeatures():
+            geom = feat.geometry()
+            assert not geom.isNull(),    f"Null geometry at FID {feat.id()}"
+            assert not geom.isEmpty(),   f"Empty geometry at FID {feat.id()}"
+            assert geom.isGeosValid(),   f"Invalid GEOS geometry at FID {feat.id()}"
