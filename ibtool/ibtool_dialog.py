@@ -27,11 +27,31 @@ import os
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QApplication
+from qgis.PyQt.QtWidgets import (
+    QDialog, QFileDialog, QApplication, QListWidgetItem,
+    QHBoxLayout, QVBoxLayout, QLabel, QPlainTextEdit, QDialogButtonBox,
+    QSplitter,
+)
+from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtCore import Qt
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ibtool_dialog_base.ui'))
+
+_STEP_LABELS = [
+    "① Input",
+    "② Parameters",
+    "③ Validation",
+    "④ Processing",
+]
+_STEP_SHORT = ["Input", "Parameters", "Validation", "Processing"]
+
+# objectNames of all path fields that have a *PathStatus label
+_PATH_FIELD_NAMES = [
+    'HuPath', 'RnPath', 'PartPath', 'AuxPath',
+    'OutputPath', 'WorkspacePath', 'FilterPath', 'LogDirPath',
+]
 
 
 class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
@@ -39,9 +59,215 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
         """Constructor."""
         super(IBToolDialog, self).__init__(parent)
         # Set up the user interface from Designer through FORM_CLASS.
-        # After self.setupUi() you can access any designer object by doing
-        # self.<objectname>, and you can use autoconnect slots - see
-        # http://qt-project.org/doc/qt-4.8/designer-using-a-ui-file.html
-        # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
+    # ------------------------------------------------------------------
+    # Step navigation
+    # ------------------------------------------------------------------
+
+    def set_step(self, index: int) -> None:
+        """Switch the stacked widget page and update step indicator styling.
+
+        Args:
+            index: Page index 0–3.
+        """
+        self.stackedWidget.setCurrentIndex(index)
+
+        for i in range(4):
+            btn = getattr(self, f'stepBtn{i}')
+            if i == index:
+                btn.setText(_STEP_LABELS[i])
+                btn.setStyleSheet(
+                    "QToolButton { font-weight: bold; color: #1565C0; "
+                    "text-decoration: underline; }"
+                )
+            elif i < index:
+                btn.setText(f"✓ {_STEP_SHORT[i]}")
+                btn.setStyleSheet("QToolButton { color: #757575; }")
+            else:
+                btn.setText(_STEP_LABELS[i])
+                btn.setStyleSheet("QToolButton { color: inherit; font-weight: normal; "
+                                  "text-decoration: none; }")
+
+    # ------------------------------------------------------------------
+    # Per-field status labels
+    # ------------------------------------------------------------------
+
+    def set_field_status(self, field_name: str, ok, message: str = "") -> None:
+        """Set the status indicator label for a path field.
+
+        Args:
+            field_name: objectName of the QLineEdit (e.g. 'HuPath').
+            ok: True = valid (green ✓), False = invalid (red ✗),
+                None = neutral (cleared).
+            message: Optional error text shown after the ✗ symbol.
+        """
+        status_label = getattr(self, f'{field_name}Status', None)
+        if status_label is None:
+            return
+
+        if ok is None:
+            status_label.setText("")
+            status_label.setStyleSheet("")
+        elif ok:
+            status_label.setText("✓")
+            status_label.setStyleSheet(
+                "QLabel { color: #2E7D32; font-weight: bold; }"
+            )
+        else:
+            text = f"✗ {message}" if message else "✗"
+            status_label.setText(text)
+            status_label.setStyleSheet("QLabel { color: #C62828; }")
+
+    def clear_field_statuses(self) -> None:
+        """Clear all path status labels to neutral state."""
+        for name in _PATH_FIELD_NAMES:
+            self.set_field_status(name, None)
+
+    # ------------------------------------------------------------------
+    # Validation checklist
+    # ------------------------------------------------------------------
+
+    def populate_validation_checklist(self, errors: list, warnings: list) -> None:
+        """Fill the validation checklist widget with results.
+
+        Args:
+            errors: List of error message strings.
+            warnings: List of warning message strings.
+        """
+        self.validationChecklist.clear()
+
+        if not errors and not warnings:
+            item = QListWidgetItem("✅  All checks passed")
+            item.setForeground(QColor("#2E7D32"))
+            self.validationChecklist.addItem(item)
+            return
+
+        for error in errors:
+            item = QListWidgetItem(f"❌  {error}")
+            item.setForeground(QColor("#C62828"))
+            self.validationChecklist.addItem(item)
+
+        for warning in warnings:
+            item = QListWidgetItem(f"⚠️  {warning}")
+            item.setForeground(QColor("#E65100"))
+            self.validationChecklist.addItem(item)
+
+    # ------------------------------------------------------------------
+    # Phase progress (Verarbeitung page)
+    # ------------------------------------------------------------------
+
+    def set_phase_progress(self, phase: int, total: int, name: str,
+                           percent: int) -> None:
+        """Update phase label and progress bar on the processing page.
+
+        Args:
+            phase: Current phase number (1-based).
+            total: Total number of phases.
+            name: Human-readable phase name.
+            percent: Overall progress percentage (0–100).
+        """
+        self.phaseLabel.setText(f"Phase {phase}/{total}: {name}...")
+        self.ProgressBar.setValue(percent)
+
+    # ------------------------------------------------------------------
+    # Result actions
+    # ------------------------------------------------------------------
+
+    def show_result_actions(self) -> None:
+        """Make result action buttons visible after successful processing."""
+        self.resultActionsFrame.setVisible(True)
+
+    def hide_result_actions(self) -> None:
+        """Hide result action buttons."""
+        self.resultActionsFrame.setVisible(False)
+
+    # ------------------------------------------------------------------
+    # Start button state
+    # ------------------------------------------------------------------
+
+    def set_start_button_ready(self, ready: bool) -> None:
+        """Enable or disable StartButton and update its colour accordingly.
+
+        Args:
+            ready: True → enabled + green (all checks passed).
+                   False → disabled + system-default grey.
+        """
+        self.StartButton.setEnabled(ready)
+        if ready:
+            self.StartButton.setStyleSheet(
+                "QPushButton { background-color: #2E7D32; color: white;"
+                " font-weight: bold; }"
+            )
+        else:
+            self.StartButton.setStyleSheet("")
+
+    # ------------------------------------------------------------------
+    # Config auto-save on close
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event) -> None:
+        """Emit a custom signal / call a registered callback on close.
+
+        ibtool.py connects _on_dialog_close to this to auto-save the config.
+        """
+        if hasattr(self, '_close_callback') and callable(self._close_callback):
+            self._close_callback()
+        super().closeEvent(event)
+
+    def set_close_callback(self, callback) -> None:
+        """Register a callable that is invoked when the dialog closes."""
+        self._close_callback = callback
+
+
+class FilterPreviewDialog(QDialog):
+    """Read-only dialog that shows the positive and negative filter entries.
+
+    Opened by the 'Show filter entries...' button on step 0.
+    Reads filter text from the main IBToolDialog's txtPositive / txtNegative
+    widgets so it always reflects the currently loaded filter file.
+    """
+
+    def __init__(self, positive_text: str, negative_text: str, parent=None):
+        """Constructor.
+
+        Args:
+            positive_text: Content for the positive filter pane.
+            negative_text: Content for the negative filter pane.
+            parent: Optional parent widget.
+        """
+        super().__init__(parent)
+        self.setWindowTitle("Filter entries")
+        self.setMinimumSize(700, 450)
+        self._build_ui(positive_text, negative_text)
+
+    def _build_ui(self, positive_text: str, negative_text: str) -> None:
+        root = QVBoxLayout(self)
+
+        splitter = QSplitter(Qt.Horizontal)
+
+        # Positive pane
+        pos_widget = QtWidgets.QWidget()
+        pos_layout = QVBoxLayout(pos_widget)
+        pos_label = QLabel("<b>Positive filter</b>")
+        pos_edit = QPlainTextEdit(positive_text)
+        pos_edit.setReadOnly(True)
+        pos_layout.addWidget(pos_label)
+        pos_layout.addWidget(pos_edit)
+        splitter.addWidget(pos_widget)
+
+        # Negative pane
+        neg_widget = QtWidgets.QWidget()
+        neg_layout = QVBoxLayout(neg_widget)
+        neg_label = QLabel("<b>Negative filter</b>")
+        neg_edit = QPlainTextEdit(negative_text)
+        neg_edit.setReadOnly(True)
+        neg_layout.addWidget(neg_label)
+        neg_layout.addWidget(neg_edit)
+        splitter.addWidget(neg_widget)
+
+        root.addWidget(splitter)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(self.reject)
+        root.addWidget(buttons)
