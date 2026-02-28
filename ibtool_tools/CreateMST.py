@@ -175,24 +175,22 @@ class CreateMST:
 
 
 def calculate_mst(
-    input_bdg: QgsVectorLayer, 
-    streets_orig: QgsVectorLayer, 
-    SpatialReference: QgsCoordinateReferenceSystem
+    input_bdg: QgsVectorLayer,
+    streets_orig: QgsVectorLayer,
+    spatial_reference: QgsCoordinateReferenceSystem,
 ) -> Optional[QgsVectorLayer]:
-    """
-    Compatibility function that maintains the original API for backward compatibility.
-    Uses default configuration values from MSTConfig.
-    
+    """Backward-compatible entry point for MST calculation.
+
+    Wraps :class:`CreateMST` with default configuration so existing callers
+    require no changes.
+
     Args:
-        input_bdg: Building polygons layer  
-        streets_orig: Original street network layer
-        SpatialReference: Coordinate reference system
-        
+        input_bdg: Building polygons layer.
+        streets_orig: Original street network layer.
+        spatial_reference: Coordinate reference system to use.
+
     Returns:
-        QgsVectorLayer containing MST lines, or None if processing fails
+        QgsVectorLayer containing MST lines, or None if processing fails.
     """
-    # Create MST calculator with default configuration
     mst_creator = CreateMST()
-    
-    # Call the implementation
-    return mst_creator.calculate_mst(input_bdg, streets_orig, SpatialReference)
+    return mst_creator.calculate_mst(input_bdg, streets_orig, spatial_reference)

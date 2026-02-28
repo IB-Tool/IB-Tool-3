@@ -25,6 +25,22 @@ of building footprints
 """
 
 
+import sys as _sys
+import os as _os
+import types as _types
+
+# The plugin folder on Windows is 'IB-Tool-3', not 'ibtool'.
+# ibtool/ibtool.py uses absolute imports like `from ibtool.helpers.x import y`.
+# Register a virtual 'ibtool' package so those imports resolve correctly.
+_plugin_root = _os.path.dirname(_os.path.abspath(__file__))
+if 'ibtool' not in _sys.modules:
+    _mod = _types.ModuleType('ibtool')
+    _mod.__path__ = [_plugin_root]
+    _mod.__package__ = 'ibtool'
+    _mod.__file__ = __file__
+    _sys.modules['ibtool'] = _mod
+
+
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
     """Load IBTool class from file IBTool.

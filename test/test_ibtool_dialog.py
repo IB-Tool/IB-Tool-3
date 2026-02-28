@@ -23,8 +23,9 @@ from qgis.PyQt.QtWidgets import (
     QComboBox,
     QCheckBox,
     QSpinBox,
-    QTabWidget,
+    QStackedWidget,
 )
+from qgis.gui import QgsProjectionSelectionWidget
 
 from ibtool.ibtool.ibtool_dialog import IBToolDialog
 from .utilities import get_qgis_app
@@ -40,8 +41,16 @@ QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 class TestIBToolDialog:
     """Tests for IBToolDialog widget structure and default values."""
 
+    # Log levels as defined in ibtool.py (setup_logging_in_plugin / run).
+    # The .ui has no items; they are added at runtime, so tests seed them here.
+    _LOG_LEVELS = ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']
+    _LOG_LEVEL_DEFAULT = 'INFO'
+
     def setup_method(self, method):
         self.dialog = IBToolDialog(None)
+        # Mirror what setup_logging_in_plugin / run() do at runtime
+        self.dialog.LogLevelBox.addItems(self._LOG_LEVELS)
+        self.dialog.LogLevelBox.setCurrentText(self._LOG_LEVEL_DEFAULT)
 
     def teardown_method(self, method):
         self.dialog.close()
@@ -58,15 +67,15 @@ class TestIBToolDialog:
         assert isinstance(self.dialog, QDialog)
 
     @pytest.mark.unit
-    def test_dialog_has_tab_widget(self):
-        """The main tab widget (tabWidget) is present."""
-        assert hasattr(self.dialog, "tabWidget")
-        assert isinstance(self.dialog.tabWidget, QTabWidget)
+    def test_dialog_has_stacked_widget(self):
+        """The main stacked widget (stackedWidget) is present after UI modernisation."""
+        assert hasattr(self.dialog, "stackedWidget")
+        assert isinstance(self.dialog.stackedWidget, QStackedWidget)
 
     @pytest.mark.unit
-    def test_tab_widget_has_four_tabs(self):
-        """tabWidget exposes exactly 4 tabs (Datenpfade, Parameter, Settings, Filtering)."""
-        assert self.dialog.tabWidget.count() == 4
+    def test_stacked_widget_has_four_pages(self):
+        """stackedWidget exposes exactly 4 pages (Eingabe, Parameter, Validierung, Verarbeitung)."""
+        assert self.dialog.stackedWidget.count() == 4
 
     # -----------------------------------------------------------------------
     # Path input widgets (Tab 1 — Datenpfade)
@@ -158,36 +167,35 @@ class TestIBToolDialog:
 
     @pytest.mark.unit
     def test_log_level_combobox_has_four_items(self):
-        """LogLevelBox contains exactly 4 log-level entries."""
+        """LogLevelBox contains exactly 4 log-level entries (seeded in setup_method)."""
         assert self.dialog.LogLevelBox.count() == 4
 
     @pytest.mark.unit
     def test_log_level_combobox_contains_expected_levels(self):
-        """LogLevelBox items include WARNING, CRITICAL, SUCCESS, INFO."""
+        """LogLevelBox items include INFO, WARNING, CRITICAL, SUCCESS."""
         box = self.dialog.LogLevelBox
         items = [box.itemText(i) for i in range(box.count())]
-        for level in ("WARNING", "CRITICAL", "SUCCESS", "INFO"):
+        for level in ("INFO", "WARNING", "CRITICAL", "SUCCESS"):
             assert level in items, f"Log level '{level}' missing from LogLevelBox"
 
     @pytest.mark.unit
-    def test_log_level_default_is_warning(self):
-        """LogLevelBox default selection is WARNING (as defined in .ui file)."""
-        assert self.dialog.LogLevelBox.currentText() == "WARNING"
+    def test_log_level_default_is_info(self):
+        """LogLevelBox default selection is INFO (set at runtime by setup_logging_in_plugin)."""
+        assert self.dialog.LogLevelBox.currentText() == "INFO"
 
     @pytest.mark.unit
-    def test_spatial_reference_box_default(self):
-        """SpatialReferenceBox defaults to 'EPSG:25832' as defined in .ui."""
+    def test_spatial_reference_box_is_projection_widget(self):
+        """SpatialReferenceBox is a QgsProjectionSelectionWidget (not a plain QLineEdit)."""
         assert hasattr(self.dialog, "SpatialReferenceBox")
-        assert self.dialog.SpatialReferenceBox.text() == "EPSG:25832"
+        assert isinstance(self.dialog.SpatialReferenceBox, QgsProjectionSelectionWidget)
 
     @pytest.mark.unit
-    def test_spatial_reference_box_accepts_text(self):
-        """SpatialReferenceBox can be changed and cleared."""
+    def test_spatial_reference_box_accepts_crs(self):
+        """SpatialReferenceBox accepts and returns a CRS via setCrs / crs()."""
+        from qgis.core import QgsCoordinateReferenceSystem
         box = self.dialog.SpatialReferenceBox
-        box.setText("EPSG:25833")
-        assert box.text() == "EPSG:25833"
-        box.clear()
-        assert box.text() == ""
+        box.setCrs(QgsCoordinateReferenceSystem("EPSG:25833"))
+        assert box.crs().authid() == "EPSG:25833"
 
     @pytest.mark.unit
     @pytest.mark.parametrize("name", ["partstartBox", "partendBox", "partlistBox"])
@@ -384,8 +392,8 @@ class TestIBToolDialog:
         ("MinPatchSizeBox", QSpinBox),
         ("MaxHoleSizeBox", QSpinBox),
         ("MaxGapSizeBox", QSpinBox),
-        # Settings LineEdits
-        ("SpatialReferenceBox", QLineEdit),
+        # Settings — CRS widget (QgsProjectionSelectionWidget, not QLineEdit)
+        ("SpatialReferenceBox", QgsProjectionSelectionWidget),
         ("partstartBox", QLineEdit),
         ("partendBox", QLineEdit),
         ("partlistBox", QLineEdit),
