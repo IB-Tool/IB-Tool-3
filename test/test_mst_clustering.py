@@ -3,15 +3,15 @@ Tests for ibtool_tools/MST_Clustering.py.
 
 The module exposes two public functions:
 
-  calc_bounding_rect(hu_polyline, hu_layer, type, crs)
+  calc_bounding_rect(hu_polyline, hu_layer, mode, crs)
     - Computes a minimum bounding rectangle from edge data.
 
   mst_clustering(hu_layer, mst_layer, crs, overlap_ratio=18)
     - Groups building polygons into clusters using MST edges.
 
 Unit tests cover (calc_bounding_rect — no Processing):
-  - type="list" with ≤ 4 rows → fallback (returns hu_layer, None)
-  - type="list" with > 4 rows → returns (QgsVectorLayer, float > 0)
+  - mode="list" with ≤ 4 rows → fallback (returns hu_layer, None)
+  - mode="list" with > 4 rows → returns (QgsVectorLayer, float > 0)
   - returned layer is valid and has polygon geometry
 
 Integration tests cover (mst_clustering):
