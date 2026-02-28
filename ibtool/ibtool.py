@@ -76,14 +76,17 @@ from qgis.PyQt.QtCore import (
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QAction,
-    QDialog
+    QDialog,
+    QFileDialog,
+    QApplication,
 )
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsProcessing,
     QgsApplication,
     QgsSettings,
-    QgsVectorLayer
+    QgsVectorLayer,
+    QgsProject,
 )
 from qgis import processing
 from ibtool.helpers.logger import Logger as MainLogger
@@ -118,7 +121,7 @@ from ibtool.ibtool_tools.PatchRemove import patch_remove
 from ibtool.ibtool_tools.GapFix import gap_fix
 
 # Import the dialog class
-from ibtool.ibtool.ibtool_dialog import IBToolDialog
+from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
 
 # Initialize the logger instance
 logger = MainLogger()
@@ -127,6 +130,9 @@ class ProcessingThread(QThread):
     """Thread for background processing"""
     progress_update = pyqtSignal(int)
     log_message = pyqtSignal(str)
+    phase_update = pyqtSignal(int, int, str)   # phase, total, name
+    finished_ok = pyqtSignal(str)              # output_path
+    finished_error = pyqtSignal(str)           # error_message
 
     def run(self):
         """Main processing logic"""
@@ -193,6 +199,10 @@ class IBTool:
         self.thread = ProcessingThread()
         self.thread.progress_update.connect(self.update_progress)
         self.thread.log_message.connect(self.update_messages)
+
+        # Last successful output paths (used by result action buttons)
+        self._last_output_path = ""
+        self._last_output_folder = ""
 
     def run(self):
         """Callback method for the plugin start."""
@@ -380,18 +390,67 @@ class IBTool:
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
             self.dlg.SaveConfigButton.clicked.connect(self._save_config_from_ui)
             # Start button disabled by default — requires successful check
-            self.dlg.StartButton.setEnabled(False)
+            self.dlg.set_start_button_ready(False)
             # Disable Start button when input paths change (re-check required)
             for path_widget in [self.dlg.HuPath, self.dlg.RnPath,
                                 self.dlg.PartPath, self.dlg.AuxPath,
                                 self.dlg.FilterPath, self.dlg.OutputPath,
                                 self.dlg.WorkspacePath]:
                 path_widget.textChanged.connect(
-                    lambda: self.dlg.StartButton.setEnabled(False)
+                    lambda: self.dlg.set_start_button_ready(False)
                 )
+            # Populate LogLevel dropdown (setup_logging_in_plugin ran on the
+            # old dialog in initGui; this new dialog instance needs items added)
+            for _lvl in ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']:
+                self.dlg.LogLevelBox.addItem(_lvl)
+            self.dlg.LogLevelBox.setCurrentText('INFO')
             self.dlg.LogLevelBox.currentTextChanged.connect(
                 lambda: logger.set_log_level(self.dlg.LogLevelBox.currentText())
             )
+
+            # Step navigation
+            self.dlg.backButton.clicked.connect(self._go_prev_step)
+            self.dlg.nextButton.clicked.connect(self._go_next_step)
+            for i in range(4):
+                getattr(self.dlg, f'stepBtn{i}').clicked.connect(
+                    lambda checked, idx=i: self.dlg.set_step(idx)
+                )
+
+            # Per-field inline path validation
+            path_fields = {
+                'HuPath': self.dlg.HuPath,
+                'RnPath': self.dlg.RnPath,
+                'PartPath': self.dlg.PartPath,
+                'AuxPath': self.dlg.AuxPath,
+                'FilterPath': self.dlg.FilterPath,
+                'OutputPath': self.dlg.OutputPath,
+                'WorkspacePath': self.dlg.WorkspacePath,
+                'LogDirPath': self.dlg.LogDirPath,
+            }
+            for field_name, widget in path_fields.items():
+                widget.textChanged.connect(
+                    lambda text, fn=field_name: self._check_path_field(fn, text)
+                )
+
+            # Copy log to clipboard
+            self.dlg.copyLogButton.clicked.connect(self._copy_log_to_clipboard)
+
+            # Result action buttons (connected once; read from self._last_output_*)
+            self.dlg.resultLoadButton.clicked.connect(self._load_result_to_qgis)
+            self.dlg.resultOpenDirButton.clicked.connect(self._open_output_dir)
+            self.dlg.resultExportLogButton.clicked.connect(self._export_log)
+
+            # Filter preview
+            self.dlg.showFilterButton.clicked.connect(self._show_filter_preview)
+
+            # Auto-save config when dialog is closed
+            self.dlg.set_close_callback(self._save_config_from_ui)
+
+            # Initialise step indicator on step 0
+            self.dlg.set_step(0)
+
+            # Set default CRS (overridden later by _apply_config_to_ui if config exists)
+            self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25832"))
 
         # Config aus CONFIG.ini in UI laden
         self._apply_config_to_ui()
@@ -404,6 +463,7 @@ class IBTool:
         logger.set_message_box(self.dlg.MessageBox)
 
         self.dlg.MessageBox.clear()
+        self.dlg.hide_result_actions()
         # show the dialog
         self.dlg.show()
 
@@ -497,6 +557,99 @@ class IBTool:
         if folder_path:
             self.dlg.LogDirPath.setText(folder_path)
 
+    # ------------------------------------------------------------------
+    # Step navigation
+    # ------------------------------------------------------------------
+
+    def _go_prev_step(self):
+        """Navigate to the previous step."""
+        idx = self.dlg.stackedWidget.currentIndex()
+        self.dlg.set_step(max(0, idx - 1))
+
+    def _go_next_step(self):
+        """Navigate to the next step."""
+        idx = self.dlg.stackedWidget.currentIndex()
+        self.dlg.set_step(min(3, idx + 1))
+
+    # ------------------------------------------------------------------
+    # Inline path validation
+    # ------------------------------------------------------------------
+
+    def _check_path_field(self, field_name: str, path: str) -> None:
+        """Quick path-existence check triggered by textChanged.
+
+        Does not load any QGIS layer — pure filesystem check.
+        """
+        if not path:
+            self.dlg.set_field_status(field_name, None)
+            return
+
+        ok, message = InputValidator().quick_path_check(path)
+        self.dlg.set_field_status(field_name, ok, message if not ok else "")
+
+        # Enable showFilterButton only when FilterPath is a valid file
+        if field_name == 'FilterPath':
+            self.dlg.showFilterButton.setEnabled(ok)
+
+    # ------------------------------------------------------------------
+    # Log utilities
+    # ------------------------------------------------------------------
+
+    def _copy_log_to_clipboard(self):
+        """Copy the MessageBox content to the system clipboard."""
+        text = self.dlg.MessageBox.toPlainText()
+        QApplication.clipboard().setText(text)
+
+    # ------------------------------------------------------------------
+    # Result actions (shown after successful processing)
+    # ------------------------------------------------------------------
+
+    def _load_result_to_qgis(self):
+        """Load the last output GeoPackage as a layer in QGIS."""
+        if not self._last_output_path or not os.path.exists(self._last_output_path):
+            msg("Output file not found.")
+            return
+        layer = QgsVectorLayer(self._last_output_path, "IB-Tool result", "ogr")
+        if layer.isValid():
+            QgsProject.instance().addMapLayer(layer)
+        else:
+            msg(f"Could not load result layer: {self._last_output_path}")
+
+    def _open_output_dir(self):
+        """Open the output directory in the file explorer."""
+        folder = self._last_output_folder or os.path.dirname(self._last_output_path)
+        if folder and os.path.isdir(folder):
+            os.startfile(folder)
+        else:
+            msg("Output directory not found.")
+
+    def _export_log(self):
+        """Save the current log content to a text file."""
+        text = self.dlg.MessageBox.toPlainText()
+        if not text:
+            msg("No log content to export.")
+            return
+        file_path, _ = QFileDialog.getSaveFileName(
+            self.dlg,
+            "Export log",
+            self._last_output_folder or "",
+            "Text files (*.txt);;All Files (*)"
+        )
+        if file_path:
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(text)
+                logger.log(f"Log exported to: {file_path}", level="INFO")
+            except Exception as e:
+                msg(f"Could not export log: {e}")
+
+    def _show_filter_preview(self):
+        """Open the FilterPreviewDialog with the current filter content."""
+        positive = self.dlg.txtPositive.toPlainText()
+        negative = self.dlg.txtNegative.toPlainText()
+        dlg = FilterPreviewDialog(positive, negative, parent=self.dlg)
+        dlg.exec_()
+
     def load_filter_file(self, file_path):
         """Reads the filter file and displays the filters in the GUI."""
         try:
@@ -555,7 +708,7 @@ class IBTool:
 
         # CRS
         if cfg.processing.crs_epsg:
-            self.dlg.SpatialReferenceBox.setText(f"EPSG:{cfg.processing.crs_epsg}")
+            self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem(f"EPSG:{cfg.processing.crs_epsg}"))
 
         # Log-Level
         valid_levels = ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']
@@ -627,7 +780,7 @@ class IBTool:
                 'part_start': int(self.dlg.partstartBox.text() or -1),
                 'part_end': int(self.dlg.partendBox.text() or -1),
                 'part_list': self.dlg.partlistBox.text(),
-                'crs_epsg': int(self.dlg.SpatialReferenceBox.text().split(":")[-1].strip() or 25832),
+                'crs_epsg': int(self.dlg.SpatialReferenceBox.crs().authid().split(":")[-1].strip() or 25832),
                 'debug_mode': self.dlg.DebugModeBox.isChecked(),
                 'delete_part_log': self.dlg.PartLogBox.isChecked(),
             },
@@ -645,7 +798,7 @@ class IBTool:
             "min_patch_size": self.dlg.MinPatchSizeBox.text(),
             "max_hole_size": self.dlg.MaxHoleSizeBox.text(),
             "max_gap_size": self.dlg.MaxGapSizeBox.text(),
-            "spatial_reference_text": self.dlg.SpatialReferenceBox.text(),
+            "spatial_reference_text": self.dlg.SpatialReferenceBox.crs().authid(),
             "part_start": self.dlg.partstartBox.text(),
             "part_end": self.dlg.partendBox.text(),
             "part_list": self.dlg.partlistBox.text(),
@@ -655,8 +808,7 @@ class IBTool:
         """Run input validation and display results in MessageBox."""
         self.dlg.MessageBox.clear()
 
-        spatial_reference_text = self.dlg.SpatialReferenceBox.text()
-        spatial_reference = QgsCoordinateReferenceSystem(spatial_reference_text)
+        spatial_reference = self.dlg.SpatialReferenceBox.crs()
 
         validator = InputValidator()
         result = validator.validate_all(
@@ -672,49 +824,61 @@ class IBTool:
         )
 
         self._display_validation_result(result)
-        self.dlg.StartButton.setEnabled(result.is_valid)
+        self.dlg.set_start_button_ready(result.is_valid)
 
     def _display_validation_result(self, result: ValidationResult) -> None:
-        """Format and display validation results in the MessageBox."""
+        """Format and display validation results in MessageBox and checklist."""
+        # Always populate the visual checklist
+        self.dlg.populate_validation_checklist(result.errors, result.warnings)
+
         if result.is_valid and not result.warnings:
             logger.log(
-                "=== VALIDIERUNG ERFOLGREICH === "
-                "Alle Eingabedaten-Checks bestanden.",
-                level="INFO"
-            )
-            return
-
-        if result.errors:
-            logger.log(
-                f"=== VALIDIERUNGSFEHLER ({len(result.errors)}) ===",
-                level="CRITICAL"
-            )
-            for i, error in enumerate(result.errors, 1):
-                logger.log(f"  [{i}] {error}", level="CRITICAL")
-
-        if result.warnings:
-            logger.log(
-                f"=== WARNUNGEN ({len(result.warnings)}) ===",
-                level="WARNING"
-            )
-            for i, warning in enumerate(result.warnings, 1):
-                logger.log(f"  [{i}] {warning}", level="WARNING")
-
-        if result.is_valid:
-            logger.log(
-                "Validierung bestanden (mit Warnungen). "
-                "Verarbeitung kann gestartet werden.",
+                "=== VALIDATION SUCCESSFUL === "
+                "All input data checks passed.",
                 level="INFO"
             )
         else:
-            logger.log(
-                "Validierung fehlgeschlagen. "
-                "Bitte Fehler oben beheben, bevor gestartet wird.",
-                level="CRITICAL"
-            )
+            if result.errors:
+                logger.log(
+                    f"=== VALIDATION ERRORS ({len(result.errors)}) ===",
+                    level="CRITICAL"
+                )
+                for i, error in enumerate(result.errors, 1):
+                    logger.log(f"  [{i}] {error}", level="CRITICAL")
+
+            if result.warnings:
+                logger.log(
+                    f"=== WARNINGS ({len(result.warnings)}) ===",
+                    level="WARNING"
+                )
+                for i, warning in enumerate(result.warnings, 1):
+                    logger.log(f"  [{i}] {warning}", level="WARNING")
+
+            if result.is_valid:
+                logger.log(
+                    "Validation passed (with warnings). "
+                    "Processing can be started.",
+                    level="INFO"
+                )
+            else:
+                logger.log(
+                    "Validation failed. "
+                    "Please fix errors above before starting.",
+                    level="CRITICAL"
+                )
+
+        # Navigate to step 2 (Validierung) so the checklist is visible
+        self.dlg.set_step(2)
 
     def start_processing(self):
         """Start main process"""
+
+        # Navigate to the processing page and reset UX state
+        self.dlg.set_step(3)
+        self.dlg.hide_result_actions()
+        self.dlg.phaseLabel.setText("Starting processing...")
+        self.dlg.ProgressBar.setValue(0)
+        QApplication.processEvents()
 
         # Ensure logger uses the level selected in the GUI
         selected_level = self.dlg.LogLevelBox.currentText()
@@ -727,8 +891,6 @@ class IBTool:
         log_dir = self.dlg.LogDirPath.text()
         if log_dir:
             logger.set_log_dir(log_dir)
-
-        self.dlg.ProgressBar.setValue(0)  # Set progress to 0
 
         workspace = os.getcwd()
         os.chdir(workspace)
@@ -791,8 +953,7 @@ class IBTool:
         DelPartLog = self.dlg.PartLogBox.isChecked()
         msg(f"DelPartLog={DelPartLog}")
         debug_mode = self.dlg.DebugModeBox.isChecked()
-        spatial_reference = self.dlg.SpatialReferenceBox.text()
-        spatial_reference = QgsCoordinateReferenceSystem(spatial_reference)
+        spatial_reference = self.dlg.SpatialReferenceBox.crs()
         logger.log("spatial_reference: {}".format(spatial_reference.authid()),
                    'INFO',)
 
@@ -834,8 +995,11 @@ class IBTool:
                        level="CRITICAL")
             return
 
-        # Alle Eingabe-Shapefiles in das GeoPackage laden
+        # Phase 1: Load Data
+        self.dlg.set_phase_progress(1, 6, "Load Data", 0)
+        QApplication.processEvents()
 
+        # Alle Eingabe-Shapefiles in das GeoPackage laden
         layer_rn = load_to_geopackage(InputRN,
                                      workspace_path + "layer_rn.gpkg",
                                     "layer_rn", spatial_reference)
@@ -971,14 +1135,26 @@ class IBTool:
 
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
+            # Phase 2: Calculate Blocks
+            self.dlg.set_phase_progress(2, 6, "Calculate Blocks", 10)
+            QApplication.processEvents()
+
             blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
                              debug_mode=debug_mode, workspace_path=workspace_path)
+
+            # Phase 3: Apply Filter
+            self.dlg.set_phase_progress(3, 6, "Apply Filter", 20)
+            QApplication.processEvents()
 
             hu_filter = input_hu_filter(sel_hu_layer, input_filter,min_area, 50, 200)
 
             blocks_dense = identify_dense_blocks(hu_filter, blocks, min_overlap_blocks)
 
             hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
+
+            # Phase 4: Calculate MST
+            self.dlg.set_phase_progress(4, 6, "Calculate MST", 40)
+            QApplication.processEvents()
 
             mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
 
@@ -988,6 +1164,10 @@ class IBTool:
                     part_log.write("\n" + part_name)
                 logger.log(f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
                 continue
+
+            # Phase 5: Clustering
+            self.dlg.set_phase_progress(5, 6, "Clustering", 60)
+            QApplication.processEvents()
 
             hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
 
@@ -1042,6 +1222,10 @@ class IBTool:
 
         #gap_fixed = gap_fix(merge, layer_rn, workspace_path, debug_mode=debug_mode)
 
+        # Phase 6: Save Output
+        self.dlg.set_phase_progress(6, 6, "Save Output", 95)
+        QApplication.processEvents()
+
         # Split the OutputFile into path, filename, and extension
         output_folder, file_with_extension = os.path.split(OutputFile)
         output_filename, _ = os.path.splitext(file_with_extension)
@@ -1050,4 +1234,11 @@ class IBTool:
 
         save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
 
-        logger.log("ERFOLG", "INFO")
+        # Processing complete
+        self.dlg.ProgressBar.setValue(100)
+        self.dlg.phaseLabel.setText("Processing complete")
+        self._last_output_path = OutputFile
+        self._last_output_folder = output_folder
+        self.dlg.show_result_actions()
+
+        logger.log("Processing completed successfully.", level="INFO")
