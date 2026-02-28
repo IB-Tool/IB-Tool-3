@@ -42,6 +42,27 @@ class ValidationResult:
 class InputValidator:
     """Validates all IBTool input data before processing."""
 
+    def quick_path_check(self, path: str, is_dir: bool = False) -> tuple:
+        """Fast filesystem check without QGIS layer instantiation.
+
+        Suitable for real-time textChanged feedback in the UI.
+
+        Args:
+            path: Filesystem path to check.
+            is_dir: If True, also verify the path is a directory.
+
+        Returns:
+            Tuple (ok: bool, message: str).  ok=True means the path exists
+            (and is a directory when is_dir=True).
+        """
+        if not path or not path.strip():
+            return False, "No path specified"
+        if not os.path.exists(path):
+            return False, "File or directory does not exist"
+        if is_dir and not os.path.isdir(path):
+            return False, "Not a directory"
+        return True, ""
+
     # Required fields per layer type
     HU_REQUIRED_FIELDS = ("fkt", "funktion")  # At least one must exist
     HU_FKT_PATTERN = re.compile(r"^\d{5}_\d{4}")  # ATKIS: 31001_1000
