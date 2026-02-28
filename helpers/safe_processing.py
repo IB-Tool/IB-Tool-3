@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Safe wrapper for QGIS processing.run with geometry repair and debug support."""
+from typing import Any, Dict, Optional
 from qgis.core import QgsProcessing
 from qgis import processing
 
@@ -7,8 +8,14 @@ from .logger import Logger
 from .debug_utils import save_debug_layer
 
 
-def safe_processing_run(algorithm_name, parameters, fix_geometries=True,
-                        debug_mode=False, workspace_path=None, tool_name=""):
+def safe_processing_run(
+    algorithm_name: str,
+    parameters: Dict[str, Any],
+    fix_geometries: bool = True,
+    debug_mode: bool = False,
+    workspace_path: Optional[str] = None,
+    tool_name: str = "",
+) -> Dict[str, Any]:
     """Safe wrapper for processing.run with automatic geometry repair on failure.
 
     On a geometry-related exception the function attempts to repair all input
