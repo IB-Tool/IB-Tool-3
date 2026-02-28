@@ -7,38 +7,79 @@ from ..helpers.logger import Logger
 from ..helpers.system_utils import save_temp_layer_to_gpkg
 from ..helpers.geometry_utils import select_and_save_by_location, shp_area, shp_area2
 
-def import_filter(filename, HU_Input):
-    """
-    Importiert Listen von Gebäuden aus IB-Tool2_Filter.txt und erstellt Selektionsstrings.
-    :param filename: Datei mit Filterdefinitionen
-    :param HU_Input: Gebäude-Shape-Layer als Polygon
-    :return: Selektionsstrings für positive und negative Filter
+# Number of characters taken from each filter-file entry for the ATKIS code match.
+_FILTER_CODE_LENGTH = 10
 
-    - Liest die Filterdatei und konvertiert sie in zwei Listen (positiv/negativ).
-    - Erstellt Selektionsstrings für spätere Filterung.
+# Minimum heatmap density value for a raster point to define a residential zone.
+_MIN_DENSITY_VALUE = 4
+
+# Divisor applied to cell_size to compute the buffer radius around density points.
+_BUFFER_CELL_DIVISOR = 1.5
+
+# Minimum individual building area (sqm) retained in the final output layer.
+_MIN_BUILDING_AREA = 35
+
+
+def _create_filter_string(filter_list: list[str], fieldname: str) -> str:
+    """Build a QGIS expression string that matches features by LIKE comparisons.
+
+    Joins every entry in ``filter_list`` with OR to produce an expression like::
+
+        fkt LIKE '31001_1000' OR fkt LIKE '31001_1010'
+
+    Args:
+        filter_list: Quoted ATKIS code strings (e.g. ``["'31001_1000'"]``).
+        fieldname: Attribute field name to match against.
+
+    Returns:
+        A QGIS expression string, or an empty string if ``filter_list`` is empty.
+    """
+    parts = [f"{fieldname} LIKE {value}" for value in filter_list]
+    return " OR ".join(parts)
+
+
+def import_filter(
+    filename: str, hu_layer: QgsVectorLayer
+) -> tuple[str, str, str]:
+    """Read a filter definition file and build QGIS selection expressions.
+
+    Parses the filter file into positive and negative code lists, then
+    assembles LIKE-based selection strings for later feature extraction.
+
+    Args:
+        filename: Path to the filter definition text file.
+        hu_layer: Building footprint polygon layer. Must have a ``fkt`` or
+            ``funktion`` attribute field.
+
+    Returns:
+        Tuple of ``(filter_positive, filter_negative, fieldname)`` where both
+        filter strings are QGIS expression strings.
+
+    Raises:
+        Exception: If the file does not exist, the layer is invalid, or the
+            required attribute field is missing.
     """
     if not os.path.isfile(filename):
         raise Exception(f"{filename} existiert nicht im Arbeitsverzeichnis.")
 
-    # Überprüfen, ob der Eingabelayer das richtige Format hat
-    if not HU_Input.isValid() or HU_Input.geometryType() != QgsWkbTypes.PolygonGeometry:
-        raise Exception("hu_layer muss ein gültiger Polygon-Layer sein.")
+    # Validate input layer geometry type
+    if not hu_layer.isValid() or hu_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+        raise Exception("hu_layer must be a valid polygon layer.")
 
-
-    # Feldname bestimmen
+    # Determine attribute field name
     fieldname = None
-    fields = HU_Input.fields()
+    fields = hu_layer.fields()
     if fields.indexOf("fkt") != -1:
         fieldname = "fkt"
     elif fields.indexOf("funktion") != -1:
         fieldname = "funktion"
     else:
-        raise Exception("Das Eingabe-Shape enthält weder ein 'fkt'- noch ein 'funktion'-Feld.")
+        raise Exception("Der Eingabelayer hat weder ein 'fkt'- noch ein 'funktion'-Feld.")
 
-    # Filterdatei lesen und Listen erstellen
+    # Read filter file and build entry lists
     with open(filename, 'r', encoding='utf-8') as file:
-        listpos = []
-        listneg = []
+        pos_entries = []
+        neg_entries = []
         current_section = None
 
         for row in file:
@@ -51,52 +92,60 @@ def import_filter(filename, HU_Input):
                 continue
             else:
                 if current_section == "positive":
-                    listpos.append(f"'{row[:10]}'")
+                    pos_entries.append(f"'{row[:_FILTER_CODE_LENGTH]}'")
                 elif current_section == "negative":
-                    listneg.append(f"'{row[:10]}'")
+                    neg_entries.append(f"'{row[:_FILTER_CODE_LENGTH]}'")
 
-    # Selektionsstrings erstellen
-    def create_filter_string(filter_list, fieldname):
-        filter_string = ""
-        for index, value in enumerate(filter_list):
-            addstring = f"{fieldname} LIKE {value}"
-            if index < len(filter_list) - 1:
-                addstring += " OR "
-            filter_string += addstring
-        return filter_string
-
-    filterpos = create_filter_string(listpos, fieldname)
-    filterneg = create_filter_string(listneg, fieldname)
+    filterpos = _create_filter_string(pos_entries, fieldname)
+    filterneg = _create_filter_string(neg_entries, fieldname)
 
     return filterpos, filterneg, fieldname
 
 
-def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSize=50, PointDensNbh=100, ):
-    """
-    :param HU_Input: input building footprints (QgsVectorLayer)
-    :param MinAreaAllBdgs: minimum area of all filtered buildings
-    :param PointDensCellSize: cell size parameter in meters of density function
-    :param PointDensNbh: search radius parameter in meters of density function
-    :return: filtered buildings (QgsVectorLayer)
+def input_hu_filter(
+    hu_layer: QgsVectorLayer,
+    filter_file: str,
+    min_area: float = 56.8,
+    cell_size: int = 50,
+    neighborhood_radius: int = 100,
+) -> QgsVectorLayer:
+    """Filter building footprints by function type and density-based residential zones.
 
-    - Select residential buildings (filterpos list) and create density-based selecting polygon
-    - Delete negative buildings (filterneg list) within residential selecting polygon
-    - Delete small buildings
+    Steps:
+
+    1. Select residential buildings (positive filter list) and derive a
+       density-based selection polygon from their centroids.
+    2. Exclude non-residential buildings (negative filter list) that fall
+       within the residential zone.
+    3. Remove dissolved building groups and individual buildings below
+       the area threshold.
+
+    Args:
+        hu_layer: Input building footprint polygon layer.
+        filter_file: Path to the filter definition text file.
+        min_area: Minimum combined area threshold for dissolved building groups.
+            Processing is skipped when the layer has fewer features than this
+            value. Defaults to 56.8.
+        cell_size: Cell size in meters for the kernel density raster. Defaults to 50.
+        neighborhood_radius: Search radius in meters for the kernel density
+            estimation. Defaults to 100.
+
+    Returns:
+        Filtered building footprint layer as a dissolved QgsVectorLayer.
     """
-    # Check if the input layer is valid
-    if not HU_Input.isValid() or HU_Input.geometryType() != QgsWkbTypes.PolygonGeometry:
+    if not hu_layer.isValid() or hu_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
         raise Exception("hu_layer must be a valid polygon layer.")
 
-    anz_hu = HU_Input.featureCount()
+    building_count = hu_layer.featureCount()
 
-    if anz_hu > MinAreaAllBdgs:
+    if building_count > min_area:
 
-        HU_Input = shp_area(HU_Input)
-        filterpos, filterneg, fieldname = import_filter(filter_file, HU_Input)
+        hu_layer = shp_area(hu_layer)
+        filterpos, filterneg, fieldname = import_filter(filter_file, hu_layer)
 
         # Step 1: Select residential buildings (positive filter)
         residential_layer = processing.run("native:extractbyexpression", {
-            'INPUT': HU_Input,
+            'INPUT': hu_layer,
             'EXPRESSION': filterpos,
             'OUTPUT': 'memory:'
         })['OUTPUT']
@@ -116,8 +165,8 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
         hu_raster = QgsProcessingUtils.generateTempFilename("hu_raster.tif")
         processing.run("qgis:heatmapkerneldensityestimation", {
             'INPUT': res_cent,
-            'RADIUS': PointDensNbh,
-            'PIXEL_SIZE': PointDensCellSize,
+            'RADIUS': neighborhood_radius,
+            'PIXEL_SIZE': cell_size,
             'DECAY': 0,
             'OUTPUT': hu_raster
         })
@@ -135,7 +184,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
         # Filter points by density value
         filtered_points = processing.run("native:extractbyexpression", {
             'INPUT': res_density_points,
-            'EXPRESSION': f"value >= 4",
+            'EXPRESSION': f"value >= {_MIN_DENSITY_VALUE}",
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(filtered_points, QgsVectorLayer):
@@ -144,7 +193,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
         # Buffer around filtered points
         points_buffer = processing.run("native:buffer", {
             'INPUT': filtered_points,
-            'DISTANCE': PointDensCellSize / 1.5,
+            'DISTANCE': cell_size / _BUFFER_CELL_DIVISOR,
             'SEGMENTS': 5,
             'END_CAP_STYLE': 0,
             'JOIN_STYLE': 0,
@@ -158,7 +207,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
 
         # Step 2: Exclude buildings (negative filter)
         negative_layer = processing.run("native:extractbyexpression", {
-            'INPUT': HU_Input,
+            'INPUT': hu_layer,
             'EXPRESSION': filterneg,
             'OUTPUT': 'memory:'
         })['OUTPUT']
@@ -167,10 +216,10 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
 
         # Exclude negative buildings within residential area
         hu_neg_sel = select_and_save_by_location(negative_layer, points_buffer, predicate=2)
-        hu_final = select_and_save_by_location(HU_Input, hu_neg_sel, predicate=2)
+        hu_final = select_and_save_by_location(hu_layer, hu_neg_sel, predicate=2)
 
         # Step 3: Delete small buildings
-        hu_diss = processing.run("native:dissolve",{
+        hu_diss = processing.run("native:dissolve", {
             'INPUT': hu_final,
             'FIELD': [],
             'SEPARATE_DISJOINT': True,
@@ -182,7 +231,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
             'INPUT': hu_diss,
             'FIELD': 'Area',
             'OPERATOR': 2,
-            'VALUE': MinAreaAllBdgs,
+            'VALUE': min_area,
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(diss_del, QgsVectorLayer):
@@ -195,7 +244,7 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
             'INPUT': hu_final_sel,
             'FIELD': 'Area',
             'OPERATOR': 2,
-            'VALUE': 35,
+            'VALUE': _MIN_BUILDING_AREA,
             'OUTPUT': 'memory:'
         })['OUTPUT']
 
@@ -209,5 +258,8 @@ def input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs=56.8, PointDensCellSiz
         return final_layer_diss
 
     else:
-        Logger.log(f"Anzahl der Gebäude für Filterung zu gering: {anz_hu}", level="WARNING")
-        return HU_Input
+        Logger.log(
+            f"Anzahl der Gebäude für Filterung zu gering: {building_count}",
+            level="WARNING",
+        )
+        return hu_layer
