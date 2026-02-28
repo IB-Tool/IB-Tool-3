@@ -14,13 +14,15 @@ The CI workflow:
 1. Checks out the repository code
 2. Sets up Docker Buildx
 3. Builds the Docker image based on the `Dockerfile`
-4. Runs the tests inside the container
+4. Runs the tests inside the container with coverage reporting
+5. Verifies the coverage report and fixes container-absolute paths
+6. Uploads the coverage report to Codecov
 
 ```yaml
 name: CI
 on:
   push:
-    branches: [master]
+    branches: [master, main]
   pull_request:
 jobs:
   test:
@@ -35,9 +37,31 @@ jobs:
       - name: Build Docker image
         run: docker build --pull -t qgis-plugin-test .
 
-      - name: Run tests
-        run: docker run --rm qgis-plugin-test
+      - name: Run tests with coverage
+        run: |
+          docker run --rm \
+            -v $(pwd):/plugins/ibtool \
+            qgis-plugin-test
+
+      - name: Verify and fix coverage report
+        run: |
+          if [ ! -f coverage.xml ]; then
+            echo "ERROR: coverage.xml not found after test run"
+            exit 1
+          fi
+          sed -i 's|/plugins/ibtool/||g' coverage.xml
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          fail_ci_if_error: true
 ```
+
+### Coverage Reporting
+
+Test coverage is measured with `pytest-cov` and uploaded to [Codecov](https://codecov.io) on every CI run. The `coverage.xml` file is written by the container into the volume-mounted workspace, so it is available on the host after the container exits. Container-absolute paths (`/plugins/ibtool/`) are stripped before upload so Codecov can map lines back to the repository.
 
 ### Docker Environment
 
@@ -102,18 +126,31 @@ Tests are located in the `test/` directory and run with pytest:
 | `test_resources.py` | Resource management |
 | `test_data_loader.py` | Data loading functions |
 | `test_ibtool.py` | Main plugin class |
+| `test_ibtool_dialog.py` | UI dialog |
 | `test_gap_fix.py` | GapFix module |
 | `test_footprint_density.py` | Footprint density calculations |
 | `test_gap_close.py` | GapClose module |
+| `test_hole_close.py` | HoleClose module |
 | `test_edge_catch.py` | EdgeCatch module |
 | `test_import_filter.py` | Import filter |
 | `test_patch_remove.py` | PatchRemove module |
+| `test_add_single_building.py` | AddSingleBuilding module |
 | `test_mst_clustering.py` | MST clustering |
-| `test_safe_processing.py` | Safe processing wrapper |
+| `test_create_mst.py` | CreateMST module |
+| `test_mst_modules.py` | MST module integration |
+| `test_mst_components.py` | MST component tests |
+| `test_mst_performance_edge_cases.py` | MST performance and edge-case handling |
+| `test_fixtures_mst.py` | MST shared test fixtures |
 | `test_mst_utils.py` | MST utility functions |
+| `test_safe_processing.py` | Safe processing wrapper |
 | `test_debug_utils.py` | Debug utilities |
 | `test_geometry_utils.py` | Geometry utilities |
 | `test_edge_catch_utils.py` | Edge catch helpers |
+| `test_config_manager.py` | Configuration management |
+| `test_qgis_defaults.py` | QGIS default parameters |
+| `test_qgis_environment.py` | QGIS environment setup |
+| `test_translations.py` | Translations / i18n |
+| `test_check.py` | Input validation checks |
 | `test_manage_directory.py` | Directory management |
 
 Run tests locally:
