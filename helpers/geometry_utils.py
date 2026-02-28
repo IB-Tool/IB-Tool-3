@@ -22,18 +22,23 @@ from qgis import processing
 from .logger import Logger
 
 
+# ── Module-level constants ─────────────────────────────────────────────────────
+INTERSECT_BUFFER_DISTANCE = 70  # Buffer distance in meters for polygon intersection analysis
+
+
 def polyline2(array_of_lines, output_path, output_format="shp"):
-    """
-    :param array_of_lines: Array of tuples where each tuple contains two points and a length value
-                           [("x1", "y1", "x2", "y2", "Shape_Len")].
-    :param output_path: Path to save the output file (shapefile or GeoPackage).
-    :param output_format: Format of the output file ("shp" for shapefile, "gpkg" for GeoPackage).
-    :return: Path to the created polyline file.
+    """Create a polyline file from an array of line segments.
 
-    - Creates a polyline file with the given array of lines and length field.
-    """
+    Args:
+        array_of_lines: List of tuples, each containing two points and a length
+            value in the format [((x1, y1), (x2, y2), shape_len), ...].
+        output_path: Path to save the output file (shapefile or GeoPackage).
+        output_format: Format of the output file. Use "shp" for ESRI Shapefile
+            (default) or "gpkg" for GeoPackage.
 
-    # Define the fields for the layer
+    Returns:
+        Path to the created polyline file.
+    """
     fields = QgsFields()
     fields.append(QgsField("x1", QMetaType.Double))
     fields.append(QgsField("y1", QMetaType.Double))
@@ -41,173 +46,147 @@ def polyline2(array_of_lines, output_path, output_format="shp"):
     fields.append(QgsField("y2", QMetaType.Double))
     fields.append(QgsField("Shape_Len", QMetaType.Double))
 
-    # Create a memory layer to build the features
     layer = QgsVectorLayer("LineString?crs=EPSG:4326", "PolylineLayer", "memory")
     if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
         layer.dataProvider().createSpatialIndex()
     else:
-        Logger.log("Räumlicher Index kann nicht erstellt werden.", 'CRITICAL')
+        Logger.log("Spatial index could not be created.", level='CRITICAL')
     provider = layer.dataProvider()
 
-    # Add fields to the layer
     provider.addAttributes(fields)
     layer.updateFields()
 
-    # Create features from the array of lines
     for line in array_of_lines:
         x1, y1 = line[0]
         x2, y2 = line[1]
         shape_len = line[2] if len(line) > 2 and line[2] is not None else 0
 
-        # Create a new feature
         feature = QgsFeature()
-
-        # Define geometry as a line from point 1 to point 2
         geometry = QgsGeometry.fromPolylineXY([QgsPointXY(x1, y1), QgsPointXY(x2, y2)])
         feature.setGeometry(geometry)
-
-        # Set attribute values
         feature.setAttributes([x1, y1, x2, y2, shape_len])
-
-        # Add the feature to the layer
         provider.addFeature(feature)
 
-    # Save the layer to the specified output format
     if output_format.lower() == "gpkg":
         QgsVectorFileWriter.writeAsVectorFormat(
             layer, output_path, "utf-8", layer.crs(), "GPKG"
         )
-    else:  # Default to ESRI Shapefile
+    else:
         QgsVectorFileWriter.writeAsVectorFormat(
             layer, output_path, "utf-8", layer.crs(), "ESRI Shapefile"
         )
 
     return output_path
 
-# Example usage (uncomment and customize):
-# result = Polyline2([
-#     [(0, 0), (1, 1), 1.414],
-#     [(2, 2), (3, 3), 1.414]
-# ], "polyline2.gpkg", output_format="gpkg")
-# print(f"File created at: {result}")
 
+def check_projection(spatial_reference, inputlist):
+    """Check that all layers in inputlist match the expected CRS.
 
-def check_projection(SpatialReference, inputlist):
-    # Ziel-Koordinatenreferenzsystem
-    sr_i = SpatialReference
-
+    Args:
+        spatial_reference: Target QgsCoordinateReferenceSystem.
+        inputlist: List of file paths to check.
+    """
     for f in inputlist:
-        # Prüfen, ob die Datei existiert
         if not os.path.exists(f):
-            Logger.log("Alert: File {} does not exist!".format(f), level="CRITICAL")
+            Logger.log(f"Alert: File {f} does not exist!", level="CRITICAL")
             continue
 
-        # Laden der Datei als Layer
         layer = QgsVectorLayer(f, os.path.basename(f), "ogr")
 
         if not layer.isValid():
-            Logger.log("Alert: Unable to load file {} as a valid layer!".format(f), level="CRITICAL")
+            Logger.log(f"Alert: Unable to load file {f} as a valid layer!", level="CRITICAL")
             continue
         if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
             layer.dataProvider().createSpatialIndex()
         else:
-            Logger.log("Räumlicher Index kann nicht erstellt werden.", 'CRITICAL')
+            Logger.log("Spatial index could not be created.", level='CRITICAL')
 
-        # Abrufen des Koordinatenreferenzsystems des Layers
-        sr_f = layer.crs()
+        layer_crs = layer.crs()
 
-        if sr_i.authid() != sr_f.authid():
-            actual_crs = sr_f.authid() if sr_f.authid() else "undefined/unknown"
-            Logger.log("Alert: Projection of {} is not {}, but {}!".format(f, sr_i.authid(), actual_crs), level="CRITICAL"
-)
+        if spatial_reference.authid() != layer_crs.authid():
+            actual_crs = layer_crs.authid() if layer_crs.authid() else "undefined/unknown"
+            Logger.log(
+                f"Alert: Projection of {f} is not {spatial_reference.authid()}, "
+                f"but {actual_crs}!",
+                level="CRITICAL",
+            )
 
 
-def load_to_geopackage(input_layer, output_path, layer_name, SpatialReference):
+def load_to_geopackage(input_layer, output_path, layer_name, spatial_reference):
+    """Load an input layer into a GeoPackage file.
+
+    Args:
+        input_layer: Path or source data of the input layer.
+        output_path: Path to the output GeoPackage file.
+        layer_name: Name of the layer within the GeoPackage.
+        spatial_reference: Coordinate reference system for the layer.
+
+    Returns:
+        QgsVectorLayer on success.
+
+    Raises:
+        Exception: If the input layer cannot be loaded.
     """
-    Lädt einen Eingabelayer in ein GeoPackage.
-
-    :param input_layer: Pfad oder Quelldaten des Eingabelayers.
-    :param output_path: Pfad zur Ausgabe-GeoPackage-Datei.
-    :param layer_name: Name des Layers im GeoPackage.
-    :param SpatialReference: Koordinatenreferenzsystem für den Layer.
-    :return: QgsVectorLayer bei Erfolg.
-    :raises: Exception bei Fehler.
-    """
-
-    # Alte Datei entfernen, falls sie existiert
     if os.path.exists(output_path):
         os.remove(output_path)
 
-    # Eingabelayer laden
     layer = QgsVectorLayer(input_layer, layer_name, "ogr")
     if not layer.isValid():
-        error_msg = f"Fehler: {input_layer} konnte nicht geladen werden."
+        error_msg = f"Error: {input_layer} could not be loaded."
         Logger.log(error_msg, level="CRITICAL")
         raise Exception(error_msg)
 
     if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
         layer.dataProvider().createSpatialIndex()
     else:
-        Logger.log("Räumlicher Index kann nicht erstellt werden.", 'CRITICAL')
+        Logger.log("Spatial index could not be created.", level='CRITICAL')
 
-    # Optionen für den GeoPackage-Export festlegen
     options = QgsVectorFileWriter.SaveVectorOptions()
     options.driverName = "GPKG"
     options.fileEncoding = "UTF-8"
-    options.destinationCrs = SpatialReference
+    options.destinationCrs = spatial_reference
 
-    # Schreiben des Layers in das GeoPackage
-    error = QgsVectorFileWriter.writeAsVectorFormatV3(
+    QgsVectorFileWriter.writeAsVectorFormatV3(
         layer,
         output_path,
         QgsProject.instance().transformContext(),
         options
     )
-    '''
-    if error != QgsVectorFileWriter.NoError:
-        raise RuntimeError("Fehler beim Schreiben in GeoPackage: {}".format(str(error)))
-    else:
-       msg(f"Layer '{layer_name}' erfolgreich zu '{output_path}' hinzugefügt.")
-    '''
+
     return layer
 
-def split_layer_by_attribute(input_layer_path, attribute_name, output_folder):
-    """
-    Split a vector layer into multiple layers based on unique values of an attribute.
 
-    Parameters:
-        input_layer_path (str): Path to the input vector layer (e.g., a Shapefile).
-        attribute_name (str): Name of the attribute to split the layer by.
-        output_folder (str): Path to the folder where the split layers will be saved.
+def split_layer_by_attribute(
+    input_layer_path: str,
+    attribute_name: str,
+    output_folder: str,
+) -> None:
+    """Split a vector layer into multiple layers based on unique attribute values.
 
-    Returns:
-        None
+    Args:
+        input_layer_path: Path to the input vector layer (e.g., a Shapefile).
+        attribute_name: Name of the attribute to split the layer by.
+        output_folder: Path to the folder where the split layers will be saved.
     """
-    # Lade die Eingabedaten
     layer = QgsVectorLayer(input_layer_path, "InputLayer", "ogr")
     if not layer.isValid():
-        raise Exception("Layer konnte nicht geladen werden!")
+        raise Exception("Layer could not be loaded!")
     if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
         layer.dataProvider().createSpatialIndex()
     else:
-        Logger.log("Räumlicher Index kann nicht erstellt werden.", 'CRITICAL')
+        Logger.log("Spatial index could not be created.", level='CRITICAL')
 
-    # Erstelle das Verzeichnis für die Ausgabedateien, falls es noch nicht existiert
     os.makedirs(output_folder, exist_ok=True)
 
-    # Hole alle eindeutigen Werte im Attributfeld
     if attribute_name not in [field.name() for field in layer.fields()]:
-        raise Exception(f"Attribut '{attribute_name}' existiert nicht im Layer!")
+        raise Exception(f"Attribute '{attribute_name}' does not exist in layer!")
 
     unique_values = layer.uniqueValues(layer.fields().indexFromName(attribute_name))
 
-    # Splitte die Ebene nach Attributwerten
     for value in unique_values:
-        # Filtere die Features für den aktuellen Attributwert
         query = "{} = {}".format(attribute_name, value)
         subset_layer = layer.materialize(QgsProcessingFeatureSourceDefinition(query))
 
-        # Exportiere die gefilterte Ebene als neue Datei
         output_path = os.path.join(output_folder, f"{value}.shp")
         QgsVectorFileWriter.writeAsVectorFormat(
             subset_layer,
@@ -217,23 +196,30 @@ def split_layer_by_attribute(input_layer_path, attribute_name, output_folder):
             "ESRI Shapefile"
         )
 
-    print("Aufteilung abgeschlossen!")
+    Logger.log("Split complete.", level="INFO")
 
-    # Beispielaufruf der Funktion
-    # split_layer_by_attribute("path_to_input_layer.shp", "NAME", "path_to_output_folder")
 
-def select_and_save_by_location(input_layer, intersect_layer, predicate=None, method=0, output='TEMPORARY_OUTPUT'):
+def select_and_save_by_location(
+    input_layer,
+    intersect_layer,
+    predicate=None,
+    method=0,
+    output='TEMPORARY_OUTPUT',
+):
+    """Select features by spatial relationship and save the selection.
+
+    Args:
+        input_layer: The layer to apply the selection to.
+        intersect_layer: The layer used to define the spatial relationship.
+        predicate: List defining the spatial relationship (e.g., [0] for
+            intersects). Defaults to [0].
+        method: Selection method (e.g., 0 for 'create new selection').
+        output: Output location for selected features. Defaults to
+            'TEMPORARY_OUTPUT'.
+
+    Returns:
+        Output layer containing the selected features.
     """
-    Führt eine Auswahl von Features auf Basis ihrer räumlichen Lage durch und speichert die ausgewählten Features.
-
-    :param input_layer: Das Layer, auf das die Auswahl angewendet wird (z. B. 'INPUT').
-    :param predicate: Ein Listentyp, der die räumliche Beziehung definiert (z. B. [0] für Überschneidet).
-    :param intersect_layer: Das Layer, mit dem die räumliche Beziehung analysiert wird.
-    :param method: Die Auswahlmethode (z. B. 0 für 'Neue Auswahl erstellen').
-    :param output: Der Speicherort für die ausgewählten Features (Standard: 'TEMPORARY_OUTPUT').
-    :return: Das Ergebnis-Layer mit den ausgewählten Features.
-    """
-    # Auswahl nach räumlicher Lage durchführen
     if predicate is None:
         predicate = [0]
     processing.run("native:selectbylocation", {
@@ -243,7 +229,6 @@ def select_and_save_by_location(input_layer, intersect_layer, predicate=None, me
         'METHOD': method
     })
 
-    # Ausgewählte Features speichern
     selected_features = processing.run(
         "native:saveselectedfeatures", {
             'INPUT': input_layer,
@@ -254,26 +239,25 @@ def select_and_save_by_location(input_layer, intersect_layer, predicate=None, me
 
 
 def create_polygons_from_lines(input_layer, output_layer_name="Polygons_from_Lines"):
-    """
-    Convert connected line features into polygons in QGIS.
+    """Convert connected line features into polygons.
 
     Args:
-        input_layer (QgsVectorLayer): The input layer containing line features.
-        output_layer_name (str): Name of the output layer.
+        input_layer: QgsVectorLayer containing line features.
+        output_layer_name: Name of the output layer.
+
+    Returns:
+        QgsVectorLayer containing the created polygons.
     """
     if not input_layer or input_layer.geometryType() != QgsWkbTypes.LineGeometry:
         raise ValueError("Input layer must be a valid line geometry layer.")
 
-    # Create an output layer to store polygons
     crs = input_layer.crs().toWkt()
     output_layer = QgsVectorLayer(f"Polygon?crs={crs}", output_layer_name, "memory")
     provider = output_layer.dataProvider()
 
-    # Add attributes from the input layer
     provider.addAttributes(input_layer.fields())
     output_layer.updateFields()
 
-    # Group geometries to form polygons
     line_geometries = [feat.geometry() for feat in input_layer.getFeatures()]
     polygons = []
     used_lines = set()
@@ -282,7 +266,6 @@ def create_polygons_from_lines(input_layer, output_layer_name="Polygons_from_Lin
         if i in used_lines:
             continue
 
-        # Start building a potential polygon
         current_ring = geom1.asMultiPolyline() if geom1.isMultipart() else [geom1.asPolyline()]
         ring_closed = False
 
@@ -292,55 +275,56 @@ def create_polygons_from_lines(input_layer, output_layer_name="Polygons_from_Lin
 
             for line1 in current_ring:
                 for line2 in geom2.asMultiPolyline() if geom2.isMultipart() else [geom2.asPolyline()]:
-                    if line1[-1] == line2[0]:  # Check if lines are connected
+                    if line1[-1] == line2[0]:
                         current_ring.append(line2)
                         break
-                    elif line1[-1] == line2[-1]:  # Reverse if necessary
+                    elif line1[-1] == line2[-1]:
                         current_ring.append(line2[::-1])
                         break
 
-            # Check if the ring is closed
             if current_ring[0][0] == current_ring[-1][-1]:
                 ring_closed = True
                 used_lines.add(j)
                 break
 
         if ring_closed:
-            polygon_geom = QgsGeometry.fromPolygonXY([QgsPointXY(p) for line in current_ring for p in line])
+            polygon_geom = QgsGeometry.fromPolygonXY(
+                [QgsPointXY(p) for line in current_ring for p in line]
+            )
             polygons.append(polygon_geom)
             used_lines.add(i)
 
-    # Add polygons to the output layer
     for polygon in polygons:
         new_feature = QgsFeature(output_layer.fields())
         new_feature.setGeometry(polygon)
         provider.addFeatures([new_feature])
 
-    # Add the output layer to the project
-
-    print(f"{len(polygons)} polygons created and added to {output_layer_name} layer.")
+    Logger.log(
+        f"{len(polygons)} polygons created and added to '{output_layer_name}' layer.",
+        level="INFO",
+    )
 
     return output_layer
 
-# Usage example
-#input_layer = iface.activeLayer()  # Use the active layer in QGIS
-#create_polygons_from_lines(input_layer)
 
 def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygons"):
-    """
-    Extrahiert Polygone aus einem Liniennetzwerk in QGIS.
+    """Extract polygons from a line network using cycle detection.
 
-    :param line_layer: QgsVectorLayer mit Liniengeometrien.
-    :param output_layer_name: Name des Ausgabe-Polygon-Layers.
-    :return: QgsVectorLayer mit extrahierten Polygonen.
+    Builds an undirected graph from line segments, detects all simple cycles,
+    and creates a polygon layer from the detected cycles.
+
+    Args:
+        line_layer: QgsVectorLayer containing line geometries.
+        output_layer_name: Name of the output polygon layer.
+
+    Returns:
+        QgsVectorLayer containing the extracted polygons.
     """
     if line_layer.geometryType() != QgsWkbTypes.LineGeometry:
-        raise ValueError("Die Eingabeebene muss Liniengeometrien enthalten.")
+        raise ValueError("The input layer must contain line geometries.")
 
-    # Erstelle einen leeren ungerichteten Graphen
-    G = nx.Graph()
+    graph = nx.Graph()
 
-    # Füge Kanten zum Graphen hinzu basierend auf den Liniensegmenten
     for feature in line_layer.getFeatures():
         geom = feature.geometry()
         if geom.isMultipart():
@@ -352,12 +336,10 @@ def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygon
             for i in range(len(line) - 1):
                 start_point = (line[i].x(), line[i].y())
                 end_point = (line[i + 1].x(), line[i + 1].y())
-                G.add_edge(start_point, end_point)
+                graph.add_edge(start_point, end_point)
 
-    # Finde alle einfachen Zyklen im Graphen
-    cycles = list(nx.simple_cycles(G.to_directed()))
+    cycles = list(nx.simple_cycles(graph.to_directed()))
 
-    # Erstelle einen neuen Polygon-Layer im Speicher
     polygon_layer = QgsVectorLayer(
         "Polygon?crs={}".format(line_layer.crs().authid()), output_layer_name, "memory"
     )
@@ -365,11 +347,8 @@ def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygon
     provider.addAttributes([QgsField("id", QMetaType.Int)])
     polygon_layer.updateFields()
 
-    # Füge die gefundenen Zyklen als Polygone hinzu
     for idx, cycle in enumerate(cycles):
-        # Erstelle eine Liste von QgsPointXY-Objekten
         points = [QgsPointXY(x, y) for x, y in cycle]
-        # Schließe das Polygon, indem der erste Punkt erneut hinzugefügt wird
         if points[0] != points[-1]:
             points.append(points[0])
         polygon = QgsGeometry.fromPolygonXY([points])
@@ -379,15 +358,21 @@ def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygon
         feature.setAttributes([idx])
         provider.addFeature(feature)
 
-    # Füge den neuen Layer zum aktuellen QGIS-Projekt hinzu
     QgsProject.instance().addMapLayer(polygon_layer)
 
     return polygon_layer
 
 
 def shp_area(layer, area_field='Area'):
-    """Adds shape area field to file"""
+    """Add a shape area field to a layer using the field calculator.
 
+    Args:
+        layer: QgsVectorLayer to process.
+        area_field: Name of the area field to add. Defaults to 'Area'.
+
+    Returns:
+        QgsVectorLayer with the area field added.
+    """
     if not layer.isValid():
         raise Exception(f"Layer {layer} is not valid")
 
@@ -408,68 +393,76 @@ def shp_area(layer, area_field='Area'):
 
 
 def shp_area2(layer, field_name="Area", logger=None):
+    """Calculate and store the area of each geometry in a layer.
+
+    Iterates over all features in the layer and writes the computed geometry
+    area to the specified field. The field is added if it does not already
+    exist.
+
+    Args:
+        layer: QgsVectorLayer whose geometries will be processed.
+        field_name: Name of the field to store the area. Defaults to "Area".
+        logger: Optional Logger instance for debug output.
+
+    Returns:
+        True if successful, False on error.
     """
-    Berechnet die Flächen (Area) für jede Geometrie in einem angegebenen Layer
-    und speichert die Werte in einem neuen Feld.
-
-    :param layer: (QgsVectorLayer) Der Eingabe-Layer, dessen Geometrien verarbeitet werden sollen.
-    :param field_name: (str) Der Name des Feldes, in dem die Fläche gespeichert wird. Standard ist "Area".
-    :param logger: (Logger) Optionales Logger-Objekt (z.B. für Debugging und Fehlerprotokollierung).
-    :return: (bool) True, wenn die Operation erfolgreich abgeschlossen wurde, False im Fehlerfall.
-    """
-
-    #shp_area2(layer, logger=Logger) mit Logging
-
-    # Überprüfen, ob der Layer gültig ist
     if not layer.isValid():
         if logger:
-            logger.log(f"Layer '{layer.name()}' ist ungültig.", level="ERROR")
+            logger.log(f"Layer '{layer.name()}' is invalid.", level="ERROR")
         return False
 
-    # Überprüfen, ob das Feld bereits existiert
     field_names = [field.name() for field in layer.fields()]
     if field_name not in field_names:
-        # Neues Feld hinzufügen
         layer_provider = layer.dataProvider()
         layer_provider.addAttributes([QgsField(field_name, QMetaType.Double)])
         layer.updateFields()
     else:
         if logger:
-            logger.log(f"Das Feld '{field_name}' existiert bereits.", level="WARNING")
+            logger.log(f"Field '{field_name}' already exists.", level="WARNING")
 
-    # Geometrien iterieren und Flächen berechnen
     try:
         with edit(layer):
             for feature in layer.getFeatures():
                 geometry = feature.geometry()
                 if geometry and geometry.isGeosValid():
-                    # Fläche berechnen und setzen
                     area = geometry.area()
                     feature[field_name] = area
                     layer.updateFeature(feature)
                 else:
                     if logger:
-                        logger.log(f"Ungültige Geometrie in Feature ID: {feature.id()}. Überspringe Feature.",
-                                   level="WARNING")
+                        logger.log(
+                            f"Invalid geometry in feature ID: {feature.id()}. Skipping feature.",
+                            level="WARNING",
+                        )
 
         if logger:
-            logger.log(f"Flächenberechnung erfolgreich für Layer '{layer.name()}'.", level="INFO")
+            logger.log(
+                f"Area calculation successful for layer '{layer.name()}'.", level="INFO"
+            )
         return True
 
     except Exception as e:
         if logger:
-            logger.log(f"Fehler bei der Flächenberechnung: {str(e)}", level="ERROR")
+            logger.log(f"Error during area calculation: {str(e)}", level="ERROR")
         return False
 
 
-def shp_length(layer, Fieldname='Length'):
-    """Adds length field to file"""
+def shp_length(layer, field_name='Length'):
+    """Add a length field to a layer using the field calculator.
 
+    Args:
+        layer: QgsVectorLayer to process.
+        field_name: Name of the length field to add. Defaults to 'Length'.
+
+    Returns:
+        QgsVectorLayer with the length field added.
+    """
     if not layer.isValid():
         raise Exception(f"Layer {layer} is not valid")
 
-    if Fieldname not in [field.name() for field in layer.fields()]:
-        layer.dataProvider().addAttributes([QgsField(Fieldname, QMetaType.Double)])
+    if field_name not in [field.name() for field in layer.fields()]:
+        layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.Double)])
         layer.updateFields()
 
     layer = processing.run("native:fieldcalculator",
@@ -483,43 +476,44 @@ def shp_length(layer, Fieldname='Length'):
     return layer['OUTPUT']
 
 
-def create_empty_layer(layer_name: str, layer_type: str, crs: str):
-    """
-    Creates an empty layer with a specified geometry type and CRS.
+def create_empty_layer(layer_name: str, layer_type: str, crs: str) -> QgsVectorLayer:
+    """Create an empty layer with a specified geometry type and CRS.
 
-    :param layer_type: The geometry type of the layer (e.g., "Polygon", "LineString", "Point").
-    :param crs: The coordinate reference system for the layer as a string.
-    :return: QgsVectorLayer object
+    Args:
+        layer_name: Name of the new layer.
+        layer_type: Geometry type of the layer (e.g., "Polygon", "LineString",
+            "Point").
+        crs: Coordinate reference system as a string (e.g., "EPSG:25832").
+
+    Returns:
+        QgsVectorLayer with default 'id' and 'name' fields.
     """
     layer = QgsVectorLayer(f"{layer_type}?crs={crs}", layer_name, "memory")
     layer_data_provider = layer.dataProvider()
 
-    # Add required fields to the layer if needed
     layer_data_provider.addAttributes([
-        QgsField("id", QMetaType.Int),  # Example attribute field
-        QgsField("name", QMetaType.QString)  # Add more fields as required
+        QgsField("id", QMetaType.Int),
+        QgsField("name", QMetaType.QString)
     ])
     layer.updateFields()
     return layer
 
 
 def create_linestring_layer_from_array(data, crs, layer_name):
-    """
-    Erstellt einen temporären QgsVectorLayer vom Typ LineString
-    aus einer Liste von Liniensegmenten.
+    """Create a temporary LineString QgsVectorLayer from a list of line segments.
 
-    Parameters:
-        data (list): Liste der Form [[[x1, y1], [x2, y2], weight], ...]
-        crs (str oder QgsCoordinateReferenceSystem): z. B. "EPSG:25833"
-        layer_name (str): Name des temporären Layers
+    Args:
+        data: List of segments in the format
+            [[[x1, y1], [x2, y2], weight], ...].
+        crs: QgsCoordinateReferenceSystem or string, e.g. "EPSG:25833".
+        layer_name: Name of the temporary layer.
 
     Returns:
-        QgsVectorLayer: Ein gültiger Linienlayer
+        QgsVectorLayer: A valid line layer.
     """
     layer = QgsVectorLayer("LineString?crs={}".format(crs.toWkt()), layer_name, "memory")
     prov = layer.dataProvider()
 
-    # Optional: Attribut für Gewicht hinzufügen
     prov.addAttributes([QgsField("weight", QMetaType.Double)])
     layer.updateFields()
 
@@ -545,19 +539,27 @@ def create_linestring_layer_from_array(data, crs, layer_name):
     layer.updateExtents()
     return layer
 
-def nodes_detect(input_road_network, count):
-    """
-    QGIS-Portierung der ArcPy-Funktion NodesDetect mit Join_Count beim Zusammenführen von Punkten.
-    """
 
-    # 1. Endpunkte extrahieren
-    vertices = processing.run("native:extractspecificvertices",{
+def nodes_detect(input_road_network, count):
+    """Detect road network nodes with a specific connection count.
+
+    QGIS port of the ArcPy NodesDetect function. Extracts endpoints from
+    the road network, aggregates by X coordinate, and returns only those
+    nodes matching the specified connection count.
+
+    Args:
+        input_road_network: QgsVectorLayer containing road line features.
+        count: Target connection count to filter nodes by.
+
+    Returns:
+        QgsVectorLayer containing filtered network nodes.
+    """
+    vertices = processing.run("native:extractspecificvertices", {
         'INPUT': input_road_network,
         'VERTICES': '0, -1',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
-    # 2. X/Y hinzufügen, falls nicht vorhanden
     vertices = processing.run("qgis:fieldcalculator", {
         'INPUT': vertices,
         'FIELD_NAME': 'x-coord',
@@ -588,8 +590,14 @@ def nodes_detect(input_road_network, count):
 
 
 def get_hole_polygons(layer1, layer2):
-    """
-    Gibt einen neuen Layer mit allen Polygonen aus layer1 zurück, die nicht in layer2 enthalten sind.
+    """Return polygons from layer1 that are not contained within any polygon in layer2.
+
+    Args:
+        layer1: QgsVectorLayer — source polygons.
+        layer2: QgsVectorLayer — reference polygons used for containment check.
+
+    Returns:
+        QgsVectorLayer containing isolated (hole) polygons.
     """
     all_features_layer1 = list(layer1.getFeatures())
     all_features_layer2 = list(layer2.getFeatures())
@@ -602,15 +610,13 @@ def get_hole_polygons(layer1, layer2):
         for feat2 in all_features_layer2:
             geom2 = feat2.geometry()
 
-            # Prüfe, ob geom1 in geom2 geschnitten oder enthalten ist
-            if  geom1.within(geom2):
+            if geom1.within(geom2):
                 is_isolated = False
                 break
 
         if is_isolated:
             hole_features.append(feat1)
 
-    # Erstellen eines neuen Layers für die isolierten Features
     crs = layer1.crs().toWkt()
     hole_layer = QgsVectorLayer(f"Polygon?crs={crs}", "Isolated Polygons", "memory")
     provider = hole_layer.dataProvider()
@@ -622,14 +628,19 @@ def get_hole_polygons(layer1, layer2):
 
     return hole_layer
 
-def intersect_polygons(input_polygon):
-    """
-    Processes the input polygon to identify and extract intersecting polygons.
 
-    :param input_polygon: The input polygon layer to process.
-    :type input_polygon: QgsVectorLayer
-    :return: The output layer containing intersecting polygons.
-    :rtype: QgsVectorLayer
+def intersect_polygons(input_polygon):
+    """Identify and extract intersecting polygons from an input polygon layer.
+
+    Buffers the input polygons by ``INTERSECT_BUFFER_DISTANCE`` meters,
+    converts them to lines, polygonizes the result, and returns only those
+    polygons that contain more than one centroid (i.e., intersecting polygons).
+
+    Args:
+        input_polygon: QgsVectorLayer — the input polygon layer to process.
+
+    Returns:
+        QgsVectorLayer containing intersecting polygons.
     """
     input_clean = processing.run("native:deleteduplicategeometries", {
         'INPUT': input_polygon,
@@ -638,7 +649,7 @@ def intersect_polygons(input_polygon):
 
     input_buff = processing.run("native:buffer", {
         'INPUT': input_clean,
-        'DISTANCE': 70, 'SEGMENTS': 5, 'END_CAP_STYLE': 0, 'JOIN_STYLE': 0,
+        'DISTANCE': INTERSECT_BUFFER_DISTANCE, 'SEGMENTS': 5, 'END_CAP_STYLE': 0, 'JOIN_STYLE': 0,
         'MITER_LIMIT': 2, 'DISSOLVE': False, 'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
@@ -648,7 +659,6 @@ def intersect_polygons(input_polygon):
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-
     input_lines_poly = processing.run("native:polygonize", {
         'INPUT': input_lines,
         'KEEP_FIELDS': False,
@@ -657,23 +667,23 @@ def intersect_polygons(input_polygon):
 
     lines_poly_union = processing.run("native:union", {
         'INPUT': input_lines_poly,
-        'OUTPUT':QgsProcessing.TEMPORARY_OUTPUT,
-        'GRID_SIZE':None
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        'GRID_SIZE': None
         })['OUTPUT']
 
     centroides = processing.run("native:centroids", {
         'INPUT': lines_poly_union,
-        'ALL_PARTS':False,
-        'OUTPUT':'TEMPORARY_OUTPUT'
+        'ALL_PARTS': False,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
 
     input_lines_poly_count = processing.run("native:countpointsinpolygon", {
         'POLYGONS': input_lines_poly,
         'POINTS': centroides,
-        'WEIGHT':'',
-        'CLASSFIELD':'',
-        'FIELD':'NUMPOINTS',
-        'OUTPUT':'TEMPORARY_OUTPUT'
+        'WEIGHT': '',
+        'CLASSFIELD': '',
+        'FIELD': 'NUMPOINTS',
+        'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
 
     intersect_poly = processing.run("native:extractbyattribute", {
