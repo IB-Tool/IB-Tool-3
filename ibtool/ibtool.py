@@ -1146,7 +1146,8 @@ class IBTool:
             self.dlg.set_phase_progress(3, 6, "Apply Filter", 20)
             QApplication.processEvents()
 
-            hu_filter = input_hu_filter(sel_hu_layer, input_filter,min_area, 50, 200)
+            hu_filter = input_hu_filter(sel_hu_layer, input_filter, min_area, 50, 200,
+                                        debug_mode=debug_mode, workspace_path=workspace_path)
 
             blocks_dense = identify_dense_blocks(hu_filter, blocks, min_overlap_blocks)
 
@@ -1169,7 +1170,8 @@ class IBTool:
             self.dlg.set_phase_progress(5, 6, "Clustering", 60)
             QApplication.processEvents()
 
-            hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer,spatial_reference, min_overlap_mst)
+            hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer, spatial_reference, min_overlap_mst,
+                                               debug_mode=debug_mode, workspace_path=workspace_path)
 
             add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,
                                           workspace_path, debug_mode=debug_mode)
@@ -1201,7 +1203,8 @@ class IBTool:
                                          min_patch_size=min_patch_size,
                                          min_bdg_count=min_bdg_count,
                                          footprint_area_sum=6000,
-                                         footprint_density_threshold=18)
+                                         footprint_density_threshold=18,
+                                         debug_mode=debug_mode)
 
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
