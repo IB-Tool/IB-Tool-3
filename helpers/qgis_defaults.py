@@ -8,6 +8,9 @@ These are technical QGIS settings, not business logic parameters.
 
 from dataclasses import dataclass
 
+# Default CRS for all processing tools (UTM Zone 32N, ETRS89)
+DEFAULT_CRS_EPSG: int = 25832
+
 
 @dataclass
 class QGISDefaults:
