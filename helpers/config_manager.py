@@ -10,6 +10,8 @@ import configparser
 from typing import Dict, Any, Optional, Union
 from dataclasses import dataclass, asdict
 from qgis.core import QgsVectorLayer
+from .logger import Logger
+from .qgis_defaults import DEFAULT_CRS_EPSG
 
 
 @dataclass
@@ -45,7 +47,7 @@ class ProcessingConfig:
     part_list: str = ""  # Comma-separated list of partition IDs
 
     # General processing
-    crs_epsg: int = 25832  # Default EPSG code
+    crs_epsg: int = DEFAULT_CRS_EPSG  # Default EPSG code
     output_format: str = "gpkg"  # gpkg or shp
 
     # Settlement analysis parameters (UI fields)
@@ -131,8 +133,8 @@ class ConfigManager:
             try:
                 self.load_config()
             except Exception as e:
-                print(f"Warning: Could not load CONFIG.ini: {e}")
-                print("Using default configuration instead.")
+                Logger.log(f"Could not load CONFIG.ini: {e}", level="WARNING")
+                Logger.log("Using default configuration instead.", level="WARNING")
     
     def load_config(self) -> None:
         """Load configuration from CONFIG.ini file."""
@@ -162,7 +164,7 @@ class ConfigManager:
             self.config.processing.density_threshold = section.getfloat('density_threshold', 0.3)
             self.config.processing.min_cluster_size = section.getint('min_cluster_size', 3)
             self.config.processing.max_distance = section.getfloat('max_distance', 200.0)
-            self.config.processing.crs_epsg = section.getint('crs_epsg', 25832)
+            self.config.processing.crs_epsg = section.getint('crs_epsg', DEFAULT_CRS_EPSG)
             self.config.processing.output_format = section.get('output_format', 'gpkg')
             self.config.processing.part_start = section.getint('part_start', 1)
             self.config.processing.part_end = section.getint('part_end', -1)
