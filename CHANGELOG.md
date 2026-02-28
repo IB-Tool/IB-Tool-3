@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## 2026-02-28
+
+### Changed
+- **Docs**: Updated `docs/contributing.md` — synced CI workflow snippet with current `.github/workflows/ci.yml` (coverage step, Codecov upload, volume mount, `main` branch trigger), added coverage-reporting section, and expanded test table to include all 33 current test files.
+
+---
+
 ## 2026-02-27
 
 ### Added
