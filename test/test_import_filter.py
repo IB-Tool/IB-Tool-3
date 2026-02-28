@@ -3,10 +3,10 @@ Tests for ibtool_tools/ImportFilter.py.
 
 The module exposes two public functions:
 
-  import_filter(filename, HU_Input)
+  import_filter(filename, hu_layer)
     - reads a text filter file → returns (filterpos, filterneg, fieldname)
 
-  input_hu_filter(HU_Input, filter_file, MinAreaAllBdgs, ...)
+  input_hu_filter(hu_layer, filter_file, min_area, ...)
     - applies import_filter to build filter strings, runs QGIS Processing
 
 Unit tests cover (import_filter — no Processing needed):
@@ -19,7 +19,7 @@ Unit tests cover (import_filter — no Processing needed):
   - empty filter sections → empty strings returned
 
 Integration tests cover (input_hu_filter):
-  - building count below MinAreaAllBdgs → returns HU_Input unchanged
+  - building count below min_area → returns hu_layer unchanged
   - invalid layer → raises Exception
 """
 
@@ -230,7 +230,7 @@ class TestInputHuFilter:
         _add_square(layer, 0, 0, 50)    # 1 feature only
 
         # MinAreaAllBdgs default is 56.8; with 1 feature the condition is not met
-        result = input_hu_filter(layer, filter_path, MinAreaAllBdgs=100)
+        result = input_hu_filter(layer, filter_path, min_area=100)
 
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
