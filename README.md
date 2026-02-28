@@ -37,6 +37,18 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
   - GapClose: closes holes (> 1 ha removed) and bridges narrow gaps (≤ 70 m) via double-buffer.
   - PatchRemove: removes splinter areas (< 1 ha, < 20 buildings).
 
+- **Guided 4-step workflow:**
+  - Step 1 *Input* — path fields with real-time existence validation.
+  - Step 2 *Parameters* — numerical processing parameters with inline descriptions.
+  - Step 3 *Validation* — checklist view of all pre-processing checks (errors / warnings).
+  - Step 4 *Processing* — phase progress label, progress bar, live log, and result action buttons (load layer, open folder, export log) after a successful run.
+  - Auto-saves UI state to `CONFIG.ini` on dialog close.
+
+- **Debug mode:**
+  - Checkbox in the dialog enables per-module GeoPackage snapshots written to `workspace/debug/<Module>/`.
+  - Files are numbered sequentially (`001_after_positive_filter.gpkg`, …) and sort chronologically in any GIS.
+  - All major processing modules supported: `Blocker`, `AddSingleBuilding`, `EdgeCatch`, `GapClose`, `GapFix`, `ImportFilter`, `MST_Clustering`, `PatchRemove`.
+
 - **QGIS integration:**
   - Processes `.shp` and `.gpkg` inputs; writes results as GeoPackages.
   - Built-in input validation with Check button; progress bar; configurable log levels.
@@ -102,13 +114,12 @@ The easiest way to install IBTool is to download the ready-to-use ZIP file from 
 ## Usage
 
 1. Launch the plugin from the QGIS menu bar under **Plugins → IB-Tool**.
-2. Load your geodata (e.g. building footprints, road networks) directly through the tool's interface.
-3. Set a workspace folder — this is used to store intermediate and final results.
-4. Configure the parameter settings in the dialog window.
-5. Click the **Check** button to validate all input data before processing. Fix any reported errors before continuing.
-6. Start processing:
-   - Monitor progress in the progress bar.
-   - Results are saved as `.gpkg` files.
+2. **Step 1 — Input:** Fill in all path fields (building footprints, road network, partitions, auxiliary layer, filter file, workspace, output). Each field shows a green ✓ or red ✗ as you type.
+3. **Step 2 — Parameters:** Review and adjust the processing parameters. Refer to **[docs/parameterization.md](docs/parameterization.md)** for a full description of each parameter.
+4. **Step 3 — Validation:** Click the **Check** button to run all pre-processing checks. Errors must be resolved before processing can start. Warnings are informational.
+5. **Step 4 — Processing:** Click **Start**. Monitor progress via the phase label and progress bar. After a successful run, use the result action buttons to load the layer into QGIS, open the output folder, or export the log.
+
+> **Tip:** Enable *Debug Mode* in the dialog to save intermediate GeoPackage snapshots for each processing step to `workspace/debug/`. This is useful for diagnosing unexpected results.
 
 ---
 
@@ -248,13 +259,14 @@ The plugin processes each partition through a fixed sequence of steps:
 
 1. **Blocker** — derives street and city blocks from the road + auxiliary network
 2. **ImportFilter** — 3-stage semantic/spatial/size filter removes non-UGB buildings
-3. **FootprintDensity** — calculates building coverage ratio (BCR); classifies dense blocks (BCR > 18%)
+3. **FootprintDensity** — calculates building coverage ratio (BCR); classifies dense blocks (BCR > threshold)
 4. **CreateMST** — Delaunay triangulation → MST (Kruskal); removes road-crossing edges
 5. **MST_Clustering** — groups buildings into oriented MBRs, validated by local BCR threshold
 6. **AddSingleBuilding** — adds bounding rectangles for large isolated buildings (> 300 m²)
 7. **EdgeCatch** — snaps boundaries to road network (nearest road within 25 m)
-8. **GapClose** — closes holes > 1 ha; bridges gaps ≤ 70 m (4,900 m²) via double-buffer
-9. **PatchRemove** — removes splinter areas (< 1 ha and < 20 buildings)
+8. **GapClose** — closes enclosed holes above area threshold; bridges narrow gaps at the fringe
+9. **PatchRemove** — removes splinter areas below size and building-count thresholds
+10. **GapFix** — topological gap repair between partition boundaries using buffer-ring intersection
 
 For the full algorithmic description including pseudocode, parameter references, and accuracy results, see **[docs/how-it-works.md](docs/how-it-works.md)**.
 
@@ -325,3 +337,6 @@ If you use IBTool in research, please cite:
 - Make sure all input data uses the same **CRS** (coordinate reference system).
 - Verify that all dependencies (e.g. libraries) are correctly installed.
 - Consult the log messages in the plugin's message window to identify errors.
+- Enable **Debug Mode** in the dialog to write step-by-step GeoPackage snapshots to `workspace/debug/`. Load these files into QGIS and sort them by name to trace the pipeline visually. Error snapshots are marked with an `_err` suffix.
+- If a partition produces unexpected output, check the debug files for the relevant module (e.g. `ImportFilter/003_after_density_buffer.gpkg` to inspect the residential zone polygon).
+- See **[docs/parameterization.md](docs/parameterization.md)** for guidance on tuning the processing parameters.
