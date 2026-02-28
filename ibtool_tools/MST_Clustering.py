@@ -1,14 +1,15 @@
 
 from operator import itemgetter
 import math
+
 import numpy as np
 
 from PyQt5.QtCore import QMetaType
 from qgis import processing
 from qgis.core import (
-    QgsGeometry, 
-    QgsPoint, 
-    QgsFeature, 
+    QgsGeometry,
+    QgsPoint,
+    QgsFeature,
     QgsVectorLayer,
     QgsField,
     QgsProcessing,
@@ -20,307 +21,309 @@ from qgis.core import (
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import shp_area, create_empty_layer
 
+# Maximum angle difference (degrees) for two angles to be grouped into the same cluster.
+_MAIN_ANGLE_MAX_DIFF = 10
 
-def calc_bounding_rect(hu_polyline: list[tuple[float, float]] | object, hu_layer: object, type: str, crs: object) -> \
-tuple[object, float | None]:
+# Extension length (map units) for constructing the oriented reference axis in bounding rect calc.
+_BOUNDING_RECT_EXTENSION = 10_000
+
+# Length of the horizontal reference vector used when measuring line orientation angles.
+_REFERENCE_VECTOR_LENGTH = 100
+
+
+def _main_angle(angle_length_pairs: list[tuple[float, float]], max_diff: float) -> float:
+    """Determine the dominant angle from a list of angle-length pairs.
+
+    Groups angle-length pairs by proximity (within ``max_diff`` degrees), identifies
+    the group with the greatest total length, then returns the angle of the longest
+    contiguous run of identical angles within that group.
+
+    Args:
+        angle_length_pairs: List of ``(angle_degrees, length)`` tuples.
+        max_diff: Maximum angular difference (degrees) for two angles to belong to
+            the same group.
+
+    Returns:
+        The dominant angle in degrees.
     """
-    Calculate the bounding rectangle for a given polyline or layer.
-
-    This function determines a bounding rectangle based on the provided inputs. The
-    primary focus is to calculate the rectangle's main orientation by analyzing
-    line directions and aggregating line segments. Once the orientation is calculated,
-    the function computes the bounding rectangle that encompasses the polyline or
-    layer geometry.
-
-    :param hu_polyline: The input polyline data, which could either be a list of
-        coordinates or a more structured layer object.
-    :param hu_layer: The data structure containing feature information of the layer.
-        This parameter is assessed when type is set to "shape".
-    :param type: A string indicating the type of input provided:
-        - "shape": The input is interpreted as a structured spatial layer.
-        - "list": The input is interpreted as a list of coordinate and segment-related
-          data.
-    :param crs: The coordinate reference system in which the bounding rectangle
-        should be calculated, ensuring spatial consistency.
-    :return: The calculated bounding rectangle in the form of its corner points and
-        orientation.
-    :rtype: list[tuple[float, float]] or dict
-    """
-
-    LengthList = []
-    AngleList = []
-    PointList = []
-
-    def main_angle(list, maxdiff):
-        """
-        Calculate the main angle from a list of angle-length pairs.
-
-        This function groups angle-length pairs based on a maximum difference threshold
-        (maxdiff) between angles. The group with the largest cumulative length is then
-        analyzed, and the angle corresponding to the longest subsequence within that
-        group is returned as the main angle.
-
-        :param list: A list of tuples, where each tuple contains an angle (float) and
-            its corresponding length (float).
-        :param maxdiff: The maximum difference allowed between angles for grouping
-            them together.
-        :type list: list[tuple[float, float]]
-        :type maxdiff: float
-        :return: The angle (float) representing the main angle calculated based on the
-            given criteria.
-        :rtype: float
-        """
-        sorted_angles = sorted(list, key=itemgetter(0))
-        groups = [[sorted_angles[0]]]
-        for x in sorted_angles[1:]:
-            if abs(x[0] - groups[-1][-1][0]) < maxdiff:
-                groups[-1].append(x)
-            else:
-                groups.append([x])
-        sumlist = []
-        for e in groups:
-            s = 0
-            for j in e:
-                s = s + j[1]
-            sumlist.append(s)
-
-        max_sum_group = groups[np.argmax(sumlist)]
-        s = 0
-        g1 = max_sum_group[0][0]
-        lengthsum = []
-        for e in max_sum_group:
-            if g1 == e[0]:
-                s = s + e[1]
-            else:
-                lengthsum.append(s)
-                s = e[1]
-            g1 = e[0]
-        if len(lengthsum) == 0:
-            lengthsum.append(s)
-        MainAng = max_sum_group[np.argmax(lengthsum)][0]
-
-        return MainAng
-
-
-    def near_point(x0, y0, x1, y1, x2, y2):
-        """
-        Computes the perpendicular distance of a point from a line segment
-        and calculates the nearest point on the segment to the given point.
-        The function uses vector mathematics to derive the results.
-
-        :param x0: x-coordinate of the first point of the line segment
-        :param y0: y-coordinate of the first point of the line segment
-        :param x1: x-coordinate of the second point of the line segment
-        :param y1: y-coordinate of the second point of the line segment
-        :param x2: x-coordinate of the point whose distance and nearest
-            projection on the line segment are to be determined
-        :param y2: y-coordinate of the point whose distance and nearest
-            projection on the line segment are to be determined
-        :return: A tuple where:
-            - The first element is the perpendicular distance of the given
-              point to the line segment
-            - The second and third elements are the x- and y-coordinates of
-              the nearest point on the line segment
-        """
-
-        p0 = np.array([x0, y0])
-        p1 = np.array([x1, y1])
-        p2 = np.array([x2, y2])
-
-        d = np.abs(np.cross(p1 - p0, p0 - p2) / np.linalg.norm(p1 - p0))
-
-        dx = x1 - x0
-        dy = y1 - y0
-        m = np.sqrt(dx * dx + dy * dy)
-        dx /= m
-        dy /= m
-
-        l = (dx * (x2 - x0)) + (dy * (y2 - y0))
-        x = (dx * l) + x0
-        y = (dy * l) + y0
-
-        return d, x, y
-
-    def vector_angle(xy11, xy12, xy21, xy22):
-        """
-        Calculates the angle between two vectors formed by the given points.
-
-        The function determines the central point from the input points to correctly
-        define the vectors. It computes the angle between these vectors using the
-        dot product and converts the angle from radians to degrees. Additionally, it
-        adjusts the angle direction based on specific positional conditions.
-
-        :param xy11: Tuple representing the first point (x, y) of the first vector.
-        :param xy12: Tuple representing the second point (x, y) of the first vector.
-        :param xy21: Tuple representing the first point (x, y) of the second vector.
-        :param xy22: Tuple representing the second point (x, y) of the second vector.
-        :return: The angle in degrees between the two vectors in the defined direction.
-        :rtype: float
-        """
-        # Sort the points by central point
-        List = xy11, xy12, xy21, xy22
-
-        if List.count(List[0]) == 2:  # xy11 is central point
-            if xy21 != xy11:
-                xy21b = xy21
-                xy21 = xy22
-                xy22 = xy21b
-
-        else:  # xy12 is central point
-            xy11b = xy11
-            xy11 = xy12
-            xy12 = xy11b
-            if xy21 != xy11:
-                xy21b = xy21
-                xy21 = xy22
-                xy22 = xy21b
-
-        # Conversion of point pairs into position vectors
-        x1, y1 = xy12[0] - xy11[0], xy12[1] - xy11[1]
-        x2, y2 = xy22[0] - xy21[0], xy22[1] - xy21[1]
-
-        Vector1 = np.array([x1, y1])
-        Vector2 = np.array([x2, y2])
-        dot = np.dot(Vector1, Vector2)
-        x_modulus = np.sqrt((Vector1 * Vector1).sum())
-        y_modulus = np.sqrt((Vector2 * Vector2).sum())
-        cos_angle = dot / x_modulus / y_modulus
-        angle = np.arccos(cos_angle)  # angle in rad
-        Ang = angle * 360 / 2 / np.pi  # angle in degrees
-
-        if xy11[1] == xy22[1]:  # Direction is calculated
-            if Vector1[1] <= 0:
-                Ang = 180 - Ang
-
-        return Ang
-
-
-
-    if type == "shape":
-        for feat in hu_polyline.getFeatures():
-            X11 = feat.geometry().vertexAt(0).x()
-            Y11 = feat.geometry().vertexAt(0).y()
-            X12 = feat.geometry().vertexAt(1).x()
-            Y12 = feat.geometry().vertexAt(1).y()
-            LENGHTH = feat.geometry().length()
-            Angle = vector_angle((X11, Y11), (X12, Y12), (X11, Y11), (X11 + 100, Y11))
-            LengthList.append(LENGHTH)
-            AngleList.append(Angle)
-            PointList.append([X11, Y11])
-
-    if type == "list":
-        for row in hu_polyline:
-            X11, Y11, X12, Y12, LENGHTH = row
-            Angle = vector_angle((X11, Y11), (X12, Y12), (X11, Y11), (X11 + 100, Y11))
-            LengthList.append(LENGHTH)
-            AngleList.append(round(Angle, 1))
-            PointList.append([X11, Y11])
-
-    j = 0
-    list = []
-    for i in AngleList:
-        list.append([i, LengthList[j]])
-        j += 1
-
-    if len(PointList) > 4:
-        MainAngle = main_angle(list, 10)
-
-        X, Ymin = min(PointList, key=lambda t: t[1])
-        Xmax, Y = max(PointList, key=lambda t: t[0])
-        Xmin, Y = min(PointList, key=lambda t: t[0])
-
-        Py1 = Ymin
-
-        if MainAngle > 90:
-            Px1 = Xmax + 10000
+    sorted_pairs = sorted(angle_length_pairs, key=itemgetter(0))
+    groups = [[sorted_pairs[0]]]
+    for pair in sorted_pairs[1:]:
+        if abs(pair[0] - groups[-1][-1][0]) < max_diff:
+            groups[-1].append(pair)
         else:
-            Px1 = Xmin - 10000
+            groups.append([pair])
 
-        Px2 = Px1 + 10000 * math.cos(math.radians(MainAngle))
-        Py2 = Py1 + 10000 * math.sin(math.radians(MainAngle))
+    group_sums = [sum(entry[1] for entry in group) for group in groups]
+    max_group = groups[int(np.argmax(group_sums))]
 
-        NearList = []
-        for p in PointList:
-            d, x, y = near_point(Px1, Py1, Px2, Py2, p[0], p[1])
-            NearList.append([d, p[0], p[1], x, y])
+    current_angle = max_group[0][0]
+    current_sum = 0
+    length_sums = []
+    for entry in max_group:
+        if current_angle == entry[0]:
+            current_sum += entry[1]
+        else:
+            length_sums.append(current_sum)
+            current_sum = entry[1]
+        current_angle = entry[0]
+    if not length_sums:
+        length_sums.append(current_sum)
 
-        A_NEAR_DIST, A_FROM_X, A_FROM_Y, A_NEAR_X, A_NEAR_Y = min(NearList, key=itemgetter(0))
-        B_NEAR_DIST, B_FROM_X, B_FROM_Y, B_NEAR_X, B_NEAR_Y = max(NearList, key=itemgetter(0))
-        C_NEAR_DIST, C_FROM_X, C_FROM_Y, C_NEAR_X, C_NEAR_Y = min(NearList, key=itemgetter(4))
-        D_NEAR_DIST, D_FROM_X, D_FROM_Y, D_NEAR_X, D_NEAR_Y = max(NearList, key=itemgetter(4))
+    return max_group[int(np.argmax(length_sums))][0]
 
-        C2_x = C_NEAR_X + ((C_FROM_X - C_NEAR_X) * B_NEAR_DIST / C_NEAR_DIST)
-        C2_y = C_NEAR_Y + ((C_FROM_Y - C_NEAR_Y) * B_NEAR_DIST / C_NEAR_DIST)
-        D2_x = D_NEAR_X + ((D_FROM_X - D_NEAR_X) * B_NEAR_DIST / D_NEAR_DIST)
-        D2_y = D_NEAR_Y + ((D_FROM_Y - D_NEAR_Y) * B_NEAR_DIST / D_NEAR_DIST)
-        D1_x = D_NEAR_X + ((D_FROM_X - D_NEAR_X) * A_NEAR_DIST / D_NEAR_DIST)
-        D1_y = D_NEAR_Y + ((D_FROM_Y - D_NEAR_Y) * A_NEAR_DIST / D_NEAR_DIST)
-        C1_x = C_NEAR_X + ((C_FROM_X - C_NEAR_X) * A_NEAR_DIST / C_NEAR_DIST)
-        C1_y = C_NEAR_Y + ((C_FROM_Y - C_NEAR_Y) * A_NEAR_DIST / C_NEAR_DIST)
 
-        ArrayOfLines = [[[C1_x, C1_y], [C2_x, C2_y]], [[C2_x, C2_y], [D2_x, D2_y]],
-                        [[D2_x, D2_y], [D1_x, D1_y, ]], [[D1_x, D1_y], [C1_x, C1_y]]]
+def _near_point(
+    x0: float, y0: float,
+    x1: float, y1: float,
+    x2: float, y2: float,
+) -> tuple[float, float, float]:
+    """Compute the perpendicular distance from a point to a line and its nearest point on the line.
 
-        PolyArea = math.sqrt(abs(C1_x - C2_x) ** 2 + abs(C1_y - C2_y) ** 2) * math.sqrt(
-            abs(D2_x - C2_x) ** 2 + abs(D2_y - C2_y) ** 2)
+    Uses vector projection to find the foot of the perpendicular from point P2=(x2, y2)
+    onto the line defined by P0=(x0, y0) → P1=(x1, y1).
 
-        # Create a polygon from ArrayOfLines
-        HUDirRect_geom = QgsGeometry.fromPolygonXY(
-            [[QgsPointXY(point[0], point[1]) for point in ArrayOfLines[0]] +
-             [QgsPointXY(point[0], point[1]) for point in ArrayOfLines[1]] +
-             [QgsPointXY(point[0], point[1]) for point in ArrayOfLines[2]] +
-             [QgsPointXY(point[0], point[1]) for point in ArrayOfLines[3]]]
+    Args:
+        x0: X-coordinate of the first point defining the line.
+        y0: Y-coordinate of the first point defining the line.
+        x1: X-coordinate of the second point defining the line.
+        y1: Y-coordinate of the second point defining the line.
+        x2: X-coordinate of the query point.
+        y2: Y-coordinate of the query point.
+
+    Returns:
+        Tuple of (perpendicular_distance, nearest_x, nearest_y).
+    """
+    p0 = np.array([x0, y0])
+    p1 = np.array([x1, y1])
+    p2 = np.array([x2, y2])
+
+    distance = np.abs(np.cross(p1 - p0, p0 - p2) / np.linalg.norm(p1 - p0))
+
+    dx = x1 - x0
+    dy = y1 - y0
+    magnitude = np.sqrt(dx * dx + dy * dy)
+    dx /= magnitude
+    dy /= magnitude
+
+    projection_length = (dx * (x2 - x0)) + (dy * (y2 - y0))
+    nearest_x = (dx * projection_length) + x0
+    nearest_y = (dy * projection_length) + y0
+
+    return distance, nearest_x, nearest_y
+
+
+def _vector_angle(
+    xy11: tuple[float, float],
+    xy12: tuple[float, float],
+    xy21: tuple[float, float],
+    xy22: tuple[float, float],
+) -> float:
+    """Calculate the angle (degrees) between two vectors sharing a common vertex.
+
+    Determines the shared central point from the four input points, constructs
+    two direction vectors from that centre, and returns the angle between them.
+    The sign is adjusted based on the relative orientation of the first vector.
+
+    Args:
+        xy11: First point of the first vector.
+        xy12: Second point of the first vector.
+        xy21: First point of the second vector.
+        xy22: Second point of the second vector.
+
+    Returns:
+        Angle in degrees between the two vectors.
+    """
+    points = (xy11, xy12, xy21, xy22)
+
+    # Normalise so that xy11 (== xy21) is the shared central vertex;
+    # xy12 and xy22 are the respective direction endpoints.
+    if points.count(points[0]) == 2:  # xy11 is the central point
+        if xy21 != xy11:
+            xy21, xy22 = xy22, xy21
+    else:  # xy12 is the central point
+        xy11, xy12 = xy12, xy11
+        if xy21 != xy11:
+            xy21, xy22 = xy22, xy21
+
+    x1, y1 = xy12[0] - xy11[0], xy12[1] - xy11[1]
+    x2, y2 = xy22[0] - xy21[0], xy22[1] - xy21[1]
+
+    vector1 = np.array([x1, y1])
+    vector2 = np.array([x2, y2])
+    dot = np.dot(vector1, vector2)
+    x_modulus = np.sqrt((vector1 * vector1).sum())
+    y_modulus = np.sqrt((vector2 * vector2).sum())
+    cos_angle = dot / x_modulus / y_modulus
+    angle_rad = np.arccos(cos_angle)
+    ang = angle_rad * 360 / 2 / np.pi  # convert radians to degrees
+
+    if xy11[1] == xy22[1]:  # adjust direction
+        if vector1[1] <= 0:
+            ang = 180 - ang
+
+    return ang
+
+
+def calc_bounding_rect(
+    hu_polyline: list[tuple[float, float]] | object,
+    hu_layer: object,
+    mode: str,
+    crs: object,
+) -> tuple[object, float | None]:
+    """Calculate the minimum oriented bounding rectangle for a polyline or layer.
+
+    Determines the dominant orientation of the input lines, then computes a
+    tightly-fitted oriented bounding rectangle enclosing all input points.
+
+    Args:
+        hu_polyline: Input polyline data — either a list of ``(x1, y1, x2, y2, length)``
+            rows (when ``mode="list"``) or a QgsVectorLayer with line features
+            (when ``mode="shape"``).
+        hu_layer: Fallback layer returned when fewer than 5 points are available.
+        mode: Input format — ``"shape"`` for a QgsVectorLayer, ``"list"`` for a
+            list of coordinate/length rows.
+        crs: Coordinate reference system for the output layer.
+
+    Returns:
+        Tuple of (bounding_rect_layer, poly_area) where poly_area is the rectangle
+        area in map units squared, or None if insufficient input points.
+    """
+    length_list = []
+    angle_list = []
+    point_list = []
+
+    if mode == "shape":
+        for feat in hu_polyline.getFeatures():
+            x11 = feat.geometry().vertexAt(0).x()
+            y11 = feat.geometry().vertexAt(0).y()
+            x12 = feat.geometry().vertexAt(1).x()
+            y12 = feat.geometry().vertexAt(1).y()
+            length = feat.geometry().length()
+            angle = _vector_angle(
+                (x11, y11), (x12, y12),
+                (x11, y11), (x11 + _REFERENCE_VECTOR_LENGTH, y11),
+            )
+            length_list.append(length)
+            angle_list.append(angle)
+            point_list.append([x11, y11])
+
+    if mode == "list":
+        for row in hu_polyline:
+            x11, y11, x12, y12, length = row
+            angle = _vector_angle(
+                (x11, y11), (x12, y12),
+                (x11, y11), (x11 + _REFERENCE_VECTOR_LENGTH, y11),
+            )
+            length_list.append(length)
+            angle_list.append(round(angle, 1))
+            point_list.append([x11, y11])
+
+    angle_data = [[angle, length] for angle, length in zip(angle_list, length_list)]
+
+    if len(point_list) > 4:
+        dominant_angle = _main_angle(angle_data, _MAIN_ANGLE_MAX_DIFF)
+
+        _, y_min = min(point_list, key=lambda t: t[1])
+        x_max, _ = max(point_list, key=lambda t: t[0])
+        x_min, _ = min(point_list, key=lambda t: t[0])
+
+        p_y1 = y_min
+        if dominant_angle > 90:
+            p_x1 = x_max + _BOUNDING_RECT_EXTENSION
+        else:
+            p_x1 = x_min - _BOUNDING_RECT_EXTENSION
+
+        p_x2 = p_x1 + _BOUNDING_RECT_EXTENSION * math.cos(math.radians(dominant_angle))
+        p_y2 = p_y1 + _BOUNDING_RECT_EXTENSION * math.sin(math.radians(dominant_angle))
+
+        near_list = []
+        for p in point_list:
+            d, x, y = _near_point(p_x1, p_y1, p_x2, p_y2, p[0], p[1])
+            near_list.append([d, p[0], p[1], x, y])
+
+        a_near_dist, a_from_x, a_from_y, a_near_x, a_near_y = min(near_list, key=itemgetter(0))
+        b_near_dist, b_from_x, b_from_y, b_near_x, b_near_y = max(near_list, key=itemgetter(0))
+        c_near_dist, c_from_x, c_from_y, c_near_x, c_near_y = min(near_list, key=itemgetter(4))
+        d_near_dist, d_from_x, d_from_y, d_near_x, d_near_y = max(near_list, key=itemgetter(4))
+
+        c2_x = c_near_x + ((c_from_x - c_near_x) * b_near_dist / c_near_dist)
+        c2_y = c_near_y + ((c_from_y - c_near_y) * b_near_dist / c_near_dist)
+        d2_x = d_near_x + ((d_from_x - d_near_x) * b_near_dist / d_near_dist)
+        d2_y = d_near_y + ((d_from_y - d_near_y) * b_near_dist / d_near_dist)
+        d1_x = d_near_x + ((d_from_x - d_near_x) * a_near_dist / d_near_dist)
+        d1_y = d_near_y + ((d_from_y - d_near_y) * a_near_dist / d_near_dist)
+        c1_x = c_near_x + ((c_from_x - c_near_x) * a_near_dist / c_near_dist)
+        c1_y = c_near_y + ((c_from_y - c_near_y) * a_near_dist / c_near_dist)
+
+        array_of_lines = [
+            [[c1_x, c1_y], [c2_x, c2_y]],
+            [[c2_x, c2_y], [d2_x, d2_y]],
+            [[d2_x, d2_y], [d1_x, d1_y]],
+            [[d1_x, d1_y], [c1_x, c1_y]],
+        ]
+
+        poly_area = (
+            math.sqrt(abs(c1_x - c2_x) ** 2 + abs(c1_y - c2_y) ** 2)
+            * math.sqrt(abs(d2_x - c2_x) ** 2 + abs(d2_y - c2_y) ** 2)
+        )
+
+        # Create a polygon from array_of_lines
+        hu_dir_rect_geom = QgsGeometry.fromPolygonXY(
+            [[QgsPointXY(point[0], point[1]) for point in array_of_lines[0]] +
+             [QgsPointXY(point[0], point[1]) for point in array_of_lines[1]] +
+             [QgsPointXY(point[0], point[1]) for point in array_of_lines[2]] +
+             [QgsPointXY(point[0], point[1]) for point in array_of_lines[3]]]
         )
 
         # Create a memory layer for the polygon
-        HUDirRect = QgsVectorLayer(f'Polygon?crs={crs.authid()}', "HUDirRect", "memory")
-        provider = HUDirRect.dataProvider()
+        hu_dir_rect = QgsVectorLayer(f'Polygon?crs={crs.authid()}', "HUDirRect", "memory")
+        provider = hu_dir_rect.dataProvider()
 
-        # Add fields to the layer
         provider.addAttributes([QgsField("id", QMetaType.Int)])
-        HUDirRect.updateFields()
+        hu_dir_rect.updateFields()
 
-        # Add the polygon geometry to the layer
         feature = QgsFeature()
-        feature.setGeometry(HUDirRect_geom)
-        feature.setAttributes([1])  # Example attribute
+        feature.setGeometry(hu_dir_rect_geom)
+        feature.setAttributes([1])
         provider.addFeature(feature)
-        HUDirRect.commitChanges()
+        hu_dir_rect.commitChanges()
 
-        if PolyArea == 0:
-            Logger.log("PolyArea is zero in MST_Clustering calc_bounding_rect - causes division by zero", level="CRITICAL")
-            PolyArea = 1000000000000
-        return HUDirRect, PolyArea
+        if poly_area == 0:
+            Logger.log(
+                "PolyArea is zero in MST_Clustering calc_bounding_rect - causes division by zero",
+                level="CRITICAL",
+            )
+            poly_area = 1_000_000_000_000
+        return hu_dir_rect, poly_area
 
     else:
         Logger.log("CalcBoundingRect - No output generated", level="WARNING")
-
         return hu_layer, None
 
 
-def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: QgsCoordinateReferenceSystem,
-                   overlap_ratio: float = 18) -> QgsVectorLayer:
+def mst_clustering(
+    hu_layer: QgsVectorLayer,
+    mst_layer: QgsVectorLayer,
+    crs: QgsCoordinateReferenceSystem,
+    overlap_ratio: float = 18,
+) -> QgsVectorLayer:
+    """Cluster building footprints using a Minimum Spanning Tree (MST) and bounding-rectangle overlap.
+
+    Iterates over MST edges sorted by weight and merges pairs of building polygons
+    into clusters when the ratio of their combined area to the oriented bounding
+    rectangle exceeds ``overlap_ratio`` percent.
+
+    Args:
+        hu_layer: Building footprint polygon layer.
+        mst_layer: MST edge layer connecting building centroids.
+        crs: Coordinate reference system for all spatial operations.
+        overlap_ratio: Minimum area/bounding-rect ratio (percent) required for two
+            features to be merged into a cluster. Default is 18.
+
+    Returns:
+        A QgsVectorLayer of oriented bounding rectangles, one per identified cluster.
     """
-    Performs clustering using a Minimum Spanning Tree (MST) approach combined with spatial analysis to group
-    geospatial entities based on their overlapping areas and bounding rectangle ratio.
-
-    This function processes two input geospatial layers, `hu_layer` and `mst_layer`, combining their spatial
-    properties and attributes with additional calculations to identify clusters. The clustering process
-    relies on calculating areas, centroid points, edges, and joining the attributes of polygons and the MST.
-
-    The resulting clustered groups are determined based on a defined overlap ratio threshold, representing the
-    percentage of area occupied in a bounding rectangle by the entities in a cluster.
-
-    :param hu_layer: The main layer representing spatial features for the clustering process.
-        It could include polygons with attributes such as area and function.
-    :param mst_layer: A layer representing the Minimum Spanning Tree for the spatial features in the `hu_layer`.
-        It primarily contains edges or connections between entities for clustering.
-    :param crs: A coordinate reference system object used for all geospatial calculations and layer manipulations.
-    :param overlap_ratio: A numeric value (default is 18) representing the minimum bounding rectangle
-        overlap ratio percentage that entities in a cluster must meet to be considered valid.
-    :return: None
-    """
-
     # Extract MST features that intersect hu features
     mst_layer = processing.run("native:extractbylocation",
                    {'INPUT': mst_layer,
@@ -328,16 +331,17 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
                     'INTERSECT': hu_layer,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
-    # add area field and calculate area
+
+    # Add area field and calculate area
     hu_layer = shp_area(hu_layer)
 
-    edges = []  # Liste für Kanteninformationen
+    edges = []  # list of edge information
 
-    # Saves all coordinates of the edges of hu layer in an array. [[feature id, start points, end points]]
+    # Collect all polygon edge coordinates for each building feature
     for feature in hu_layer.getFeatures():
         geom = feature.geometry()
 
-        # Sicherstellen, dass Geometrie gültig ist und ein Polygon darstellt
+        # Ensure geometry is valid and represents a polygon
         if geom.isGeosValid() and geom.type() == QgsWkbTypes.PolygonGeometry:
             if geom.isMultipart():
                 polygons = geom.asMultiPolygon()
@@ -346,23 +350,19 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
 
             for polygon in polygons:
                 for ring in polygon:
-                    # Debug: Anzahl der Punkte im Ring überprüfen
                     if not ring:
                         Logger.log(f"Feature ID {feature.id()} has an empty ring", level="WARNING")
-                        continue  # Überspringe leere Ringe
+                        continue  # skip empty rings
 
                     for i in range(len(ring) - 1):
                         try:
-                            # Punkte initialisieren
-                            start_point = QgsPointXY(ring[i])  # Startpunkt
-                            end_point = QgsPointXY(ring[i + 1])  # Endpunkt
-
-                            # Länge der Kante berechnen
+                            start_point = QgsPointXY(ring[i])
+                            end_point = QgsPointXY(ring[i + 1])
                             edge_length = QgsPoint(start_point).distance(QgsPoint(end_point))
 
-                            # Kanteninformationen hinzufügen (Feature-ID, Startpunkt, Endpunkt, Kantenlänge)
+                            # Add edge info: feature ID, start point, end point, edge length
                             edges.append([
-                                feature.id(),  # ID des ursprünglichen Gebäudepolygons
+                                feature.id(),  # ID of the original building polygon
                                 start_point.x(),
                                 start_point.y(),
                                 end_point.x(),
@@ -370,32 +370,35 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
                                 edge_length
                             ])
                         except Exception as e:
-                            Logger.log(f"Error processing edge for feature ID {feature.id()}: {str(e)}", level="WARNING")
+                            Logger.log(
+                                f"Error processing edge for feature ID {feature.id()}: {str(e)}",
+                                level="WARNING",
+                            )
                             continue
         else:
-            # Geometrien, die keiner Polygongeometrie entsprechen, überspringen
-            Logger.log(f"Invalid or unsupported geometry type for feature ID {feature.id()}", level="WARNING")
+            # Skip geometries that are not polygon type
+            Logger.log(
+                f"Invalid or unsupported geometry type for feature ID {feature.id()}",
+                level="WARNING",
+            )
 
-    # transform edges list to a dictionary with feature id as key
-    HULineListSort = sorted(edges, key=itemgetter(0))
-    HULineArray = []
+    # Transform edges list into a dict keyed by feature ID
+    hu_line_list_sorted = sorted(edges, key=itemgetter(0))
+    hu_line_array = []
     sublist = []
-    j = HULineListSort[0][0]
-    for i in HULineListSort:
-        FID_ORIG, x1, y1, x2, x2, L = i
-        if FID_ORIG == j:
-            sublist.append(i[1:])
+    current_fid = hu_line_list_sorted[0][0]
+    for row in hu_line_list_sorted:
+        fid_orig = row[0]
+        if fid_orig == current_fid:
+            sublist.append(row[1:])
         else:
-            HULineArray.append([j, sublist])
-            sublist = []
-            sublist.append(i[1:])
-        j = FID_ORIG
-    HULineArray.append([j, sublist])
-    dict_HU = dict(list(HULineArray))
+            hu_line_array.append([current_fid, sublist])
+            sublist = [row[1:]]
+        current_fid = fid_orig
+    hu_line_array.append([current_fid, sublist])
+    dict_hu = dict(list(hu_line_array))
 
-    #hu_layer = shp_area(hu_layer, "Area")
-
-    # Joining hu features to mst features and keep ids of features as attributes
+    # Preserve original feature IDs as attributes before spatial join
     hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QMetaType.Int)])
     hu_layer.updateFields()
 
@@ -439,138 +442,132 @@ def mst_clustering(hu_layer: QgsVectorLayer, mst_layer: QgsVectorLayer, crs: Qgs
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
 
-
-    MST_List = []
+    mst_list = []
     empty_polygon_layer = create_empty_layer("merge_layer_clustering_1", "Polygon", crs.authid())
     merge_layer_2 = create_empty_layer("merge_layer_clustering_2", "Polygon", crs.authid())
 
+    for feature in mst_layer_hu_join.getFeatures():
+        target_fid = feature["fid_mst_orig"]
+        orig_fid = feature["fid_hu_orig"]
+        mst_diff = feature["weight"]
+        area = feature["Area"]
+        mst_list.append([target_fid, orig_fid, mst_diff, area])
 
-    mst_layer_hu_join_features = mst_layer_hu_join.getFeatures()
-    for feature in mst_layer_hu_join_features:
-        TARGET_FID = feature["fid_mst_orig"] # id mst feature
-        ORIG_FID = feature["fid_hu_orig"] # id hu feature
-        MST_DIFF = feature["weight"]
-        Area = feature["Area"] # hu feature area
-        MST_List.append([TARGET_FID, ORIG_FID, MST_DIFF, Area])  # ORIG_FID-1 because of file typ change
+    orig_fid2 = 0
+    area2 = 0
+    mst_pair_list = []
+    dict_fid_area = {}
+    prev_target_fid = "x"
+    list_outsorted = []
 
-    ORIG_FID2 = 0
-    Area2 = 0
-    MST_Pair_List = []
-    dict_FID_Area = {}
-    j = "x"
+    mst_list_sorted = sorted(mst_list, key=itemgetter(0))
 
-    ListOutsorted = []
+    for row in mst_list_sorted:
+        target_fid, orig_fid1, mst_diff, area1 = row
+        if target_fid == prev_target_fid:
+            mst_pair_list.append([mst_diff, area1, area2, orig_fid1, orig_fid2])
+        prev_target_fid = target_fid
+        dict_fid_area[orig_fid1] = area1
+        orig_fid2 = orig_fid1
+        area2 = area1
 
-    MST_List_Sort = sorted(MST_List, key=itemgetter(0))
-
-    for i in MST_List_Sort:
-        TARGET_FID, ORIG_FID1, MST_DIFF, Area1 = i
-        if TARGET_FID == j:
-            MST_Pair_List.append([MST_DIFF, Area1, Area2, ORIG_FID1, ORIG_FID2])
-        j = TARGET_FID
-        dict_FID_Area[ORIG_FID1] = Area1
-        ORIG_FID2 = ORIG_FID1
-        Area2 = Area1
-
-    # MST_Pair_List = MST_Pair_List[:]
-    dict_member_groub = {}
+    dict_member_group = {}
     dict_group_all_members = {}
 
-    MST_Pair_List_Sort = sorted(MST_Pair_List, key=itemgetter(0))
+    mst_pair_list_sorted = sorted(mst_pair_list, key=itemgetter(0))
 
     group_number = 0
-    for element in MST_Pair_List_Sort:
-        MST_DIFF, Area1, Area2, ORIG_FID1, ORIG_FID2 = element
-        groupestatus = False
-        # if there is only one ORIG_FID continue with next element
-        if ORIG_FID1 in dict_HU and ORIG_FID2 in dict_HU:
+    for element in mst_pair_list_sorted:
+        mst_diff, area1, area2, orig_fid1, orig_fid2 = element
+        group_status = False
+
+        # Skip if either building ID is missing from the edge dictionary
+        if orig_fid1 in dict_hu and orig_fid2 in dict_hu:
             pass
         else:
             Logger.log("fid in MST_Cluster missing", level="WARNING")
             continue
-        # one Bdg is already member of a group
-        if ORIG_FID1 in dict_member_groub or ORIG_FID2 in dict_member_groub:
-            if ORIG_FID1 in dict_member_groub:
-                group_id = dict_member_groub[ORIG_FID1]
-                new_FID = ORIG_FID2
+
+        # One building is already a member of a group
+        if orig_fid1 in dict_member_group or orig_fid2 in dict_member_group:
+            if orig_fid1 in dict_member_group:
+                group_id = dict_member_group[orig_fid1]
+                new_fid = orig_fid2
             else:
-                group_id = dict_member_groub[ORIG_FID2]
-                new_FID = ORIG_FID1
-            members_group_id = dict_group_all_members[group_id][:]
-            members_group_id.extend([new_FID])
-            members_group_id_coords = []
+                group_id = dict_member_group[orig_fid2]
+                new_fid = orig_fid1
+            members_group = dict_group_all_members[group_id][:]
+            members_group.extend([new_fid])
+            members_coords = []
 
-            for i in members_group_id:
-                members_group_id_coords.extend(dict_HU[i])
+            for fid in members_group:
+                members_coords.extend(dict_hu[fid])
 
-            Rect, AreaRect = calc_bounding_rect(members_group_id_coords, empty_polygon_layer, "list", crs)
-            sumarea = 0
-            for i in members_group_id:
-                sumarea = dict_FID_Area[i] + sumarea
+            rect, area_rect = calc_bounding_rect(members_coords, empty_polygon_layer, "list", crs)
+            sum_area = sum(dict_fid_area[fid] for fid in members_group)
+            ratio = sum_area / area_rect * 100
 
-            Ratio = sumarea / AreaRect * 100
-
-            if Ratio > overlap_ratio:
-                dict_group_all_members[group_id] = members_group_id
-                dict_member_groub[new_FID] = group_id
-                groupestatus = True
-
+            if ratio > overlap_ratio:
+                dict_group_all_members[group_id] = members_group
+                dict_member_group[new_fid] = group_id
+                group_status = True
             else:
-                pass
-                # check if small group is possible
-                ListOutsorted.append(["G", ORIG_FID1, ORIG_FID2])
+                list_outsorted.append(["G", orig_fid1, orig_fid2])
 
-        if (ORIG_FID1 in dict_member_groub or ORIG_FID2 in dict_member_groub) is not True or groupestatus is False:
+        if (orig_fid1 in dict_member_group or orig_fid2 in dict_member_group) is not True \
+                or group_status is False:
 
-            if ORIG_FID1 in dict_HU:
-                Coords1 = dict_HU[ORIG_FID1][:]
+            if orig_fid1 in dict_hu:
+                coords1 = dict_hu[orig_fid1][:]
             else:
-                Logger.log("Error in dict_HU:{} was not found".format(ORIG_FID1), level="CRITICAL")
+                Logger.log("Error in dict_hu:{} was not found".format(orig_fid1), level="CRITICAL")
                 continue
-            if ORIG_FID2 in dict_HU:
-                Coords2 = dict_HU[ORIG_FID2][:]
+            if orig_fid2 in dict_hu:
+                coords2 = dict_hu[orig_fid2][:]
             else:
-                Logger.log("Error in dict_HU:{} was not found".format(ORIG_FID2), level="CRITICAL")
+                Logger.log("Error in dict_hu:{} was not found".format(orig_fid2), level="CRITICAL")
                 continue
-            Coords1.extend(Coords2)
+            coords1.extend(coords2)
 
-            Rect, AreaRect = calc_bounding_rect(Coords1, empty_polygon_layer, "list", crs)
-            Ratio = (Area1 + Area2) / AreaRect * 100
+            rect, area_rect = calc_bounding_rect(coords1, empty_polygon_layer, "list", crs)
+            ratio = (area1 + area2) / area_rect * 100
 
-            if Ratio > overlap_ratio:
-                dict_member_groub[ORIG_FID1] = group_number
-                dict_member_groub[ORIG_FID2] = group_number
-                dict_group_all_members[group_number] = [ORIG_FID1, ORIG_FID2]
-                group_number = group_number + 1
+            if ratio > overlap_ratio:
+                dict_member_group[orig_fid1] = group_number
+                dict_member_group[orig_fid2] = group_number
+                dict_group_all_members[group_number] = [orig_fid1, orig_fid2]
+                group_number += 1
             else:
-                ListOutsorted.append(["S", ORIG_FID1, ORIG_FID2])
+                list_outsorted.append(["S", orig_fid1, orig_fid2])
 
     rect_merge = None
 
-    for single_group in dict_group_all_members:
-        single_group_list = dict_group_all_members[single_group][:]
-        members_group_id_coords = []
-        for j in single_group_list:
-            members_group_id_coords.extend(dict_HU[j])
+    for group_key in dict_group_all_members:
+        group_members = dict_group_all_members[group_key][:]
+        members_coords = []
+        for fid in group_members:
+            members_coords.extend(dict_hu[fid])
 
-        Rect, AreaRect = calc_bounding_rect(members_group_id_coords, empty_polygon_layer, "list", crs)
-        #save_temp_layer_to_gpkg(Rect, "Rect_{}".format(j))
+        rect, area_rect = calc_bounding_rect(members_coords, empty_polygon_layer, "list", crs)
 
         try:
             rect_merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [Rect, merge_layer_2],
+                'LAYERS': [rect, merge_layer_2],
                 'CRS': crs,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                 })['OUTPUT']
             merge_layer_2 = rect_merge
         except Exception as e:
-            Logger.log(f"Group could not be merged: {single_group_list or 'None'} - {str(e)}", level="CRITICAL")
+            Logger.log(
+                f"Group could not be merged: {group_members or 'None'} - {str(e)}",
+                level="CRITICAL",
+            )
 
-    # Rückgabe als Fallback
+    # Fallback return
     if not rect_merge:
         Logger.log("No valid rect_merge produced in mst_clustering", level="WARNING")
         rect_merge = merge_layer_2
 
-    #TODO Features entfernen, die sich komplett innerhalb eines anderen features befinden
+    # TODO: remove features that are completely contained within another feature
 
     return rect_merge
