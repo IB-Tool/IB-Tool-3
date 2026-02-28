@@ -6,956 +6,1106 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>961</width>
-    <height>569</height>
+    <width>960</width>
+    <height>700</height>
    </rect>
   </property>
-  <property name="windowTitle">
-   <string>IB-Tool</string>
+  <property name="minimumSize">
+   <size>
+    <width>960</width>
+    <height>700</height>
+   </size>
   </property>
-  <widget class="QLabel" name="label">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>10</y>
-     <width>281</width>
-     <height>31</height>
-    </rect>
+  <property name="windowTitle">
+   <string>IB-Tool 3</string>
+  </property>
+  <layout class="QVBoxLayout" name="mainVerticalLayout">
+   <property name="spacing">
+    <number>8</number>
    </property>
-   <property name="font">
-    <font>
-     <pointsize>20</pointsize>
-     <weight>75</weight>
-     <bold>true</bold>
-    </font>
+   <property name="leftMargin">
+    <number>12</number>
    </property>
-   <property name="text">
-    <string>IB-Tool 3</string>
+   <property name="topMargin">
+    <number>10</number>
    </property>
-  </widget>
-  <widget class="QTabWidget" name="tabWidget">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>50</y>
-     <width>921</width>
-     <height>291</height>
-    </rect>
+   <property name="rightMargin">
+    <number>12</number>
    </property>
-   <property name="currentIndex">
-    <number>0</number>
+   <property name="bottomMargin">
+    <number>10</number>
    </property>
-   <widget class="QWidget" name="tab">
-    <attribute name="title">
-     <string>Input Data</string>
-    </attribute>
-    <widget class="QPushButton" name="AuxButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>110</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
+
+   <!-- HEADER -->
+   <item>
+    <widget class="QLabel" name="label">
      <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_15">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>20</y>
-       <width>111</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Building Footprints</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_17">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>80</y>
-       <width>91</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Partitions</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="AuxPath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>110</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="PartButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>80</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_16">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>50</y>
-       <width>131</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Road Network</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="PartPath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>80</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="HuPath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>20</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="layoutDirection">
-      <enum>Qt::LeftToRight</enum>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="RnButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>50</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_18">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>110</y>
-       <width>121</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Auxillary Data</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="RnPath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>50</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="HuButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>20</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_19">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>140</y>
-       <width>121</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Output</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="OutputPath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>140</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="OutputButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>140</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_20">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>170</y>
-       <width>151</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Path Common Workspace</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="WorkspacePath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>170</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="WorkspaceButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>170</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="FilterPath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>200</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_21">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>200</y>
-       <width>55</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Filter-TXT</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="FilterButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>200</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_logdir">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>230</y>
-       <width>111</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Log Directory</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="LogDirPath">
-     <property name="geometry">
-      <rect>
-       <x>180</x>
-       <y>230</y>
-       <width>291</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="LogDirButton">
-     <property name="geometry">
-      <rect>
-       <x>490</x>
-       <y>230</y>
-       <width>31</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>...</string>
-     </property>
-    </widget>
-   </widget>
-   <widget class="QWidget" name="tab_3">
-    <attribute name="title">
-     <string>Parameters</string>
-    </attribute>
-    <widget class="QSpinBox" name="MaxGapSizeBox">
-     <property name="geometry">
-      <rect>
-       <x>330</x>
-       <y>200</y>
-       <width>91</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-     <property name="maximum">
-      <number>100000</number>
-     </property>
-     <property name="singleStep">
-      <number>100</number>
-     </property>
-     <property name="value">
-      <number>4900</number>
-     </property>
-    </widget>
-    <widget class="QSpinBox" name="MinBdgCountBox">
-     <property name="geometry">
-      <rect>
-       <x>330</x>
-       <y>110</y>
-       <width>91</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-     <property name="value">
-      <number>20</number>
-     </property>
-    </widget>
-    <widget class="QSpinBox" name="GlobalFootprintDensityBox">
-     <property name="geometry">
-      <rect>
-       <x>330</x>
-       <y>50</y>
-       <width>91</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-     <property name="value">
-      <number>0</number>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_6">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>140</y>
-       <width>321</width>
-       <height>20</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Minimum Size of Inner Area Patch (sqm)</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_3">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>50</y>
-       <width>241</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Global Footprint Density (%)</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_8">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>200</y>
-       <width>151</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Maximum Size of Gaps (sqm)</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_2">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>20</y>
-       <width>271</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Minimum Overlap of Inner Area Blocks (%)</string>
-     </property>
-    </widget>
-    <widget class="QSpinBox" name="MinAreaBox">
-     <property name="geometry">
-      <rect>
-       <x>330</x>
-       <y>80</y>
-       <width>91</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-     <property name="stepType">
-      <enum>QAbstractSpinBox::DefaultStepType</enum>
-     </property>
-     <property name="value">
-      <number>57</number>
-     </property>
-    </widget>
-    <widget class="QSpinBox" name="MinPatchSizeBox">
-     <property name="geometry">
-      <rect>
-       <x>330</x>
-       <y>140</y>
-       <width>91</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-     <property name="maximum">
-      <number>1000000</number>
-     </property>
-     <property name="singleStep">
-      <number>100</number>
-     </property>
-     <property name="value">
-      <number>10000</number>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_4">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>80</y>
-       <width>281</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Minimum Building Footprint Area (sqm)</string>
-     </property>
-    </widget>
-    <widget class="QSpinBox" name="MaxHoleSizeBox">
-     <property name="geometry">
-      <rect>
-       <x>330</x>
-       <y>170</y>
-       <width>91</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-     <property name="maximum">
-      <number>1000000</number>
-     </property>
-     <property name="singleStep">
-      <number>100</number>
-     </property>
-     <property name="value">
-      <number>10000</number>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_5">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>110</y>
-       <width>311</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Minimum Number of Buildings to create a Inner Area</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_7">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>170</y>
-       <width>231</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Maximum Size of Hole (sqm)</string>
-     </property>
-    </widget>
-    <widget class="QSpinBox" name="MinOverlapBlocksBox">
-     <property name="geometry">
-      <rect>
-       <x>330</x>
-       <y>20</y>
-       <width>91</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-     </property>
-     <property name="value">
-      <number>18</number>
-     </property>
-    </widget>
-   </widget>
-   <widget class="QWidget" name="tab_2">
-    <attribute name="title">
-     <string>Debuging</string>
-    </attribute>
-    <widget class="QLabel" name="label_10">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>50</y>
-       <width>201</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Partition End (default value = -1)</string>
-     </property>
-    </widget>
-    <widget class="QComboBox" name="LogLevelBox">
-     <property name="geometry">
-      <rect>
-       <x>240</x>
-       <y>110</y>
-       <width>101</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="currentText">
-      <string>WARNING</string>
-     </property>
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
-     <item>
-      <property name="text">
-       <string>WARNING</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>CRITICAL</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>SUCCESS</string>
-      </property>
-     </item>
-     <item>
-      <property name="text">
-       <string>INFO</string>
-      </property>
-     </item>
-    </widget>
-    <widget class="QLineEdit" name="SpatialReferenceBox">
-     <property name="geometry">
-      <rect>
-       <x>240</x>
-       <y>140</y>
-       <width>101</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>EPSG:25832</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_13">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>140</y>
-       <width>171</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Spatial Reference</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="partendBox">
-     <property name="geometry">
-      <rect>
-       <x>240</x>
-       <y>50</y>
-       <width>101</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>-1</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_11">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>80</y>
-       <width>191</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Partition List (default value = #)</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_14">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>170</y>
-       <width>181</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Delete PartLog at start</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_12">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>110</y>
-       <width>211</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Log Level (default value = Warning)</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_9">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>20</y>
-       <width>241</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Partition Start (default value = -1)</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="partstartBox">
-     <property name="geometry">
-      <rect>
-       <x>240</x>
-       <y>20</y>
-       <width>101</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>-1</string>
-     </property>
-    </widget>
-    <widget class="QLineEdit" name="partlistBox">
-     <property name="geometry">
-      <rect>
-       <x>240</x>
-       <y>80</y>
-       <width>671</width>
-       <height>22</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>#</string>
-     </property>
-    </widget>
-    <widget class="QCheckBox" name="PartLogBox">
-     <property name="geometry">
-      <rect>
-       <x>240</x>
-       <y>170</y>
-       <width>81</width>
-       <height>20</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-     <property name="checked">
-      <bool>true</bool>
-     </property>
-     <property name="tristate">
-      <bool>false</bool>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_debug_mode">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>200</y>
-       <width>211</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Fehlerhafte Features speichern</string>
-     </property>
-    </widget>
-    <widget class="QCheckBox" name="DebugModeBox">
-     <property name="geometry">
-      <rect>
-       <x>240</x>
-       <y>200</y>
-       <width>81</width>
-       <height>20</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string/>
-     </property>
-     <property name="checked">
-      <bool>false</bool>
-     </property>
-     <property name="tristate">
-      <bool>false</bool>
-     </property>
-    </widget>
-   </widget>
-   <widget class="QWidget" name="tab_4">
-    <attribute name="title">
-     <string>Filtering</string>
-    </attribute>
-    <widget class="QPlainTextEdit" name="txtPositive">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>40</y>
-       <width>441</width>
-       <height>211</height>
-      </rect>
-     </property>
-    </widget>
-    <widget class="QPlainTextEdit" name="txtNegative">
-     <property name="geometry">
-      <rect>
-       <x>460</x>
-       <y>40</y>
-       <width>441</width>
-       <height>211</height>
-      </rect>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_22">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>20</y>
-       <width>101</width>
-       <height>16</height>
-      </rect>
+      <string>IB-Tool 3</string>
      </property>
      <property name="font">
       <font>
+       <pointsize>18</pointsize>
        <weight>75</weight>
        <bold>true</bold>
       </font>
      </property>
-     <property name="text">
-      <string>Positiver Filter</string>
+    </widget>
+   </item>
+
+   <!-- STEP INDICATOR -->
+   <item>
+    <widget class="QFrame" name="stepIndicatorFrame">
+     <property name="frameShape">
+      <enum>QFrame::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Raised</enum>
+     </property>
+     <layout class="QHBoxLayout" name="stepIndicatorLayout">
+      <property name="leftMargin">
+       <number>8</number>
+      </property>
+      <property name="rightMargin">
+       <number>8</number>
+      </property>
+      <property name="topMargin">
+       <number>4</number>
+      </property>
+      <property name="bottomMargin">
+       <number>4</number>
+      </property>
+      <item>
+       <widget class="QToolButton" name="stepBtn0">
+        <property name="text">
+         <string>① Input</string>
+        </property>
+        <property name="autoRaise">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="stepSep0">
+        <property name="text">
+         <string>──</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="stepBtn1">
+        <property name="text">
+         <string>② Parameters</string>
+        </property>
+        <property name="autoRaise">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="stepSep1">
+        <property name="text">
+         <string>──</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="stepBtn2">
+        <property name="text">
+         <string>③ Validation</string>
+        </property>
+        <property name="autoRaise">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="stepSep2">
+        <property name="text">
+         <string>──</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="stepBtn3">
+        <property name="text">
+         <string>④ Processing</string>
+        </property>
+        <property name="autoRaise">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="stepSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+
+   <!-- STACKED WIDGET -->
+   <item>
+    <widget class="QStackedWidget" name="stackedWidget">
+
+     <!-- PAGE 0: EINGABEDATEN -->
+     <widget class="QWidget" name="page0Eingabe">
+      <layout class="QVBoxLayout" name="page0Layout">
+       <item>
+        <widget class="QGroupBox" name="groupBoxInputData">
+         <property name="title">
+          <string>Input Data</string>
+         </property>
+         <layout class="QGridLayout" name="inputDataGridLayout">
+          <property name="verticalSpacing">
+           <number>6</number>
+          </property>
+
+          <!-- Row 0: Building Footprints -->
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelHu">
+            <property name="text">
+             <string>Building Footprints *</string>
+            </property>
+            <property name="minimumWidth">
+             <number>170</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="HuPath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="HuButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QLabel" name="HuPathStatus">
+            <property name="text">
+             <string/>
+            </property>
+            <property name="minimumWidth">
+             <number>120</number>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 1: Road Network -->
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelRn">
+            <property name="text">
+             <string>Road Network *</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="RnPath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="2">
+           <widget class="QPushButton" name="RnButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QLabel" name="RnPathStatus">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 2: Partitions -->
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelPart">
+            <property name="text">
+             <string>Partitions *</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="PartPath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QPushButton" name="PartButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="3">
+           <widget class="QLabel" name="PartPathStatus">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 3: Auxiliary Data -->
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelAux">
+            <property name="text">
+             <string>Auxiliary Data</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLineEdit" name="AuxPath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="2">
+           <widget class="QPushButton" name="AuxButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="3">
+           <widget class="QLabel" name="AuxPathStatus">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 4: Output File -->
+          <item row="4" column="0">
+           <widget class="QLabel" name="labelOutput">
+            <property name="text">
+             <string>Output File *</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QLineEdit" name="OutputPath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="2">
+           <widget class="QPushButton" name="OutputButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="3">
+           <widget class="QLabel" name="OutputPathStatus">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 5: Workspace -->
+          <item row="5" column="0">
+           <widget class="QLabel" name="labelWorkspace">
+            <property name="text">
+             <string>Workspace *</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QLineEdit" name="WorkspacePath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
+           <widget class="QPushButton" name="WorkspaceButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="3">
+           <widget class="QLabel" name="WorkspacePathStatus">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 6: Filter TXT -->
+          <item row="6" column="0">
+           <widget class="QLabel" name="labelFilter">
+            <property name="text">
+             <string>Filter TXT (optional)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QLineEdit" name="FilterPath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="2">
+           <widget class="QPushButton" name="FilterButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="3">
+           <widget class="QLabel" name="FilterPathStatus">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 7: Log Directory -->
+          <item row="7" column="0">
+           <widget class="QLabel" name="labelLogDir">
+            <property name="text">
+             <string>Log Directory</string>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QLineEdit" name="LogDirPath">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="2">
+           <widget class="QPushButton" name="LogDirButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+            <property name="maximumWidth">
+             <number>32</number>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="3">
+           <widget class="QLabel" name="LogDirPathStatus">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+
+          <!-- Row 8: Spatial Reference -->
+          <item row="8" column="0">
+           <widget class="QLabel" name="labelSpatialRef">
+            <property name="text">
+             <string>Spatial Reference</string>
+            </property>
+           </widget>
+          </item>
+          <item row="8" column="1" colspan="2">
+           <widget class="QgsProjectionSelectionWidget" name="SpatialReferenceBox"/>
+          </item>
+
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Filter Preview Button -->
+       <item>
+        <layout class="QHBoxLayout">
+         <item>
+          <widget class="QPushButton" name="showFilterButton">
+           <property name="text">
+            <string>Show Filter Entries...</string>
+           </property>
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer>
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+
+       <item>
+        <spacer>
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+
+     <!-- PAGE 1: PARAMETER -->
+     <widget class="QWidget" name="page1Parameter">
+      <layout class="QVBoxLayout" name="page1Layout">
+       <item>
+        <widget class="QGroupBox" name="groupBoxParameters">
+         <property name="title">
+          <string>Settlement Analysis</string>
+         </property>
+         <layout class="QFormLayout" name="formLayoutParams">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+          </property>
+          <property name="rowWrapPolicy">
+           <enum>QFormLayout::DontWrapRows</enum>
+          </property>
+          <property name="horizontalSpacing">
+           <number>16</number>
+          </property>
+          <property name="verticalSpacing">
+           <number>8</number>
+          </property>
+
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelMinOverlap">
+            <property name="text">
+             <string>Min. Block Overlap (%)</string>
+            </property>
+            <property name="toolTip">
+             <string>Minimum percentage overlap of inner blocks (0–100). Recommended: 15–25</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="MinOverlapBlocksBox">
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>18</number>
+            </property>
+           </widget>
+          </item>
+
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelGlobalDensity">
+            <property name="text">
+             <string>Global Footprint Density (%)</string>
+            </property>
+            <property name="toolTip">
+             <string>Global building footprint density in %. Value 0 = calculate automatically.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="GlobalFootprintDensityBox">
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelMinArea">
+            <property name="text">
+             <string>Min. Building Area (sqm)</string>
+            </property>
+            <property name="toolTip">
+             <string>Minimum building footprint area in sqm. Smaller buildings are ignored. Recommended: 50–100 sqm</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSpinBox" name="MinAreaBox">
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>57</number>
+            </property>
+           </widget>
+          </item>
+
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelMinBdgCount">
+            <property name="text">
+             <string>Min. Building Count</string>
+            </property>
+            <property name="toolTip">
+             <string>Minimum number of buildings to form a settlement area. Recommended: 10–30</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QSpinBox" name="MinBdgCountBox">
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10000</number>
+            </property>
+            <property name="value">
+             <number>20</number>
+            </property>
+           </widget>
+          </item>
+
+          <item row="4" column="0">
+           <widget class="QLabel" name="labelMinPatchSize">
+            <property name="text">
+             <string>Min. Patch Size (sqm)</string>
+            </property>
+            <property name="toolTip">
+             <string>Minimum size of an inner area patch in sqm. Recommended: 5000–20000 sqm</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QSpinBox" name="MinPatchSizeBox">
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="maximum">
+             <number>1000000</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>10000</number>
+            </property>
+           </widget>
+          </item>
+
+          <item row="5" column="0">
+           <widget class="QLabel" name="labelMaxHoleSize">
+            <property name="text">
+             <string>Max. Hole Size (sqm)</string>
+            </property>
+            <property name="toolTip">
+             <string>Maximum size of holes in sqm that are automatically closed. Recommended: 5000–20000 sqm</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QSpinBox" name="MaxHoleSizeBox">
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="maximum">
+             <number>1000000</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>10000</number>
+            </property>
+           </widget>
+          </item>
+
+          <item row="6" column="0">
+           <widget class="QLabel" name="labelMaxGapSize">
+            <property name="text">
+             <string>Max. Gap Size (sqm)</string>
+            </property>
+            <property name="toolTip">
+             <string>Maximum size of gaps in sqm that are closed. Recommended: 2000–10000 sqm</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QSpinBox" name="MaxGapSizeBox">
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="maximum">
+             <number>100000</number>
+            </property>
+            <property name="singleStep">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>4900</number>
+            </property>
+           </widget>
+          </item>
+
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer>
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+
+     <!-- PAGE 2: VALIDIERUNG & DEBUGGING -->
+     <widget class="QWidget" name="page2Validierung">
+      <layout class="QVBoxLayout" name="page2Layout">
+
+       <!-- Validation Checklist -->
+       <item>
+        <widget class="QGroupBox" name="groupBoxValidation">
+         <property name="title">
+          <string>Validation Checklist</string>
+         </property>
+         <layout class="QVBoxLayout">
+          <item>
+           <widget class="QListWidget" name="validationChecklist">
+            <item>
+             <property name="text">
+              <string>(no validation run yet)</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Debugging -->
+       <item>
+        <widget class="QGroupBox" name="groupBoxDebugging">
+         <property name="title">
+          <string>Debugging</string>
+         </property>
+         <layout class="QFormLayout" name="formLayoutDebug">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+          </property>
+          <property name="horizontalSpacing">
+           <number>16</number>
+          </property>
+          <property name="verticalSpacing">
+           <number>6</number>
+          </property>
+
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelPartStart">
+            <property name="text">
+             <string>Partition Start (default -1)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="partstartBox">
+            <property name="text">
+             <string>-1</string>
+            </property>
+           </widget>
+          </item>
+
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelPartEnd">
+            <property name="text">
+             <string>Partition End (default -1)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="partendBox">
+            <property name="text">
+             <string>-1</string>
+            </property>
+           </widget>
+          </item>
+
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelPartList">
+            <property name="text">
+             <string>Partition List (default #)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="partlistBox">
+            <property name="text">
+             <string>#</string>
+            </property>
+           </widget>
+          </item>
+
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelLogLevel">
+            <property name="text">
+             <string>Log Level</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="LogLevelBox">
+           </widget>
+          </item>
+
+          <item row="4" column="0">
+           <widget class="QLabel" name="labelPartLog">
+            <property name="text">
+             <string>Delete PartLog at Start</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QCheckBox" name="PartLogBox">
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+
+          <item row="5" column="0">
+           <widget class="QLabel" name="labelDebugMode">
+            <property name="text">
+             <string>Save Faulty Features (Debug Mode)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QCheckBox" name="DebugModeBox">
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+
+         </layout>
+        </widget>
+       </item>
+
+      </layout>
+     </widget>
+
+     <!-- PAGE 3: VERARBEITUNG & ERGEBNIS -->
+     <widget class="QWidget" name="page3Verarbeitung">
+      <layout class="QVBoxLayout" name="page3Layout">
+
+       <!-- Phase Label -->
+       <item>
+        <widget class="QLabel" name="phaseLabel">
+         <property name="text">
+          <string>Ready</string>
+         </property>
+         <property name="font">
+          <font>
+           <weight>75</weight>
+           <bold>true</bold>
+          </font>
+         </property>
+        </widget>
+       </item>
+
+       <!-- Progress Bar -->
+       <item>
+        <widget class="QProgressBar" name="ProgressBar">
+         <property name="value">
+          <number>0</number>
+         </property>
+        </widget>
+       </item>
+
+       <!-- Message Box -->
+       <item>
+        <widget class="QPlainTextEdit" name="MessageBox">
+        </widget>
+       </item>
+
+       <!-- Copy Log Button -->
+       <item>
+        <layout class="QHBoxLayout">
+         <item>
+          <widget class="QPushButton" name="copyLogButton">
+           <property name="text">
+            <string>Copy Log</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer>
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+
+       <!-- Result Actions Frame (initially hidden) -->
+       <item>
+        <widget class="QFrame" name="resultActionsFrame">
+         <property name="visible">
+          <bool>false</bool>
+         </property>
+         <property name="frameShape">
+          <enum>QFrame::StyledPanel</enum>
+         </property>
+         <layout class="QHBoxLayout">
+          <item>
+           <widget class="QPushButton" name="resultLoadButton">
+            <property name="text">
+             <string>Load Result</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="resultOpenDirButton">
+            <property name="text">
+             <string>Open Directory</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="resultExportLogButton">
+            <property name="text">
+             <string>Export Log</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+      </layout>
+     </widget>
+
+    </widget>
+   </item>
+
+   <!-- FOOTER SEPARATOR -->
+   <item>
+    <widget class="QFrame" name="footerSeparator">
+     <property name="frameShape">
+      <enum>QFrame::HLine</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Sunken</enum>
      </property>
     </widget>
-    <widget class="QLabel" name="label_23">
-     <property name="geometry">
-      <rect>
-       <x>460</x>
-       <y>20</y>
-       <width>101</width>
-       <height>16</height>
-      </rect>
+   </item>
+
+   <!-- FOOTER BUTTONS -->
+   <item>
+    <layout class="QHBoxLayout" name="footerLayout">
+     <item>
+      <widget class="QPushButton" name="SaveConfigButton">
+       <property name="text">
+        <string>Save Config</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="backButton">
+       <property name="text">
+        <string>← Back</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="nextButton">
+       <property name="text">
+        <string>Next →</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="CheckButton">
+       <property name="text">
+        <string>Check</string>
+       </property>
+       <property name="styleSheet">
+        <string>QPushButton { background-color: #1565C0; color: white; }</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="StartButton">
+       <property name="text">
+        <string>Start</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="CancelButton">
+       <property name="text">
+        <string>Cancel</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <!-- HIDDEN FILTER DATA (txtPositive/txtNegative for ibtool.py compatibility) -->
+   <!-- Will be migrated to FilterPreviewDialog in Sprint 4 -->
+   <item>
+    <widget class="QFrame" name="filterDataFrame">
+     <property name="visible">
+      <bool>false</bool>
      </property>
-     <property name="font">
-      <font>
-       <weight>75</weight>
-       <bold>true</bold>
-      </font>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>0</height>
+      </size>
      </property>
-     <property name="text">
-      <string>Negativer Filter</string>
-     </property>
+     <layout class="QHBoxLayout" name="filterDataLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QPlainTextEdit" name="txtPositive"/>
+      </item>
+      <item>
+       <widget class="QPlainTextEdit" name="txtNegative"/>
+      </item>
+     </layout>
     </widget>
-   </widget>
-  </widget>
-  <widget class="QPushButton" name="SaveConfigButton">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>530</y>
-     <width>103</width>
-     <height>28</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Config speichern</string>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="CheckButton">
-   <property name="geometry">
-    <rect>
-     <x>650</x>
-     <y>530</y>
-     <width>93</width>
-     <height>28</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Check</string>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="StartButton">
-   <property name="geometry">
-    <rect>
-     <x>750</x>
-     <y>530</y>
-     <width>93</width>
-     <height>28</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Start</string>
-   </property>
-  </widget>
-  <widget class="QProgressBar" name="ProgressBar">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>350</y>
-     <width>921</width>
-     <height>23</height>
-    </rect>
-   </property>
-   <property name="value">
-    <number>0</number>
-   </property>
-  </widget>
-  <widget class="QPlainTextEdit" name="MessageBox">
-   <property name="geometry">
-    <rect>
-     <x>20</x>
-     <y>380</y>
-     <width>921</width>
-     <height>141</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QPushButton" name="CancelButton">
-   <property name="geometry">
-    <rect>
-     <x>850</x>
-     <y>530</y>
-     <width>93</width>
-     <height>28</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>Abbrechen</string>
-   </property>
-  </widget>
+   </item>
+
+  </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QgsProjectionSelectionWidget</class>
+   <extends>QWidget</extends>
+   <header>qgsprojectionselectionwidget.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
