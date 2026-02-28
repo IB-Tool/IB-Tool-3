@@ -20,6 +20,7 @@ from qgis.core import (
 
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import shp_area, create_empty_layer
+from ..helpers.debug_utils import save_debug_layer
 
 # Maximum angle difference (degrees) for two angles to be grouped into the same cluster.
 _MAIN_ANGLE_MAX_DIFF = 10
@@ -307,6 +308,8 @@ def mst_clustering(
     mst_layer: QgsVectorLayer,
     crs: QgsCoordinateReferenceSystem,
     overlap_ratio: float = 18,
+    debug_mode: bool = False,
+    workspace_path: str = None,
 ) -> QgsVectorLayer:
     """Cluster building footprints using a Minimum Spanning Tree (MST) and bounding-rectangle overlap.
 
@@ -320,6 +323,10 @@ def mst_clustering(
         crs: Coordinate reference system for all spatial operations.
         overlap_ratio: Minimum area/bounding-rect ratio (percent) required for two
             features to be merged into a cluster. Default is 18.
+        debug_mode: If True, saves intermediate layers as GeoPackages for
+            visual step-by-step inspection. Defaults to False.
+        workspace_path: Base workspace path for debug output. Required when
+            ``debug_mode`` is True.
 
     Returns:
         A QgsVectorLayer of oriented bounding rectangles, one per identified cluster.
@@ -331,6 +338,8 @@ def mst_clustering(
                     'INTERSECT': hu_layer,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(mst_layer, "MST_Clustering", "after_mst_location_filter", workspace_path)
 
     # Add area field and calculate area
     hu_layer = shp_area(hu_layer)
@@ -411,6 +420,8 @@ def mst_clustering(
                     'FORMULA': '@id',
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(hu_layer, "MST_Clustering", "after_hu_fid_calc", workspace_path)
 
     mst_layer.dataProvider().addAttributes([QgsField("fid_mst_orig", QMetaType.Int)])
     mst_layer.updateFields()
@@ -430,6 +441,8 @@ def mst_clustering(
                                 'ALL_PARTS': False,
                                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                                 })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(hu_points, "MST_Clustering", "after_hu_centroids", workspace_path)
 
     mst_layer_hu_join = processing.run("native:joinattributesbylocation",
                    {'INPUT': mst_layer,
@@ -441,6 +454,8 @@ def mst_clustering(
                     'PREFIX': '',
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(mst_layer_hu_join, "MST_Clustering", "after_location_join", workspace_path)
 
     mst_list = []
     empty_polygon_layer = create_empty_layer("merge_layer_clustering_1", "Polygon", crs.authid())
@@ -567,6 +582,9 @@ def mst_clustering(
     if not rect_merge:
         Logger.log("No valid rect_merge produced in mst_clustering", level="WARNING")
         rect_merge = merge_layer_2
+
+    if debug_mode and workspace_path:
+        save_debug_layer(rect_merge, "MST_Clustering", "after_clustering", workspace_path)
 
     # TODO: remove features that are completely contained within another feature
 
