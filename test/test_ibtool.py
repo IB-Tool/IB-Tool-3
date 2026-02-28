@@ -729,7 +729,7 @@ class TestDisplayValidationResult:
 
     @pytest.mark.unit
     def test_valid_no_warnings_logs_erfolgreich(self):
-        """_display_validation_result must log VALIDIERUNG ERFOLGREICH for a fully valid result."""
+        """_display_validation_result must log VALIDATION SUCCESSFUL for a fully valid result."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = True
@@ -740,12 +740,12 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDIERUNG ERFOLGREICH" in m for m in logged_msgs), \
-            "Expected 'VALIDIERUNG ERFOLGREICH' in logged messages"
+        assert any("VALIDATION SUCCESSFUL" in m for m in logged_msgs), \
+            "Expected 'VALIDATION SUCCESSFUL' in logged messages"
 
     @pytest.mark.unit
     def test_errors_are_logged_with_validierungsfehler_header(self):
-        """_display_validation_result must log VALIDIERUNGSFEHLER when errors are present."""
+        """_display_validation_result must log VALIDATION ERRORS when errors are present."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = False
@@ -756,8 +756,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDIERUNGSFEHLER" in m for m in logged_msgs), \
-            "Expected 'VALIDIERUNGSFEHLER' in logged messages"
+        assert any("VALIDATION ERRORS" in m for m in logged_msgs), \
+            "Expected 'VALIDATION ERRORS' in logged messages"
 
     @pytest.mark.unit
     def test_each_error_is_logged_individually(self):
@@ -777,7 +777,7 @@ class TestDisplayValidationResult:
 
     @pytest.mark.unit
     def test_warnings_are_logged_with_warnungen_header(self):
-        """_display_validation_result must log WARNUNGEN section when warnings are present."""
+        """_display_validation_result must log WARNINGS section when warnings are present."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = True
@@ -788,12 +788,12 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("WARNUNGEN" in m for m in logged_msgs), \
-            "Expected 'WARNUNGEN' in logged messages"
+        assert any("WARNINGS" in m for m in logged_msgs), \
+            "Expected 'WARNINGS' in logged messages"
 
     @pytest.mark.unit
     def test_invalid_result_logs_fehlgeschlagen(self):
-        """_display_validation_result must log 'fehlgeschlagen' for an invalid result."""
+        """_display_validation_result must log 'failed' for an invalid result."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = False
@@ -804,12 +804,12 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("fehlgeschlagen" in m for m in logged_msgs), \
-            "Expected 'fehlgeschlagen' in logged messages for invalid result"
+        assert any("failed" in m for m in logged_msgs), \
+            "Expected 'failed' in logged messages for invalid result"
 
     @pytest.mark.unit
     def test_valid_with_warnings_logs_bestanden_mit_warnungen(self):
-        """_display_validation_result must log 'bestanden (mit Warnungen)' for valid+warnings."""
+        """_display_validation_result must log 'passed' for valid result with warnings."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = True
@@ -820,5 +820,5 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("bestanden" in m for m in logged_msgs), \
-            "Expected 'bestanden' in logged messages for valid result with warnings"
+        assert any("passed" in m for m in logged_msgs), \
+            "Expected 'passed' in logged messages for valid result with warnings"
