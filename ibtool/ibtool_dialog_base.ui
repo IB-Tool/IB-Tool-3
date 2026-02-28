@@ -179,7 +179,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>Auxillary Data</string>
+      <string>Auxiliary data</string>
      </property>
     </widget>
     <widget class="QLineEdit" name="RnPath">
@@ -309,7 +309,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>Filter-TXT</string>
+      <string>Filter TXT</string>
      </property>
     </widget>
     <widget class="QPushButton" name="FilterButton">
@@ -596,7 +596,7 @@
    </widget>
    <widget class="QWidget" name="tab_2">
     <attribute name="title">
-     <string>Debuging</string>
+     <string>Validation &amp; Advanced</string>
     </attribute>
     <widget class="QLabel" name="label_10">
      <property name="geometry">
@@ -793,7 +793,7 @@
       </rect>
      </property>
      <property name="text">
-      <string>Fehlerhafte Features speichern</string>
+      <string>Save invalid features</string>
      </property>
     </widget>
     <widget class="QCheckBox" name="DebugModeBox">
@@ -856,7 +856,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Positiver Filter</string>
+      <string>Positive filter</string>
      </property>
     </widget>
     <widget class="QLabel" name="label_23">
@@ -875,7 +875,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Negativer Filter</string>
+      <string>Negative filter</string>
      </property>
     </widget>
    </widget>
@@ -890,7 +890,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Config speichern</string>
+    <string>Save config</string>
    </property>
   </widget>
   <widget class="QPushButton" name="CheckButton">
@@ -952,7 +952,7 @@
     </rect>
    </property>
    <property name="text">
-    <string>Abbrechen</string>
+    <string>Cancel</string>
    </property>
   </widget>
  </widget>

@@ -201,11 +201,20 @@ class IBTool:
 
     def update_progress(self, value):
         """Update progress bar"""
-        self.dlg.ProgressBar.setValue(value)
+        self._set_progress(value)
 
     def update_messages(self, message):
         """Display messages in the window"""
         self.dlg.MessageBox.appendPlainText(message)
+
+    def _set_progress(self, value: int, phase: str = "") -> None:
+        """Update progress bar value and optional phase text."""
+        safe_value = max(0, min(100, int(value)))
+        self.dlg.ProgressBar.setValue(safe_value)
+        if phase:
+            self.dlg.ProgressBar.setFormat(f"{phase} — {safe_value}%")
+        else:
+            self.dlg.ProgressBar.setFormat("%p%")
 
     def cancel_processing(self):
         """Cancel processing"""
@@ -379,6 +388,12 @@ class IBTool:
             self.dlg.StartButton.clicked.connect(self.start_processing)
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
             self.dlg.SaveConfigButton.clicked.connect(self._save_config_from_ui)
+            self.dlg.StartButton.setStyleSheet(
+                "QPushButton {background-color: #2E7D32; color: white; font-weight: bold;}"
+            )
+            self.dlg.CheckButton.setStyleSheet(
+                "QPushButton {background-color: #1565C0; color: white; font-weight: bold;}"
+            )
             # Start button disabled by default — requires successful check
             self.dlg.StartButton.setEnabled(False)
             # Disable Start button when input paths change (re-check required)
@@ -404,6 +419,7 @@ class IBTool:
         logger.set_message_box(self.dlg.MessageBox)
 
         self.dlg.MessageBox.clear()
+        self._set_progress(0, "Validation")
         # show the dialog
         self.dlg.show()
 
@@ -677,41 +693,24 @@ class IBTool:
     def _display_validation_result(self, result: ValidationResult) -> None:
         """Format and display validation results in the MessageBox."""
         if result.is_valid and not result.warnings:
-            logger.log(
-                "=== VALIDIERUNG ERFOLGREICH === "
-                "Alle Eingabedaten-Checks bestanden.",
-                level="INFO"
-            )
+            logger.log("✅ Validation successful", level="INFO")
+            logger.log("✅ All input checks passed.", level="INFO")
             return
 
         if result.errors:
-            logger.log(
-                f"=== VALIDIERUNGSFEHLER ({len(result.errors)}) ===",
-                level="CRITICAL"
-            )
+            logger.log(f"❌ Validation errors ({len(result.errors)})", level="CRITICAL")
             for i, error in enumerate(result.errors, 1):
-                logger.log(f"  [{i}] {error}", level="CRITICAL")
+                logger.log(f"❌ [{i}] {error}", level="CRITICAL")
 
         if result.warnings:
-            logger.log(
-                f"=== WARNUNGEN ({len(result.warnings)}) ===",
-                level="WARNING"
-            )
+            logger.log(f"⚠️ Warnings ({len(result.warnings)})", level="WARNING")
             for i, warning in enumerate(result.warnings, 1):
-                logger.log(f"  [{i}] {warning}", level="WARNING")
+                logger.log(f"⚠️ [{i}] {warning}", level="WARNING")
 
         if result.is_valid:
-            logger.log(
-                "Validierung bestanden (mit Warnungen). "
-                "Verarbeitung kann gestartet werden.",
-                level="INFO"
-            )
+            logger.log("✅ Validation passed. Processing can be started.", level="INFO")
         else:
-            logger.log(
-                "Validierung fehlgeschlagen. "
-                "Bitte Fehler oben beheben, bevor gestartet wird.",
-                level="CRITICAL"
-            )
+            logger.log("❌ Validation failed. Please resolve the errors above.", level="CRITICAL")
 
     def start_processing(self):
         """Start main process"""
@@ -728,7 +727,7 @@ class IBTool:
         if log_dir:
             logger.set_log_dir(log_dir)
 
-        self.dlg.ProgressBar.setValue(0)  # Set progress to 0
+        self._set_progress(0, "Validation")
 
         workspace = os.getcwd()
         os.chdir(workspace)
@@ -830,9 +829,11 @@ class IBTool:
         )
         self._display_validation_result(validation_result)
         if not validation_result.is_valid:
-            logger.log("Verarbeitung abgebrochen wegen Validierungsfehlern.",
+            logger.log("Processing aborted due to validation errors.",
                        level="CRITICAL")
             return
+
+        self._set_progress(10, "Loading inputs")
 
         # Alle Eingabe-Shapefiles in das GeoPackage laden
 
@@ -852,6 +853,8 @@ class IBTool:
                                     workspace_path + "layer_hu.gpkg",
                                     "layer_hu", spatial_reference)
         layer_hu.dataProvider().createSpatialIndex()
+
+        self._set_progress(20, "Preparing data")
 
 
         startzeit = time.strftime("%Y_%m_%d_%H_%M")
@@ -889,6 +892,7 @@ class IBTool:
             pass
 
         logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
+        self._set_progress(30, "Computing thresholds")
 
         msg(part_log_path) #TODO löschen
         if DelPartLog:
@@ -1026,7 +1030,7 @@ class IBTool:
             # Fortschritt aktualisieren
             anz_hu_sum = anz_hu_sum + anz_hu
             prozent = int(anz_hu_sum / anz_hu_gesamt * 100)
-            self.dlg.ProgressBar.setValue(prozent)
+            self._set_progress(prozent, "Processing partitions")
 
             merge = processing.run("native:mergevectorlayers", {
                 'LAYERS': [patch_removed, merge_layer],
@@ -1049,5 +1053,5 @@ class IBTool:
         msg(output_filename)
 
         save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
-
-        logger.log("ERFOLG", "INFO")
+        self._set_progress(100, "Finished")
+        logger.log("Success", "INFO")

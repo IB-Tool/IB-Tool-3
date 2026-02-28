@@ -216,6 +216,15 @@ class TestIBTool:
 
         assert self.tool.dlg.ProgressBar.value() == 0
 
+    @pytest.mark.unit
+    def test_set_progress_sets_phase_format(self):
+        """_set_progress should show phase + percent format when phase is set."""
+        self.tool._set_progress(42, "Validation")
+
+        assert self.tool.dlg.ProgressBar.value() == 42
+        assert "Validation" in self.tool.dlg.ProgressBar.format()
+
+
     # --- update_messages ---
 
     @pytest.mark.unit
@@ -728,8 +737,8 @@ class TestDisplayValidationResult:
     """Unit tests for IBTool._display_validation_result."""
 
     @pytest.mark.unit
-    def test_valid_no_warnings_logs_erfolgreich(self):
-        """_display_validation_result must log VALIDIERUNG ERFOLGREICH for a fully valid result."""
+    def test_valid_no_warnings_logs_successful(self):
+        """_display_validation_result must log Validation successful for a fully valid result."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = True
@@ -740,12 +749,12 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDIERUNG ERFOLGREICH" in m for m in logged_msgs), \
-            "Expected 'VALIDIERUNG ERFOLGREICH' in logged messages"
+        assert any("Validation successful" in m for m in logged_msgs), \
+            "Expected 'Validation successful' in logged messages"
 
     @pytest.mark.unit
-    def test_errors_are_logged_with_validierungsfehler_header(self):
-        """_display_validation_result must log VALIDIERUNGSFEHLER when errors are present."""
+    def test_errors_are_logged_with_validation_errors_header(self):
+        """_display_validation_result must log Validation errors when errors are present."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = False
@@ -756,8 +765,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDIERUNGSFEHLER" in m for m in logged_msgs), \
-            "Expected 'VALIDIERUNGSFEHLER' in logged messages"
+        assert any("Validation errors" in m for m in logged_msgs), \
+            "Expected 'Validation errors' in logged messages"
 
     @pytest.mark.unit
     def test_each_error_is_logged_individually(self):
@@ -776,8 +785,8 @@ class TestDisplayValidationResult:
         assert any("Error B" in m for m in logged_msgs)
 
     @pytest.mark.unit
-    def test_warnings_are_logged_with_warnungen_header(self):
-        """_display_validation_result must log WARNUNGEN section when warnings are present."""
+    def test_warnings_are_logged_with_warnings_header(self):
+        """_display_validation_result must log Warnings section when warnings are present."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = True
@@ -788,12 +797,12 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("WARNUNGEN" in m for m in logged_msgs), \
-            "Expected 'WARNUNGEN' in logged messages"
+        assert any("Warnings" in m for m in logged_msgs), \
+            "Expected 'Warnings' in logged messages"
 
     @pytest.mark.unit
-    def test_invalid_result_logs_fehlgeschlagen(self):
-        """_display_validation_result must log 'fehlgeschlagen' for an invalid result."""
+    def test_invalid_result_logs_validation_failed(self):
+        """_display_validation_result must log 'Validation failed' for an invalid result."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = False
@@ -804,12 +813,12 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("fehlgeschlagen" in m for m in logged_msgs), \
-            "Expected 'fehlgeschlagen' in logged messages for invalid result"
+        assert any("Validation failed" in m for m in logged_msgs), \
+            "Expected 'Validation failed' in logged messages for invalid result"
 
     @pytest.mark.unit
-    def test_valid_with_warnings_logs_bestanden_mit_warnungen(self):
-        """_display_validation_result must log 'bestanden (mit Warnungen)' for valid+warnings."""
+    def test_valid_with_warnings_logs_validation_passed(self):
+        """_display_validation_result must log 'Validation passed' for valid+warnings."""
         tool = _make_tool()
         result = MagicMock()
         result.is_valid = True
@@ -820,5 +829,5 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("bestanden" in m for m in logged_msgs), \
-            "Expected 'bestanden' in logged messages for valid result with warnings"
+        assert any("Validation passed" in m for m in logged_msgs), \
+            "Expected 'Validation passed' in logged messages for valid result with warnings"
