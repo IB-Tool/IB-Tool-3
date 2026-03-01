@@ -317,26 +317,28 @@ class TestEdgeCatch:
 
     @pytest.mark.unit
     def test_merge_block_handles_exception_gracefully(self):
-        """An exception inside the merge block is caught; function returns a result."""
-        from unittest.mock import patch
+        """An exception inside the merge block is caught; function returns a result.
 
-        def _raise_on_call(*args, **kwargs):
-            raise RuntimeError("merge failed")
+        process_single_feature always succeeds so that every iteration reaches
+        the processing.run("native:mergevectorlayers") call.  That call raises
+        for every feature, exercising the except-block that logs and continues.
+        The function must still return a QgsVectorLayer (the grouped_bdgs
+        fallback) rather than propagating the exception.
+        """
+        from unittest.mock import patch
 
         result_layer = make_polygon_layer(self.CRS_ID)
         add_feature_to_layer(result_layer, make_square_geom(0, 0, 50))
 
-        call_count = [0]
-
-        def _side_effect(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return result_layer
-            raise RuntimeError("merge failed")
-
+        # filter_roads_near_buildings must be bypassed so that the
+        # processing.run mock (which raises unconditionally) only fires
+        # inside the merge block, not during road pre-processing.
         with patch(
+            "ibtool.ibtool_tools.EdgeCatch.filter_roads_near_buildings",
+            return_value=self._road_layer_near_buildings(),
+        ), patch(
             "ibtool.ibtool_tools.EdgeCatch.process_single_feature",
-            side_effect=_side_effect,
+            return_value=result_layer,
         ), patch(
             "ibtool.ibtool_tools.EdgeCatch.processing.run",
             side_effect=RuntimeError("native:mergevectorlayers failed"),
