@@ -32,6 +32,9 @@ from ibtool.helpers.edge_catch_utils import (
     build_catch_polygon,
     project_point_to_line,
     create_shortest_lines_to_roads,
+    _apply_rule_parallel_close_endpoints,
+    _apply_rule_all_parallel,
+    _apply_rule_angle_outliers,
 )
 
 
@@ -352,3 +355,155 @@ class TestCreateShortestLinesToRoads:
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
         assert result.isValid()
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_point_with_null_geometry_does_not_crash(self):
+        """A point layer where one feature has a null geometry must not crash."""
+        layer = QgsVectorLayer("Point?crs=EPSG:25833", "pts_null", "memory")
+        f = QgsFeature()
+        # No geometry set → null geometry
+        layer.dataProvider().addFeatures([f])
+        result = create_shortest_lines_to_roads(layer, self._make_line_layer())
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+
+
+# ── _apply_rule_parallel_close_endpoints ────────────────────────────────────
+
+class TestApplyRuleParallelCloseEndpoints:
+    """Direct unit tests for _apply_rule_parallel_close_endpoints."""
+
+    @pytest.mark.unit
+    def test_non_parallel_lines_are_unchanged(self):
+        """Lines with very different angles must not be removed by Rule 3a."""
+        lines = [
+            _line(30, 0.0,   x1=0, y1=0, x2=30, y2=0),
+            _line(25, 90.0,  x1=0, y1=0, x2=0,  y2=25),
+        ]
+        result = _apply_rule_parallel_close_endpoints(lines, min_lines_to_keep=2)
+        assert len(result) == 2
+
+    @pytest.mark.unit
+    def test_parallel_with_close_endpoints_removes_longer(self):
+        """Two parallel lines with endpoints within 5 m → remove the longer one."""
+        # Same angle (0°), endpoints very close (< 5 m apart), different lengths
+        short_line = _line(20, 0.0, x1=0, y1=0, x2=20.0, y2=0)
+        long_line  = _line(40, 0.0, x1=5, y1=0, x2=22.0, y2=0)  # endpoint at x2=22 vs 20 → diff=2 < 5
+        other_line = _line(30, 90.0, x1=0, y1=0, x2=0,  y2=30)
+
+        lines = [short_line, long_line, other_line]
+        result = _apply_rule_parallel_close_endpoints(lines, min_lines_to_keep=2)
+        distances = [r["distance"] for r in result]
+        assert 40 not in distances, "Longer parallel line should be removed"
+        assert 20 in distances,    "Shorter parallel line should be kept"
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_removal_prevented_when_below_min_lines_to_keep(self):
+        """Rule 3a must not remove lines if the result would drop below min_lines_to_keep."""
+        # Two parallel lines with close endpoints → would be removed → but min_lines=2
+        short_line = _line(20, 0.0, x1=0, y1=0, x2=20, y2=0)
+        long_line  = _line(40, 0.0, x1=0, y1=0, x2=20, y2=0)  # same endpoints
+        lines = [short_line, long_line]
+        result = _apply_rule_parallel_close_endpoints(lines, min_lines_to_keep=2)
+        assert len(result) == 2  # no removal because it would go below 2
+
+
+# ── _apply_rule_all_parallel ─────────────────────────────────────────────────
+
+class TestApplyRuleAllParallel:
+    """Direct unit tests for _apply_rule_all_parallel."""
+
+    @pytest.mark.unit
+    def test_returns_none_when_fewer_than_four_lines(self):
+        """Rule 3b only applies to exactly 4 lines; < 4 must return None."""
+        lines = [_line(10, 90.0), _line(20, 90.5), _line(15, 91.0)]
+        result = _apply_rule_all_parallel(lines)
+        assert result is None
+
+    @pytest.mark.unit
+    def test_returns_none_when_more_than_four_lines(self):
+        """Rule 3b only applies to exactly 4 lines; > 4 must return None."""
+        lines = [_line(10, 90.0)] * 5
+        result = _apply_rule_all_parallel(lines)
+        assert result is None
+
+    @pytest.mark.unit
+    def test_four_parallel_lines_returns_two_shortest(self):
+        """Exactly 4 near-parallel lines must return the 2 with smallest distances."""
+        lines = [
+            _line(40, 90.0),
+            _line(35, 91.0),
+            _line(20, 89.5),
+            _line(25, 90.5),
+        ]
+        result = _apply_rule_all_parallel(lines)
+        assert result is not None
+        assert len(result) == 2
+        distances = sorted(r["distance"] for r in result)
+        assert distances == [20, 25]
+
+    @pytest.mark.unit
+    def test_four_non_parallel_lines_returns_none(self):
+        """Four lines with spread > _ALL_PARALLEL_THRESHOLD must return None."""
+        lines = [
+            _line(10, 0.0),
+            _line(10, 90.0),
+            _line(10, 45.0),
+            _line(10, 135.0),
+        ]
+        result = _apply_rule_all_parallel(lines)
+        assert result is None
+
+
+# ── _apply_rule_angle_outliers ───────────────────────────────────────────────
+
+class TestApplyRuleAngleOutliers:
+    """Direct unit tests for _apply_rule_angle_outliers."""
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_two_or_fewer_lines_returned_unchanged(self):
+        """Rule 4 skips processing when ≤ 2 lines are given."""
+        lines = [_line(10, 45), _line(20, 90)]
+        result = _apply_rule_angle_outliers(lines, min_lines_to_keep=2)
+        assert result == lines
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_single_angle_group_returned_unchanged(self):
+        """If all lines have similar angles (1 group), no group can be removed."""
+        lines = [_line(10, 45.0), _line(20, 45.5), _line(30, 45.8)]
+        result = _apply_rule_angle_outliers(lines, min_lines_to_keep=2)
+        assert len(result) == 3
+
+    @pytest.mark.unit
+    def test_outlier_group_is_removed_when_far_enough(self):
+        """Group with avg_dist > 2× second-largest avg_dist must be removed."""
+        # Group A: angle≈0, avg_dist=10
+        # Group B: angle≈90, avg_dist=5
+        # Group C: angle≈45, avg_dist=100 → outlier (100 > 2×10)
+        lines = [
+            _line(10, 0.0),
+            _line(10, 0.5),
+            _line(5, 90.0),
+            _line(5, 90.5),
+            _line(100, 45.0),  # outlier group
+        ]
+        result = _apply_rule_angle_outliers(lines, min_lines_to_keep=2)
+        outlier_distances = [r["distance"] for r in result if r["angle"] == 45.0]
+        assert outlier_distances == [], "Outlier group (angle≈45, dist=100) should be removed"
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_outlier_not_removed_when_fewer_than_three_groups(self):
+        """Rule 4 requires at least 3 angle groups; with only 2 it must not remove."""
+        lines = [
+            _line(10, 0.0),
+            _line(5, 90.0),
+            _line(100, 90.5),
+        ]
+        # Only 2 angle groups (0° and 90°) → rule 4 does not apply
+        result = _apply_rule_angle_outliers(lines, min_lines_to_keep=2)
+        assert len(result) == 3
