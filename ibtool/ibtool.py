@@ -323,7 +323,7 @@ class IBTool:
             callback=self.run,
             parent=self.iface.mainWindow())
 
-        self.setup_logging_in_plugin() # logging der UI deaktivert
+        self.setup_logging_in_plugin()
 
         # will be set False in run()
         self.first_start = True
@@ -1089,9 +1089,9 @@ class IBTool:
                 continue
 
             part_name = i
-            logger.log( "###############################", 'INFO')
+            logger.log( "###############################", 'CRITICAL')
             logger.log( "PARTITION: " + str(part_name) + " - " + str(a) + " of " 
-                        + str(len(part_list)), 'INFO')
+                        + str(len(part_list)), 'CRITICAL')
 
             # Partition auswählen
             sel_part_layer = processing.run(
@@ -1244,4 +1244,4 @@ class IBTool:
         self._last_output_folder = output_folder
         self.dlg.show_result_actions()
 
-        logger.log("Processing completed successfully.", level="INFO")
+        logger.log("Processing completed successfully.", level="CRITICAL")
