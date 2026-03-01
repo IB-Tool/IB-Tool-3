@@ -896,7 +896,7 @@ class IBTool:
         min_overlap_blocks = self.dlg.MinOverlapBlocksBox.text()
         try:
             # Konvertiere den Text in eine Zahl
-            min_overlap_blocks = float(min_overlap_blocks)  # TODO
+            min_overlap_blocks = float(min_overlap_blocks)
 
         except ValueError:
             logger.log("Invalid numeric value entered.")
@@ -972,7 +972,6 @@ class IBTool:
         InputPart = self.dlg.PartPath.text()
         input_filter = self.dlg.FilterPath.text()
         OutputFile = self.dlg.OutputPath.text()
-        msg(f"Outputfile={OutputFile}")  # ToDO entfernen
 
         # Input validation (replaces old check_projection call)
         validator = InputValidator()
@@ -1048,7 +1047,6 @@ class IBTool:
 
         logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
 
-        msg(part_log_path)  # TODO löschen
         if DelPartLog:
             if os.path.isfile(part_log_path):
                 os.remove(part_log_path)

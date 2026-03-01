@@ -26,7 +26,7 @@ def main(parameters, arguments):
     :param parameters: Command line parameters.
     :param arguments: Command line arguments.
     """
-    address = "{protocol}://{username}:{password}@{server}:{port}{endpoint}".format(
+    address = "{protocol}://{username}:{password}@{server}:{port}{endpoint}".format(  # pragma: allowlist secret
         protocol=PROTOCOL,
         username=parameters.username,
         password=parameters.password,
