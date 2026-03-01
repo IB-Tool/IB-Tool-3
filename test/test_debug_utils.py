@@ -92,7 +92,7 @@ class TestSaveDebugLayer:
     @pytest.mark.unit
     def test_returns_none_for_non_vector_layer(self):
         with patch("ibtool.helpers.debug_utils.Logger"):
-            result = save_debug_layer("not_a_layer", "Tool", "step", "/tmp/ws")
+            result = save_debug_layer("not_a_layer", "Tool", "step", "/mock/ws")
         assert result is None
 
     @pytest.mark.unit
@@ -101,7 +101,7 @@ class TestSaveDebugLayer:
         # Force invalid by not calling isValid — use an unpopulated layer path
         invalid2 = QgsVectorLayer("/nonexistent/path.gpkg", "bad", "ogr")
         with patch("ibtool.helpers.debug_utils.Logger"):
-            result = save_debug_layer(invalid2, "Tool", "step", "/tmp/ws")
+            result = save_debug_layer(invalid2, "Tool", "step", "/mock/ws")
         assert result is None
 
     @pytest.mark.unit
@@ -109,7 +109,7 @@ class TestSaveDebugLayer:
     def test_returns_none_for_empty_layer(self):
         empty = QgsVectorLayer("Polygon?crs=EPSG:25833", "empty", "memory")
         with patch("ibtool.helpers.debug_utils.Logger"):
-            result = save_debug_layer(empty, "Tool", "step", "/tmp/ws")
+            result = save_debug_layer(empty, "Tool", "step", "/mock/ws")
         assert result is None
 
     @pytest.mark.unit
@@ -191,7 +191,7 @@ class TestSaveDebugFeatures:
     def test_returns_none_for_empty_feature_list(self):
         crs = QgsCoordinateReferenceSystem("EPSG:25833")
         with patch("ibtool.helpers.debug_utils.Logger"):
-            result = save_debug_features([], crs, "Tool", "step", "/tmp/ws")
+            result = save_debug_features([], crs, "Tool", "step", "/mock/ws")
         assert result is None
 
     @pytest.mark.unit

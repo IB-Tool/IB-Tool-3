@@ -7,12 +7,12 @@ Module:
 # Gezielte Importe aus Untermodulen
 from .FootprintDensity import calc_footprint_density, identify_dense_blocks
 from .Blocker import blocker
-from .ImportFilter import input_hu_filter
+from .ImportFilter import input_hu_filter  # noqa: F401
 from .CreateMST import calculate_mst
 from .MST_Clustering import mst_clustering
 from .AddSingleBuilding import add_single_bdg
 from .EdgeCatch import edge_catch
-from .HoleClose import hole_close
+from .HoleClose import hole_close  # noqa: F401
 from .GapClose import gap_close
 from .PatchRemove import patch_remove
 from .GapFix import gap_fix
@@ -29,4 +29,4 @@ __all__ = [
     "gap_close",
     "patch_remove",
     "gap_fix"
-    ]
+]

@@ -7,9 +7,8 @@ Manages plugin configuration from CONFIG.ini file and provides default settings.
 
 import os
 import configparser
-from typing import Dict, Any, Optional, Union
-from dataclasses import dataclass, asdict
-from qgis.core import QgsVectorLayer
+from typing import Dict, Any
+from dataclasses import dataclass
 from .logger import Logger
 from .qgis_defaults import DEFAULT_CRS_EPSG
 
@@ -31,16 +30,16 @@ class ProcessingConfig:
     road_length_threshold: float = 50.0
     coordinate_tolerance: float = 0.0001
     buffer_distance: float = 5.0
-    
+
     # Footprint density parameters
     grid_size: float = 100.0
     min_building_count: int = 5
     density_threshold: float = 0.3
-    
+
     # Clustering parameters
     min_cluster_size: int = 3
     max_distance: float = 200.0
-    
+
     # Partition processing
     part_start: int = 1
     part_end: int = -1  # -1 means process all
@@ -95,13 +94,13 @@ class PluginConfig:
 
 class ConfigManager:
     """Manages plugin configuration loading and saving."""
-    
+
     CONFIG_FILENAME = "CONFIG.ini"
-    
+
     def __init__(self, plugin_root_dir: str):
         """
         Initialize configuration manager.
-        
+
         Args:
             plugin_root_dir: Root directory of the plugin
         """
@@ -109,13 +108,13 @@ class ConfigManager:
         self.config_file_path = os.path.join(plugin_root_dir, self.CONFIG_FILENAME)
         self.config = self._create_default_config()
         self._load_config_if_exists()
-    
+
     def _create_default_config(self) -> PluginConfig:
         """Create default configuration."""
         # Set default paths relative to plugin directory
         default_log_dir = os.path.join(self.plugin_root_dir, "logs")
         default_workspace = os.path.join(os.path.expanduser("~"), "ibtool_workspace")
-        
+
         return PluginConfig(
             input_data=InputDataConfig(),
             processing=ProcessingConfig(),
@@ -126,7 +125,7 @@ class ConfigManager:
                 log_directory=default_log_dir
             )
         )
-    
+
     def _load_config_if_exists(self) -> None:
         """Load configuration from CONFIG.ini if it exists."""
         if os.path.exists(self.config_file_path):
@@ -135,15 +134,15 @@ class ConfigManager:
             except Exception as e:
                 Logger.log(f"Could not load CONFIG.ini: {e}", level="WARNING")
                 Logger.log("Using default configuration instead.", level="WARNING")
-    
+
     def load_config(self) -> None:
         """Load configuration from CONFIG.ini file."""
         if not os.path.exists(self.config_file_path):
             raise FileNotFoundError(f"Config file not found: {self.config_file_path}")
-        
+
         config_parser = configparser.ConfigParser()
         config_parser.read(self.config_file_path, encoding='utf-8')
-        
+
         # Load input data configuration
         if config_parser.has_section('INPUT_DATA'):
             section = config_parser['INPUT_DATA']
@@ -152,7 +151,7 @@ class ConfigManager:
             self.config.input_data.partitions_path = section.get('partitions_path', '')
             self.config.input_data.aux_layer_path = section.get('aux_layer_path', '')
             self.config.input_data.filter_file_path = section.get('filter_file_path', '')
-        
+
         # Load processing configuration
         if config_parser.has_section('PROCESSING'):
             section = config_parser['PROCESSING']
@@ -177,7 +176,7 @@ class ConfigManager:
             self.config.processing.max_gap_size = section.getfloat('max_gap_size', 0.0)
             self.config.processing.debug_mode = section.getboolean('debug_mode', False)
             self.config.processing.delete_part_log = section.getboolean('delete_part_log', True)
-        
+
         # Load output configuration
         if config_parser.has_section('OUTPUT'):
             section = config_parser['OUTPUT']
@@ -187,7 +186,7 @@ class ConfigManager:
             self.config.output.auto_save = section.getboolean('auto_save', True)
             self.config.output.add_to_map = section.getboolean('add_to_map', True)
             self.config.output.overwrite_existing = section.getboolean('overwrite_existing', False)
-        
+
         # Load UI configuration
         if config_parser.has_section('UI'):
             section = config_parser['UI']
@@ -196,11 +195,11 @@ class ConfigManager:
             self.config.ui.log_level = section.get('log_level', 'INFO')
             self.config.ui.log_directory = section.get('log_directory', '')
             self.config.ui.remember_window_size = section.getboolean('remember_window_size', True)
-    
+
     def save_config(self) -> None:
         """Save current configuration to CONFIG.ini file."""
         config_parser = configparser.ConfigParser()
-        
+
         # Add input data section
         config_parser['INPUT_DATA'] = {
             'building_footprints_path': self.config.input_data.building_footprints_path,
@@ -209,7 +208,7 @@ class ConfigManager:
             'aux_layer_path': self.config.input_data.aux_layer_path,
             'filter_file_path': self.config.input_data.filter_file_path
         }
-        
+
         # Add processing section
         config_parser['PROCESSING'] = {
             'road_length_threshold': str(self.config.processing.road_length_threshold),
@@ -234,7 +233,7 @@ class ConfigManager:
             'debug_mode': str(self.config.processing.debug_mode),
             'delete_part_log': str(self.config.processing.delete_part_log),
         }
-        
+
         # Add output section
         config_parser['OUTPUT'] = {
             'workspace_directory': self.config.output.workspace_directory,
@@ -244,7 +243,7 @@ class ConfigManager:
             'add_to_map': str(self.config.output.add_to_map),
             'overwrite_existing': str(self.config.output.overwrite_existing)
         }
-        
+
         # Add UI section
         config_parser['UI'] = {
             'auto_load_last_used': str(self.config.ui.auto_load_last_used),
@@ -253,11 +252,11 @@ class ConfigManager:
             'log_directory': self.config.ui.log_directory,
             'remember_window_size': str(self.config.ui.remember_window_size)
         }
-        
+
         # Write to file
         with open(self.config_file_path, 'w', encoding='utf-8') as config_file:
             config_parser.write(config_file)
-    
+
     def create_example_config(self) -> None:
         """Create an example CONFIG.ini file with comments."""
         example_content = """# IBTool Configuration File
@@ -267,7 +266,7 @@ class ConfigManager:
 [INPUT_DATA]
 # Paths to input data files (use forward slashes or double backslashes)
 # building_footprints_path = C:/data/buildings.shp
-# road_network_path = C:/data/streets.shp  
+# road_network_path = C:/data/streets.shp
 # partitions_path = C:/data/partitions.shp
 # aux_layer_path = C:/data/auxiliary.shp
 # filter_file_path = C:/data/filter.txt
@@ -290,7 +289,7 @@ output_format = gpkg
 # workspace_directory = C:/Users/{username}/ibtool_workspace
 output_prefix = ibtool_result
 auto_save = True
-add_to_map = True  
+add_to_map = True
 overwrite_existing = False
 
 [UI]
@@ -298,17 +297,17 @@ overwrite_existing = False
 auto_load_last_used = True
 show_progress_details = True
 log_level = INFO
-# log_directory = 
+# log_directory =
 remember_window_size = True
 """
-        
+
         with open(self.config_file_path, 'w', encoding='utf-8') as config_file:
             config_file.write(example_content)
-    
+
     def get_config(self) -> PluginConfig:
         """Get current configuration."""
         return self.config
-    
+
     def update_config(self, **kwargs) -> None:
         """Update configuration with new values."""
         for section_name, section_data in kwargs.items():
@@ -317,16 +316,16 @@ remember_window_size = True
                 for key, value in section_data.items():
                     if hasattr(section, key):
                         setattr(section, key, value)
-    
+
     def validate_paths(self) -> Dict[str, bool]:
         """
         Validate that configured paths exist.
-        
+
         Returns:
             Dictionary with path validity status
         """
         paths_status = {}
-        
+
         # Check input data paths
         input_paths = {
             'building_footprints': self.config.input_data.building_footprints_path,
@@ -335,87 +334,87 @@ remember_window_size = True
             'aux_layer': self.config.input_data.aux_layer_path,
             'filter_file': self.config.input_data.filter_file_path
         }
-        
+
         for name, path in input_paths.items():
             if path:  # Only check non-empty paths
                 paths_status[name] = os.path.exists(path)
             else:
                 paths_status[name] = None  # Path not configured
-        
+
         # Check output directories
         if self.config.output.workspace_directory:
             paths_status['workspace_directory'] = os.path.exists(self.config.output.workspace_directory)
         else:
             paths_status['workspace_directory'] = None
-            
+
         if self.config.output.output_directory:
             paths_status['output_directory'] = os.path.exists(self.config.output.output_directory)
         else:
             paths_status['output_directory'] = None
-            
+
         if self.config.ui.log_directory:
             paths_status['log_directory'] = os.path.exists(self.config.ui.log_directory)
         else:
             paths_status['log_directory'] = None
-        
+
         return paths_status
-    
+
     def get_missing_paths(self) -> list:
         """Get list of configured but missing paths."""
         paths_status = self.validate_paths()
         return [name for name, exists in paths_status.items() if exists is False]
-    
+
     def config_exists(self) -> bool:
         """Check if CONFIG.ini exists."""
         return os.path.exists(self.config_file_path)
-    
+
     def apply_to_ui_elements(self, ui_elements: Dict[str, Any]) -> None:
         """
         Apply configuration to UI elements.
-        
+
         Args:
             ui_elements: Dictionary mapping config keys to UI elements
         """
         # Apply input data paths
         input_mapping = {
             'building_footprints_path': 'HuPath',
-            'road_network_path': 'RnPath', 
+            'road_network_path': 'RnPath',
             'partitions_path': 'PartPath',
             'aux_layer_path': 'AuxPath',
             'filter_file_path': 'FilterPath'
         }
-        
+
         for config_key, ui_key in input_mapping.items():
             if ui_key in ui_elements:
                 path = getattr(self.config.input_data, config_key)
                 if path and hasattr(ui_elements[ui_key], 'setText'):
                     ui_elements[ui_key].setText(path)
-        
+
         # Apply workspace directory
         if 'WorkspacePath' in ui_elements and self.config.output.workspace_directory:
             if hasattr(ui_elements['WorkspacePath'], 'setText'):
                 ui_elements['WorkspacePath'].setText(self.config.output.workspace_directory)
-        
+
         # Apply output directory (overrides workspace if set)
         if 'OutputPath' in ui_elements and self.config.output.output_directory:
             if hasattr(ui_elements['OutputPath'], 'setText'):
                 ui_elements['OutputPath'].setText(self.config.output.output_directory)
-        
+
         # Apply log directory
         if 'LogDirPath' in ui_elements and self.config.ui.log_directory:
             if hasattr(ui_elements['LogDirPath'], 'setText'):
                 ui_elements['LogDirPath'].setText(self.config.ui.log_directory)
-    
+
     def get_effective_output_directory(self) -> str:
         """Get the effective output directory (output_directory if set, otherwise workspace_directory)."""
         return self.config.output.output_directory or self.config.output.workspace_directory
-    
+
     def get_effective_log_directory(self) -> str:
         """Get the effective log directory (ui.log_directory if set, otherwise default logs directory)."""
         if self.config.ui.log_directory:
             return self.config.ui.log_directory
         return os.path.join(self.plugin_root_dir, "logs")
-    
+
     def get_processing_parameters(self) -> Dict[str, Any]:
         """Get processing parameters as dictionary for algorithms."""
         return {

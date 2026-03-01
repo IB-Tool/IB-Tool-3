@@ -15,7 +15,7 @@ from .mst_data_classes import TriangulationResult, MSTResult, EdgeData, StreetPr
 
 __all__ = [
     'DelaunayProcessor',
-    'StreetProcessor', 
+    'StreetProcessor',
     'MSTCalculator',
     'TriangulationResult',
     'MSTResult',

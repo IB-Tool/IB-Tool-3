@@ -5,7 +5,7 @@ Module:
 """
 
 # Gezielte Importe aus Untermodulen
-from .geometry_utils import (
+from .geometry_utils import (  # noqa: F401
     polyline2,
     check_projection,
     load_to_geopackage,
@@ -31,7 +31,7 @@ from .data_loader import (
     select_workspace_file,
     create_partitions_list
 )
-from .system_utils import (
+from .system_utils import (  # noqa: F401
     save_temp_layer_to_gpkg,
     manage_directory,
     copy_shapefile,
@@ -39,7 +39,7 @@ from .system_utils import (
     version_check
 )
 
-from .edge_catch_utils import (
+from .edge_catch_utils import (  # noqa: F401
     create_shortest_lines_to_roads,
     delete_first_point
 )

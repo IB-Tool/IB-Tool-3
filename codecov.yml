@@ -3,7 +3,6 @@
 
 codecov:
   branch: master
-  token: ac1f48c5-231c-4e4b-a347-de1330840890
 
 coverage:
   precision: 2

@@ -49,7 +49,7 @@ def patch_all_imports():
         
         spec = importlib.util.spec_from_loader('logger', loader=None)
         logger_module = importlib.util.module_from_spec(spec)
-        exec(source, logger_module.__dict__)
+        exec(source, logger_module.__dict__)  # nosec B102 - source is a trusted local file
         sys.modules['logger'] = logger_module
     
     # Patche alle anderen helpers-Module
@@ -69,7 +69,7 @@ def patch_all_imports():
             
             spec = importlib.util.spec_from_loader(module_name, loader=None)
             module = importlib.util.module_from_spec(spec)
-            exec(source, module.__dict__)
+            exec(source, module.__dict__)  # nosec B102 - source is a trusted local file
             sys.modules[module_name] = module
     
     # Patche ibtool_tools-Module
@@ -89,7 +89,7 @@ def patch_all_imports():
                 
                 spec = importlib.util.spec_from_loader(module_name, loader=None)
                 module = importlib.util.module_from_spec(spec)
-                exec(source, module.__dict__)
+                exec(source, module.__dict__)  # nosec B102 - source is a trusted local file
                 sys.modules[module_name] = module
     
     # Patche ibtool_dialog
@@ -103,7 +103,7 @@ def patch_all_imports():
         
         spec = importlib.util.spec_from_loader('ibtool_dialog', loader=None)
         dialog_module = importlib.util.module_from_spec(spec)
-        exec(source, dialog_module.__dict__)
+        exec(source, dialog_module.__dict__)  # nosec B102 - source is a trusted local file
         sys.modules['ibtool_dialog'] = dialog_module
     
     # Patche ibtool.py zuletzt
@@ -123,7 +123,7 @@ def patch_all_imports():
         
         spec = importlib.util.spec_from_loader('ibtool', loader=None)
         ibtool_module = importlib.util.module_from_spec(spec)
-        exec(source, ibtool_module.__dict__)
+        exec(source, ibtool_module.__dict__)  # nosec B102 - source is a trusted local file
         sys.modules['ibtool'] = ibtool_module
     
     return True
