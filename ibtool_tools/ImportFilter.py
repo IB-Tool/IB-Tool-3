@@ -8,6 +8,11 @@ from ..helpers.system_utils import save_temp_layer_to_gpkg
 from ..helpers.geometry_utils import select_and_save_by_location, shp_area, shp_area2
 from ..helpers.debug_utils import save_debug_layer
 
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "02_ImportFilter"
+
 # Number of characters taken from each filter-file entry for the ATKIS code match.
 _FILTER_CODE_LENGTH = 10
 
@@ -159,7 +164,7 @@ def input_hu_filter(
         if not isinstance(residential_layer, QgsVectorLayer):
             raise Exception("Failed to create residential_layer")
         if debug_mode and workspace_path:
-            save_debug_layer(residential_layer, "ImportFilter", "after_positive_filter", workspace_path)
+            save_debug_layer(residential_layer, _DEBUG_TOOL_NAME, "after_positive_filter", workspace_path)
 
         # Feature-to-Point
         res_cent = processing.run("native:centroids", {
@@ -170,7 +175,7 @@ def input_hu_filter(
         if not isinstance(res_cent, QgsVectorLayer):
             raise Exception("Failed to create res_cent")
         if debug_mode and workspace_path:
-            save_debug_layer(res_cent, "ImportFilter", "after_centroids", workspace_path)
+            save_debug_layer(res_cent, _DEBUG_TOOL_NAME, "after_centroids", workspace_path)
 
         # Create point density
         hu_raster = QgsProcessingUtils.generateTempFilename("hu_raster.tif")
@@ -201,7 +206,7 @@ def input_hu_filter(
         if not isinstance(filtered_points, QgsVectorLayer):
             raise Exception("Failed to create filtered_points")
         if debug_mode and workspace_path:
-            save_debug_layer(filtered_points, "ImportFilter", "after_density_filter", workspace_path)
+            save_debug_layer(filtered_points, _DEBUG_TOOL_NAME, "after_density_filter", workspace_path)
 
         # Buffer around filtered points
         points_buffer = processing.run("native:buffer", {
@@ -218,7 +223,7 @@ def input_hu_filter(
         if not isinstance(points_buffer, QgsVectorLayer):
             raise Exception("Failed to create points_buffer")
         if debug_mode and workspace_path:
-            save_debug_layer(points_buffer, "ImportFilter", "after_density_buffer", workspace_path)
+            save_debug_layer(points_buffer, _DEBUG_TOOL_NAME, "after_density_buffer", workspace_path)
 
         # Step 2: Exclude buildings (negative filter)
         negative_layer = processing.run("native:extractbyexpression", {
@@ -229,13 +234,13 @@ def input_hu_filter(
         if not isinstance(negative_layer, QgsVectorLayer):
             raise Exception("Failed to create negative_layer")
         if debug_mode and workspace_path:
-            save_debug_layer(negative_layer, "ImportFilter", "after_negative_filter", workspace_path)
+            save_debug_layer(negative_layer, _DEBUG_TOOL_NAME, "after_negative_filter", workspace_path)
 
         # Exclude negative buildings within residential area
         hu_neg_sel = select_and_save_by_location(negative_layer, points_buffer, predicate=2)
         hu_final = select_and_save_by_location(hu_layer, hu_neg_sel, predicate=2)
         if debug_mode and workspace_path:
-            save_debug_layer(hu_final, "ImportFilter", "after_neg_exclusion", workspace_path)
+            save_debug_layer(hu_final, _DEBUG_TOOL_NAME, "after_neg_exclusion", workspace_path)
 
         # Step 3: Delete small buildings
         hu_diss = processing.run("native:dissolve", {
@@ -246,7 +251,7 @@ def input_hu_filter(
         })['OUTPUT']
         shp_area2(hu_diss, "Area")
         if debug_mode and workspace_path:
-            save_debug_layer(hu_diss, "ImportFilter", "after_dissolve", workspace_path)
+            save_debug_layer(hu_diss, _DEBUG_TOOL_NAME, "after_dissolve", workspace_path)
 
         diss_del = processing.run("native:extractbyattribute", {
             'INPUT': hu_diss,
@@ -258,7 +263,7 @@ def input_hu_filter(
         if not isinstance(diss_del, QgsVectorLayer):
             raise Exception("Failed to create final_layer")
         if debug_mode and workspace_path:
-            save_debug_layer(diss_del, "ImportFilter", "after_group_filter", workspace_path)
+            save_debug_layer(diss_del, _DEBUG_TOOL_NAME, "after_group_filter", workspace_path)
 
         hu_final_sel = select_and_save_by_location(hu_final, diss_del, predicate=0)
         shp_area2(hu_final_sel, "Area")
@@ -271,7 +276,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if debug_mode and workspace_path:
-            save_debug_layer(final_layer, "ImportFilter", "after_area_filter", workspace_path)
+            save_debug_layer(final_layer, _DEBUG_TOOL_NAME, "after_area_filter", workspace_path)
 
         final_layer_diss = processing.run("native:dissolve", {
             'INPUT': final_layer,
@@ -280,7 +285,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if debug_mode and workspace_path:
-            save_debug_layer(final_layer_diss, "ImportFilter", "after_final_dissolve", workspace_path)
+            save_debug_layer(final_layer_diss, _DEBUG_TOOL_NAME, "after_final_dissolve", workspace_path)
 
         return final_layer_diss
 
