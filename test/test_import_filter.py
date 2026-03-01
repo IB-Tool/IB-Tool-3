@@ -42,7 +42,7 @@ from .utilities import get_qgis_app
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 from .layer_factories import make_polygon_layer
 
-from ibtool.ibtool_tools.ImportFilter import import_filter, input_hu_filter
+from ibtool.ibtool_tools.ImportFilter import import_filter, input_hu_filter, _create_filter_string
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +75,46 @@ def _write_filter_file(path: Path, positive: list, negative: list) -> str:
     lines = ["#Filter positive"] + positive + ["#Filter negative"] + negative
     path.write_text("\n".join(lines), encoding="utf-8")
     return str(path)
+
+
+# ---------------------------------------------------------------------------
+# TestCreateFilterString — pure unit tests (no QGIS / Processing needed)
+# ---------------------------------------------------------------------------
+
+class TestCreateFilterString:
+    """Unit tests for ImportFilter._create_filter_string."""
+
+    @pytest.mark.unit
+    def test_empty_list_returns_empty_string(self):
+        """An empty filter_list must return an empty string."""
+        result = _create_filter_string([], "fkt")
+        assert result == ""
+
+    @pytest.mark.unit
+    def test_single_entry_produces_no_or(self):
+        """A single entry must produce 'fieldname LIKE value' with no ' OR '."""
+        result = _create_filter_string(["'1010'"], "fkt")
+        assert result == "fkt LIKE '1010'"
+        assert " OR " not in result
+
+    @pytest.mark.unit
+    def test_two_entries_joined_with_or(self):
+        """Two entries must be joined with exactly one ' OR '."""
+        result = _create_filter_string(["'1010'", "'2020'"], "fkt")
+        assert result == "fkt LIKE '1010' OR fkt LIKE '2020'"
+        assert result.count(" OR ") == 1
+
+    @pytest.mark.unit
+    def test_fieldname_is_used_in_every_clause(self):
+        """Each LIKE clause must reference the given fieldname."""
+        result = _create_filter_string(["'A'", "'B'", "'C'"], "funktion")
+        assert result.count("funktion LIKE") == 3
+
+    @pytest.mark.unit
+    def test_values_appear_verbatim_in_output(self):
+        """The values are embedded verbatim (including surrounding quotes) in the output."""
+        result = _create_filter_string(["'abc'"], "fkt")
+        assert "'abc'" in result
 
 
 # ---------------------------------------------------------------------------
