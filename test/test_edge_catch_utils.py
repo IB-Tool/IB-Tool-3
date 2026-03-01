@@ -641,12 +641,18 @@ class TestFilterOrthoLines:
 
     @pytest.mark.unit
     def test_four_parallel_lines_reduced_to_two(self):
-        """Four near-parallel lines in one group → Rule 3b keeps the 2 shortest."""
+        """Four near-parallel lines in one group → Rule 3b keeps the 2 shortest.
+
+        All start points are co-located so Rule 2 (endpoint-in-rectangle) cannot
+        fire.  Endpoints are spread ≥ 30 m apart so Rule 3a (parallel lines with
+        nearby endpoints, threshold 5 m) cannot fire either, leaving Rule 3b as
+        the first applicable rule.
+        """
         layer = _make_ortho_line_layer()
-        _add_ortho_line(layer, 40, 90.0, 0, 0, 0, 40)
-        _add_ortho_line(layer, 35, 91.0, 5, 5, 5, 40)
-        _add_ortho_line(layer, 20, 89.5, 0, 0, 0, 20)
-        _add_ortho_line(layer, 25, 90.5, 2, 2, 2, 27)
+        _add_ortho_line(layer, 40, 90.0, 0, 0,  0, 40)
+        _add_ortho_line(layer, 35, 91.0, 0, 0, 30, 35)
+        _add_ortho_line(layer, 20, 89.5, 0, 0, 60, 20)
+        _add_ortho_line(layer, 25, 90.5, 0, 0, 90, 25)
         result = filter_ortho_lines(layer, min_lines_to_keep=2)
         assert result.featureCount() == 2
 
