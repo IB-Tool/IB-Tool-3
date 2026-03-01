@@ -1,0 +1,3 @@
+[bandit]
+exclude_dirs = test,ci,Testdaten
+skips = B101
