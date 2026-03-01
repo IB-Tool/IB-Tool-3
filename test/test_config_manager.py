@@ -622,6 +622,49 @@ class TestConfigManagerApplyToUiElements:
             assert widgets["AuxPath"].text() == "/aux.shp"
             assert widgets["FilterPath"].text() == "/filter.txt"
 
+    @pytest.mark.unit
+    def test_widget_without_set_text_does_not_crash(self):
+        """A widget without setText must be silently skipped — no AttributeError."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.input_data.building_footprints_path = "/data/buildings.shp"
+            # Widget stub that intentionally has no setText
+            class NoSetText:
+                pass
+            # Must not raise
+            mgr.apply_to_ui_elements({"HuPath": NoSetText()})
+
+    @pytest.mark.unit
+    def test_sets_output_path_widget(self):
+        """OutputPath widget receives the output_directory value when set."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.output.output_directory = "/specific_output"
+            widget = self._Widget()
+            mgr.apply_to_ui_elements({"OutputPath": widget})
+            assert widget.text() == "/specific_output"
+
+    @pytest.mark.unit
+    def test_sets_log_dir_path_widget(self):
+        """LogDirPath widget receives the log_directory value when set."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.ui.log_directory = "/my/logs"
+            widget = self._Widget()
+            mgr.apply_to_ui_elements({"LogDirPath": widget})
+            assert widget.text() == "/my/logs"
+
+    @pytest.mark.unit
+    def test_empty_output_directory_does_not_update_output_path_widget(self):
+        """OutputPath widget is not updated when output_directory is empty."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.output.output_directory = ""
+            widget = self._Widget()
+            widget.setText("unchanged")
+            mgr.apply_to_ui_elements({"OutputPath": widget})
+            assert widget.text() == "unchanged"
+
 
 # ---------------------------------------------------------------------------
 # TestGetEffectiveDirectories
