@@ -10,10 +10,10 @@ from qgis.core import (
     QgsPointXY,
 )
 
-# Nutze die zentrale QGIS-Initialisierung aus test/__init__.py
+# Use the shared QGIS initialisation from test/utilities.py
 from .utilities import get_qgis_app
 
-QGIS_APP = get_qgis_app()
+QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 
 
 class DummyLogger:
@@ -33,18 +33,18 @@ class TestManageDirectory:
         self._setup_logger_mock()
 
     def _setup_manage_directory_function(self):
-        """Importiert und setzt die manage_directory Funktion."""
+        """Import and store the manage_directory function under test."""
         from ibtool.helpers.system_utils import manage_directory
         self.manage_directory = manage_directory
 
     def _setup_logger_mock(self):
-        """Richtet das Logger-Mocking ein."""
+        """Set up Logger patching for each test."""
         from ibtool.helpers import system_utils
         self.patcher = patch.object(system_utils, 'Logger', DummyLogger)
         self.patcher.start()
 
     def _create_test_workspace(self):
-        """Erstellt einen Test-Workspace und gibt den Pfad zurück."""
+        """Create a temporary workspace directory and return its path."""
         workspace_path = os.path.join(self.tmp.name, 'ws')
         os.makedirs(workspace_path)
         return workspace_path
@@ -53,8 +53,9 @@ class TestManageDirectory:
         self.patcher.stop()
         self.tmp.cleanup()
 
+    @pytest.mark.unit
     def test_manage_directory_creates_expected_folder(self):
-        """Testet, dass manage_directory den erwarteten Ordner erstellt."""
+        """Creates the expected output directory inside the workspace."""
         workspace_path = self._create_test_workspace()
 
         self.manage_directory(workspace_path, del_part_log=False)
@@ -63,6 +64,7 @@ class TestManageDirectory:
                                           self.EXPECTED_DIRECTORY_NAME)
         assert os.path.isdir(expected_directory)
 
+    @pytest.mark.unit
     def test_manage_directory_existing_directory_logs_warning(self):
         """When del_part_log=False and directory already exists, a WARNING is logged."""
         workspace_path = self._create_test_workspace()
@@ -74,6 +76,7 @@ class TestManageDirectory:
         warning_logs = [m for m, level in DummyLogger.logs if level == "WARNING"]
         assert warning_logs, "Expected a WARNING log when directory already exists"
 
+    @pytest.mark.unit
     def test_manage_directory_del_part_log_true_deletes_and_recreates(self):
         """When del_part_log=True, the existing directory is deleted and recreated."""
         workspace_path = self._create_test_workspace()
@@ -88,6 +91,7 @@ class TestManageDirectory:
         # The marker file should be gone (directory was recreated)
         assert not os.path.exists(marker)
 
+    @pytest.mark.unit
     def test_manage_directory_exception_is_handled_gracefully(self):
         """An OSError during directory deletion must be caught and logged as CRITICAL."""
         workspace_path = self._create_test_workspace()
