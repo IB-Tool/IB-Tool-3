@@ -289,3 +289,84 @@ class TestEdgeCatch:
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
         assert elapsed < 30.0, f"edge_catch took {elapsed:.1f}s — expected < 30s"
+
+
+    # --- merge-block coverage (mocked process_single_feature) ---
+
+    @pytest.mark.unit
+    def test_merge_block_executes_when_process_returns_layer(self):
+        """Merge block at lines 80-89 runs when process_single_feature returns a layer."""
+        from unittest.mock import patch
+        # Build a minimal single-polygon result to return from the mock
+        result_layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(result_layer, make_square_geom(0, 0, 50))
+
+        with patch(
+            "ibtool.ibtool_tools.EdgeCatch.process_single_feature",
+            return_value=result_layer,
+        ):
+            result = edge_catch(
+                self._grouped_buildings(), self._hu_input(),
+                self._road_layer_near_buildings(), self._block_layer(),
+                self.crs, workspace_path=None,
+            )
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert result.featureCount() >= 1
+
+    @pytest.mark.unit
+    def test_merge_block_handles_exception_gracefully(self):
+        """An exception inside the merge block is caught; function returns a result."""
+        from unittest.mock import patch
+
+        def _raise_on_call(*args, **kwargs):
+            raise RuntimeError("merge failed")
+
+        result_layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(result_layer, make_square_geom(0, 0, 50))
+
+        call_count = [0]
+
+        def _side_effect(*args, **kwargs):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return result_layer
+            raise RuntimeError("merge failed")
+
+        with patch(
+            "ibtool.ibtool_tools.EdgeCatch.process_single_feature",
+            side_effect=_side_effect,
+        ), patch(
+            "ibtool.ibtool_tools.EdgeCatch.processing.run",
+            side_effect=RuntimeError("native:mergevectorlayers failed"),
+        ):
+            result = edge_catch(
+                self._grouped_buildings(), self._hu_input(),
+                self._road_layer_near_buildings(), self._block_layer(),
+                self.crs, workspace_path=None,
+            )
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+
+    @pytest.mark.unit
+    def test_all_features_return_none_falls_back_to_grouped_bdgs(self):
+        """When all process_single_feature calls return None, fallback to grouped_bdgs."""
+        from unittest.mock import patch
+
+        grouped = self._grouped_buildings()
+        with patch(
+            "ibtool.ibtool_tools.EdgeCatch.process_single_feature",
+            return_value=None,
+        ):
+            result = edge_catch(
+                grouped, self._hu_input(),
+                self._road_layer_near_buildings(), self._block_layer(),
+                self.crs, workspace_path=None,
+            )
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        # polygons_merge stays None → fallback to grouped_bdgs
+        assert result.featureCount() == grouped.featureCount()
