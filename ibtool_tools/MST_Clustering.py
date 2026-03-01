@@ -22,6 +22,11 @@ from ..helpers.logger import Logger
 from ..helpers.geometry_utils import shp_area, create_empty_layer
 from ..helpers.debug_utils import save_debug_layer
 
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "03_MST_Clustering"
+
 # Maximum angle difference (degrees) for two angles to be grouped into the same cluster.
 _MAIN_ANGLE_MAX_DIFF = 10
 
@@ -339,7 +344,7 @@ def mst_clustering(
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(mst_layer, "MST_Clustering", "after_mst_location_filter", workspace_path)
+        save_debug_layer(mst_layer, _DEBUG_TOOL_NAME, "after_mst_location_filter", workspace_path)
 
     # Add area field and calculate area
     hu_layer = shp_area(hu_layer)
@@ -421,7 +426,7 @@ def mst_clustering(
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(hu_layer, "MST_Clustering", "after_hu_fid_calc", workspace_path)
+        save_debug_layer(hu_layer, _DEBUG_TOOL_NAME, "after_hu_fid_calc", workspace_path)
 
     mst_layer.dataProvider().addAttributes([QgsField("fid_mst_orig", QMetaType.Int)])
     mst_layer.updateFields()
@@ -442,7 +447,7 @@ def mst_clustering(
                                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                                 })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(hu_points, "MST_Clustering", "after_hu_centroids", workspace_path)
+        save_debug_layer(hu_points, _DEBUG_TOOL_NAME, "after_hu_centroids", workspace_path)
 
     mst_layer_hu_join = processing.run("native:joinattributesbylocation",
                    {'INPUT': mst_layer,
@@ -455,7 +460,7 @@ def mst_clustering(
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
                     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(mst_layer_hu_join, "MST_Clustering", "after_location_join", workspace_path)
+        save_debug_layer(mst_layer_hu_join, _DEBUG_TOOL_NAME, "after_location_join", workspace_path)
 
     mst_list = []
     empty_polygon_layer = create_empty_layer("merge_layer_clustering_1", "Polygon", crs.authid())
@@ -584,7 +589,7 @@ def mst_clustering(
         rect_merge = merge_layer_2
 
     if debug_mode and workspace_path:
-        save_debug_layer(rect_merge, "MST_Clustering", "after_clustering", workspace_path)
+        save_debug_layer(rect_merge, _DEBUG_TOOL_NAME, "after_clustering", workspace_path)
 
     # TODO: remove features that are completely contained within another feature
 
