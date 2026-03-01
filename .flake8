@@ -8,5 +8,9 @@ exclude =
     __pycache__,
     Testdaten/,
     build/,
-    dist/
+    dist/,
+    IB-Tool2.py,
+    test_import_mst.py,
+    scripts/,
+    plugin_upload.py
 ignore = E203, W503

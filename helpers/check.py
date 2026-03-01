@@ -18,8 +18,6 @@ from qgis.core import (
 )
 from qgis import processing
 
-from .logger import Logger
-
 
 @dataclass
 class ValidationResult:

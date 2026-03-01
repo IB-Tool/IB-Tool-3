@@ -1,7 +1,5 @@
 """Blocker: Create city block polygons from a road network and partition boundary."""
 
-import processing
-
 from qgis.core import (
     QgsField,
     QgsProcessing,

@@ -4,7 +4,6 @@ from qgis.core import QgsWkbTypes, QgsVectorLayer, QgsProcessingUtils
 from qgis import processing
 
 from ..helpers.logger import Logger
-from ..helpers.system_utils import save_temp_layer_to_gpkg
 from ..helpers.geometry_utils import select_and_save_by_location, shp_area, shp_area2
 from ..helpers.debug_utils import save_debug_layer
 

@@ -4,15 +4,12 @@ from typing import List, Optional, Tuple
 
 from qgis.core import (
     QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY,
-    QgsField, QgsFields, QgsWkbTypes, QgsProject,
-    QgsFeatureSink, QgsProcessingUtils, QgsCoordinateReferenceSystem,
-    QgsMessageLog, Qgis, QgsProcessing,
+    QgsField, QgsFields, QgsWkbTypes,
+    QgsCoordinateReferenceSystem, QgsProcessing,
 )
 from qgis.PyQt.QtCore import QVariant
-from qgis import processing
 
-from .geometry_utils import shp_area2, create_empty_layer
-from .system_utils import save_temp_layer_to_gpkg
+from .geometry_utils import shp_area2
 from .logger import Logger
 from .debug_utils import save_debug_layer
 from .safe_processing import safe_processing_run
@@ -93,8 +90,8 @@ def _apply_rule_endpoint_in_rectangle(
         min_y = min(c[1] for c in corners)
         max_y = max(c[1] for c in corners)
         tolerance = 0.001
-        return (min_x - tolerance <= x <= max_x + tolerance and
-                min_y - tolerance <= y <= max_y + tolerance)
+        return (min_x - tolerance <= x <= max_x + tolerance
+                and min_y - tolerance <= y <= max_y + tolerance)
 
     start_points = [(line['x1'], line['y1']) for line in filtered]
     lines_to_keep = []
@@ -150,8 +147,8 @@ def _apply_rule_parallel_close_endpoints(
 
             if final_angle_diff <= _ANGLE_SIMILARITY:
                 endpoint_dist = math.sqrt(
-                    (line1['x2'] - line2['x2']) ** 2 +
-                    (line1['y2'] - line2['y2']) ** 2
+                    (line1['x2'] - line2['x2']) ** 2
+                    + (line1['y2'] - line2['y2']) ** 2
                 )
 
                 if endpoint_dist <= _ENDPOINT_PROXIMITY:
@@ -223,9 +220,9 @@ def _apply_rule_angle_outliers(filtered: list, min_lines_to_keep: int) -> list:
 
     remaining_lines = sum(len(group) for _, _, group in group_stats[1:])
 
-    if (remaining_lines >= min_lines_to_keep and
-            max_distance > _ANGLE_OUTLIER_DISTANCE_RATIO * second_max_distance and
-            len(grouped_angle) >= 3):
+    if (remaining_lines >= min_lines_to_keep
+            and max_distance > _ANGLE_OUTLIER_DISTANCE_RATIO * second_max_distance
+            and len(grouped_angle) >= 3):
         result = []
         for _, _, group in group_stats[1:]:
             result.extend(group)
@@ -641,7 +638,7 @@ def delete_first_point(layer: QgsVectorLayer) -> QgsVectorLayer:
         New QgsVectorLayer without the first feature. Returns the original
         layer unchanged if it has one or fewer features.
     """
-    from qgis.core import QgsVectorLayer, QgsFeature
+    from qgis.core import QgsVectorLayer
 
     features = list(layer.getFeatures())
     if len(features) <= 1:

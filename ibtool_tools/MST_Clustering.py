@@ -276,10 +276,10 @@ def calc_bounding_rect(
 
         # Create a polygon from array_of_lines
         hu_dir_rect_geom = QgsGeometry.fromPolygonXY(
-            [[QgsPointXY(point[0], point[1]) for point in array_of_lines[0]] +
-             [QgsPointXY(point[0], point[1]) for point in array_of_lines[1]] +
-             [QgsPointXY(point[0], point[1]) for point in array_of_lines[2]] +
-             [QgsPointXY(point[0], point[1]) for point in array_of_lines[3]]]
+            [[QgsPointXY(point[0], point[1]) for point in array_of_lines[0]]
+             + [QgsPointXY(point[0], point[1]) for point in array_of_lines[1]]
+             + [QgsPointXY(point[0], point[1]) for point in array_of_lines[2]]
+             + [QgsPointXY(point[0], point[1]) for point in array_of_lines[3]]]
         )
 
         # Create a memory layer for the polygon
@@ -337,12 +337,13 @@ def mst_clustering(
         A QgsVectorLayer of oriented bounding rectangles, one per identified cluster.
     """
     # Extract MST features that intersect hu features
-    mst_layer = processing.run("native:extractbylocation",
-                   {'INPUT': mst_layer,
-                    'PREDICATE': [0],
-                    'INTERSECT': hu_layer,
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                    })['OUTPUT']
+    mst_layer = processing.run(
+        "native:extractbylocation",
+        {'INPUT': mst_layer,
+         'PREDICATE': [0],
+         'INTERSECT': hu_layer,
+         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+         })['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(mst_layer, _DEBUG_TOOL_NAME, "after_mst_location_filter", workspace_path)
 
@@ -416,30 +417,32 @@ def mst_clustering(
     hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QMetaType.Int)])
     hu_layer.updateFields()
 
-    hu_layer = processing.run("native:fieldcalculator",
-                   {'INPUT': hu_layer,
-                    'FIELD_NAME': 'fid_hu_orig',
-                    'FIELD_TYPE': 0,
-                    'FIELD_LENGTH': 0,
-                    'FIELD_PRECISION': 0,
-                    'FORMULA': '@id',
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                    })['OUTPUT']
+    hu_layer = processing.run(
+        "native:fieldcalculator",
+        {'INPUT': hu_layer,
+         'FIELD_NAME': 'fid_hu_orig',
+         'FIELD_TYPE': 0,
+         'FIELD_LENGTH': 0,
+         'FIELD_PRECISION': 0,
+         'FORMULA': '@id',
+         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+         })['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(hu_layer, _DEBUG_TOOL_NAME, "after_hu_fid_calc", workspace_path)
 
     mst_layer.dataProvider().addAttributes([QgsField("fid_mst_orig", QMetaType.Int)])
     mst_layer.updateFields()
 
-    mst_layer = processing.run("native:fieldcalculator",
-                              {'INPUT': mst_layer,
-                               'FIELD_NAME': 'fid_mst_orig',
-                               'FIELD_TYPE': 0,
-                               'FIELD_LENGTH': 0,
-                               'FIELD_PRECISION': 0,
-                               'FORMULA': '@id',
-                               'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                               })['OUTPUT']
+    mst_layer = processing.run(
+        "native:fieldcalculator",
+        {'INPUT': mst_layer,
+         'FIELD_NAME': 'fid_mst_orig',
+         'FIELD_TYPE': 0,
+         'FIELD_LENGTH': 0,
+         'FIELD_PRECISION': 0,
+         'FORMULA': '@id',
+         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+         })['OUTPUT']
 
     hu_points = processing.run("native:centroids",
                                {'INPUT': hu_layer,
@@ -449,16 +452,17 @@ def mst_clustering(
     if debug_mode and workspace_path:
         save_debug_layer(hu_points, _DEBUG_TOOL_NAME, "after_hu_centroids", workspace_path)
 
-    mst_layer_hu_join = processing.run("native:joinattributesbylocation",
-                   {'INPUT': mst_layer,
-                    'PREDICATE': [0],
-                    'JOIN': hu_points,
-                    'JOIN_FIELDS': ['fid_hu_orig', 'fktkurz', 'fkt', 'Area'],
-                    'METHOD': 0,
-                    'DISCARD_NONMATCHING': False,
-                    'PREFIX': '',
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                    })['OUTPUT']
+    mst_layer_hu_join = processing.run(
+        "native:joinattributesbylocation",
+        {'INPUT': mst_layer,
+         'PREDICATE': [0],
+         'JOIN': hu_points,
+         'JOIN_FIELDS': ['fid_hu_orig', 'fktkurz', 'fkt', 'Area'],
+         'METHOD': 0,
+         'DISCARD_NONMATCHING': False,
+         'PREFIX': '',
+         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+         })['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(mst_layer_hu_join, _DEBUG_TOOL_NAME, "after_location_join", workspace_path)
 
@@ -575,7 +579,7 @@ def mst_clustering(
                 'LAYERS': [rect, merge_layer_2],
                 'CRS': crs,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+            })['OUTPUT']
             merge_layer_2 = rect_merge
         except Exception as e:
             Logger.log(

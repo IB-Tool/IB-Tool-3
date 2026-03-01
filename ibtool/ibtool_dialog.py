@@ -28,8 +28,8 @@ import os
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
 from qgis.PyQt.QtWidgets import (
-    QDialog, QFileDialog, QApplication, QListWidgetItem,
-    QHBoxLayout, QVBoxLayout, QLabel, QPlainTextEdit, QDialogButtonBox,
+    QDialog, QListWidgetItem,
+    QVBoxLayout, QLabel, QPlainTextEdit, QDialogButtonBox,
     QSplitter,
 )
 from qgis.PyQt.QtGui import QColor

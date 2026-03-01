@@ -25,7 +25,6 @@ of building footprints
 
 import os
 import sys
-import time
 
 from qgis._core import QgsFeatureRequest
 from qgis.core import QgsProcessingContext
@@ -37,6 +36,7 @@ context.setInvalidGeometryCheck(QgsFeatureRequest.GeometryNoCheck)
 
 # Constants for configuration
 PYTHONPATH = '/helpers'
+
 
 def initialize_environment():
     """Set up environment variables and system paths."""
@@ -63,68 +63,67 @@ def initialize_environment():
         if python_path not in sys.path:
             sys.path.append(python_path)
 
+
 # Initialize the environment
 initialize_environment()
 
-from qgis.PyQt.QtCore import (
+
+from qgis.PyQt.QtCore import (  # noqa: E402
     QCoreApplication,
     QSettings,
     QThread,
     QTranslator,
     pyqtSignal
 )
-from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import (
+from qgis.PyQt.QtGui import QIcon  # noqa: E402
+from qgis.PyQt.QtWidgets import (  # noqa: E402
     QAction,
     QDialog,
     QFileDialog,
     QApplication,
 )
-from qgis.core import (
+from qgis.core import (  # noqa: E402
     QgsCoordinateReferenceSystem,
     QgsProcessing,
-    QgsApplication,
-    QgsSettings,
     QgsVectorLayer,
     QgsProject,
 )
-from qgis import processing
-from ibtool.helpers.logger import Logger as MainLogger
-from ibtool.helpers.geometry_utils import (
-    check_projection,
+from qgis import processing  # noqa: E402
+from ibtool.helpers.logger import Logger as MainLogger  # noqa: E402
+from ibtool.helpers.geometry_utils import (  # noqa: E402
     load_to_geopackage,
     select_and_save_by_location,
     create_empty_layer
 )
-from ibtool.helpers.system_utils import (
+from ibtool.helpers.system_utils import (  # noqa: E402
     manage_directory,
     save_temp_layer_to_gpkg,
     version_check
 )
-from ibtool.helpers.message import msg
-from ibtool.helpers.check import InputValidator, ValidationResult
-from ibtool.helpers.config_manager import ConfigManager
-from ibtool.helpers.data_loader import *
+from ibtool.helpers.message import msg  # noqa: E402
+from ibtool.helpers.check import InputValidator, ValidationResult  # noqa: E402
+from ibtool.helpers.config_manager import ConfigManager  # noqa: E402
+from ibtool.helpers.data_loader import *  # noqa: E402, F403
 
-from ibtool.ibtool_tools.FootprintDensity import (
+from ibtool.ibtool_tools.FootprintDensity import (  # noqa: E402
     calc_footprint_density,
     identify_dense_blocks
 )
-from ibtool.ibtool_tools.Blocker import blocker
-from ibtool.ibtool_tools.ImportFilter import input_hu_filter
-from ibtool.ibtool_tools.CreateMST import calculate_mst
-from ibtool.ibtool_tools.MST_Clustering import mst_clustering
-from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
-from ibtool.ibtool_tools.EdgeCatch import edge_catch
-from ibtool.ibtool_tools.GapClose import gap_close
-from ibtool.ibtool_tools.PatchRemove import patch_remove
-from ibtool.ibtool_tools.GapFix import gap_fix
+from ibtool.ibtool_tools.Blocker import blocker  # noqa: E402
+from ibtool.ibtool_tools.ImportFilter import input_hu_filter  # noqa: E402
+from ibtool.ibtool_tools.CreateMST import calculate_mst  # noqa: E402
+from ibtool.ibtool_tools.MST_Clustering import mst_clustering  # noqa: E402
+from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg  # noqa: E402
+from ibtool.ibtool_tools.EdgeCatch import edge_catch  # noqa: E402
+from ibtool.ibtool_tools.GapClose import gap_close  # noqa: E402
+from ibtool.ibtool_tools.PatchRemove import patch_remove  # noqa: E402
 
 # Import the dialog class
-from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
+from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog  # noqa: E402
 
 # Initialize the logger instance
 logger = MainLogger()
+
 
 class ProcessingThread(QThread):
     """Thread for background processing"""
@@ -144,12 +143,13 @@ class ProcessingThread(QThread):
         except Exception as e:
             self.log_message.emit(f"Error: {str(e)}")
 
+
 class IBTool:
     """QGIS Plugin Implementation."""
 
     def __init__(self, iface):
         """Constructor.
-    
+
         :param iface: An interface instance that will be passed to this class
             which provides the hook by which you can manipulate the QGIS
             application at run time.
@@ -238,18 +238,17 @@ class IBTool:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('IBTool', message)
 
-
     def add_action(
-        self,
-        icon_path,
-        text,
-        callback,
-        enabled_flag=True,
-        add_to_menu=True,
-        add_to_toolbar=True,
-        status_tip=None,
-        whats_this=None,
-        parent=None):
+            self,
+            icon_path,
+            text,
+            callback,
+            enabled_flag=True,
+            add_to_menu=True,
+            add_to_toolbar=True,
+            status_tip=None,
+            whats_this=None,
+            parent=None):
         """Add a toolbar icon to the toolbar.
 
         :param icon_path: Path to the icon for this action. Can be a resource
@@ -328,7 +327,6 @@ class IBTool:
         # will be set False in run()
         self.first_start = True
 
-
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
@@ -346,7 +344,7 @@ class IBTool:
         """
         valid_levels = ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']
         self.dlg.LogLevelBox.addItems(valid_levels)
-        
+
         # Set the default log level
         default_level = 'INFO'
         if default_level in valid_levels:
@@ -365,7 +363,7 @@ class IBTool:
 
         self.dlg.LogLevelBox.currentTextChanged.connect(apply_log_level)
 
-    def run(self):
+    def run(self):  # noqa: F811
         """Run method that performs all the real work"""
 
         # check version of QGIS and Python
@@ -374,7 +372,7 @@ class IBTool:
         # Create the dialog with elements (after translation) and keep reference
         # Only create GUI ONCE in callback, so that it will only load when the
         # plugin is started
-        if self.first_start == True:
+        if self.first_start:
             self.first_start = False
             self.dlg = IBToolDialog()
             self.dlg.HuButton.clicked.connect(self.select_HU_file)
@@ -895,10 +893,10 @@ class IBTool:
         workspace = os.getcwd()
         os.chdir(workspace)
 
-        min_overlap_blocks= self.dlg.MinOverlapBlocksBox.text()
+        min_overlap_blocks = self.dlg.MinOverlapBlocksBox.text()
         try:
             # Konvertiere den Text in eine Zahl
-            min_overlap_blocks = float(min_overlap_blocks) #TODO
+            min_overlap_blocks = float(min_overlap_blocks)  # TODO
 
         except ValueError:
             logger.log("Invalid numeric value entered.")
@@ -938,7 +936,7 @@ class IBTool:
             max_gap_size = float(max_gap_size)
         except ValueError:
             logger.log("Invalid numeric value for max_gap_size entered.")
-       
+
         try:
             part_start = int(
                 self.dlg.partstartBox.text()) if self.dlg.partstartBox.text() else -1
@@ -974,7 +972,7 @@ class IBTool:
         InputPart = self.dlg.PartPath.text()
         input_filter = self.dlg.FilterPath.text()
         OutputFile = self.dlg.OutputPath.text()
-        msg(f"Outputfile={OutputFile}") #ToDO entfernen
+        msg(f"Outputfile={OutputFile}")  # ToDO entfernen
 
         # Input validation (replaces old check_projection call)
         validator = InputValidator()
@@ -1001,25 +999,21 @@ class IBTool:
 
         # Alle Eingabe-Shapefiles in das GeoPackage laden
         layer_rn = load_to_geopackage(InputRN,
-                                     workspace_path + "layer_rn.gpkg",
-                                    "layer_rn", spatial_reference)
+                                      workspace_path + "layer_rn.gpkg",
+                                      "layer_rn", spatial_reference)
         layer_rn.dataProvider().createSpatialIndex()
-        layer_aux  = load_to_geopackage(InputAux,
+        layer_aux = load_to_geopackage(InputAux,
                                        workspace_path + "layer_aux.gpkg",
                                        "layer_aux", spatial_reference)
         layer_aux.dataProvider().createSpatialIndex()
         layer_part = load_to_geopackage(InputPart,
-                                       workspace_path + "layer_part.gpkg",
-                                       "layer_part", spatial_reference)
+                                        workspace_path + "layer_part.gpkg",
+                                        "layer_part", spatial_reference)
         layer_part.dataProvider().createSpatialIndex()
-        layer_hu= load_to_geopackage(input_hu,
-                                    workspace_path + "layer_hu.gpkg",
-                                    "layer_hu", spatial_reference)
+        layer_hu = load_to_geopackage(input_hu,
+                                      workspace_path + "layer_hu.gpkg",
+                                      "layer_hu", spatial_reference)
         layer_hu.dataProvider().createSpatialIndex()
-
-
-        startzeit = time.strftime("%Y_%m_%d_%H_%M")
-        lockswitch = False
 
         aux_layers_line = processing.run("qgis:mergevectorlayers", {
             'LAYERS': [layer_aux, layer_rn],
@@ -1032,10 +1026,10 @@ class IBTool:
                                          spatial_reference.authid())
         merge = merge_layer  # Initialize to avoid UnboundLocalError if loop doesn't execute
         # Partitionen aus Gesamtdatei für Debugging auswählen
-        part_list = create_partitions_list(layer_part,
-                                          part_list_input,
-                                          part_start,
-                                          part_end)
+        part_list = create_partitions_list(layer_part,  # noqa: F405
+                                           part_list_input,
+                                           part_start,
+                                           part_end)
 
         logger.log("Part list: {}".format(part_list), 'SUCCESS')
 
@@ -1054,7 +1048,7 @@ class IBTool:
 
         logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
 
-        msg(part_log_path) #TODO löschen
+        msg(part_log_path)  # TODO löschen
         if DelPartLog:
             if os.path.isfile(part_log_path):
                 os.remove(part_log_path)
@@ -1089,17 +1083,17 @@ class IBTool:
                 continue
 
             part_name = i
-            logger.log( "###############################", 'CRITICAL')
-            logger.log( "PARTITION: " + str(part_name) + " - " + str(a) + " of " 
-                        + str(len(part_list)), 'CRITICAL')
+            logger.log("###############################", 'CRITICAL')
+            logger.log("PARTITION: " + str(part_name) + " - " + str(a) + " of "
+                       + str(len(part_list)), 'CRITICAL')
 
             # Partition auswählen
             sel_part_layer = processing.run(
-                    "native:extractbyexpression",{
+                "native:extractbyexpression", {
                     'INPUT': layer_part,
                     'EXPRESSION': f"\"NAME\" = '{part_name}'",
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                    })['OUTPUT']
+                })['OUTPUT']
 
             # Gebäude-Features selektieren
             sel_hu_layer = select_and_save_by_location(layer_hu, sel_part_layer)
@@ -1130,8 +1124,8 @@ class IBTool:
             logger.log("SelHU Count = {}".format(anz_hu), 'SUCCESS')
             logger.log("SelStrassen Count = {}".format(anz_strassen), 'SUCCESS')
 
-            min_overlap_mst = calc_footprint_density(sel_hu_layer, sel_strassen_layer, 100, global_footprint_density, 'local',
-                                                         min_bdg_count)
+            min_overlap_mst = calc_footprint_density(sel_hu_layer, sel_strassen_layer, 100, global_footprint_density, 'local',  # noqa: E501
+                                                     min_bdg_count)
 
             logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
 
@@ -1180,18 +1174,18 @@ class IBTool:
                 'LAYERS': [add_sing_bdg, hu_cluster_output],
                 'CRS': spatial_reference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+            })['OUTPUT']
 
             snapped_rect = edge_catch(rect_merged, hu_filter_sel,
-                                       sel_strassen_layer, blocks,
-                                       spatial_reference, workspace_path,
-                                       debug_mode=debug_mode)
+                                      sel_strassen_layer, blocks,
+                                      spatial_reference, workspace_path,
+                                      debug_mode=debug_mode)
 
             blocks_merge = processing.run("qgis:mergevectorlayers", {
                 'LAYERS': [snapped_rect, blocks_dense],
                 'CRS': spatial_reference,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT            })['OUTPUT']
-
+                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+            })['OUTPUT']
 
             gaps_colsed = gap_close(blocks_merge, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30,
                                     debug_mode=debug_mode, workspace_path=workspace_path)
@@ -1215,7 +1209,7 @@ class IBTool:
                 'LAYERS': [patch_removed, merge_layer],
                 'CRS': spatial_reference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+            })['OUTPUT']
             merge_layer = merge
 
         # Load output from previous step
@@ -1223,7 +1217,7 @@ class IBTool:
             logger.log("Failed to load final merge layer", "CRITICAL")
             return
 
-        #gap_fixed = gap_fix(merge, layer_rn, workspace_path, debug_mode=debug_mode)
+        # gap_fixed = gap_fix(merge, layer_rn, workspace_path, debug_mode=debug_mode)
 
         # Phase 6: Save Output
         self.dlg.set_phase_progress(6, 6, "Save Output", 95)

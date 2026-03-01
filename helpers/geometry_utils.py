@@ -230,10 +230,10 @@ def select_and_save_by_location(
     })
 
     selected_features = processing.run(
-        "native:saveselectedfeatures", {
-            'INPUT': input_layer,
-            'OUTPUT': output
-        })['OUTPUT']
+        "native:saveselectedfeatures",
+        {'INPUT': input_layer,
+         'OUTPUT': output
+         })['OUTPUT']
 
     return selected_features
 
@@ -380,15 +380,16 @@ def shp_area(layer, area_field='Area'):
         layer.dataProvider().addAttributes([QgsField(area_field, QMetaType.Double)])
         layer.updateFields()
 
-    layer = processing.run("native:fieldcalculator",
-                   {'INPUT': layer,
-                    'FIELD_NAME': area_field,
-                    'FIELD_TYPE': 0,
-                    'FIELD_LENGTH': 0,
-                    'FIELD_PRECISION': 0,
-                    'FORMULA': ' $area ',
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                    })['OUTPUT']
+    layer = processing.run(
+        "native:fieldcalculator",
+        {'INPUT': layer,
+         'FIELD_NAME': area_field,
+         'FIELD_TYPE': 0,
+         'FIELD_LENGTH': 0,
+         'FIELD_PRECISION': 0,
+         'FORMULA': ' $area ',
+         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+         })['OUTPUT']
     return layer
 
 
@@ -465,14 +466,15 @@ def shp_length(layer, field_name='Length'):
         layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.Double)])
         layer.updateFields()
 
-    layer = processing.run("native:fieldcalculator",
-                   {'INPUT': layer,
-                    'FIELD_NAME': 'length',
-                    'FIELD_TYPE': 0,
-                    'FIELD_LENGTH': 0,
-                    'FIELD_PRECISION': 0,
-                    'FORMULA': ' $length',
-                    'OUTPUT': 'TEMPORARY_OUTPUT'})
+    layer = processing.run(
+        "native:fieldcalculator",
+        {'INPUT': layer,
+         'FIELD_NAME': 'length',
+         'FIELD_TYPE': 0,
+         'FIELD_LENGTH': 0,
+         'FIELD_PRECISION': 0,
+         'FORMULA': ' $length',
+         'OUTPUT': 'TEMPORARY_OUTPUT'})
     return layer['OUTPUT']
 
 
@@ -573,8 +575,11 @@ def nodes_detect(input_road_network, count):
     vertices = processing.run("native:aggregate", {
         'INPUT': vertices,
         'GROUP_BY': '"x-coord"',
-        'AGGREGATES': [{'aggregate': 'count', 'delimiter': ',', 'input': '"x-coord"', 'length': 10, 'name': 'x-coord',
-             'precision': 3, 'sub_type': 0, 'type': 6, 'type_name': 'double precision'}],
+        'AGGREGATES': [{
+            'aggregate': 'count', 'delimiter': ',', 'input': '"x-coord"',
+            'length': 10, 'name': 'x-coord', 'precision': 3,
+            'sub_type': 0, 'type': 6, 'type_name': 'double precision',
+        }],
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
@@ -645,37 +650,37 @@ def intersect_polygons(input_polygon):
     input_clean = processing.run("native:deleteduplicategeometries", {
         'INPUT': input_polygon,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+    })['OUTPUT']
 
     input_buff = processing.run("native:buffer", {
         'INPUT': input_clean,
         'DISTANCE': INTERSECT_BUFFER_DISTANCE, 'SEGMENTS': 5, 'END_CAP_STYLE': 0, 'JOIN_STYLE': 0,
         'MITER_LIMIT': 2, 'DISSOLVE': False, 'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+    })['OUTPUT']
 
     input_lines = processing.run("native:polygonstolines", {
         'INPUT': input_buff,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+    })['OUTPUT']
 
     input_lines_poly = processing.run("native:polygonize", {
         'INPUT': input_lines,
         'KEEP_FIELDS': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        })['OUTPUT']
+    })['OUTPUT']
 
     lines_poly_union = processing.run("native:union", {
         'INPUT': input_lines_poly,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
         'GRID_SIZE': None
-        })['OUTPUT']
+    })['OUTPUT']
 
     centroides = processing.run("native:centroids", {
         'INPUT': lines_poly_union,
         'ALL_PARTS': False,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
+    })['OUTPUT']
 
     input_lines_poly_count = processing.run("native:countpointsinpolygon", {
         'POLYGONS': input_lines_poly,
@@ -684,12 +689,12 @@ def intersect_polygons(input_polygon):
         'CLASSFIELD': '',
         'FIELD': 'NUMPOINTS',
         'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
+    })['OUTPUT']
 
     intersect_poly = processing.run("native:extractbyattribute", {
         'INPUT': input_lines_poly_count,
         'FIELD': 'NUMPOINTS', 'OPERATOR': 2, 'VALUE': '1',
         'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
+    })['OUTPUT']
 
     return intersect_poly

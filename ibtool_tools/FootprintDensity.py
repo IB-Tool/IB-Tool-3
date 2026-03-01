@@ -1,32 +1,18 @@
 from qgis.core import (
-    QgsProcessingFeatureSourceDefinition,
     QgsVectorLayer,
-    QgsProcessing,
-    QgsProcessingContext,
-    QgsProcessingFeedback,
-    QgsVectorLayerUtils,
-    QgsFeature,
-    QgsProject,
     QgsExpression,
     QgsField,
-    QgsFeatureRequest,
-    QgsVectorLayerJoinInfo,
     edit,
-    QgsGeometry,
     QgsExpressionContext,
     QgsExpressionContextUtils,
-    QgsProcessingOutputLayerDefinition,
-    QgsVectorFileWriter
 )
 
 from qgis import processing
-import os
-import sys
-from qgis.PyQt.QtCore import QVariant, QMetaType
+from qgis.PyQt.QtCore import QMetaType
 
 # Import helpers with fallback for test context
 try:
-    #from ..helpers.system_utils import save_temp_layer_to_gpkg
+    # from ..helpers.system_utils import save_temp_layer_to_gpkg
     from ..helpers.message import msg
     from ..helpers.logger import Logger
 except ImportError:
@@ -35,12 +21,13 @@ except ImportError:
     def msg(message, level=None):
         """Fallback message function"""
         print(f"Message: {message}")
-    
+
     class Logger:
         """Fallback logger class"""
         @staticmethod
         def log(message, level="INFO"):
             print(f"[{level}] {message}")
+
 
 def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshold=18, Ext='local',
                            MinBdgCount=20, Partition=None):
@@ -108,14 +95,14 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
         all_ids = [f.id() for f in InputStrNetwork_Poly.getFeatures()]
         inverted_ids = [fid for fid in all_ids if fid not in selected_ids]
 
-
         # Auswahl mit invertierten IDs setzen
         InputStrNetwork_Poly.selectByIds(inverted_ids)
 
-        InputStrNetwork_Poly_Sel = processing.run("native:saveselectedfeatures",
-                       {'INPUT': InputStrNetwork_Poly,
-                        'OUTPUT': 'TEMPORARY_OUTPUT'
-                        })['OUTPUT']
+        InputStrNetwork_Poly_Sel = processing.run(
+            "native:saveselectedfeatures",
+            {'INPUT': InputStrNetwork_Poly,
+             'OUTPUT': 'TEMPORARY_OUTPUT'
+             })['OUTPUT']
 
         # Zweite Auswahl basierend auf der invertierten Auswahl
         BlocksInside = processing.run("native:selectbylocation", {
@@ -200,10 +187,8 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
         Inner_Blocks = Merge_Dummy
 
-
     else:  # Local extent
         Inner_Blocks = select_block(InputStrNetwork, InputBdg, Buffer)
-
 
     # Calculate block names
     Inner_Blocks = processing.run("native:addautoincrementalfield", {
@@ -217,7 +202,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
     # Calculate the overlap
     result = Inner_Blocks.featureCount()
-    Logger.log("Inner blocks count: {}".format(result),'SUCCESS')
+    Logger.log("Inner blocks count: {}".format(result), 'SUCCESS')
 
     if result > 5:
         overlap_sum = 0
@@ -242,8 +227,8 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
     :param output_path: Pfad zur Ausgabe-Shape-Datei
     """
     # Lade die Eingabe-Layer
-    #small_layer = QgsProject.instance().mapLayersByName(small_polygons_layer)[0]
-    #large_layer = QgsProject.instance().mapLayersByName(large_polygons_layer)[0]
+    # small_layer = QgsProject.instance().mapLayersByName(small_polygons_layer)[0]
+    # large_layer = QgsProject.instance().mapLayersByName(large_polygons_layer)[0]
 
     # Geoverarbeitung: Intersektion
     intersection_result = processing.run(
@@ -253,7 +238,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             'OVERLAY': Bloecke,
             'OUTPUT': 'TEMPORARY_OUTPUT'
         }
-        )
+    )
     intersected_layer = intersection_result['OUTPUT']
 
     # Fläche der Intersektion berechnen
@@ -325,7 +310,6 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         joined_layer.updateFeature(feature)
     joined_layer.commitChanges()
 
-
     return joined_layer
 
 
@@ -344,9 +328,10 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
     if not isinstance(HU_Input, QgsVectorLayer) or not isinstance(Bloecke, QgsVectorLayer):
         raise ValueError("Both hu_layer and Bloecke must be valid QgsVectorLayer objects.")
 
-    bloecke_singlepart = processing.run("native:multiparttosingleparts",
-                   {'INPUT': Bloecke,
-                    'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+    bloecke_singlepart = processing.run(
+        "native:multiparttosingleparts",
+        {'INPUT': Bloecke,
+         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
 
     # Add area fields for both buildings and blocks
     bloecke_singlepart.startEditing()
@@ -379,24 +364,26 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
             HU_Input.updateFeature(feature)
 
     # Perform a spatial join to associate building footprints with city blocks
-    dissolved_layer = processing.run("native:joinbylocationsummary",
-                   {'INPUT': bloecke_singlepart,
-                    'PREDICATE': [0],
-                    'JOIN': HU_Input,
-                    'JOIN_FIELDS': ['FOOTPRINT_AREA'],
-                    'SUMMARIES': [5],
-                    'DISCARD_NONMATCHING': True,
-                    'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+    dissolved_layer = processing.run(
+        "native:joinbylocationsummary",
+        {'INPUT': bloecke_singlepart,
+         'PREDICATE': [0],
+         'JOIN': HU_Input,
+         'JOIN_FIELDS': ['FOOTPRINT_AREA'],
+         'SUMMARIES': [5],
+         'DISCARD_NONMATCHING': True,
+         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
 
     # Calculate overlap
-    diss_overlap = processing.run("native:fieldcalculator",
-                   {'INPUT': dissolved_layer,
-                    'FIELD_NAME': 'OVERLAP',
-                    'FIELD_TYPE': 0,
-                    'FIELD_LENGTH': 0,
-                    'FIELD_PRECISION': 0,
-                    'FORMULA': ' "FOOTPRINT_AREA_sum" / "SHAPE_AREA" * 100',
-                    'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+    diss_overlap = processing.run(
+        "native:fieldcalculator",
+        {'INPUT': dissolved_layer,
+         'FIELD_NAME': 'OVERLAP',
+         'FIELD_TYPE': 0,
+         'FIELD_LENGTH': 0,
+         'FIELD_PRECISION': 0,
+         'FORMULA': ' "FOOTPRINT_AREA_sum" / "SHAPE_AREA" * 100',
+         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
 
     # Filter blocks below the footprint density threshold
     filtered_layer = processing.run(

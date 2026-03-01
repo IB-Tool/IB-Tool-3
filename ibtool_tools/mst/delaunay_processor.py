@@ -5,20 +5,20 @@ Delaunay Processor
 Handles Delaunay triangulation and geometric operations for MST calculations.
 """
 
-from typing import List, Tuple, Set
+from typing import List, Tuple
 import numpy as np
 from scipy.spatial import Delaunay
 from scipy.spatial._qhull import QhullError
 
 from qgis.core import (
-    QgsVectorLayer, QgsField, QgsFeature, QgsGeometry, 
-    QgsPointXY, QgsProcessing
+    QgsVectorLayer, QgsField, QgsFeature, QgsGeometry,
+    QgsPointXY, QgsProcessing, QgsCoordinateReferenceSystem
 )
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
 
 from .mst_data_classes import (
-    EdgeData, TriangulationResult, BuildingCentroidsResult
+    EdgeData, BuildingCentroidsResult
 )
 from ...helpers.mst_utils import MSTUtilities
 from ...helpers.logger import Logger
@@ -26,32 +26,32 @@ from ...helpers.logger import Logger
 
 class DelaunayProcessor:
     """Handles Delaunay triangulation and related geometric operations."""
-    
+
     # Delaunay processing parameters
     COORDINATE_TOLERANCE = 1
     """Tolerance for coordinate comparison in triangulation"""
-    
+
     def __init__(self):
         """Initialize the Delaunay processor."""
         self.logger = Logger()
-        
+
     def extract_building_centroids(self, building_layer: QgsVectorLayer) -> BuildingCentroidsResult:
         """
         Extract centroids from building polygons.
-        
+
         Args:
             building_layer: QgsVectorLayer containing building polygons
-            
+
         Returns:
             BuildingCentroidsResult with centroid data
         """
         centroids = []
         building_count = 0
-        
+
         for feature in building_layer.getFeatures():
             geom = feature.geometry()
             building_count += 1
-            
+
             if geom.isMultipart():
                 # Handle multipart polygons
                 polygons = geom.asMultiPolygon()
@@ -62,23 +62,22 @@ class DelaunayProcessor:
                 # Handle single polygons
                 centroid = geom.centroid().asPoint()
                 centroids.append((centroid.x(), centroid.y()))
-        
-        points_array = np.array(centroids)
 
+        points_array = np.array(centroids)
 
         return BuildingCentroidsResult(
             centroids=centroids,
             points_array=points_array,
             building_count=building_count
         )
-    
+
     def create_triangulation(self, centroids_result: BuildingCentroidsResult) -> List[EdgeData]:
         """
         Create Delaunay triangulation from building centroids.
-        
+
         Args:
             centroids_result: Result from extract_building_centroids
-            
+
         Returns:
             List of EdgeData objects representing triangulation edges
         """
@@ -105,13 +104,13 @@ class DelaunayProcessor:
             for i in range(3):
                 p1_idx = simplex[i]
                 p2_idx = simplex[(i + 1) % 3]
-                
+
                 point1 = points_array[p1_idx]
                 point2 = points_array[p2_idx]
-                
+
                 # Calculate distance
                 distance = np.linalg.norm(point1 - point2)
-                
+
                 edge = EdgeData(
                     start_point=(float(point1[0]), float(point1[1])),
                     end_point=(float(point2[0]), float(point2[1])),
@@ -122,28 +121,28 @@ class DelaunayProcessor:
                 edges.append(edge)
 
         return edges
-    
+
     def create_triangulation_layer(
-        self, 
-        edges: List[EdgeData], 
-        crs: 'QgsCoordinateReferenceSystem'
+        self,
+        edges: List[EdgeData],
+        crs: QgsCoordinateReferenceSystem
     ) -> QgsVectorLayer:
         """
         Create a QGIS layer from triangulation edges.
-        
+
         Args:
             edges: List of EdgeData objects
             crs: Coordinate reference system
-            
+
         Returns:
             QgsVectorLayer containing triangulation lines
         """
         layer = QgsVectorLayer(
-            f"LineString?crs={crs.toWkt()}", 
-            "temp_mst_triangulation", 
+            f"LineString?crs={crs.toWkt()}",
+            "temp_mst_triangulation",
             "memory"
         )
-        
+
         provider = layer.dataProvider()
         provider.addAttributes([
             QgsField("weight", QMetaType.Double),
@@ -151,17 +150,17 @@ class DelaunayProcessor:
             QgsField("node2", QMetaType.QString)
         ])
         layer.updateFields()
-        
+
         features = []
         for edge in edges:
             x1, y1 = edge.start_point
             x2, y2 = edge.end_point
-            
+
             geom = QgsGeometry.fromPolylineXY([
-                QgsPointXY(x1, y1), 
+                QgsPointXY(x1, y1),
                 QgsPointXY(x2, y2)
             ])
-            
+
             feature = QgsFeature()
             feature.setGeometry(geom)
             feature.setAttributes([
@@ -170,63 +169,63 @@ class DelaunayProcessor:
                 edge.node2_id or ""
             ])
             features.append(feature)
-        
+
         provider.addFeatures(features)
         return layer
-    
+
     def filter_edges_by_streets(
-        self, 
-        triangulation_layer: QgsVectorLayer, 
+        self,
+        triangulation_layer: QgsVectorLayer,
         streets_layer: QgsVectorLayer
     ) -> List[EdgeData]:
         """
         Filter triangulation edges by removing those that intersect with streets.
-        
+
         Args:
             triangulation_layer: Layer containing triangulation edges
             streets_layer: Layer containing street network
-            
+
         Returns:
             List of filtered EdgeData objects
         """
         # Select triangulation edges that intersect with streets
-        selection_result = processing.run("native:selectbylocation", {
+        processing.run("native:selectbylocation", {
             'INPUT': triangulation_layer,
             'PREDICATE': [0],  # intersects
             'INTERSECT': streets_layer,
             'METHOD': 0,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })
-        
+
         # Remove selected (intersecting) edges from triangulation layer
         selected_ids = triangulation_layer.selectedFeatureIds()
         triangulation_layer.dataProvider().deleteFeatures(selected_ids)
-        
+
         # Create edge index from remaining edges
         remaining_edges = self._create_edge_index_from_layer(triangulation_layer)
 
         return remaining_edges
-    
+
     def create_delaunay_list_with_nodes(
-        self, 
-        triangulation_edges: List[EdgeData], 
-        points_array: np.ndarray, 
+        self,
+        triangulation_edges: List[EdgeData],
+        points_array: np.ndarray,
         tri: Delaunay
     ) -> Tuple[List, List]:
         """
         Create Delaunay edge list with node information for MST processing.
-        
+
         Args:
             triangulation_edges: Filtered triangulation edges
             points_array: Array of point coordinates
             tri: Delaunay triangulation object
-            
+
         Returns:
             Tuple of (DelaunayList, ListOfPointsAndNodes)
         """
         delaunay_list = []
         list_of_points_and_nodes = []
-        
+
         # Create edge index for fast lookup
         edge_index = set()
         for edge in triangulation_edges:
@@ -236,16 +235,16 @@ class DelaunayProcessor:
                 self.COORDINATE_TOLERANCE
             )
             edge_index.add(key)
-        
+
         # Process triangulation simplices
         for simplex_idx, simplex in enumerate(tri.simplices):
             for i in range(3):
                 node1_idx = simplex[i]
                 node2_idx = simplex[(i + 1) % 3]
-                
+
                 x1, y1 = points_array[node1_idx]
                 x2, y2 = points_array[node2_idx]
-                
+
                 # Check if edge exists in filtered set
                 key = MSTUtilities.rounded_edge_key(x1, y1, x2, y2, self.COORDINATE_TOLERANCE)
                 if key in edge_index:
@@ -256,45 +255,44 @@ class DelaunayProcessor:
                     else:
                         edge_str = f"[{node2_idx}, {node1_idx}]"
                         delaunay_list.append([edge_str, x2, y2, x1, y1])
-            
+
             # Add point-node mappings
             for i in range(3):
                 node_idx = simplex[i]
                 x, y = points_array[node_idx]
                 list_of_points_and_nodes.append([float(x), float(y), int(node_idx)])
 
-        
         return delaunay_list, list_of_points_and_nodes
-    
+
     def _create_edge_index_from_layer(self, layer: QgsVectorLayer) -> List[EdgeData]:
         """
         Create EdgeData list from QGIS layer features.
-        
+
         Args:
             layer: QgsVectorLayer containing line features
-            
+
         Returns:
             List of EdgeData objects
         """
         edges = []
-        
+
         for feature in layer.getFeatures():
             geom = feature.geometry()
             if geom.isMultipart():
                 lines = geom.asMultiPolyline()
             else:
                 lines = [geom.asPolyline()]
-            
+
             for line in lines:
                 if len(line) >= 2:
                     start = line[0]
                     end = line[-1]
-                    
+
                     # Get weight from feature attributes if available
                     weight = feature.attribute('weight') or 0.0
                     node1 = feature.attribute('node1') or ""
                     node2 = feature.attribute('node2') or ""
-                    
+
                     edge = EdgeData(
                         start_point=(start.x(), start.y()),
                         end_point=(end.x(), end.y()),
@@ -303,5 +301,5 @@ class DelaunayProcessor:
                         node2_id=node2
                     )
                     edges.append(edge)
-        
+
         return edges
