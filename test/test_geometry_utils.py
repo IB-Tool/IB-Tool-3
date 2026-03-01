@@ -30,6 +30,8 @@ from ibtool.helpers.geometry_utils import (
     create_linestring_layer_from_array,
     shp_area2,
     get_hole_polygons,
+    create_polygons_from_lines,
+    extract_polygons_from_lines,
 )
 
 
@@ -310,3 +312,122 @@ class TestGetHolePolygons:
             assert not geom.isNull()
             assert not geom.isEmpty()
             assert geom.isGeosValid()
+
+
+# ── create_polygons_from_lines ────────────────────────────────────────────────
+
+class TestCreatePolygonsFromLines:
+    """Tests for create_polygons_from_lines.
+
+    NOTE: Tests that pass actual line data to create_polygons_from_lines are
+    intentionally omitted. The function's inner loop iterates over `current_ring`
+    while simultaneously appending to it (geometry_utils.py:276-288). When any
+    matching segment is found Python continues over the newly appended items,
+    creating an infinite loop for every closed ring input.
+    Only the early-exit paths (invalid input type, empty layer) are safe to test.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @pytest.mark.unit
+    def test_raises_for_polygon_input(self):
+        """Passing a polygon layer must raise ValueError."""
+        poly_layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "poly", "memory")
+        with pytest.raises(ValueError):
+            create_polygons_from_lines(poly_layer)
+
+    @pytest.mark.unit
+    def test_raises_for_none_input(self):
+        """Passing None as input must raise an exception."""
+        with pytest.raises(Exception):
+            create_polygons_from_lines(None)
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_empty_line_layer_returns_empty_polygon_layer(self):
+        """An empty line layer must return a valid but feature-less polygon layer."""
+        empty_layer = QgsVectorLayer("LineString?crs=EPSG:25833", "empty", "memory")
+        result = create_polygons_from_lines(empty_layer)
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        assert result.featureCount() == 0
+
+
+# ── extract_polygons_from_lines ───────────────────────────────────────────────
+
+class TestExtractPolygonsFromLines:
+    """Tests for extract_polygons_from_lines.
+
+    NOTE: Tests that pass actual line data to extract_polygons_from_lines are
+    intentionally omitted. The function calls nx.simple_cycles(graph.to_directed()),
+    which internally triggers a pandas → pyarrow import chain. On Windows with
+    QGIS 3.40 the pyarrow DLL version is incompatible with the test environment,
+    causing a fatal Windows exception (0xc0000139 STATUS_ENTRYPOINT_NOT_FOUND)
+    that crashes the entire test process and corrupts subsequent QGIS module state.
+    Only the early-exit path (wrong geometry type) is safe to test.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @pytest.mark.unit
+    def test_raises_for_polygon_layer_input(self):
+        """Passing a polygon layer must raise ValueError."""
+        poly_layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "poly", "memory")
+        with pytest.raises(ValueError):
+            extract_polygons_from_lines(poly_layer)
+
+
+# ── shp_area2 — additional edge-case branches ─────────────────────────────────
+
+class TestShpArea2ExtraBranches:
+    """Additional edge-case tests for shp_area2 not covered by TestShpArea2."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    def _make_layer_with_null_geometry(self) -> QgsVectorLayer:
+        """Polygon layer with one feature that has a null geometry."""
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "null_geom", "memory")
+        f = QgsFeature()
+        # do NOT set geometry → null geometry
+        layer.dataProvider().addFeatures([f])
+        layer.updateExtents()
+        return layer
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_layer_with_null_geometry_returns_true_and_does_not_crash(self):
+        """A feature with null geometry must be skipped gracefully; returns True."""
+        layer = self._make_layer_with_null_geometry()
+        result = shp_area2(layer, field_name="Area")
+        assert result is True
+
+    @pytest.mark.unit
+    def test_field_already_present_logs_warning_via_logger(self):
+        """When field already exists, shp_area2 logs a WARNING and returns True."""
+        from unittest.mock import MagicMock
+        mock_logger = MagicMock()
+        layer = _make_polygon_layer(1)
+        shp_area2(layer, field_name="Area")     # add field first
+        result = shp_area2(layer, field_name="Area", logger=mock_logger)
+        assert result is True
+        mock_logger.log.assert_called()
+        # The WARNING call should reference the field name
+        warning_args = [call for call in mock_logger.log.call_args_list
+                        if "WARNING" in str(call)]
+        assert warning_args, "Expected at least one WARNING log for existing field"
+
+    @pytest.mark.unit
+    def test_exception_during_edit_returns_false(self):
+        """If editing raises an exception, shp_area2 must return False."""
+        from unittest.mock import MagicMock, patch
+        mock_logger = MagicMock()
+        layer = _make_polygon_layer(1)
+        with patch("ibtool.helpers.geometry_utils.edit", side_effect=Exception("edit failed")):
+            result = shp_area2(layer, field_name="Area", logger=mock_logger)
+        assert result is False
