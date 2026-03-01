@@ -13,6 +13,11 @@ from ..helpers.geometry_utils import shp_area2
 from ..helpers.logger import Logger
 from ..helpers.debug_utils import save_debug_layer
 
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "07_PatchRemove"
+
 
 def patch_remove(
     input_poly: QgsVectorLayer,
@@ -57,7 +62,7 @@ def patch_remove(
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(poly_single_parts, "PatchRemove", "after_single_parts", workspace_path)
+        save_debug_layer(poly_single_parts, _DEBUG_TOOL_NAME, "after_single_parts", workspace_path)
 
     # Add a unique block name field
     poly_single_parts.dataProvider().addAttributes([QgsField("NAME", QMetaType.QString)])
@@ -102,7 +107,7 @@ def patch_remove(
 
     shp_area2(poly_single_parts)
     if debug_mode and workspace_path:
-        save_debug_layer(poly_single_parts, "PatchRemove", "after_building_count", workspace_path)
+        save_debug_layer(poly_single_parts, _DEBUG_TOOL_NAME, "after_building_count", workspace_path)
 
     # Keep only patches above the size and building-count thresholds
     area_expression = f'"Area" > {min_patch_size} and "join_count" > {min_bdg_count}'
@@ -112,12 +117,12 @@ def patch_remove(
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(poly_single_parts_sel, "PatchRemove", "after_patch_filter", workspace_path)
+        save_debug_layer(poly_single_parts_sel, _DEBUG_TOOL_NAME, "after_patch_filter", workspace_path)
 
     # Identify and filter dense blocks by footprint area
     dense_blocks = identify_dense_blocks(input_bdg, poly_single_parts, footprint_density_threshold)
     if debug_mode and workspace_path:
-        save_debug_layer(dense_blocks, "PatchRemove", "after_dense_blocks", workspace_path)
+        save_debug_layer(dense_blocks, _DEBUG_TOOL_NAME, "after_dense_blocks", workspace_path)
 
     dense_expression = (
         f'"SHAPE_AREA" >= {min_patch_size} or "FOOTPRINT_AREA_sum" >= {footprint_area_sum}'
@@ -128,7 +133,7 @@ def patch_remove(
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(dense_blocks_sel, "PatchRemove", "after_dense_filter", workspace_path)
+        save_debug_layer(dense_blocks_sel, _DEBUG_TOOL_NAME, "after_dense_filter", workspace_path)
 
     # Merge filtered patches with dense blocks
     merge = processing.run("native:mergevectorlayers", {
@@ -137,6 +142,6 @@ def patch_remove(
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(merge, "PatchRemove", "after_merge", workspace_path)
+        save_debug_layer(merge, _DEBUG_TOOL_NAME, "after_merge", workspace_path)
 
     return merge
