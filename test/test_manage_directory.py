@@ -63,6 +63,43 @@ class TestManageDirectory:
                                           self.EXPECTED_DIRECTORY_NAME)
         assert os.path.isdir(expected_directory)
 
+    def test_manage_directory_existing_directory_logs_warning(self):
+        """When del_part_log=False and directory already exists, a WARNING is logged."""
+        workspace_path = self._create_test_workspace()
+        # First call creates the directory
+        self.manage_directory(workspace_path, del_part_log=False)
+        DummyLogger.logs.clear()
+        # Second call hits the "already exists" branch
+        self.manage_directory(workspace_path, del_part_log=False)
+        warning_logs = [m for m, level in DummyLogger.logs if level == "WARNING"]
+        assert warning_logs, "Expected a WARNING log when directory already exists"
+
+    def test_manage_directory_del_part_log_true_deletes_and_recreates(self):
+        """When del_part_log=True, the existing directory is deleted and recreated."""
+        workspace_path = self._create_test_workspace()
+        # Pre-create the result directory with a marker file
+        result_dir = os.path.join(workspace_path, self.EXPECTED_DIRECTORY_NAME)
+        os.makedirs(result_dir, exist_ok=True)
+        marker = os.path.join(result_dir, "marker.txt")
+        open(marker, "w").close()
+        # Call with del_part_log=True → directory is deleted and recreated fresh
+        self.manage_directory(workspace_path, del_part_log=True)
+        assert os.path.isdir(result_dir)
+        # The marker file should be gone (directory was recreated)
+        assert not os.path.exists(marker)
+
+    def test_manage_directory_exception_is_handled_gracefully(self):
+        """An OSError during directory deletion must be caught and logged as CRITICAL."""
+        workspace_path = self._create_test_workspace()
+        result_dir = os.path.join(workspace_path, self.EXPECTED_DIRECTORY_NAME)
+        os.makedirs(result_dir, exist_ok=True)
+        DummyLogger.logs.clear()
+        with patch("ibtool.helpers.system_utils.shutil.rmtree",
+                   side_effect=OSError("Permission denied")):
+            self.manage_directory(workspace_path, del_part_log=True)
+        critical_logs = [m for m, level in DummyLogger.logs if level == "CRITICAL"]
+        assert critical_logs, "Expected a CRITICAL log when shutil.rmtree raises"
+
 
 # ── save_temp_layer_to_gpkg ───────────────────────────────────────────────────
 
