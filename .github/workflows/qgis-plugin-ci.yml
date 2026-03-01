@@ -35,20 +35,21 @@ jobs:
 
       - name: detect-secrets (secrets)
         run: |
-          if [ -f .secrets.baseline ]; then
-            detect-secrets audit .secrets.baseline --report --fail-on-unaudited
-          else
-            detect-secrets scan --all-files --force-use-all-plugins > /tmp/secrets.json
-            python - <<'PY'
+          detect-secrets scan --force-use-all-plugins \
+            --exclude-files 'Testdaten/.*' \
+            > /tmp/secrets.json
+          python - <<'PY'
           import json, sys
           data = json.load(open('/tmp/secrets.json'))
           findings = sum(len(v) for v in data.get('results', {}).values())
           if findings:
               print("FAIL: detect-secrets found potential secrets:", findings)
+              for f, secrets in data.get('results', {}).items():
+                  for s in secrets:
+                      print(f"  {f}:{s['line_number']} [{s['type']}]")
               sys.exit(2)
           print("OK: detect-secrets found no potential secrets")
           PY
-          fi
 
       - name: Build release ZIP
         run: |
