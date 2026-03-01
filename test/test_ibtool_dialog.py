@@ -650,10 +650,15 @@ class TestIBToolDialogResultActions:
 
     @pytest.mark.unit
     def test_show_result_actions_makes_frame_visible(self):
-        """show_result_actions() sets resultActionsFrame visible."""
+        """show_result_actions() un-hides resultActionsFrame.
+
+        isVisible() requires the parent window to be shown too, which is
+        not the case in unit tests.  isHidden() checks only whether the
+        widget itself was explicitly hidden, which is what we care about.
+        """
         self.dialog.hide_result_actions()
         self.dialog.show_result_actions()
-        assert self.dialog.resultActionsFrame.isVisible()
+        assert not self.dialog.resultActionsFrame.isHidden()
 
     @pytest.mark.unit
     def test_hide_result_actions_hides_frame(self):
