@@ -1,7 +1,5 @@
 import pytest
 import os
-import sys
-import logging
 from pathlib import Path
 
 
@@ -31,49 +29,29 @@ from .utilities import get_qgis_app
 
 
 class TestBlockerIntegration:
-    """
-    Integrationstest für die Blocker-Funktion
-    Testet die vollständige Funktionalität mit echten QGIS-Daten
-    """
+    """Integration tests for the public blocker() function using real test data files."""
 
     @classmethod
     def setup_class(cls):
-        """Setup QGIS application für alle Tests"""
+        """Set up the QGIS application for all tests in this class."""
         cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
         cls.test_data_dir = Path(__file__).parent / 'dummy_data'
-        cls.logger = logging.getLogger('BlockerIntegrationTest')
-        cls.logger.setLevel(logging.INFO)
-
-        # Setup console handler
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(logging.INFO)
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        cls.logger.addHandler(handler)
 
     def setup_method(self, method):
-        """Setup für jeden einzelnen Test"""
+        """Set up tolerances for each test."""
         self.tolerance_meters = 1.0
         self.tolerance_percent = 1.0
         self.comparison_results = {}
-
-        # Import der Blocker-Funktion (Pfad wird durch test/__init__.py gesetzt)
-        try:
-            from ibtool.ibtool_tools.Blocker import blocker
-            self.blocker_function = blocker
-        except ImportError as e:
-            pytest.fail(f"Konnte Blocker-Funktion nicht importieren: {e}")
+        self.blocker_function = blocker
 
     def load_test_layer(self, filename):
-        """Lädt einen Test-Layer aus dem dummy_data Ordner"""
+        """Load a test layer from the dummy_data directory."""
         file_path = self.test_data_dir / filename
         if not file_path.exists():
             raise FileNotFoundError(f"Test data file not found: {file_path}")
 
-        # Korrektur: Verwende os.path.splitext um den Namen ohne Extension zu bekommen
-        layer_name = os.path.splitext(filename)[
-            0]  # Entfernt die .gpkg Extension
+        # Strip the file extension to use it as the layer name
+        layer_name = os.path.splitext(filename)[0]
         layer = QgsVectorLayer(str(file_path), layer_name, 'ogr')
 
         if not layer.isValid():
@@ -82,7 +60,7 @@ class TestBlockerIntegration:
         return layer
 
     def calculate_total_area(self, layer):
-        """Berechnet die Gesamtfläche aller Features in einem Layer"""
+        """Return the total area of all valid features in a layer."""
         total_area = 0.0
         for feature in layer.getFeatures():
             if feature.geometry() and feature.geometry().isGeosValid():
@@ -90,17 +68,17 @@ class TestBlockerIntegration:
         return total_area
 
     def calculate_perimeter_sum(self, layer):
-        """Berechnet die Summe aller Umringe in einem Layer"""
+        """Return the sum of all perimeters in a layer."""
         total_perimeter = 0.0
         for feature in layer.getFeatures():
             if feature.geometry() and feature.geometry().isGeosValid():
-                # Für Polygone: length() gibt den Umfang zurück
-                # Für Linien: length() gibt die Länge zurück
+                # For polygons: length() returns the perimeter
+                # For lines: length() returns the line length
                 total_perimeter += feature.geometry().length()
         return total_perimeter
 
     def calculate_area_difference_percent(self, expected_layer, actual_layer):
-        """Berechnet die prozentuale Abweichung der Gesamtfläche"""
+        """Return the percentage area deviation between two layers."""
         expected_area = self.calculate_total_area(expected_layer)
         actual_area = self.calculate_total_area(actual_layer)
 
@@ -110,7 +88,7 @@ class TestBlockerIntegration:
         return abs(expected_area - actual_area) / expected_area * 100
 
     def union_all_geometries(self, layer):
-        """Vereinigt alle Geometrien eines Layers"""
+        """Union all geometries in a layer into a single geometry."""
         union_geom = None
         for feature in layer.getFeatures():
             if feature.geometry() and feature.geometry().isGeosValid():
@@ -122,7 +100,7 @@ class TestBlockerIntegration:
 
     def calculate_symmetric_difference_percentage(self, expected_layer,
                                                   actual_layer):
-        """Berechnet die prozentuale Symmetric Difference"""
+        """Return the symmetric difference as a percentage of the expected area."""
         expected_union = self.union_all_geometries(expected_layer)
         actual_union = self.union_all_geometries(actual_layer)
 
@@ -135,7 +113,7 @@ class TestBlockerIntegration:
         return (sym_diff.area() / total_area) * 100 if total_area > 0 else 0
 
     def check_geometry_validity(self, layer):
-        """Überprüft die Geometriegültigkeit aller Features"""
+        """Check geometry validity of all features and return a list of issues."""
         geometry_issues = []
         for feature in layer.getFeatures():
             if feature.geometry() and not feature.geometry().isGeosValid():
@@ -148,7 +126,7 @@ class TestBlockerIntegration:
         return geometry_issues
 
     def compare_attributes(self, expected_layer, actual_layer):
-        """Vergleicht die Attribute zwischen erwartetem und tatsächlichem Layer"""
+        """Compare NAME attribute values between expected and actual layer."""
         expected_names = set()
         actual_names = set()
 
@@ -168,7 +146,7 @@ class TestBlockerIntegration:
 
     def generate_comparison_report(self, scenario_name, expected_layer,
                                    actual_layer):
-        """Generiert detaillierten Vergleichsbericht"""
+        """Generate a detailed comparison report between two layers."""
         report = {
             'scenario': scenario_name,
             'feature_count': {
@@ -200,69 +178,65 @@ class TestBlockerIntegration:
         return report
 
     def print_comparison_report(self, report):
-        """Druckt detaillierten Vergleichsbericht"""
-        self.logger.info(f"\n===== BLOCKER INTEGRATION TEST REPORT =====")
-        self.logger.info(f"Scenario: {report['scenario']}")
-        self.logger.info(f"")
-        self.logger.info(f"Feature Count:")
-        self.logger.info(f"  Expected: {report['feature_count']['expected']}")
-        self.logger.info(f"  Actual: {report['feature_count']['actual']}")
-        self.logger.info(
-            f"  Difference: {report['feature_count']['difference']}")
-        self.logger.info(f"")
-        self.logger.info(f"Total Area:")
-        self.logger.info(
-            f"  Expected: {report['total_area']['expected']:.2f} m²")
-        self.logger.info(f"  Actual: {report['total_area']['actual']:.2f} m²")
-        self.logger.info(
-            f"  Difference: {report['total_area']['difference_percent']:.2f}%")
-        self.logger.info(f"")
-        self.logger.info(f"Perimeter Sum:")
-        self.logger.info(
-            f"  Expected: {report['perimeter_sum']['expected']:.2f} m")
-        self.logger.info(f"  Actual: {report['perimeter_sum']['actual']:.2f} m")
-        self.logger.info(
+        """Log a detailed comparison report."""
+        print(f"\n===== BLOCKER INTEGRATION TEST REPORT =====")
+        print(f"Scenario: {report['scenario']}")
+        print(f"")
+        print(f"Feature Count:")
+        print(f"  Expected: {report['feature_count']['expected']}")
+        print(f"  Actual: {report['feature_count']['actual']}")
+        print(f"  Difference: {report['feature_count']['difference']}")
+        print(f"")
+        print(f"Total Area:")
+        print(f"  Expected: {report['total_area']['expected']:.2f} m²")
+        print(f"  Actual: {report['total_area']['actual']:.2f} m²")
+        print(f"  Difference: {report['total_area']['difference_percent']:.2f}%")
+        print(f"")
+        print(f"Perimeter Sum:")
+        print(f"  Expected: {report['perimeter_sum']['expected']:.2f} m")
+        print(f"  Actual: {report['perimeter_sum']['actual']:.2f} m")
+        print(
             f"  Difference: {report['perimeter_sum']['difference_meters']:.2f} m")
-        self.logger.info(f"")
-        self.logger.info(
+        print(f"")
+        print(
             f"Symmetric Difference: {report['symmetric_difference_percent']:.2f}%")
-        self.logger.info(f"")
-        self.logger.info(f"Geometry Issues: {len(report['geometry_issues'])}")
+        print(f"")
+        print(f"Geometry Issues: {len(report['geometry_issues'])}")
 
         if report['geometry_issues']:
-            self.logger.warning("Geometry issues found:")
+            print("WARNING: Geometry issues found:")
             for issue in report['geometry_issues']:
-                self.logger.warning(
-                    f"  Feature {issue['feature_id']}: {issue['error']}")
+                print(
+                    f"WARNING:   Feature {issue['feature_id']}: {issue['error']}")
 
         attr_comp = report['attribute_comparison']
-        self.logger.info(f"")
-        self.logger.info(f"Attribute Comparison:")
-        self.logger.info(f"  Missing names: {len(attr_comp['missing_names'])}")
-        self.logger.info(f"  Extra names: {len(attr_comp['extra_names'])}")
-        self.logger.info(f"  Common names: {len(attr_comp['common_names'])}")
+        print(f"")
+        print(f"Attribute Comparison:")
+        print(f"  Missing names: {len(attr_comp['missing_names'])}")
+        print(f"  Extra names: {len(attr_comp['extra_names'])}")
+        print(f"  Common names: {len(attr_comp['common_names'])}")
 
         if attr_comp['missing_names']:
-            self.logger.warning(f"  Missing: {attr_comp['missing_names']}")
+            print(f"WARNING:   Missing: {attr_comp['missing_names']}")
         if attr_comp['extra_names']:
-            self.logger.warning(f"  Extra: {attr_comp['extra_names']}")
+            print(f"WARNING:   Extra: {attr_comp['extra_names']}")
 
     def handle_geometry_warnings(self, layer):
-        """Behandelt Geometriewarnungen ohne Test zu beenden"""
+        """Log geometry warnings without failing the test."""
         geometry_issues = self.check_geometry_validity(layer)
 
         if geometry_issues:
-            self.logger.warning(
-                f"Geometry warnings found: {len(geometry_issues)} issues")
+            print(
+                f"WARNING: Geometry warnings found: {len(geometry_issues)} issues")
             for issue in geometry_issues:
-                self.logger.warning(
-                    f"  Feature {issue['feature_id']}: {issue['error']}")
+                print(
+                    f"WARNING:   Feature {issue['feature_id']}: {issue['error']}")
 
         return geometry_issues
 
     def assert_layers_similar(self, expected_layer, actual_layer,
                               scenario_name):
-        """Hauptvergleichsfunktion mit Toleranzen"""
+        """Assert that two layers are equivalent within defined tolerances."""
         report = self.generate_comparison_report(scenario_name, expected_layer,
                                                  actual_layer)
         self.print_comparison_report(report)
@@ -270,13 +244,13 @@ class TestBlockerIntegration:
         # Handle geometry warnings
         self.handle_geometry_warnings(actual_layer)
 
-        # Debug-Ausgaben hinzufügen
-        self.logger.info(
+        # Log expected and actual feature count for diagnostics
+        print(
             f"Expected feature count: {report['feature_count']['expected']}")
-        self.logger.info(
+        print(
             f"Actual feature count: {report['feature_count']['actual']}")
 
-        # Assertions mit Toleranzen
+        # Assertions with tolerances
         assert report['feature_count']['expected'] == report['feature_count']['actual'], (
             f"Feature count mismatch in {scenario_name}: Expected {report['feature_count']['expected']}, "
             f"got {report['feature_count']['actual']}"
@@ -284,9 +258,7 @@ class TestBlockerIntegration:
 
     @pytest.mark.integration
     def test_blocker_standard_case(self):
-        """Haupttest mit Standard-Dummy-Daten"""
-        self.logger.info("Running standard case test...")
-
+        """Runs blocker() with standard test data and compares result against expected output."""
         # Load test data
         strassen = self.load_test_layer('dummy_aux_rn.gpkg')
         hu_input = self.load_test_layer('dummy_hu.gpkg')
@@ -308,9 +280,7 @@ class TestBlockerIntegration:
 
     @pytest.mark.integration
     def test_blocker_geometry_validation(self):
-        """Test der Geometriegültigkeit"""
-        self.logger.info("Running geometry validation test...")
-
+        """Validates that all output features have PolygonGeometry type."""
         # Load test data
         strassen = self.load_test_layer('dummy_rn.gpkg')
         hu_input = self.load_test_layer('dummy_hu.gpkg')
@@ -324,8 +294,8 @@ class TestBlockerIntegration:
 
         # Log warnings but don't fail test
         if geometry_issues:
-            self.logger.warning(
-                f"Found {len(geometry_issues)} geometry issues (this is a warning, not an error)")
+            print(
+                f"WARNING: Found {len(geometry_issues)} geometry issues (this is a warning, not an error)")
 
         # Ensure all features are polygons
         for feature in result.getFeatures():
@@ -334,9 +304,7 @@ class TestBlockerIntegration:
 
     @pytest.mark.integration
     def test_blocker_spatial_relationships(self):
-        """Test räumlicher Beziehungen"""
-        self.logger.info("Running spatial relationships test...")
-
+        """Verifies that at least one output block contains a building."""
         # Load test data
         strassen = self.load_test_layer('dummy_rn.gpkg')
         hu_input = self.load_test_layer('dummy_hu.gpkg')
@@ -370,9 +338,7 @@ class TestBlockerIntegration:
 
     @pytest.mark.integration
     def test_blocker_attribute_correctness(self):
-        """Test der Attributkorrektheit"""
-        self.logger.info("Running attribute correctness test...")
-
+        """Checks that every output feature has a NAME value matching Block_<id>."""
         # Load test data
         strassen = self.load_test_layer('dummy_rn.gpkg')
         hu_input = self.load_test_layer('dummy_hu.gpkg')
@@ -400,9 +366,7 @@ class TestBlockerIntegration:
     @pytest.mark.integration
     @pytest.mark.edge_case
     def test_blocker_with_empty_layers(self):
-        """Test mit leeren Eingabe-Layern"""
-        self.logger.info("Running empty layers test...")
-
+        """Handles empty input layers without raising an exception."""
         # Create empty layers
         strassen = QgsVectorLayer("LineString?crs=EPSG:4326", "empty_roads",
                                   "memory")
@@ -423,14 +387,13 @@ class TestBlockerIntegration:
 
         except Exception as e:
             # If function fails with empty inputs, that's acceptable
-            self.logger.warning(f"Function failed with empty inputs: {e}")
+            print(f"WARNING: Function failed with empty inputs: {e}")
 
     @pytest.mark.integration
+    @pytest.mark.performance
     @pytest.mark.slow
     def test_blocker_performance(self):
-        """Einfacher Performance-Test"""
-        self.logger.info("Running performance test...")
-
+        """Completes within 60 s on the standard test dataset."""
         import time
 
         # Load test data
@@ -444,11 +407,10 @@ class TestBlockerIntegration:
         end_time = time.time()
 
         execution_time = end_time - start_time
-        self.logger.info(f"Execution time: {execution_time:.2f} seconds")
+        print(f"Execution time: {execution_time:.2f} seconds")
 
         # Reasonable time limit (adjust as needed)
         assert execution_time < 60, "Function should complete within 60 seconds"
-        
 
     @pytest.mark.integration
     @pytest.mark.performance
@@ -518,13 +480,12 @@ class TestBlockerIntegration:
         assert elapsed < 60, f"blocker() took {elapsed:.1f} s (limit: 60 s)"
 
     def teardown_method(self, method):
-        """Cleanup nach jedem Test"""
-        # Clear any temporary layers
+        """Clear any temporary layers after each test."""
         QgsProject.instance().clear()
 
     @classmethod
     def teardown_class(cls):
-        """Cleanup nach allen Tests — QGIS-Instanz bleibt aktiv für weitere Tests."""
+        """Clear the project after all tests. QGIS application stays alive for the session."""
         QgsProject.instance().clear()
 
 
@@ -741,7 +702,13 @@ class TestBuildBlockPolygons:
 # ---------------------------------------------------------------------------
 
 class TestBlockerResultQuality:
-    """Additional output quality assertions for blocker() using real test data."""
+    """Additional output quality assertions for blocker() using real test data.
+
+    Note: cls.result is intentionally computed once in setup_class and shared
+    across all tests in this class. This is a deliberate performance trade-off —
+    calling blocker() on real data is expensive. Tests must treat cls.result as
+    read-only to avoid cross-test interference.
+    """
 
     @classmethod
     def setup_class(cls):
@@ -795,4 +762,3 @@ class TestBlockerResultQuality:
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
         assert result.isValid()
-
