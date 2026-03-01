@@ -421,3 +421,362 @@ class TestIBToolDialog:
         assert isinstance(widget, expected_type), \
             f"'{name}' should be {expected_type.__name__}, " \
             f"got {type(widget).__name__}"
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogSetStep — set_step() navigation method
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogSetStep:
+    """Tests for IBToolDialog.set_step()."""
+
+    def setup_method(self, method):
+        self.dialog = IBToolDialog(None)
+
+    def teardown_method(self, method):
+        self.dialog.close()
+        self.dialog = None
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("index", [0, 1, 2, 3])
+    def test_set_step_switches_stacked_widget_page(self, index):
+        """set_step(i) sets stackedWidget.currentIndex to i."""
+        self.dialog.set_step(index)
+        assert self.dialog.stackedWidget.currentIndex() == index
+
+    @pytest.mark.unit
+    def test_set_step_active_button_has_bold_style(self):
+        """The active step button has bold, blue, underlined styling."""
+        self.dialog.set_step(1)
+        btn = self.dialog.stepBtn1
+        style = btn.styleSheet()
+        assert "bold" in style
+        assert "1565C0" in style
+
+    @pytest.mark.unit
+    def test_set_step_completed_buttons_show_checkmark(self):
+        """Steps before the current step show a check-mark prefix."""
+        self.dialog.set_step(2)
+        assert "✓" in self.dialog.stepBtn0.text()
+        assert "✓" in self.dialog.stepBtn1.text()
+
+    @pytest.mark.unit
+    def test_set_step_future_buttons_restored_to_normal_style(self):
+        """Steps after the current step have default styling (no bold)."""
+        self.dialog.set_step(0)
+        style = self.dialog.stepBtn3.styleSheet()
+        # Should NOT be bold (active style contains 'bold')
+        assert "1565C0" not in style
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_set_step_zero_all_future_buttons_normal(self):
+        """set_step(0): buttons 1–3 have no active styling."""
+        self.dialog.set_step(0)
+        for i in range(1, 4):
+            btn = getattr(self.dialog, f"stepBtn{i}")
+            assert "1565C0" not in btn.styleSheet()
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogFieldStatus — set_field_status / clear_field_statuses
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogFieldStatus:
+    """Tests for IBToolDialog.set_field_status() and clear_field_statuses()."""
+
+    def setup_method(self, method):
+        self.dialog = IBToolDialog(None)
+
+    def teardown_method(self, method):
+        self.dialog.close()
+        self.dialog = None
+
+    @pytest.mark.unit
+    def test_set_field_status_ok_shows_checkmark(self):
+        """set_field_status(name, True) sets text to '✓' and green colour."""
+        self.dialog.set_field_status("HuPath", True)
+        label = self.dialog.HuPathStatus
+        assert "✓" in label.text()
+        assert "2E7D32" in label.styleSheet()
+
+    @pytest.mark.unit
+    def test_set_field_status_error_shows_cross(self):
+        """set_field_status(name, False) sets text containing '✗'."""
+        self.dialog.set_field_status("HuPath", False)
+        label = self.dialog.HuPathStatus
+        assert "✗" in label.text()
+        assert "C62828" in label.styleSheet()
+
+    @pytest.mark.unit
+    def test_set_field_status_error_with_message(self):
+        """set_field_status(name, False, msg) shows the message after '✗'."""
+        self.dialog.set_field_status("HuPath", False, "File not found")
+        assert "File not found" in self.dialog.HuPathStatus.text()
+
+    @pytest.mark.unit
+    def test_set_field_status_none_clears_label(self):
+        """set_field_status(name, None) clears the text and stylesheet."""
+        self.dialog.set_field_status("HuPath", True)
+        self.dialog.set_field_status("HuPath", None)
+        label = self.dialog.HuPathStatus
+        assert label.text() == ""
+        assert label.styleSheet() == ""
+
+    @pytest.mark.unit
+    def test_set_field_status_unknown_field_does_not_crash(self):
+        """set_field_status with an unknown field name must not raise."""
+        self.dialog.set_field_status("NonExistentField", True)  # no crash
+
+    @pytest.mark.unit
+    def test_clear_field_statuses_resets_all_labels(self):
+        """clear_field_statuses() sets every status label to empty text."""
+        for name in ["HuPath", "RnPath", "OutputPath"]:
+            self.dialog.set_field_status(name, False, "error")
+        self.dialog.clear_field_statuses()
+        for name in ["HuPath", "RnPath", "OutputPath"]:
+            label = getattr(self.dialog, f"{name}Status")
+            assert label.text() == ""
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogValidationChecklist
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogValidationChecklist:
+    """Tests for IBToolDialog.populate_validation_checklist()."""
+
+    def setup_method(self, method):
+        self.dialog = IBToolDialog(None)
+
+    def teardown_method(self, method):
+        self.dialog.close()
+        self.dialog = None
+
+    @pytest.mark.unit
+    def test_no_errors_shows_all_passed(self):
+        """Empty errors and warnings show a single 'All checks passed' item."""
+        self.dialog.populate_validation_checklist([], [])
+        assert self.dialog.validationChecklist.count() == 1
+        assert "passed" in self.dialog.validationChecklist.item(0).text()
+
+    @pytest.mark.unit
+    def test_errors_are_added_to_list(self):
+        """Each error string appears as a list item prefixed with ❌."""
+        self.dialog.populate_validation_checklist(["Missing HuPath", "Bad CRS"], [])
+        items = [self.dialog.validationChecklist.item(i).text()
+                 for i in range(self.dialog.validationChecklist.count())]
+        assert any("Missing HuPath" in t for t in items)
+        assert any("Bad CRS" in t for t in items)
+
+    @pytest.mark.unit
+    def test_warnings_are_added_to_list(self):
+        """Each warning string appears as a list item prefixed with ⚠️."""
+        self.dialog.populate_validation_checklist([], ["AuxPath optional"])
+        items = [self.dialog.validationChecklist.item(i).text()
+                 for i in range(self.dialog.validationChecklist.count())]
+        assert any("AuxPath optional" in t for t in items)
+
+    @pytest.mark.unit
+    def test_mixed_errors_and_warnings(self):
+        """Errors and warnings are both added when both are non-empty."""
+        self.dialog.populate_validation_checklist(["err1"], ["warn1"])
+        count = self.dialog.validationChecklist.count()
+        assert count == 2
+
+    @pytest.mark.unit
+    def test_checklist_is_cleared_on_second_call(self):
+        """A second call clears the previous contents."""
+        self.dialog.populate_validation_checklist(["e1", "e2"], [])
+        self.dialog.populate_validation_checklist([], [])
+        assert self.dialog.validationChecklist.count() == 1
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogPhaseProgress
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogPhaseProgress:
+    """Tests for IBToolDialog.set_phase_progress()."""
+
+    def setup_method(self, method):
+        self.dialog = IBToolDialog(None)
+
+    def teardown_method(self, method):
+        self.dialog.close()
+        self.dialog = None
+
+    @pytest.mark.unit
+    def test_phase_label_text_is_set(self):
+        """set_phase_progress updates phaseLabel with phase/total and name."""
+        self.dialog.set_phase_progress(2, 6, "Clustering", 33)
+        assert "2/6" in self.dialog.phaseLabel.text()
+        assert "Clustering" in self.dialog.phaseLabel.text()
+
+    @pytest.mark.unit
+    def test_progress_bar_value_is_set(self):
+        """set_phase_progress sets ProgressBar to the given percent."""
+        self.dialog.set_phase_progress(3, 6, "Import", 50)
+        assert self.dialog.ProgressBar.value() == 50
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_progress_bar_zero_percent(self):
+        """set_phase_progress with 0 % sets ProgressBar to 0."""
+        self.dialog.set_phase_progress(1, 6, "Init", 0)
+        assert self.dialog.ProgressBar.value() == 0
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_progress_bar_hundred_percent(self):
+        """set_phase_progress with 100 % sets ProgressBar to 100."""
+        self.dialog.set_phase_progress(6, 6, "Done", 100)
+        assert self.dialog.ProgressBar.value() == 100
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogResultActions
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogResultActions:
+    """Tests for IBToolDialog.show_result_actions() / hide_result_actions()."""
+
+    def setup_method(self, method):
+        self.dialog = IBToolDialog(None)
+
+    def teardown_method(self, method):
+        self.dialog.close()
+        self.dialog = None
+
+    @pytest.mark.unit
+    def test_show_result_actions_makes_frame_visible(self):
+        """show_result_actions() sets resultActionsFrame visible."""
+        self.dialog.hide_result_actions()
+        self.dialog.show_result_actions()
+        assert self.dialog.resultActionsFrame.isVisible()
+
+    @pytest.mark.unit
+    def test_hide_result_actions_hides_frame(self):
+        """hide_result_actions() sets resultActionsFrame invisible."""
+        self.dialog.show_result_actions()
+        self.dialog.hide_result_actions()
+        assert not self.dialog.resultActionsFrame.isVisible()
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogStartButton
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogStartButton:
+    """Tests for IBToolDialog.set_start_button_ready()."""
+
+    def setup_method(self, method):
+        self.dialog = IBToolDialog(None)
+
+    def teardown_method(self, method):
+        self.dialog.close()
+        self.dialog = None
+
+    @pytest.mark.unit
+    def test_set_start_button_ready_true_enables_button(self):
+        """set_start_button_ready(True) enables StartButton."""
+        self.dialog.set_start_button_ready(True)
+        assert self.dialog.StartButton.isEnabled()
+
+    @pytest.mark.unit
+    def test_set_start_button_ready_false_disables_button(self):
+        """set_start_button_ready(False) disables StartButton."""
+        self.dialog.set_start_button_ready(False)
+        assert not self.dialog.StartButton.isEnabled()
+
+    @pytest.mark.unit
+    def test_set_start_button_ready_true_applies_green_style(self):
+        """set_start_button_ready(True) applies a green background to StartButton."""
+        self.dialog.set_start_button_ready(True)
+        assert "2E7D32" in self.dialog.StartButton.styleSheet()
+
+    @pytest.mark.unit
+    def test_set_start_button_ready_false_clears_style(self):
+        """set_start_button_ready(False) removes the green style from StartButton."""
+        self.dialog.set_start_button_ready(True)
+        self.dialog.set_start_button_ready(False)
+        assert "2E7D32" not in self.dialog.StartButton.styleSheet()
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogCloseCallback
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogCloseCallback:
+    """Tests for IBToolDialog.set_close_callback() and closeEvent."""
+
+    @pytest.mark.unit
+    def test_close_callback_is_called_on_close(self):
+        """A registered close callback is invoked when the dialog closes."""
+        dialog = IBToolDialog(None)
+        called = []
+        dialog.set_close_callback(lambda: called.append(True))
+        dialog.close()
+        assert called == [True]
+
+    @pytest.mark.unit
+    def test_close_without_callback_does_not_crash(self):
+        """Closing a dialog with no registered callback must not raise."""
+        dialog = IBToolDialog(None)
+        dialog.close()  # no crash
+
+    @pytest.mark.unit
+    def test_set_close_callback_stores_callable(self):
+        """set_close_callback stores the callable as _close_callback."""
+        dialog = IBToolDialog(None)
+        fn = lambda: None
+        dialog.set_close_callback(fn)
+        assert dialog._close_callback is fn
+        dialog.close()
+
+
+# ---------------------------------------------------------------------------
+# TestFilterPreviewDialog
+# ---------------------------------------------------------------------------
+
+class TestFilterPreviewDialog:
+    """Tests for FilterPreviewDialog."""
+
+    @classmethod
+    def setup_class(cls):
+        # QGIS app already initialised via module-level get_qgis_app()
+        pass
+
+    @pytest.mark.unit
+    def test_can_be_instantiated(self):
+        """FilterPreviewDialog can be created with positive and negative text."""
+        from ibtool.ibtool.ibtool_dialog import FilterPreviewDialog
+        dlg = FilterPreviewDialog("pos content", "neg content")
+        assert dlg is not None
+        dlg.close()
+
+    @pytest.mark.unit
+    def test_window_title_is_filter_entries(self):
+        """FilterPreviewDialog has the window title 'Filter entries'."""
+        from ibtool.ibtool.ibtool_dialog import FilterPreviewDialog
+        dlg = FilterPreviewDialog("", "")
+        assert dlg.windowTitle() == "Filter entries"
+        dlg.close()
+
+    @pytest.mark.unit
+    def test_minimum_size_is_set(self):
+        """FilterPreviewDialog has a minimum width of 700 and height of 450."""
+        from ibtool.ibtool.ibtool_dialog import FilterPreviewDialog
+        dlg = FilterPreviewDialog("a", "b")
+        assert dlg.minimumWidth() >= 700
+        assert dlg.minimumHeight() >= 450
+        dlg.close()
+
+    @pytest.mark.unit
+    def test_reject_closes_dialog(self):
+        """Calling reject() on FilterPreviewDialog sets result to Rejected."""
+        from ibtool.ibtool.ibtool_dialog import FilterPreviewDialog
+        from qgis.PyQt.QtWidgets import QDialog
+        dlg = FilterPreviewDialog("a", "b")
+        dlg.reject()
+        assert dlg.result() == QDialog.Rejected
