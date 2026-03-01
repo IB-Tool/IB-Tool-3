@@ -15,12 +15,13 @@ about=IBTool is a QGIS plugin for settlement delineation based on building footp
 
 tracker=https://github.com/K3lT10N/IB-Tool-3/issues
 repository=https://github.com/K3lT10N/IB-Tool-3
+license=GPL-2.0-or-later
 # End of mandatory metadata
 
 # Recommended items:
 
 hasProcessingProvider=no
-#changelog=0.1.3 - Added input data validation system with Check button, minimum feature counts, multipart geometry detection, Part-to-HU ratio check. Replaced check_projection with comprehensive InputValidator.
+changelog=0.1.3 - Added input data validation system with Check button, minimum feature counts, multipart geometry detection, Part-to-HU ratio check. Replaced check_projection with comprehensive InputValidator.
 
 
 # Tags are comma separated with spaces allowed
