@@ -185,8 +185,26 @@ class TestPatchRemove:
             assert not geom.isEmpty(),   f"Empty geometry at FID {feat.id()}"
             assert geom.isGeosValid(),   f"Invalid GEOS geometry at FID {feat.id()}"
 
-    # NOTE: test_debug_mode_does_not_change_feature_count is intentionally
-    # omitted — patch_remove() has no debug_mode parameter.
+    @pytest.mark.integration
+    def test_debug_mode_does_not_change_result(self, tmp_path):
+        """Debug mode produces the same feature count as non-debug mode."""
+        result_normal = patch_remove(
+            self._largemake_polygon_layer(),
+            self._building_layer(25),
+            self.crs,
+            workspace_path=None,
+            min_patch_size=5000,
+            debug_mode=False,
+        )
+        result_debug = patch_remove(
+            self._largemake_polygon_layer(),
+            self._building_layer(25),
+            self.crs,
+            workspace_path=str(tmp_path),
+            min_patch_size=5000,
+            debug_mode=True,
+        )
+        assert result_debug.featureCount() == result_normal.featureCount()
 
     @pytest.mark.integration
     @pytest.mark.edge_case
