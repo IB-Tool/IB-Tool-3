@@ -139,7 +139,7 @@ class TestSafeProcessingRun:
                             "native:buffer",
                             {"INPUT": mock_layer},
                             debug_mode=True,
-                            workspace_path="/tmp/ws",
+                            workspace_path="/mock/ws",
                             tool_name="TestTool",
                         )
                     except Exception:

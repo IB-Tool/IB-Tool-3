@@ -38,39 +38,39 @@ class TestSelectFileFunctions:
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_hu_file(self, mock_dialog):
-        mock_dialog.return_value = ('/tmp/test_hu.shp', '')
+        mock_dialog.return_value = ('/mock/test_hu.shp', '')
         data_loader.select_HU_file(self.dlg)
-        assert self.dlg.HuPath.text() == '/tmp/test_hu.shp'
+        assert self.dlg.HuPath.text() == '/mock/test_hu.shp'
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_rn_file(self, mock_dialog):
-        mock_dialog.return_value = ('/tmp/test_rn.shp', '')
+        mock_dialog.return_value = ('/mock/test_rn.shp', '')
         data_loader.select_RN_file(self.dlg)
-        assert self.dlg.RnPath.text() == '/tmp/test_rn.shp'
+        assert self.dlg.RnPath.text() == '/mock/test_rn.shp'
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_part_file(self, mock_dialog):
-        mock_dialog.return_value = ('/tmp/test_part.shp', '')
+        mock_dialog.return_value = ('/mock/test_part.shp', '')
         data_loader.select_PART_file(self.dlg)
-        assert self.dlg.PartPath.text() == '/tmp/test_part.shp'
+        assert self.dlg.PartPath.text() == '/mock/test_part.shp'
 
     @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_aux_file(self, mock_dialog):
-        mock_dialog.return_value = ('/tmp/test_aux.shp', '')
+        mock_dialog.return_value = ('/mock/test_aux.shp', '')
         data_loader.select_AUX_file(self.dlg)
-        assert self.dlg.AuxPath.text() == '/tmp/test_aux.shp'
+        assert self.dlg.AuxPath.text() == '/mock/test_aux.shp'
 
     @patch('PyQt5.QtWidgets.QFileDialog.getSaveFileName')
     def test_select_output_file(self, mock_dialog):
-        mock_dialog.return_value = ('/tmp/out.gpkg', '')
+        mock_dialog.return_value = ('/mock/out.gpkg', '')
         data_loader.select_output_file(self.dlg)
-        assert self.dlg.OutputPath.text() == '/tmp/out.gpkg'
+        assert self.dlg.OutputPath.text() == '/mock/out.gpkg'
 
     @patch('PyQt5.QtWidgets.QFileDialog.getExistingDirectory')
     def test_select_workspace_file(self, mock_dialog):
-        mock_dialog.return_value = '/tmp/workspace'
+        mock_dialog.return_value = '/mock/workspace'
         data_loader.select_workspace_file(self.dlg)
-        assert self.dlg.WorkspacePath.text() == '/tmp/workspace'
+        assert self.dlg.WorkspacePath.text() == '/mock/workspace'
 
 
 class TestCreatePartitionsList:
