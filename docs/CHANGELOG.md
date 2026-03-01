@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## 2026-03-01
+
+### Added
+- **Release** (`LICENSE`): Added MIT license file.
+- **Release** (`metadata.txt`): Added `license` field pointing to the MIT license.
+- **Release** (`create_release_zip.py`): Added packaging script that builds a release ZIP from `metadata.txt` version, applying exclusion rules for dev-only files.
+- **Linting** (`.flake8`, `.bandit`): Added Flake8 and Bandit configuration files; Bandit excludes test directories and skips B101 (assert usage).
+- **CI** (`.github/workflows/`): Added GitHub Actions CI workflow for automated QGIS plugin testing.
+- **CI** (`validate_plugin.py`): Added QGIS plugin validation script checking package structure and `metadata.txt` completeness.
+- **Tests** (`test_ibtool_dialog.py`): Added comprehensive unit tests for `IBToolDialog` covering step navigation, per-field status labels, validation checklist population, phase progress updates, and result-action frame visibility.
+- **Tests** (`test_geometry_utils.py`): Added unit tests for `check_projection`, `polyline2`, `create_polygons_from_lines`, `extract_polygons_from_lines`, and additional `shp_area2` edge cases.
+- **Tests** (`test_edge_catch_utils.py`): Added comprehensive unit tests for new helper functions — null geometry handling, `_apply_rule_parallel_close_endpoints`, `_apply_rule_all_parallel`, `_apply_rule_angle_outliers`, and merge-block behavior in `edge_catch`.
+- **Tests** (`test_logger.py`): Added unit tests for `Logger` covering singleton behavior, file creation, log routing, level filtering, directory switching, `RuntimeError` handling, and message type conversion.
+- **Tests** (`test_manage_directory.py`): Added unit tests for `manage_directory` covering logging, directory recreation, and exception handling.
+- **Tests** (`test_check.py`): Added unit and integration tests for `InputValidator.quick_path_check` and `validate_all`.
+- **Tests** (`test_import_filter.py`): Added unit tests for `_create_filter_string` covering empty list, single/multiple values, fieldname usage, and verbatim value embedding.
+- **Tests** (`test_mst_clustering.py`): Added unit tests for `_main_angle`, `_near_point`, `_vector_angle`, `calc_bounding_rect`, and a debug-mode integration test for `mst_clustering`.
+- **Tests** (`test_patch_remove.py`): Added integration test verifying feature-count consistency when debug mode is active.
+- **Tests** (`test_ibtool.py`): Added unit tests for `apply_to_ui_elements` covering widget updates, skip behavior, and empty-value handling.
+
+### Changed
+- **Plugin** (`ibtool/ibtool.py`): Updated log levels for key processing operations from `INFO` to `CRITICAL` so they remain visible regardless of the active log-level filter. Updated copyright year.
+- **Debug** (all tools): Renumbered `_DEBUG_TOOL_NAME` constants across `AddSingleBuilding.py`, `GapClose.py`, `GapFix.py`, `ImportFilter.py`, `MST_Clustering.py`, `PatchRemove.py`, and `edge_catch_utils.py` to reflect the correct pipeline call order after `EdgeCatch` was inserted as step 03.
+- **Tests** (`test_ibtool_dialog.py`): Refactored `test_show_result_actions_makes_frame_visible` to use `isHidden()` instead of `isVisible()` for reliable widget-visibility assertions.
+- **Tests** (`test_edge_catch_utils.py`): Expanded `test_four_parallel_lines_reduced_to_two` with detailed rule-evaluation scenarios; expanded `test_merge_block_handles_exception_gracefully` to cover additional exception-handling paths.
+- **Tests** (`test_blocker.py`): Streamlined logging, improved docstrings, removed unused imports, and clarified assertions in `TestBlockerIntegration`.
+- **Tests** (`test_patch_remove.py`): Renamed internal helper methods for consistency and readability.
+- **Tests** (`test/__init__.py`, `test_translations.py`): Updated comments and docstrings for readability and context consistency.
+
+### Removed
+- **Docs**: Removed obsolete Sphinx documentation and build scripts.
+
+---
+
 ## 2026-02-28
 
 ### Added
