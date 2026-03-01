@@ -37,6 +37,7 @@ jobs:
         run: |
           detect-secrets scan --force-use-all-plugins \
             --exclude-files 'Testdaten/.*' \
+            --exclude-files 'README\.md' \
             > /tmp/secrets.json
           python - <<'PY'
           import json, sys

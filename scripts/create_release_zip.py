@@ -144,7 +144,7 @@ def build_zip(repo_root: Path, files: list[Path], zip_path: Path, plugin_folder:
 
 
 def main() -> None:
-    repo_root = Path(".").resolve()
+    repo_root = Path(__file__).resolve().parent.parent
     plugin_folder = repo_root.name  # IB-Tool-3
 
     version = read_version(repo_root)

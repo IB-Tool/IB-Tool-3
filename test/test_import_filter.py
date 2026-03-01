@@ -285,3 +285,87 @@ class TestInputHuFilter:
 
         with pytest.raises(Exception):
             input_hu_filter(invalid_layer, filter_path)
+
+    @pytest.mark.integration
+    def test_main_pipeline_returns_valid_layer(self, tmp_path):
+        """Executes the full filter pipeline when building count exceeds min_area."""
+        # Build a 10×10 cluster of 100 buildings (10 m × 10 m, 5 m gap).
+        # 80 positive (fkt='31001_1000'), 20 negative (fkt='31001_1310').
+        # Coordinates in EPSG:25833 around central Germany to avoid edge artifacts.
+        POSITIVE_CODE = "31001_1000"
+        NEGATIVE_CODE = "31001_1310"
+        filter_path = _write_filter_file(
+            tmp_path / "f.txt",
+            positive=[POSITIVE_CODE],
+            negative=[NEGATIVE_CODE],
+        )
+        layer = _polygon_layer_with_field("fkt", self.CRS_ID)
+        origin_x, origin_y = 400_000.0, 5_700_000.0
+        spacing = 15.0  # 10 m building + 5 m gap
+        for i in range(100):
+            row, col = divmod(i, 10)
+            x0 = origin_x + col * spacing
+            y0 = origin_y + row * spacing
+            feat = QgsFeature(layer.fields())
+            feat.setGeometry(QgsGeometry.fromPolygonXY([[
+                QgsPointXY(x0,        y0),
+                QgsPointXY(x0 + 10.0, y0),
+                QgsPointXY(x0 + 10.0, y0 + 10.0),
+                QgsPointXY(x0,        y0 + 10.0),
+                QgsPointXY(x0,        y0),
+            ]]))
+            feat.setAttribute("fkt", NEGATIVE_CODE if i >= 80 else POSITIVE_CODE)
+            layer.dataProvider().addFeatures([feat])
+        layer.updateExtents()
+
+        # min_area=50 → 100 buildings > 50, so the main processing pipeline runs
+        result = input_hu_filter(layer, filter_path, min_area=50)
+
+        assert result is not None
+        assert isinstance(result, QgsVectorLayer)
+        # Feature count may be 0 if everything is filtered out, but must not crash
+        for feat in result.getFeatures():
+            geom = feat.geometry()
+            assert not geom.isNull(),  "Geometry must not be null"
+            assert not geom.isEmpty(), "Geometry must not be empty"
+            assert geom.isGeosValid(), "Geometry must be GEOS-valid"
+
+    @pytest.mark.integration
+    def test_debug_mode_does_not_change_result(self, tmp_path):
+        """Debug mode produces the same feature count as non-debug mode."""
+        POSITIVE_CODE = "31001_1000"
+        NEGATIVE_CODE = "31001_1310"
+        filter_path = _write_filter_file(
+            tmp_path / "f.txt",
+            positive=[POSITIVE_CODE],
+            negative=[NEGATIVE_CODE],  # non-empty: extractbyexpression requires a valid expression
+        )
+        origin_x, origin_y = 400_000.0, 5_700_000.0
+        spacing = 15.0
+
+        def _make_layer():
+            lyr = _polygon_layer_with_field("fkt", self.CRS_ID)
+            for i in range(80):
+                row, col = divmod(i, 9)
+                x0 = origin_x + col * spacing
+                y0 = origin_y + row * spacing
+                feat = QgsFeature(lyr.fields())
+                feat.setGeometry(QgsGeometry.fromPolygonXY([[
+                    QgsPointXY(x0,        y0),
+                    QgsPointXY(x0 + 10.0, y0),
+                    QgsPointXY(x0 + 10.0, y0 + 10.0),
+                    QgsPointXY(x0,        y0 + 10.0),
+                    QgsPointXY(x0,        y0),
+                ]]))
+                feat.setAttribute("fkt", POSITIVE_CODE)
+                lyr.dataProvider().addFeatures([feat])
+            lyr.updateExtents()
+            return lyr
+
+        result_normal = input_hu_filter(_make_layer(), filter_path, min_area=50)
+        result_debug = input_hu_filter(
+            _make_layer(), filter_path, min_area=50,
+            debug_mode=True, workspace_path=str(tmp_path),
+        )
+
+        assert result_debug.featureCount() == result_normal.featureCount()
