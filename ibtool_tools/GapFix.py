@@ -9,6 +9,11 @@ from ..helpers.logger import Logger
 from ..helpers.debug_utils import save_debug_layer
 from ..helpers.safe_processing import safe_processing_run
 
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "08_GapFix"
+
 
 def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
             bufferwidth=70, max_gap=10.0, debug_mode=False):
@@ -48,7 +53,7 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
     :return: QgsVectorLayer with interior holes removed and gaps filled.
     """
     Logger.log("GapFix Start", level="INFO")
-    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name="GapFix")
+    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name=_DEBUG_TOOL_NAME)
     input_layer = None
 
     try:
@@ -69,7 +74,7 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
         }, **_dbg)['OUTPUT']
         if debug_mode and workspace_path:
-            save_debug_layer(fixed, "GapFix", "step0_fixed", workspace_path)
+            save_debug_layer(fixed, _DEBUG_TOOL_NAME, "step0_fixed", workspace_path)
 
         # --- Step 1: Close interior holes ---
         # polygons → lines → polygonize → collect + buffer(0, dissolve=True)
@@ -101,7 +106,7 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
         }, **_dbg)['OUTPUT']
 
         if debug_mode and workspace_path:
-            save_debug_layer(dissolved, "GapFix", "step1_dissolved", workspace_path)
+            save_debug_layer(dissolved, _DEBUG_TOOL_NAME, "step1_dissolved", workspace_path)
 
         # --- Step 2: Multipart → singlepart + unique ID field ---
         Logger.log("GapFix: Step 2 – singleparts and unique IDs…", level="INFO")
@@ -124,7 +129,7 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
         }, **_dbg)['OUTPUT']
 
         if debug_mode and workspace_path:
-            save_debug_layer(clean_polys, "GapFix", "step2_clean_polys", workspace_path)
+            save_debug_layer(clean_polys, _DEBUG_TOOL_NAME, "step2_clean_polys", workspace_path)
 
         Logger.log(f"GapFix: {clean_polys.featureCount()} polygon(s) after step 2.", level="INFO")
 
@@ -152,7 +157,7 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
         }, **_dbg)['OUTPUT']
 
         if debug_mode and workspace_path:
-            save_debug_layer(buffer_rings, "GapFix", "step3_buffer_rings", workspace_path)
+            save_debug_layer(buffer_rings, _DEBUG_TOOL_NAME, "step3_buffer_rings", workspace_path)
 
         # --- Step 4: Pairwise intersect buffer rings → gap zone candidates ---
         # ring_i ∩ ring_j = area in the buffer zone of both i and j, in no polygon
@@ -261,13 +266,13 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
         provider.addFeatures(out_feats)
 
         if debug_mode and workspace_path:
-            save_debug_layer(out_layer, "GapFix", "gap_fix_result", workspace_path)
+            save_debug_layer(out_layer, _DEBUG_TOOL_NAME, "gap_fix_result", workspace_path)
 
         Logger.log(f"GapFix End - Output features: {out_layer.featureCount()}", level="INFO")
         return out_layer
 
     except Exception as e:
         if debug_mode and workspace_path and isinstance(input_layer, QgsVectorLayer):
-            save_debug_layer(input_layer, "GapFix", "exception_input", workspace_path, is_error=True)
+            save_debug_layer(input_layer, _DEBUG_TOOL_NAME, "exception_input", workspace_path, is_error=True)
         Logger.log(f"Error in GapFix: {str(e)}", level="CRITICAL")
         raise
