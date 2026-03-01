@@ -32,6 +32,8 @@ from ibtool.helpers.geometry_utils import (
     get_hole_polygons,
     create_polygons_from_lines,
     extract_polygons_from_lines,
+    check_projection,
+    polyline2,
 )
 
 
@@ -431,3 +433,140 @@ class TestShpArea2ExtraBranches:
         with patch("ibtool.helpers.geometry_utils.edit", side_effect=Exception("edit failed")):
             result = shp_area2(layer, field_name="Area", logger=mock_logger)
         assert result is False
+
+
+# ── check_projection ──────────────────────────────────────────────────────────
+
+class TestCheckProjection:
+    """Tests for check_projection.
+
+    check_projection reads files from disk, logs warnings but does not return
+    a value. Tests verify it does not crash and that it exercises the code paths
+    for missing files, valid matching CRS, and mismatched CRS.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    def _write_gpkg(self, path: str, crs_id: str) -> str:
+        """Write an empty polygon GeoPackage with the given CRS and return its path."""
+        from qgis.core import (
+            QgsVectorLayer, QgsVectorFileWriter, QgsCoordinateReferenceSystem
+        )
+        crs = QgsCoordinateReferenceSystem(crs_id)
+        layer = QgsVectorLayer(f"Polygon?crs={crs_id}", "test", "memory")
+        opts = QgsVectorFileWriter.SaveVectorOptions()
+        opts.driverName = "GPKG"
+        opts.fileEncoding = "UTF-8"
+        opts.destinationCrs = crs
+        from qgis.core import QgsProject
+        QgsVectorFileWriter.writeAsVectorFormatV3(
+            layer, path, QgsProject.instance().transformContext(), opts
+        )
+        return path
+
+    @pytest.mark.unit
+    def test_nonexistent_file_does_not_crash(self, tmp_path):
+        """check_projection logs a warning for a nonexistent file; must not raise."""
+        from qgis.core import QgsCoordinateReferenceSystem
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        check_projection(crs, [str(tmp_path / "nonexistent.gpkg")])
+
+    @pytest.mark.unit
+    def test_matching_crs_does_not_crash(self, tmp_path):
+        """check_projection does not raise when CRS matches."""
+        from qgis.core import QgsCoordinateReferenceSystem
+        path = self._write_gpkg(str(tmp_path / "layer.gpkg"), "EPSG:25833")
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        check_projection(crs, [path])
+
+    @pytest.mark.unit
+    def test_mismatched_crs_does_not_crash(self, tmp_path):
+        """check_projection logs a warning for CRS mismatch; must not raise."""
+        from qgis.core import QgsCoordinateReferenceSystem
+        path = self._write_gpkg(str(tmp_path / "layer4326.gpkg"), "EPSG:4326")
+        crs_25833 = QgsCoordinateReferenceSystem("EPSG:25833")
+        check_projection(crs_25833, [path])
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_empty_list_does_not_crash(self):
+        """check_projection with an empty file list is a no-op; must not raise."""
+        from qgis.core import QgsCoordinateReferenceSystem
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        check_projection(crs, [])
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_multiple_files_processed(self, tmp_path):
+        """check_projection processes all files in the input list without crashing."""
+        from qgis.core import QgsCoordinateReferenceSystem
+        path_ok   = self._write_gpkg(str(tmp_path / "ok.gpkg"),   "EPSG:25833")
+        path_bad  = self._write_gpkg(str(tmp_path / "bad.gpkg"),  "EPSG:4326")
+        path_miss = str(tmp_path / "missing.gpkg")
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        check_projection(crs, [path_ok, path_bad, path_miss])
+
+
+# ── polyline2 ─────────────────────────────────────────────────────────────────
+
+class TestPolyline2:
+    """Tests for polyline2 (file I/O, no processing.run)."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @pytest.mark.unit
+    def test_writes_shapefile_and_returns_path(self, tmp_path):
+        """polyline2 writes a shapefile and returns the output path."""
+        import os
+        output = str(tmp_path / "lines.shp")
+        lines = [((0.0, 0.0), (10.0, 0.0), 10.0)]
+        result = polyline2(lines, output, output_format="shp")
+        assert result == output
+        assert os.path.exists(output)
+
+    @pytest.mark.unit
+    def test_writes_gpkg_and_returns_path(self, tmp_path):
+        """polyline2 with output_format='gpkg' writes a GeoPackage file."""
+        import os
+        output = str(tmp_path / "lines.gpkg")
+        lines = [((0.0, 0.0), (10.0, 0.0), 10.0)]
+        result = polyline2(lines, output, output_format="gpkg")
+        assert result == output
+        assert os.path.exists(output)
+
+    @pytest.mark.unit
+    def test_multiple_segments(self, tmp_path):
+        """polyline2 processes multiple line segments without crashing."""
+        import os
+        output = str(tmp_path / "multi.shp")
+        lines = [
+            ((0.0, 0.0), (10.0,  0.0), 10.0),
+            ((10.0, 0.0), (20.0,  5.0), 11.2),
+        ]
+        result = polyline2(lines, output, output_format="shp")
+        assert result == output
+        assert os.path.exists(output)
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_segment_without_length_does_not_crash(self, tmp_path):
+        """A line segment tuple with only two coordinate pairs (no length) must not crash."""
+        import os
+        output = str(tmp_path / "no_len.shp")
+        lines = [((0.0, 0.0), (10.0, 0.0))]
+        result = polyline2(lines, output, output_format="shp")
+        assert result == output
+        assert os.path.exists(output)
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_empty_line_list_does_not_crash(self, tmp_path):
+        """polyline2 with an empty list creates an empty file without crashing."""
+        import os
+        output = str(tmp_path / "empty.shp")
+        result = polyline2([], output, output_format="shp")
+        assert result == output
