@@ -19,7 +19,7 @@ from .safe_processing import safe_processing_run
 
 
 # ── EdgeCatch algorithm constants ─────────────────────────────────────────────
-DEBUG_TOOL_NAME = "03_EdgeCatch"   # Sub-folder name for debug output files
+DEBUG_TOOL_NAME = "05_EdgeCatch"   # Sub-folder name for debug output files
 
 ROAD_SEGMENT_LENGTH = 20    # Maximum segment length for road splitting (meters)
 ROAD_BUFFER_DISTANCE = 25   # Buffer radius for building-proximity check (meters)
