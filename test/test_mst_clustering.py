@@ -38,7 +38,10 @@ from .utilities import get_qgis_app
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 from .layer_factories import make_polygon_layer, make_line_layer, make_square_geom
 
-from ibtool.ibtool_tools.MST_Clustering import calc_bounding_rect, mst_clustering
+from ibtool.ibtool_tools.MST_Clustering import (
+    calc_bounding_rect, mst_clustering,
+    _main_angle, _near_point, _vector_angle,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -270,3 +273,186 @@ class TestMstClustering:
             geom = feat.geometry()
             assert not geom.isNull(),  f"Null geometry at FID {feat.id()}"
             assert not geom.isEmpty(), f"Empty geometry at FID {feat.id()}"
+
+    @pytest.mark.integration
+    def test_debug_mode_does_not_change_result(self, tmp_path):
+        """Debug mode produces same feature count as non-debug mode."""
+        hu_normal = _make_hu_layer(self.CRS_ID)
+        _feat_normal, mst_normal = _make_mst_layer(self.CRS_ID)
+        result_normal = mst_clustering(hu_normal, mst_normal, self.crs, overlap_ratio=18)
+
+        hu_debug = _make_hu_layer(self.CRS_ID)
+        _feat_debug, mst_debug = _make_mst_layer(self.CRS_ID)
+        result_debug = mst_clustering(
+            hu_debug, mst_debug, self.crs, overlap_ratio=18,
+            debug_mode=True, workspace_path=str(tmp_path),
+        )
+
+        assert result_debug.featureCount() == result_normal.featureCount()
+
+
+# ---------------------------------------------------------------------------
+# TestMainAngle — unit tests (pure Python + numpy)
+# ---------------------------------------------------------------------------
+
+class TestMainAngle:
+    """Unit tests for MST_Clustering._main_angle."""
+
+    @pytest.mark.unit
+    def test_single_pair_returns_that_angle(self):
+        """A single angle-length pair must return that angle unchanged."""
+        result = _main_angle([(45.0, 10.0)], max_diff=10)
+        assert result == pytest.approx(45.0)
+
+    @pytest.mark.unit
+    def test_group_with_highest_total_length_wins(self):
+        """The group with the greatest total edge length determines the dominant angle."""
+        # Group A: angle≈0, total length=30; Group B: angle≈90, total length=10
+        pairs = [(0.0, 15.0), (0.5, 15.0), (90.0, 10.0)]
+        result = _main_angle(pairs, max_diff=10)
+        assert result == pytest.approx(0.0) or result == pytest.approx(0.5)
+
+    @pytest.mark.unit
+    def test_separated_groups_choose_dominant(self):
+        """Two clearly separated angle groups; the heavier one is returned."""
+        pairs = [(10.0, 1.0), (80.0, 100.0)]
+        result = _main_angle(pairs, max_diff=5)
+        assert result == pytest.approx(80.0)
+
+    @pytest.mark.unit
+    def test_all_same_angle_returns_that_angle(self):
+        """When all pairs have the same angle, that angle must be returned."""
+        pairs = [(30.0, 5.0), (30.0, 3.0), (30.0, 7.0)]
+        result = _main_angle(pairs, max_diff=10)
+        assert result == pytest.approx(30.0)
+
+
+# ---------------------------------------------------------------------------
+# TestNearPoint — unit tests
+# ---------------------------------------------------------------------------
+
+class TestNearPoint:
+    """Unit tests for MST_Clustering._near_point."""
+
+    @pytest.mark.unit
+    def test_perpendicular_distance_to_horizontal_line(self):
+        """Point directly above a horizontal line must project perpendicularly."""
+        dist, nx, ny = _near_point(0, 0, 10, 0, 5, 3)
+        assert dist == pytest.approx(3.0, abs=1e-6)
+        assert nx == pytest.approx(5.0, abs=1e-6)
+        assert ny == pytest.approx(0.0, abs=1e-6)
+
+    @pytest.mark.unit
+    def test_nearest_point_on_vertical_line(self):
+        """Point to the right of a vertical line projects onto it correctly."""
+        dist, nx, ny = _near_point(0, 0, 0, 10, 4, 5)
+        assert dist == pytest.approx(4.0, abs=1e-6)
+        assert nx == pytest.approx(0.0, abs=1e-6)
+        assert ny == pytest.approx(5.0, abs=1e-6)
+
+    @pytest.mark.unit
+    def test_point_on_line_has_zero_distance(self):
+        """A point that lies on the line must have perpendicular distance ≈ 0."""
+        dist, _nx, _ny = _near_point(0, 0, 10, 0, 5, 0)
+        assert dist == pytest.approx(0.0, abs=1e-6)
+
+    @pytest.mark.unit
+    def test_returns_three_numeric_values(self):
+        """Return value must be a 3-tuple of numeric values."""
+        result = _near_point(0, 0, 1, 0, 0.5, 1)
+        assert len(result) == 3
+        assert all(isinstance(v, (int, float)) or hasattr(v, 'item') for v in result)
+
+
+# ---------------------------------------------------------------------------
+# TestVectorAngle — unit tests
+# ---------------------------------------------------------------------------
+
+class TestVectorAngle:
+    """Unit tests for MST_Clustering._vector_angle."""
+
+    @pytest.mark.unit
+    def test_perpendicular_vectors_give_90_degrees(self):
+        """Two perpendicular vectors sharing a vertex must produce angle ≈ 90°."""
+        angle = _vector_angle((0, 0), (1, 0), (0, 0), (0, 1))
+        assert angle == pytest.approx(90.0, abs=2.0)
+
+    @pytest.mark.unit
+    def test_parallel_vectors_give_0_or_180_degrees(self):
+        """Parallel vectors must give angle ≈ 0° or 180°."""
+        angle = _vector_angle((0, 0), (2, 0), (0, 0), (4, 0))
+        assert angle == pytest.approx(0.0, abs=2.0) or angle == pytest.approx(180.0, abs=2.0)
+
+    @pytest.mark.unit
+    def test_return_value_is_numeric(self):
+        """Return value must be a numeric type."""
+        angle = _vector_angle((0, 0), (1, 0), (0, 0), (0, 1))
+        assert isinstance(angle, (int, float))
+
+    @pytest.mark.unit
+    def test_angle_in_valid_range(self):
+        """Angle must be in the range [0, 180] degrees."""
+        angle = _vector_angle((0, 0), (3, 4), (0, 0), (4, 3))
+        assert 0 <= angle <= 180
+
+
+# ---------------------------------------------------------------------------
+# TestCalcBoundingRectShapeMode — unit tests (shape mode, no Processing)
+# ---------------------------------------------------------------------------
+
+class TestCalcBoundingRectShapeMode:
+    """Unit tests for calc_bounding_rect with mode='shape'."""
+
+    CRS_ID = "EPSG:25833"
+
+    @classmethod
+    def setup_class(cls):
+        cls.crs = QgsCoordinateReferenceSystem(cls.CRS_ID)
+        cls.fallback_layer = make_polygon_layer(cls.CRS_ID)
+
+    def _make_line_layer_with_six_segments(self) -> QgsVectorLayer:
+        """Six line segments — enough for calc_bounding_rect to compute a result."""
+        layer = make_line_layer(self.CRS_ID)
+        segments = [
+            [QgsPointXY(0,   0),   QgsPointXY(100, 0)],
+            [QgsPointXY(100, 0),   QgsPointXY(100, 100)],
+            [QgsPointXY(100, 100), QgsPointXY(0,   100)],
+            [QgsPointXY(0,   100), QgsPointXY(0,   0)],
+            [QgsPointXY(50,  0),   QgsPointXY(50,  100)],
+            [QgsPointXY(0,   50),  QgsPointXY(100, 50)],
+        ]
+        feats = []
+        for seg in segments:
+            f = QgsFeature()
+            f.setGeometry(QgsGeometry.fromPolylineXY(seg))
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        layer.updateExtents()
+        return layer
+
+    @pytest.mark.unit
+    def test_shape_mode_with_enough_features_returns_rect_and_positive_area(self):
+        """shape mode with > 4 features must return (new layer, positive float area)."""
+        line_layer = self._make_line_layer_with_six_segments()
+        result_layer, result_area = calc_bounding_rect(
+            line_layer, self.fallback_layer, "shape", self.crs
+        )
+        assert result_layer is not self.fallback_layer
+        assert isinstance(result_area, float)
+        assert result_area > 0
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_shape_mode_with_too_few_features_returns_fallback(self):
+        """shape mode with ≤ 4 features must return the fallback layer and None area."""
+        layer = make_line_layer(self.CRS_ID)
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromPolylineXY(
+            [QgsPointXY(0, 0), QgsPointXY(10, 0)]
+        ))
+        layer.dataProvider().addFeatures([f])
+        result_layer, result_area = calc_bounding_rect(
+            layer, self.fallback_layer, "shape", self.crs
+        )
+        assert result_layer is self.fallback_layer
+        assert result_area is None
