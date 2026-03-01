@@ -146,3 +146,55 @@ class TestLogger:
         assert len(self.dummy_msg.messages) > before
         last_text = self.dummy_msg.messages[-1][0]
         assert last_text == 'INFO: no box message'
+
+    def test_singleton_returns_same_instance(self):
+        """Calling Logger() twice must return the exact same object (singleton)."""
+        instance1 = self.logger_mod.Logger()
+        instance2 = self.logger_mod.Logger()
+        assert instance1 is instance2
+
+    def test_set_log_dir_switches_to_new_directory(self):
+        """set_log_dir must close the old handler and open a new file in the new directory."""
+        import os
+        new_dir = os.path.join(self.tmpdir.name, "new_logs")
+        os.makedirs(new_dir, exist_ok=True)
+        self.logger_mod.Logger.set_log_dir(new_dir)
+        assert self.logger_mod.Logger.log_dir == new_dir
+        # A new file handler must be active and pointing to the new directory
+        handler = self.logger_mod.Logger.file_handler
+        assert handler is not None
+        assert new_dir in handler.baseFilename
+
+    def test_message_box_runtime_error_clears_box_and_falls_back_to_msg(self):
+        """When appendPlainText raises RuntimeError, message_box is cleared and msg() is used."""
+        class BrokenBox:
+            def appendPlainText(self, text):
+                raise RuntimeError("Widget deleted")
+
+        self.logger_mod.Logger.set_message_box(BrokenBox())
+        before = len(self.dummy_msg.messages)
+        self.logger.log('runtime error test', level='INFO')
+        # After RuntimeError, message_box must be cleared
+        assert self.logger_mod.Logger.message_box is None
+        # msg() must have been called as fallback
+        assert len(self.dummy_msg.messages) > before
+
+    def test_message_below_configured_threshold_is_suppressed(self):
+        """INFO messages must not be emitted when log_level is set to WARNING."""
+        import logging
+        self.logger_mod.Logger.log_level = logging.WARNING
+        DummyQgsMessageLog.logs.clear()
+        before_msg_count = len(self.dummy_msg.messages)
+        self.logger.log('suppressed info', level='INFO')
+        # No new QGIS log entry and no new msg() call
+        assert len(DummyQgsMessageLog.logs) == 0
+        assert len(self.dummy_msg.messages) == before_msg_count
+        # Restore
+        self.logger_mod.Logger.log_level = 0
+
+    def test_non_string_message_is_converted_to_string(self):
+        """Passing a non-string value must be converted via str() without crashing."""
+        box = DummyMessageBox()
+        self.logger_mod.Logger.set_message_box(box)
+        self.logger.log(12345, level='INFO')
+        assert any("12345" in text for text in box.texts)
