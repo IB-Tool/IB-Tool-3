@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Test Module Setup für QGIS Processing Tests - CRASH-PROOF VERSION
+Test module setup for QGIS Processing tests — crash-proof version.
 
 Supported QGIS versions: 3.40-3.50
 """
@@ -22,16 +22,16 @@ apply_qgis_environment()
 qgis_app = None
 
 def safe_cleanup():
-    """Sicherer Cleanup über atexit - verhindert Crash"""
+    """Safe cleanup registered via atexit — prevents crash on interpreter exit."""
     global qgis_app
     if qgis_app:
         try:
-            # Nur versuchen zu beenden, wenn noch aktiv
+            # Only attempt to exit if still active
             if hasattr(qgis_app, 'exitQgis'):
                 qgis_app.exitQgis()
-            print("✅ QGIS über atexit sauber beendet")
+            print("✅ QGIS shut down cleanly via atexit")
         except:
-            # Alle Fehler ignorieren
+            # Ignore all errors during cleanup
             pass
         finally:
             qgis_app = None
@@ -43,24 +43,24 @@ def setUpModule():
         # Initialize QGIS application
         from qgis.core import QgsApplication
         
-        # GUI=True ist wichtig für Processing!
+        # GUI=True is required for Processing algorithm execution
         qgis_app = QgsApplication([], True)
         qgis_app.setPrefixPath(QGIS_PREFIX_PATH, True)
         qgis_app.initQgis()
-        
-        # Registriere sicheren Cleanup
+
+        # Register safe cleanup to run on interpreter exit
         atexit.register(safe_cleanup)
-        
+
         # Initialize processing plugin
         try:
             from processing.core.Processing import Processing
             Processing.initialize()
-            print("✅ Processing für Tests initialisiert")
+            print("✅ Processing initialized for tests")
         except Exception as e:
-            print(f"⚠️ Processing-Setup-Warnung: {e}")
+            print(f"⚠️ Processing setup warning: {e}")
 
 def tearDownModule():
     """Clean up QGIS application - NO-OP Version"""
-    # NICHTS TUN - atexit übernimmt das sicher
-    print("✅ tearDownModule - Cleanup über atexit")
+    # No-op: atexit handles cleanup safely to prevent crash
+    print("✅ tearDownModule — cleanup delegated to atexit")
     pass

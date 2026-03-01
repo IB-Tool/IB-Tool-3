@@ -42,19 +42,19 @@ class TestSafeTranslations:
         file_path = os.path.join(dir_path, 'i18n', 'de.qm')
         translator = QTranslator()
         
-        # Überprüfen, ob die Datei existiert
+        # Check that the translation file exists on disk
         if not os.path.exists(file_path):
             pytest.fail(f"Translation file not found: {file_path}")
-        
-        # Überprüfen, ob die Übersetzung geladen wurde
+
+        # Check that the translator loaded the file successfully
         loaded = translator.load(file_path)
         assert loaded, "Failed to load translation file"
-        
+
         QCoreApplication.installTranslator(translator)
 
         source_message = 'Good morning'
         expected_translation = 'Guten Morgen'
-        # Verwende den korrekten Kontext aus der .ts Datei
+        # Use the context name from the .ts file
         real_message = QCoreApplication.translate(
             "@default", 
             source_message

@@ -997,3 +997,102 @@ class TestCheckValidityProcessing:
         result = ValidationResult()
         self.validator._check_validity_processing(layer, "TestLayer", result)
         assert result.is_valid
+
+
+# ---------------------------------------------------------------------------
+# TestQuickPathCheck — unit tests (no QGIS layer operations)
+# ---------------------------------------------------------------------------
+
+class TestQuickPathCheck:
+    """Tests for InputValidator.quick_path_check."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.qgis_app, cls.canvas, cls.iface, cls.parent = get_qgis_app()
+        cls.validator = InputValidator()
+
+    @pytest.mark.unit
+    def test_empty_string_returns_false(self):
+        """An empty string path must return (False, message)."""
+        ok, msg = self.validator.quick_path_check("")
+        assert ok is False
+        assert msg  # non-empty error message
+
+    @pytest.mark.unit
+    def test_whitespace_only_path_returns_false(self):
+        """A whitespace-only string must be treated as empty."""
+        ok, msg = self.validator.quick_path_check("   ")
+        assert ok is False
+        assert msg
+
+    @pytest.mark.unit
+    def test_nonexistent_path_returns_false(self):
+        """A path that does not exist on disk must return (False, message)."""
+        ok, msg = self.validator.quick_path_check("/nonexistent/path/that/does/not/exist")
+        assert ok is False
+        assert msg
+
+    @pytest.mark.unit
+    def test_existing_file_returns_true(self, tmp_path):
+        """An existing file path with is_dir=False must return (True, '')."""
+        f = tmp_path / "testfile.txt"
+        f.write_text("x")
+        ok, msg = self.validator.quick_path_check(str(f))
+        assert ok is True
+        assert msg == ""
+
+    @pytest.mark.unit
+    def test_existing_directory_with_is_dir_true_returns_true(self, tmp_path):
+        """An existing directory path with is_dir=True must return (True, '')."""
+        ok, msg = self.validator.quick_path_check(str(tmp_path), is_dir=True)
+        assert ok is True
+        assert msg == ""
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_file_path_with_is_dir_true_returns_false(self, tmp_path):
+        """A file path with is_dir=True must return (False, message) — it is not a directory."""
+        f = tmp_path / "notadir.txt"
+        f.write_text("x")
+        ok, msg = self.validator.quick_path_check(str(f), is_dir=True)
+        assert ok is False
+        assert msg
+
+
+# ---------------------------------------------------------------------------
+# TestValidateAll — integration tests
+# ---------------------------------------------------------------------------
+
+class TestValidateAll:
+    """Tests for InputValidator.validate_all."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.qgis_app, cls.canvas, cls.iface, cls.parent = get_qgis_app()
+        cls.validator = InputValidator()
+        cls.crs = QgsCoordinateReferenceSystem("EPSG:25833")
+
+    @pytest.mark.unit
+    def test_all_empty_paths_produce_errors(self):
+        """Calling validate_all with no paths at all must return errors for each layer."""
+        result = self.validator.validate_all(
+            hu_path="", rn_path="", part_path="", aux_path="",
+            filter_path="", output_path="", workspace_path="",
+            spatial_reference=self.crs,
+        )
+        assert not result.is_valid
+        assert len(result.errors) >= 4  # at least one error per required layer
+
+    @pytest.mark.unit
+    def test_nonexistent_paths_produce_errors(self, tmp_path):
+        """Non-existent file paths must each produce an error."""
+        fake_path = str(tmp_path / "does_not_exist.shp")
+        result = self.validator.validate_all(
+            hu_path=fake_path, rn_path=fake_path,
+            part_path=fake_path, aux_path=fake_path,
+            filter_path="", output_path="", workspace_path="",
+            spatial_reference=self.crs,
+        )
+        assert not result.is_valid
+        # At least the four layer paths should produce errors
+        assert len(result.errors) >= 4

@@ -9,7 +9,7 @@ of building footprints
                               -------------------
         begin                : 2024-12-18
         git sha              : $Format:%H$
-        copyright            : (C) 2024 by Oliver Harig
+        copyright            : (C) 2026 by Oliver Harig
         email                : ottmar.hittzfeld@web.de
  ***************************************************************************/
 

@@ -320,7 +320,7 @@ This plugin is licensed under the **GNU General Public License v2.0**. You are f
 
 ## Author
 
-- **Author**: Oliver Harig — Leibniz Institute of Ecological Urban and Regional Development (IOER), Dresden
+- **Author**: Oliver Harig
 - **Created with support from**: [QGIS Plugin Builder](http://g-sherman.github.io/Qgis-Plugin-Builder/)
 
 ### Publication
