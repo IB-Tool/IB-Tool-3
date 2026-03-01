@@ -334,10 +334,11 @@ class TestInputHuFilter:
     def test_debug_mode_does_not_change_result(self, tmp_path):
         """Debug mode produces the same feature count as non-debug mode."""
         POSITIVE_CODE = "31001_1000"
+        NEGATIVE_CODE = "31001_1310"
         filter_path = _write_filter_file(
             tmp_path / "f.txt",
             positive=[POSITIVE_CODE],
-            negative=[],
+            negative=[NEGATIVE_CODE],  # non-empty: extractbyexpression requires a valid expression
         )
         origin_x, origin_y = 400_000.0, 5_700_000.0
         spacing = 15.0
