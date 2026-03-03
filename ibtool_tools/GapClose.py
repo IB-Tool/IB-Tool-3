@@ -370,10 +370,16 @@ def _close_block_gaps(input_diss, blocks, max_hole_size, max_gap_size, crs, _dbg
         save_debug_layer(dissolved_output, _DEBUG_TOOL_NAME, "06_dissolved_output", workspace_path)
 
     # Close gaps embedded inside large interior holes (missed by both other approaches)
-    dissolved_output = gap_close_in_holes(
-        dissolved_output,
-        debug_mode=debug_mode, workspace_path=workspace_path
-    )
+    try:
+        dissolved_output = gap_close_in_holes(
+            dissolved_output,
+            debug_mode=debug_mode, workspace_path=workspace_path
+        )
+    except Exception as e:
+        Logger.log(
+            f"GapClose – gap_close_in_holes failed, skipping hole gap filling: {e}",
+            level="WARNING"
+        )
     if debug_mode and workspace_path:
         save_debug_layer(dissolved_output, _DEBUG_TOOL_NAME, "07_hole_gaps_closed", workspace_path)
 

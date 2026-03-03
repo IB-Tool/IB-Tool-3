@@ -185,13 +185,15 @@ def auto_detect_plugin_dir(repo_root: Path) -> Path | None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--plugin-dir", type=Path, default=None, help="Path to the plugin folder (contains metadata.txt)")
-    ap.add_argument("--zip", type=Path, default=None, help="Path to the release zip")
+    ap.add_argument("--zip", type=Path, nargs="+", default=None, help="Path(s) to release zip(s)")
     ap.add_argument("--auto", action="store_true", help="Auto-detect plugin dir in repository (default if none provided)")
     args = ap.parse_args()
 
     if args.zip:
-        validate_zip(args.zip)
-        ok("validation finished")
+        for zip_path in args.zip:
+            print(f"\n--- {zip_path} ---")
+            validate_zip(zip_path)
+            ok("validation finished")
         return
 
     plugin_dir = args.plugin_dir

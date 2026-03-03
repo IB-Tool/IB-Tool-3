@@ -1,4 +1,4 @@
-schritt # Test Strategy
+# Test Strategy
 
 ## 1. Purpose and Scope
 
@@ -108,17 +108,25 @@ These are per-category floor values, not aspirational goals. Coverage below thes
 
 ## 5. Test Data and Fixture Strategy
 
-### 5.1 Shared vs. per-file fixtures
+### 5.1 Shared vs. per-file factories
 
-**Shared (in `test/conftest.py`):** Generic factories that have no domain-specific geometry layout. Any test file may depend on these without importing from another test module.
+**`conftest.py`** handles only pytest infrastructure: it adds the plugin root to `sys.path` and registers the `ibtool` package stub so that absolute imports resolve correctly in both local and Docker environments. It does **not** provide pytest fixtures or import QGIS modules — doing so would trigger a circular import error via `qgis.utils._import` before QGIS is initialized.
 
-Current shared fixtures / helpers:
-- `empty_polygon_layer()` — returns an empty `QgsVectorLayer` with Polygon geometry
-- `empty_line_layer()` — returns an empty `QgsVectorLayer` with LineString geometry
-- `square_geometry_factory` — callable that creates a square `QgsGeometry` at a given origin
-- `add_feature_to_layer()` — helper to add a `QgsFeature` with given geometry and attributes
-- `crs_25833` — `QgsCoordinateReferenceSystem` for EPSG:25833
-- `dummy_data_dir` — `pathlib.Path` pointing to `Testdaten/`
+**`test/layer_factories.py`** is the canonical home for all shared layer and geometry factory helpers. It is a regular Python module (not a pytest plugin) and must be imported **after** calling `get_qgis_app()` in each test file:
+
+```python
+from .utilities import get_qgis_app
+QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
+from .layer_factories import (
+    make_polygon_layer, make_line_layer, make_square_geom, add_feature_to_layer
+)
+```
+
+Current functions in `layer_factories.py`:
+- `make_polygon_layer(crs, name)` — empty in-memory polygon layer
+- `make_line_layer(crs, name)` — empty in-memory line layer
+- `make_square_geom(x0, y0, size)` — axis-aligned square `QgsGeometry`
+- `add_feature_to_layer(layer, geom)` — adds a `QgsFeature` and returns it
 
 **Per-file:** Domain-specific layouts (exact building positions, street networks, block structures) stay in the file that uses them. Example: `_make_two_block_layer()` in `test_gap_fix.py`.
 
@@ -131,18 +139,6 @@ Current shared fixtures / helpers:
 | `QgsCoordinateReferenceSystem` | `session` — immutable value object |
 | File paths (`pathlib.Path`) | `session` — path strings are immutable |
 
-### 5.3 Duplicate factory functions (consolidation backlog)
-
-The following factory patterns are currently duplicated across 6+ test files and should eventually be consolidated into `conftest.py`:
-
-1. `make_polygon_layer()` / `create_polygon_layer()` — creates a memory polygon layer with features
-2. `make_line_layer()` / `create_line_layer()` — creates a memory line layer
-3. `make_point_layer()` — creates a memory point layer
-4. `add_fields_to_layer()` — adds a fixed set of QgsFields to a layer
-5. `build_square()` / `make_square_geom()` — creates a square QgsGeometry from bbox
-6. `make_feature()` / `build_feature()` — creates a QgsFeature with given geometry
-7. `setup_qgis_app()` — initializes QgsApplication; already centralized but reimplemented in some older test files
-
 ---
 
 ## 6. Module-to-Test Mapping
@@ -153,48 +149,52 @@ Cross-reference of every production module, its test file, approximate test coun
 
 | Production module | Test file | ~Tests | Dominant tier | Notable gaps |
 |---|---|---|---|---|
-| `check.py` | `test_check.py` | 65 | unit | None significant |
-| `config_manager.py` | `test_config_manager.py` | 52 | unit | None significant |
-| `system_utils.py` | `test_manage_directory.py` | 19 | unit | — |
+| `check.py` | `test_check.py` | 73 | unit | None significant |
+| `config_manager.py` | `test_config_manager.py` | 56 | unit | None significant |
+| `system_utils.py` | `test_manage_directory.py` | 22 | unit | — |
 | `data_loader.py` | `test_data_loader.py` | 15 | unit | Integration tests for file-loading paths |
-| `geometry_utils.py` | `test_geometry_utils.py` | 24 | unit | Processing-delegating wrappers untested (see §9) |
+| `geometry_utils.py` | `test_geometry_utils.py` | 41 | unit | Processing-delegating wrappers untested (see §9) |
 | `safe_processing.py` | `test_safe_processing.py` | 8 | unit | — |
 | `debug_utils.py` | `test_debug_utils.py` | 14 | unit | — |
 | `mst_utils.py` | `test_mst_utils.py` | 19 | unit | — |
-| `edge_catch_utils.py` | `test_edge_catch_utils.py` | 24 | unit | — |
-| `logger.py` | `test_logger.py` | 4 | unit | WARNING/CRITICAL routing, log file format, `close_logger()` idempotency |
-| `message.py` | `test_message.py` | 2 | unit | Missing message box path |
-| `qgis_defaults.py` | *(none)* | 0 | — | Zero tests; smoke test needed |
+| `edge_catch_utils.py` | `test_edge_catch_utils.py` | 67 | unit | — |
+| `logger.py` | `test_logger.py` | 14 | unit | — |
+| `message.py` | `test_message.py` | 5 | unit | — |
+| `qgis_defaults.py` | `test_qgis_defaults.py` | 12 | unit | — |
 
 ### ibtool_tools/
 
 | Production module | Test file | ~Tests | Dominant tier | Notable gaps |
 |---|---|---|---|---|
-| `Blocker.py` | `test_blocker.py` | 23 | integration | Performance tests for large datasets |
-| `CreateMST.py` | `test_create_mst.py` | 6 | integration | See `ai/domain/mst-testing.md` |
-| `MST_Clustering.py` | `test_mst_clustering.py` | 10 | integration | — |
-| `FootprintDensity.py` | `test_footprint_density.py` | 10 | integration | Performance tests |
-| `ImportFilter.py` | `test_import_filter.py` | 14 | integration | — |
+| `Blocker.py` | `test_blocker.py` | 24 | integration | Performance tests for large datasets |
+| `CreateMST.py` | `test_create_mst.py` | 12 | integration | See `ai/domain/mst-testing.md` |
+| `MST_Clustering.py` | `test_mst_clustering.py` | 25 | integration | — |
+| `FootprintDensity.py` | `test_footprint_density.py` | 11 | integration | Performance tests |
+| `ImportFilter.py` | `test_import_filter.py` | 21 | integration | — |
 | `GapClose.py` | `test_gap_close.py` | 15 | integration | — |
 | `HoleClose.py` | `test_hole_close.py` | 25 | integration | — |
-| `EdgeCatch.py` | `test_edge_catch.py` | 6 | integration | Known-gap, no-gap, performance cases |
+| `EdgeCatch.py` | `test_edge_catch.py` | 14 | integration | Performance cases |
 | `AddSingleBuilding.py` | `test_add_single_building.py` | 8 | integration | — |
-| `PatchRemove.py` | `test_patch_remove.py` | 6 | integration | Below/above-threshold, empty layer |
-| `GapFix.py` | `test_gap_fix.py` | 12 | integration | — |
+| `PatchRemove.py` | `test_patch_remove.py` | 9 | integration | — |
+| `GapFix.py` | `test_gap_fix.py` | 13 | integration | — |
 
 ### ibtool/ (UI + plugin)
 
 | Production module | Test file | ~Tests | Dominant tier | Notable gaps |
 |---|---|---|---|---|
-| `ibtool/ibtool.py` | `test_ibtool.py` | 23 | unit | Full `run()` orchestration (§9) |
-| `ibtool/ibtool_dialog.py` | `test_ibtool_dialog.py` | 35 | unit | Signal/slot wiring (§9) |
+| `ibtool/ibtool.py` | `test_ibtool.py` | 54 | unit | Full `run()` orchestration (§8) |
+| `ibtool/ibtool_dialog.py` | `test_ibtool_dialog.py` | 68 | unit | Signal/slot wiring (§9) |
 | `__init__.py` | `test_init.py` | 1 | smoke | `classFactory()` with live `iface` |
 
 ### Infrastructure / environment
 
 | File | Test file | ~Tests | Notes |
 |---|---|---|---|
+| `scripts/create_release_zip.py` | `test_create_release_zip.py` | 36 | Pure-Python unit tests; no QGIS dependency |
 | (MST fixtures) | `test_fixtures_mst.py` | 0 | Helper module, not directly tested |
+| (MST components) | `test_mst_components.py` | 15 | Unit/integration tests for MST sub-components |
+| (MST modules) | `test_mst_modules.py` | 16 | Integration tests for full MST modules |
+| (MST performance/edge) | `test_mst_performance_edge_cases.py` | 8 | Performance + edge case tests for MST |
 | (MST test runner) | — | — | `run_mst_tests.py` is a runner, not a test |
 | — | `test_qgis_environment.py` | 2 | Smoke: QGIS init and Processing available |
 | — | `test_resources.py` | 1 | Smoke: plugin resources compiled |
@@ -276,21 +276,11 @@ def test_gap_is_closed_when_below_threshold(self):
 
 | Gap | Action |
 |---|---|
-| `qgis_defaults.py` has zero tests | Add `test_qgis_defaults.py` with smoke tests asserting default constant values |
-| `test_logger.py` has only 4 tests | Add: WARNING/CRITICAL log routing; log file line format; `close_logger()` called twice does not raise |
-| `test_message.py` has only 2 tests | Add: behavior when no message box is registered |
-| `pytest.ini` missing `unit`, `edge_case`, `performance` markers | Register markers (done — see §2 of deliverables) |
+| Performance tests missing for `FootprintDensity` and `GapFix` | Add `@pytest.mark.performance` + `@pytest.mark.slow` tests with 100+ feature datasets |
+| Performance tests missing for `Blocker` | Add `@pytest.mark.performance` + `@pytest.mark.slow` test with 200+ buildings |
+| `EdgeCatch` performance coverage thin | Add performance test with a large street network dataset |
 
-### Priority 2 — Medium effort
-
-| Gap | Action |
-|---|---|
-| 7 duplicate factory functions across 6+ test files (§5.3) | Consolidate into `conftest.py`; update imports in affected test files |
-| `test_edge_catch.py`: 6 tests, thin coverage | Add: known-gap detection, no-gap input, performance with large street network |
-| `test_patch_remove.py`: 6 tests, thin coverage | Add: feature below area threshold kept, feature above threshold removed, empty input layer |
-| Performance tests missing for `FootprintDensity`, `GapFix`, `Blocker` | Add `@pytest.mark.performance` + `@pytest.mark.slow` tests with 100+ feature datasets |
-
-### Priority 3 — Large effort, lower urgency
+### Priority 2 — Large effort, lower urgency
 
 | Gap | Action |
 |---|---|
