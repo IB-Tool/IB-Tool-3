@@ -88,10 +88,21 @@ def safe_processing_run(
                     f"Retry after repair failed for {algorithm_name}: {e2}",
                     level="WARNING"
                 )
-                # Last resort: set INVALID_FEATURE_HANDLING=1 to skip invalid features
-                if 'INVALID_FEATURE_HANDLING' not in repaired_params:
-                    repaired_params['INVALID_FEATURE_HANDLING'] = 1
-                return processing.run(algorithm_name, repaired_params)
+                # Last resort: remove GRID_SIZE (can produce null geometries with
+                # some GEOS operations) and skip invalid features where supported
+                repaired_params_last = {
+                    k: v for k, v in repaired_params.items() if k != 'GRID_SIZE'
+                }
+                if 'INVALID_FEATURE_HANDLING' not in repaired_params_last:
+                    repaired_params_last['INVALID_FEATURE_HANDLING'] = 1
+                try:
+                    return processing.run(algorithm_name, repaired_params_last)
+                except Exception as e3:
+                    Logger.log(
+                        f"Last-resort retry (no GRID_SIZE) failed for {algorithm_name}: {e3}",
+                        level="WARNING"
+                    )
+                    raise e3
         else:
             Logger.log(str(e), level="CRITICAL")
             raise e
