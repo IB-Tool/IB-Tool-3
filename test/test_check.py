@@ -174,10 +174,10 @@ class TestCheckFeatureCounts:
         hu_layer = _make_polygon_layer()
         result = ValidationResult()
         self.validator._check_feature_counts(
-            {"Gebäudeumrisse (HU)": hu_layer}, result
+            {"Building footprints (HU)": hu_layer}, result
         )
         assert not result.is_valid
-        assert any("leer" in e.lower() for e in result.errors)
+        assert any("empty" in e.lower() for e in result.errors)
 
     @pytest.mark.unit
     def test_too_few_features_adds_error(self):
@@ -190,7 +190,7 @@ class TestCheckFeatureCounts:
 
         result = ValidationResult()
         self.validator._check_feature_counts(
-            {"Gebäudeumrisse (HU)": hu_layer}, result
+            {"Building footprints (HU)": hu_layer}, result
         )
         assert not result.is_valid
 
@@ -205,7 +205,7 @@ class TestCheckFeatureCounts:
 
         result = ValidationResult()
         self.validator._check_feature_counts(
-            {"Gebäudeumrisse (HU)": hu_layer}, result
+            {"Building footprints (HU)": hu_layer}, result
         )
         assert result.is_valid
 
@@ -267,7 +267,7 @@ class TestCheckGeometries:
         result = ValidationResult()
         self.validator._check_geometries(layer, "TestLayer", result)
         assert not result.is_valid
-        assert any("leer" in e.lower() for e in result.errors)
+        assert any("empty" in e.lower() for e in result.errors)
 
 
 # ---------------------------------------------------------------------------
@@ -318,13 +318,14 @@ class TestCheckHuLayer:
 
     @pytest.mark.unit
     @pytest.mark.edge_case
-    def test_null_fkt_value_adds_error(self):
-        """Error when fkt value is NULL."""
+    def test_null_fkt_value_adds_warning(self):
+        """Warning (not error) when fkt value is NULL — processing can still continue."""
         layer = self._make_hu_layer("fkt")
         _add_polygon_feature(layer, fkt=None)
         result = ValidationResult()
         self.validator._check_hu_layer(layer, result)
-        assert not result.is_valid
+        assert result.is_valid  # NULL fkt is a warning, not a blocking error
+        assert len(result.warnings) > 0
 
     @pytest.mark.unit
     @pytest.mark.edge_case
@@ -677,7 +678,7 @@ class TestCheckFilterFile:
             result = ValidationResult()
             validator._check_filter_file(path, result)
             assert not result.is_valid
-            assert any("vor" in e.lower() for e in result.errors)
+            assert any("before" in e.lower() for e in result.errors)
         finally:
             os.unlink(path)
 
