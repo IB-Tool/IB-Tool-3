@@ -1020,9 +1020,18 @@ class IBTool:
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        merge_layer = create_empty_layer("global_merge_layer",
-                                         "Polygon",
-                                         spatial_reference.authid())
+        merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
+        if not DelPartLog and os.path.isfile(merge_temp_file):
+            merge_layer = QgsVectorLayer(merge_temp_file, 'global_merge_layer', 'ogr')
+            if not merge_layer.isValid():
+                logger.log("Intermediate merge file invalid, starting fresh", 'WARNING')
+                merge_layer = create_empty_layer("global_merge_layer", "Polygon",
+                                                 spatial_reference.authid())
+            else:
+                logger.log("Loaded intermediate merge layer for resume", 'INFO')
+        else:
+            merge_layer = create_empty_layer("global_merge_layer", "Polygon",
+                                             spatial_reference.authid())
         merge = merge_layer  # Initialize to avoid UnboundLocalError if loop doesn't execute
         # Partitionen aus Gesamtdatei für Debugging auswählen
         part_list = create_partitions_list(layer_part,  # noqa: F405
@@ -1045,7 +1054,7 @@ class IBTool:
         else:
             pass
 
-        logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "INFO")
+        logger.log("Global building coverage threshold = {}".format(str(global_footprint_density)), "CRITICAL")
 
         if DelPartLog:
             if os.path.isfile(part_log_path):
@@ -1060,25 +1069,25 @@ class IBTool:
             part_log.write("")
             part_log.close()
 
+        if not os.path.isfile(PartLogFin):
+            with open(PartLogFin, 'w') as f:
+                f.write("")
+
+        finished_parts = set()
+        with open(PartLogFin, 'r') as f:
+            finished_parts = {row.strip() for row in f if row.strip()}
+
         anz_hu_gesamt = layer_hu.featureCount()
         anz_hu_sum = 0
 
         for a, i in enumerate(part_list, start=1):
             logger.log("Check if {} is in Partlist.".format(str(i)),
                        'SUCCESS')
-            isin = False
-            part_log = open(part_log_path, 'r+')
-            for row in part_log:
-                part = str(row).replace('\n', '')
-                if part == i:
-                    isin = True
-            if isin is False:
-                part_log.write("\n" + i)
-                part_log.close()
-            if isin is True:
-                part_log.close()
-                logger.log("{} is in PartLog.".format(str(i)), 'SUCCESS')
+            if i in finished_parts:
+                logger.log("{} already completed, skipping.".format(str(i)), 'SUCCESS')
                 continue
+            with open(part_log_path, 'a') as part_log:
+                part_log.write("\n" + i)
 
             part_name = i
             logger.log("###############################", 'CRITICAL')
@@ -1209,6 +1218,17 @@ class IBTool:
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
             })['OUTPUT']
             merge_layer = merge
+
+            # Zwischenergebnis auf Disk sichern (für Resume)
+            save_temp_layer_to_gpkg(
+                merge_layer,
+                'IB_Tool_merge_temp',
+                workspace_path + 'IB_Tool_Results/'
+            )
+            # Partition als abgeschlossen markieren
+            with open(PartLogFin, 'a') as part_log:
+                part_log.write("\n" + part_name)
+            finished_parts.add(part_name)
 
         # Load output from previous step
         if not merge.isValid():

@@ -725,6 +725,7 @@ def _build_minimized_lines_from_selection(
         chain = [start_node, next_node]
         prev_node = start_node
         curr_node = next_node
+        local_visited = {tuple(sorted([start_node, next_node]))}
 
         while len(adjacency[curr_node]) == 2:
             candidates = [node for node in adjacency[curr_node] if node != prev_node]
@@ -732,8 +733,9 @@ def _build_minimized_lines_from_selection(
                 break
             forward_node = candidates[0]
             segment = tuple(sorted([curr_node, forward_node]))
-            if segment in visited_segments:
+            if segment in visited_segments or segment in local_visited:
                 break
+            local_visited.add(segment)
             chain.append(forward_node)
             prev_node = curr_node
             curr_node = forward_node

@@ -190,10 +190,12 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
     else:  # Local extent
         Inner_Blocks = select_block(InputStrNetwork, InputBdg, Buffer)
 
-    # Calculate block names
+    # Calculate block names — use BLOCK_ID to avoid case-collision with the
+    # buildings layer's 'name' field during intersection (QGIS expressions
+    # match field names case-insensitively, so 'NAME' == 'name').
     Inner_Blocks = processing.run("native:addautoincrementalfield", {
         'INPUT': Inner_Blocks,
-        'FIELD_NAME': 'NAME',
+        'FIELD_NAME': 'BLOCK_ID',
         'START': 1,
         'GROUP_FIELDS': [],
         'SORT_EXPRESSION': '',
@@ -262,12 +264,12 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         "native:aggregate",
         {
             'INPUT': intersected_layer,
-            'GROUP_BY': 'NAME',  # Ersetze "large_id" durch das Feld, das die IDs der großen Polygone enthält
+            'GROUP_BY': 'BLOCK_ID',
             'AGGREGATES': [
                 {'aggregate': 'sum', 'delimiter': ',', 'input': 'area_intersect', 'length': 10,
                  'name': 'sum_area_intersect', 'precision': 3, 'type': 6},
-                {'aggregate': 'median', 'delimiter': ',', 'input': '"NAME"', 'length': 0, 'name': 'NAME_SUM',
-                 'precision': 0, 'sub_type': 0, 'type': 4, 'type_name': 'int8'}
+                {'aggregate': 'first_value', 'delimiter': ',', 'input': 'BLOCK_ID', 'length': 0,
+                 'name': 'BLOCK_ID', 'precision': 0, 'sub_type': 0, 'type': 4, 'type_name': 'int8'},
             ],
             'OUTPUT': 'TEMPORARY_OUTPUT'
         }
@@ -278,9 +280,9 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         "native:joinattributestable",
         {
             'INPUT': Bloecke,
-            'FIELD': 'NAME',  # Ersetze "large_id" durch das ID-Feld der großen Polygone
+            'FIELD': 'BLOCK_ID',
             'INPUT_2': sum_result,
-            'FIELD_2': 'NAME_SUM',
+            'FIELD_2': 'BLOCK_ID',
             'FIELDS_TO_COPY': ['sum_area_intersect'],
             'METHOD': 1,  # Take attributes of the first matching feature only
             'DISCARD_NONMATCHING': True,
