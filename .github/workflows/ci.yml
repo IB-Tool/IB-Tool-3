@@ -22,6 +22,8 @@ jobs:
           docker build --pull -t qgis-plugin-test .
 
       - name: Run tests with coverage
+        id: run_tests
+        continue-on-error: true
         run: |
           # Run container; coverage.xml is written to /plugins/ibtool/ which maps
           # to $(pwd) via the volume mount, so it appears on the host automatically.
@@ -46,3 +48,9 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           fail_ci_if_error: true
+
+      - name: Fail job if tests failed
+        if: steps.run_tests.outcome == 'failure'
+        run: |
+          echo "Tests failed — see output above."
+          exit 1
