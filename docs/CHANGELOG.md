@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## 2026-03-03
+
+### Added
+- **Validation** (`helpers/check.py`): `gfkzshh` accepted as a third valid building-function field alongside `fkt` and `funktion`; a warning is now emitted when the positive filter produces an empty result set.
+- **GapFix** (`ibtool_tools/GapFix.py`): Added support for resuming processing from an intermediate merge layer; improved per-partition log output.
+- **Docs** (`docs/input-data.md`): New dedicated documentation file covering all five input layers (field requirements, geometry types, minimum feature counts), filter file format with example, output and workspace path requirements, and the complete validation check table.
+
+### Changed
+- **Validation** (`helpers/check.py`): All user-visible strings translated from German to English — layer display names (`"Gebäudeumrisse (HU)"` → `"Building footprints (HU)"` etc.), error/warning messages, hint texts, and numeric-parameter labels. NULL `fkt`/`gfkzshh`/`funktion` values now produce a **warning** instead of an error (processing can continue).
+- **FootprintDensity** (`ibtool_tools/FootprintDensity.py`): Internal aggregation and join field renamed from `NAME` to `BLOCK_ID` to prevent a case-collision with the buildings layer's `name` field in QGIS expression contexts.
+- **EdgeCatch** (`helpers/edge_catch_utils.py`): Added `local_visited` set to the edge-chain traversal to prevent segments from being revisited within a single chain, fixing an infinite-loop edge case on densely connected road segments.
+- **README**: `## Input Data` section condensed to a four-line summary with a reference to `docs/input-data.md`; full specifications moved to the new dedicated file.
+
+### Tests
+- **`test_check.py`**: Updated layer key strings to English (`"Building footprints (HU)"` etc.); replaced German word assertions (`"leer"` → `"empty"`, `"vor"` → `"before"`); renamed `test_null_fkt_value_adds_error` → `test_null_fkt_value_adds_warning` and corrected the assertion (NULL fkt is a warning, `is_valid` remains `True`).
+- **`test_footprint_density.py`**: Updated `_block_layer_with_name` factory to create a `BLOCK_ID` field instead of `NAME`; updated `_add_named_block` to set `BLOCK_ID` accordingly.
+
+### Removed
+- **`IB-Tool2.py`**: Deleted legacy root-level script.
+- **`test/test_import_mst.py`**: Deleted unused test file.
+
+---
+
 ## 2026-03-01
 
 ### Added
