@@ -6,16 +6,25 @@ This document covers the development setup, CI/CD pipeline, test structure, and 
 
 ## Continuous Integration with GitHub Actions and Docker
 
-The project uses GitHub Actions for automated tests in a Docker environment. The CI pipeline runs on every push to the `master` branch and on pull requests.
+The project uses two GitHub Actions workflows:
 
-### CI Workflow (`.github/workflows/ci.yml`)
+| Workflow | File | Trigger | Purpose |
+|----------|------|---------|---------|
+| **CI** | `.github/workflows/ci.yml` | push to `master`/`main`, PRs | Docker-based tests + Codecov coverage |
+| **QGIS Plugin CI** | `.github/workflows/qgis-plugin-ci.yml` | every push + PRs | Lint, security scan, ZIP build + validation |
 
-The CI workflow:
-1. Checks out the repository code
+---
+
+### Workflow 1 — CI (`.github/workflows/ci.yml`)
+
+Runs on pushes to `master`/`main` and on all pull requests.
+
+Steps:
+1. Checks out the repository
 2. Sets up Docker Buildx
-3. Builds the Docker image based on the `Dockerfile`
-4. Runs the tests inside the container with coverage reporting
-5. Verifies the coverage report and fixes container-absolute paths
+3. Builds the Docker image from `Dockerfile`
+4. Runs the full test suite inside the container with coverage reporting
+5. Verifies `coverage.xml` exists and strips container-absolute paths
 6. Uploads the coverage report to Codecov
 
 ```yaml
@@ -28,42 +37,28 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Docker image
-        run: docker build --pull -t qgis-plugin-test .
-
-      - name: Run tests with coverage
-        run: |
+      - uses: actions/checkout@v3
+      - uses: docker/setup-buildx-action@v2
+      - run: docker build --pull -t qgis-plugin-test .
+      - run: |
           docker run --rm \
             -v $(pwd):/plugins/ibtool \
             qgis-plugin-test
-
-      - name: Verify and fix coverage report
-        run: |
-          if [ ! -f coverage.xml ]; then
-            echo "ERROR: coverage.xml not found after test run"
-            exit 1
-          fi
+      - run: |
+          if [ ! -f coverage.xml ]; then exit 1; fi
           sed -i 's|/plugins/ibtool/||g' coverage.xml
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           fail_ci_if_error: true
 ```
 
-### Coverage Reporting
+#### Coverage Reporting
 
-Test coverage is measured with `pytest-cov` and uploaded to [Codecov](https://codecov.io) on every CI run. The `coverage.xml` file is written by the container into the volume-mounted workspace, so it is available on the host after the container exits. Container-absolute paths (`/plugins/ibtool/`) are stripped before upload so Codecov can map lines back to the repository.
+Test coverage is measured with `pytest-cov` and uploaded to [Codecov](https://codecov.io) on every CI run. The `coverage.xml` file is written by the container into the volume-mounted workspace and is available on the host after the container exits. Container-absolute paths (`/plugins/ibtool/`) are stripped before upload so Codecov can map lines back to the repository.
 
-### Docker Environment
+#### Docker Environment
 
 The `Dockerfile` is based on the official QGIS image `3liz/qgis-platform:3.40` and:
 
@@ -73,7 +68,7 @@ The `Dockerfile` is based on the official QGIS image `3liz/qgis-platform:3.40` a
 - Initialises the QGIS Processing provider
 - Runs the tests with pytest
 
-### Local Development with Docker
+#### Local Development with Docker
 
 ```bash
 # Build the Docker image
@@ -84,7 +79,7 @@ docker run --rm qgis-plugin-test
 docker run --rm -it qgis-plugin-test /bin/bash
 ```
 
-### System Dependencies (Docker)
+#### System Dependencies (Docker)
 
 | Package | Purpose |
 |---------|---------|
@@ -97,18 +92,67 @@ docker run --rm -it qgis-plugin-test /bin/bash
 | `python3-psycopg2` | PostgreSQL connection |
 | `python3-shapely`, `python3-fiona` | Geometry processing |
 
+---
+
+### Workflow 2 — QGIS Plugin CI (`.github/workflows/qgis-plugin-ci.yml`)
+
+Runs on every push and every pull request (all branches).
+
+Steps:
+
+| Step | Tool | What it checks |
+|------|------|----------------|
+| Structure + metadata validation | `ci/qgis_plugin_validate.py --auto` | `metadata.txt` completeness, required files |
+| Style linting | `flake8` | PEP 8 compliance |
+| Security scanning | `bandit -r . -ll` | Common Python security issues |
+| Secret detection | `detect-secrets` | Accidentally committed credentials |
+| Build release ZIP | `scripts/create_release_zip.py` | Produces `dist/*.zip` |
+| Validate release ZIP | `ci/qgis_plugin_validate.py --zip dist/*.zip` | ZIP structure and manifest |
+| Upload artifact | `actions/upload-artifact@v4` | `dist/*.zip` retained for 30 days |
+
+The `detect-secrets` scan excludes `Testdaten/` and `README.md`.
+
+#### Running checks locally
+
+```bash
+pip install flake8 bandit detect-secrets
+
+# Style
+flake8 .
+
+# Security
+bandit -r . -ll
+
+# Secret scan
+detect-secrets scan --force-use-all-plugins \
+  --exclude-files 'Testdaten/.*' \
+  --exclude-files 'README\.md'
+
+# Structure validation
+python ci/qgis_plugin_validate.py --auto
+
+# Build and validate ZIP
+python scripts/create_release_zip.py
+python ci/qgis_plugin_validate.py --zip dist/*.zip
+```
+
+---
+
 ### Customising the CI Pipeline
 
 To modify the CI pipeline, edit:
 
-- `.github/workflows/ci.yml` — Workflow configuration
+- `.github/workflows/ci.yml` — test workflow
+- `.github/workflows/qgis-plugin-ci.yml` — lint/validate/release workflow
 - `Dockerfile` — Docker environment and dependencies
-- `test/` — Test files and test data
+- `ci/qgis_plugin_validate.py` — plugin structure validation rules
+- `scripts/create_release_zip.py` — release ZIP builder
+- `test/` — test files and test data
 
 ### Debugging CI Failures
 
 1. Check the GitHub Actions logs for detailed error messages.
-2. Test the Docker image locally using the same commands.
+2. Test the Docker image locally (Workflow 1) or run the local commands above (Workflow 2).
 3. Make sure new tests support the Docker environment (headless mode).
 
 ---
