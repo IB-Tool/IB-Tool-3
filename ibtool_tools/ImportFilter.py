@@ -76,10 +76,12 @@ def import_filter(
     fields = hu_layer.fields()
     if fields.indexOf("fkt") != -1:
         fieldname = "fkt"
+    elif fields.indexOf("gfkzshh") != -1:
+        fieldname = "gfkzshh"
     elif fields.indexOf("funktion") != -1:
         fieldname = "funktion"
     else:
-        raise Exception("Der Eingabelayer hat weder ein 'fkt'- noch ein 'funktion'-Feld.")
+        raise Exception("Der Eingabelayer hat weder ein 'fkt', 'gfkzshh'- noch ein 'funktion'-Feld.")
 
     # Read filter file and build entry lists
     with open(filename, 'r', encoding='utf-8') as file:
@@ -175,6 +177,13 @@ def input_hu_filter(
             raise Exception("Failed to create res_cent")
         if debug_mode and workspace_path:
             save_debug_layer(res_cent, _DEBUG_TOOL_NAME, "after_centroids", workspace_path)
+
+        if res_cent.featureCount() == 0:
+            Logger.log(
+                "Kein Gebäude nach positivem Filter übrig – Filterung wird übersprungen.",
+                level="WARNING",
+            )
+            return hu_layer
 
         # Create point density
         hu_raster = QgsProcessingUtils.generateTempFilename("hu_raster.tif")
