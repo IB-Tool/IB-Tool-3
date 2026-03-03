@@ -52,9 +52,12 @@ from ibtool.ibtool_tools.FootprintDensity import (
 # ---------------------------------------------------------------------------
 
 def _block_layer_with_name(crs: str = "EPSG:25833") -> QgsVectorLayer:
-    """City block layer with a NAME field (required by footprint_density)."""
+    """City block layer with a BLOCK_ID field (required by footprint_density).
+
+    Note: footprint_density joins on BLOCK_ID (renamed from NAME in commit 6cebfaf).
+    """
     layer = make_polygon_layer(crs)
-    layer.dataProvider().addAttributes([QgsField("NAME", QVariant.Int)])
+    layer.dataProvider().addAttributes([QgsField("BLOCK_ID", QVariant.Int)])
     layer.updateFields()
     return layer
 
@@ -63,7 +66,7 @@ def _add_named_block(layer: QgsVectorLayer, x0: float, y0: float,
                      size: float, name: int):
     feat = QgsFeature(layer.fields())
     feat.setGeometry(make_square_geom(x0, y0, size))
-    feat.setAttribute("NAME", name)
+    feat.setAttribute("BLOCK_ID", name)
     layer.dataProvider().addFeatures([feat])
     layer.updateExtents()
 
