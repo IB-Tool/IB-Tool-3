@@ -5,8 +5,6 @@ Validates all input layers, fields, geometry types, CRS, and filter files
 before processing starts.
 """
 
-#todo übersetze die meldungen auch ins englsiche
-
 import os
 import re
 from dataclasses import dataclass, field
@@ -115,10 +113,10 @@ class InputValidator:
 
         # Layer paths and display names
         layer_paths = {
-            "Gebäudeumrisse (HU)": hu_path,
-            "Straßennetz (RN)": rn_path,
-            "Partitionierung (Part)": part_path,
-            "Hilfslayer (Aux)": aux_path,
+            "Building footprints (HU)": hu_path,
+            "Road network (RN)": rn_path,
+            "Partitioning (Part)": part_path,
+            "Auxiliary layer (Aux)": aux_path,
         }
 
         valid_layers = {}  # name -> QgsVectorLayer for layers that loaded OK
@@ -126,13 +124,13 @@ class InputValidator:
         for name, path in layer_paths.items():
             # Check path is specified
             if not path or not path.strip():
-                result.add_error(f"{name}: Kein Dateipfad angegeben.")
+                result.add_error(f"{name}: No file path specified.")
                 continue
 
             # Check file exists
             if not os.path.exists(path):
                 result.add_error(
-                    f"{name}: Datei existiert nicht: {path}"
+                    f"{name}: File does not exist: {path}"
                 )
                 continue
 
@@ -140,8 +138,7 @@ class InputValidator:
             layer = QgsVectorLayer(path, name, "ogr")
             if not layer.isValid():
                 result.add_error(
-                    f"{name}: Datei kann nicht als gültiger Layer "
-                    f"geladen werden: {path}"
+                    f"{name}: File cannot be loaded as a valid layer: {path}"
                 )
                 continue
 
@@ -162,20 +159,20 @@ class InputValidator:
             self._check_validity_processing(layer, name, result)
 
         # Layer-specific checks
-        hu_key = "Gebäudeumrisse (HU)"
+        hu_key = "Building footprints (HU)"
         if hu_key in valid_layers:
             self._check_hu_layer(valid_layers[hu_key], result)
 
-        rn_key = "Straßennetz (RN)"
+        rn_key = "Road network (RN)"
         if rn_key in valid_layers:
             self._check_rn_layer(valid_layers[rn_key], result)
 
-        part_key = "Partitionierung (Part)"
+        part_key = "Partitioning (Part)"
         if part_key in valid_layers:
             self._check_part_layer(valid_layers[part_key], result)
 
         # Multipart geometry check for line layers
-        for key in [rn_key, "Hilfslayer (Aux)"]:
+        for key in [rn_key, "Auxiliary layer (Aux)"]:
             if key in valid_layers:
                 self._check_multipart_lines(valid_layers[key], key, result)
 
@@ -211,11 +208,11 @@ class InputValidator:
         """Check that layer CRS matches the expected spatial reference."""
         layer_crs = layer.crs()
         if layer_crs.authid() != expected_crs.authid():
-            actual = layer_crs.authid() or "undefiniert/unbekannt"
+            actual = layer_crs.authid() or "undefined/unknown"
             result.add_error(
-                f"{layer_name}: CRS stimmt nicht überein. "
-                f"Erwartet: {expected_crs.authid()}, gefunden: {actual}. "
-                f"Hinweis: Layer nach {expected_crs.authid()} reprojizieren."
+                f"{layer_name}: CRS mismatch. "
+                f"Expected: {expected_crs.authid()}, found: {actual}. "
+                f"Hint: Reproject the layer to {expected_crs.authid()}."
             )
 
     def _check_feature_counts(
@@ -223,9 +220,9 @@ class InputValidator:
     ) -> None:
         """Check that layers contain minimum required feature counts."""
         min_counts = {
-            "Gebäudeumrisse (HU)": self.MIN_FEATURES_HU,
-            "Straßennetz (RN)": self.MIN_FEATURES_RN,
-            "Hilfslayer (Aux)": self.MIN_FEATURES_AUX,
+            "Building footprints (HU)": self.MIN_FEATURES_HU,
+            "Road network (RN)": self.MIN_FEATURES_RN,
+            "Auxiliary layer (Aux)": self.MIN_FEATURES_AUX,
         }
 
         for name, min_count in min_counts.items():
@@ -235,14 +232,14 @@ class InputValidator:
             count = layer.featureCount()
             if count == 0:
                 result.add_error(
-                    f"{name}: Layer ist leer (0 Features). "
-                    f"Hinweis: Layer mit Daten befüllen."
+                    f"{name}: Layer is empty (0 features). "
+                    f"Hint: Populate the layer with data."
                 )
             elif count < min_count:
                 result.add_error(
-                    f"{name}: Zu wenige Features ({count}), "
-                    f"mindestens {min_count} erforderlich. "
-                    f"Hinweis: Datensatz auf Vollständigkeit prüfen."
+                    f"{name}: Too few features ({count}), "
+                    f"at least {min_count} required. "
+                    f"Hint: Check the dataset for completeness."
                 )
 
     # ------------------------------------------------------------------
@@ -281,24 +278,24 @@ class InputValidator:
 
         if null_count > 0:
             result.add_error(
-                f"{layer_name}: {null_count} Features mit NULL-Geometrie. "
-                f"Hinweis: Features ohne Geometrie entfernen."
+                f"{layer_name}: {null_count} features with NULL geometry. "
+                f"Hint: Remove features without geometry."
             )
 
         if empty_count > 0:
             result.add_error(
-                f"{layer_name}: {empty_count} Features mit leerer Geometrie. "
-                f"Hinweis: Features mit leerer Geometrie entfernen."
+                f"{layer_name}: {empty_count} features with empty geometry. "
+                f"Hint: Remove features with empty geometry."
             )
 
         if invalid_count > 0:
             details = ""
             if invalid_reasons:
-                details = " Beispiele: " + "; ".join(invalid_reasons) + "."
+                details = " Examples: " + "; ".join(invalid_reasons) + "."
             result.add_warning(
-                f"{layer_name}: {invalid_count} ungültige Geometrien "
+                f"{layer_name}: {invalid_count} invalid geometries "
                 f"(isGeosValid=False).{details} "
-                f"Hinweis: Geometrien reparieren "
+                f"Hint: Fix geometries "
                 f"(native:fixgeometries)."
             )
 
@@ -352,19 +349,19 @@ class InputValidator:
 
             details = ""
             if error_messages:
-                details = " Fehlertypen: " + "; ".join(error_messages) + "."
+                details = " Error types: " + "; ".join(error_messages) + "."
 
             result.add_warning(
-                f"{layer_name}: 'qgis:checkvalidity' hat "
-                f"{invalid_count} ungültige Features gefunden.{details} "
-                f"Hinweis: Geometrien reparieren "
+                f"{layer_name}: 'qgis:checkvalidity' found "
+                f"{invalid_count} invalid features.{details} "
+                f"Hint: Fix geometries "
                 f"(native:fixgeometries)."
             )
 
         except Exception as e:
             result.add_warning(
-                f"{layer_name}: 'qgis:checkvalidity' konnte nicht "
-                f"ausgeführt werden: {e}"
+                f"{layer_name}: 'qgis:checkvalidity' could not "
+                f"be executed: {e}"
             )
 
     # ------------------------------------------------------------------
@@ -379,9 +376,9 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Gebäudeumrisse (HU): Polygon-Geometrie erforderlich, "
-                f"aber {geom_type} gefunden. "
-                f"Hinweis: Einen Layer mit Polygon-Geometrie verwenden."
+                f"Building footprints (HU): Polygon geometry required, "
+                f"but {geom_type} found. "
+                f"Hint: Use a layer with polygon geometry."
             )
 
         # Required field: fkt or funktion
@@ -394,10 +391,10 @@ class InputValidator:
 
         if not fkt_field:
             result.add_error(
-                f"Gebäudeumrisse (HU): Feld 'fkt', 'gfkzshh' oder 'funktion' fehlt. "
-                f"Vorhandene Felder: {', '.join(field_names[:15])}. "
-                f"Hinweis: Ein Feld 'fkt', 'gfkzshh' oder 'funktion' mit "
-                f"Gebäudefunktionscodes hinzufügen."
+                f"Building footprints (HU): Field 'fkt', 'gfkzshh' or 'funktion' missing. "
+                f"Available fields: {', '.join(field_names[:15])}. "
+                f"Hint: Add a field 'fkt', 'gfkzshh' or 'funktion' containing "
+                f"building function codes."
             )
             return
 
@@ -419,20 +416,20 @@ class InputValidator:
 
         if null_count > 0:
             result.add_warning(
-                f"Gebäudeumrisse (HU): {null_count} Features mit "
-                f"leerem/NULL-Wert im Feld '{fkt_field}'. "
-                f"Hinweis: Alle Features brauchen einen "
-                f"Gebäudefunktionscode."
+                f"Building footprints (HU): {null_count} features with "
+                f"empty/NULL value in field '{fkt_field}'. "
+                f"Hint: All features require a "
+                f"building function code."
             )
 
         if invalid_format:
             result.add_warning(
-                f"Gebäudeumrisse (HU): Werte im Feld '{fkt_field}' "
-                f"entsprechen nicht dem ATKIS-Format (NNNNN_NNNN, "
-                f"z.B. 31001_1000). Beispiele: "
+                f"Building footprints (HU): Values in field '{fkt_field}' "
+                f"do not match the ATKIS format (NNNNN_NNNN, "
+                f"e.g. 31001_1000). Examples: "
                 f"{', '.join(invalid_format)}. "
-                f"Hinweis: Nur die ersten 10 Zeichen werden "
-                f"fuer den Filterabgleich verwendet."
+                f"Hint: Only the first 10 characters are used "
+                f"for filter matching."
             )
 
     def _check_rn_layer(
@@ -442,9 +439,9 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.LineGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Straßennetz (RN): Linien-Geometrie erforderlich, "
-                f"aber {geom_type} gefunden. "
-                f"Hinweis: Einen Layer mit Linien-Geometrie verwenden."
+                f"Road network (RN): Line geometry required, "
+                f"but {geom_type} found. "
+                f"Hint: Use a layer with line geometry."
             )
 
     def _check_part_layer(
@@ -456,11 +453,11 @@ class InputValidator:
         # Required field: NAME
         if self.PART_REQUIRED_FIELD not in field_names:
             result.add_error(
-                f"Partitionierung (Part): Feld "
-                f"'{self.PART_REQUIRED_FIELD}' fehlt. "
-                f"Vorhandene Felder: {', '.join(field_names[:15])}. "
-                f"Hinweis: Ein Textfeld 'NAME' mit Partitionsnamen "
-                f"(z.B. PART_123) hinzufügen."
+                f"Partitioning (Part): Field "
+                f"'{self.PART_REQUIRED_FIELD}' missing. "
+                f"Available fields: {', '.join(field_names[:15])}. "
+                f"Hint: Add a text field 'NAME' with partition names "
+                f"(e.g. PART_123)."
             )
             return
 
@@ -481,19 +478,19 @@ class InputValidator:
 
         if null_count > 0:
             result.add_error(
-                f"Partitionierung (Part): {null_count} Features mit "
-                f"leerem/NULL-Wert im Feld 'NAME'. "
-                f"Hinweis: Alle Partitionen brauchen einen Namen "
-                f"im Format PART_<Zahl>."
+                f"Partitioning (Part): {null_count} features with "
+                f"empty/NULL value in field 'NAME'. "
+                f"Hint: All partitions require a name "
+                f"in the format PART_<number>."
             )
 
         if non_matching:
             result.add_error(
-                f"Partitionierung (Part): NAME-Werte entsprechen "
-                f"nicht dem Format PART_<Zahl>. "
-                f"Beispiele: {', '.join(non_matching)}. "
-                f"Hinweis: NAME-Werte muessen exakt dem Muster "
-                f"PART_123 folgen (z.B. PART_36, PART_433)."
+                f"Partitioning (Part): NAME values do not "
+                f"match the format PART_<number>. "
+                f"Examples: {', '.join(non_matching)}. "
+                f"Hint: NAME values must exactly follow the pattern "
+                f"PART_123 (e.g. PART_36, PART_433)."
             )
 
     # ------------------------------------------------------------------
@@ -526,10 +523,10 @@ class InputValidator:
 
         if multiline_count > 0:
             result.add_error(
-                f"{layer_name}: {multiline_count} Features enthalten "
-                f"mehrere Linienzuege (MultiLineString mit >1 Teil). "
-                f"Jedes Feature darf nur einen Linienzug enthalten. "
-                f"Hinweis: Sketcher auflösen "
+                f"{layer_name}: {multiline_count} features contain "
+                f"multiple line strings (MultiLineString with >1 part). "
+                f"Each feature may only contain one line string. "
+                f"Hint: Explode multipart features "
                 f"(native:multiparttosingleparts)."
             )
 
@@ -547,12 +544,12 @@ class InputValidator:
         ratio = hu_count / part_count
         if ratio > self.MAX_PART_TO_HU_RATIO:
             result.add_warning(
-                f"Verhältnis Part:HU = 1:{ratio:.0f} "
-                f"(Schwellenwert: 1:{self.MAX_PART_TO_HU_RATIO}). "
-                f"Part hat {part_count} Features, HU hat "
-                f"{hu_count} Features. "
-                f"Hinweis: Feinere Partitionierung verwenden, um die "
-                f"Verarbeitungszeit pro Partition zu reduzieren."
+                f"Part:HU ratio = 1:{ratio:.0f} "
+                f"(threshold: 1:{self.MAX_PART_TO_HU_RATIO}). "
+                f"Part has {part_count} features, HU has "
+                f"{hu_count} features. "
+                f"Hint: Use a finer partitioning to reduce "
+                f"processing time per partition."
             )
 
     # ------------------------------------------------------------------
@@ -609,12 +606,12 @@ class InputValidator:
             List of raw lines from the file, or None if it could not be read.
         """
         if not filter_path or not filter_path.strip():
-            result.add_error("Filterdatei: Kein Dateipfad angegeben.")
+            result.add_error("Filter file: No file path specified.")
             return None
 
         if not os.path.exists(filter_path):
             result.add_error(
-                f"Filterdatei: Datei existiert nicht: {filter_path}"
+                f"Filter file: File does not exist: {filter_path}"
             )
             return None
 
@@ -623,8 +620,8 @@ class InputValidator:
                 return f.readlines()
         except Exception as e:
             result.add_error(
-                f"Filterdatei: Datei kann nicht gelesen werden: {e}. "
-                f"Hinweis: Datei muss UTF-8-kodiert und lesbar sein."
+                f"Filter file: File cannot be read: {e}. "
+                f"Hint: File must be UTF-8 encoded and readable."
             )
             return None
 
@@ -685,31 +682,31 @@ class InputValidator:
 
         if pos_line is None:
             result.add_error(
-                f"Filterdatei: Abschnitt "
-                f"'{self.FILTER_SECTION_POSITIVE}' fehlt. "
-                f"Hinweis: Zeile '{self.FILTER_SECTION_POSITIVE}' "
-                f"in der Datei ergänzen."
+                f"Filter file: Section "
+                f"'{self.FILTER_SECTION_POSITIVE}' missing. "
+                f"Hint: Add the line '{self.FILTER_SECTION_POSITIVE}' "
+                f"to the file."
             )
         if neg_line is None:
             result.add_error(
-                f"Filterdatei: Abschnitt "
-                f"'{self.FILTER_SECTION_NEGATIVE}' fehlt. "
-                f"Hinweis: Zeile '{self.FILTER_SECTION_NEGATIVE}' "
-                f"in der Datei ergänzen."
+                f"Filter file: Section "
+                f"'{self.FILTER_SECTION_NEGATIVE}' missing. "
+                f"Hint: Add the line '{self.FILTER_SECTION_NEGATIVE}' "
+                f"to the file."
             )
         if pos_line is not None and neg_line is not None and pos_line > neg_line:
             result.add_error(
-                f"Filterdatei: '{self.FILTER_SECTION_POSITIVE}' "
-                f"(Zeile {pos_line}) muss vor "
+                f"Filter file: '{self.FILTER_SECTION_POSITIVE}' "
+                f"(line {pos_line}) must appear before "
                 f"'{self.FILTER_SECTION_NEGATIVE}' "
-                f"(Zeile {neg_line}) stehen."
+                f"(line {neg_line})."
             )
         if orphan_lines:
-            samples = [f"Zeile {n}: {t[:30]}" for n, t in orphan_lines[:3]]
+            samples = [f"line {n}: {t[:30]}" for n, t in orphan_lines[:3]]
             result.add_warning(
-                f"Filterdatei: {len(orphan_lines)} Zeilen stehen vor "
-                f"dem ersten Abschnittsheader und werden ignoriert. "
-                f"Beispiele: {'; '.join(samples)}."
+                f"Filter file: {len(orphan_lines)} lines appear before "
+                f"the first section header and will be ignored. "
+                f"Examples: {'; '.join(samples)}."
             )
 
     def _validate_filter_entries(
@@ -728,17 +725,17 @@ class InputValidator:
 
         if pos_line is not None and len(entries_positive) == 0:
             result.add_error(
-                f"Filterdatei: Abschnitt "
-                f"'{self.FILTER_SECTION_POSITIVE}' enthält keine "
-                f"Einträge. Hinweis: Mindestens einen "
-                f"Funktionscode hinzufügen."
+                f"Filter file: Section "
+                f"'{self.FILTER_SECTION_POSITIVE}' contains no "
+                f"entries. Hint: Add at least one "
+                f"function code."
             )
         if neg_line is not None and len(entries_negative) == 0:
             result.add_error(
-                f"Filterdatei: Abschnitt "
-                f"'{self.FILTER_SECTION_NEGATIVE}' enthält keine "
-                f"Einträge. Hinweis: Mindestens einen "
-                f"Funktionscode hinzufügen."
+                f"Filter file: Section "
+                f"'{self.FILTER_SECTION_NEGATIVE}' contains no "
+                f"entries. Hint: Add at least one "
+                f"function code."
             )
 
         invalid_entries = []
@@ -746,15 +743,15 @@ class InputValidator:
             code = entry[:10].strip().rstrip(",")
             if not self.HU_FKT_PATTERN.match(code):
                 if len(invalid_entries) < 5:
-                    invalid_entries.append(f"Zeile {line_nr}: {entry[:30]}")
+                    invalid_entries.append(f"line {line_nr}: {entry[:30]}")
 
         if invalid_entries:
             result.add_warning(
-                f"Filterdatei: Einträge entsprechen nicht dem "
-                f"ATKIS-Format (NNNNN_NNNN). Beispiele: "
+                f"Filter file: Entries do not match the "
+                f"ATKIS format (NNNNN_NNNN). Examples: "
                 f"{'; '.join(invalid_entries)}. "
-                f"Hinweis: Nur die ersten 10 Zeichen werden "
-                f"für den Filterabgleich verwendet."
+                f"Hint: Only the first 10 characters are used "
+                f"for filter matching."
             )
 
     def _check_output_paths(
@@ -763,19 +760,19 @@ class InputValidator:
     ) -> None:
         """Validate output and workspace paths."""
         if not output_path or not output_path.strip():
-            result.add_error("Ausgabedatei: Kein Pfad angegeben.")
+            result.add_error("Output file: No path specified.")
         else:
             output_dir = os.path.dirname(output_path)
             if output_dir and not os.path.exists(output_dir):
                 result.add_error(
-                    f"Ausgabedatei: Verzeichnis existiert nicht: "
+                    f"Output file: Directory does not exist: "
                     f"{output_dir}. "
-                    f"Hinweis: Verzeichnis anlegen oder anderen "
-                    f"Pfad wählen."
+                    f"Hint: Create the directory or choose a "
+                    f"different path."
                 )
 
         if not workspace_path or not workspace_path.strip():
-            result.add_error("Arbeitsverzeichnis: Kein Pfad angegeben.")
+            result.add_error("Workspace directory: No path specified.")
 
     # ------------------------------------------------------------------
     # Parameter validation
@@ -806,17 +803,17 @@ class InputValidator:
         numeric_checks = [
             ("min_overlap_blocks", "Min. Overlap Blocks (%)",
              float, 0, 100),
-            ("global_footprint_density", "Globale Footprint-Dichte (%)",
+            ("global_footprint_density", "Global Footprint Density (%)",
              float, 0, 100),
-            ("min_area", "Min. Gebaeude-Grundflaeche (qm)",
+            ("min_area", "Min. Building Area (sqm)",
              float, 10, 500),
-            ("min_bdg_count", "Min. Gebaeudeanzahl",
+            ("min_bdg_count", "Min. Building Count",
              int, 1, 100),
-            ("min_patch_size", "Min. Patchgroesse (qm)",
+            ("min_patch_size", "Min. Patch Size (sqm)",
              float, 100, 100000),
-            ("max_hole_size", "Max. Lochgroesse (qm)",
+            ("max_hole_size", "Max. Hole Size (sqm)",
              float, 0, 100000),
-            ("max_gap_size", "Max. Lueckengroesse (qm)",
+            ("max_gap_size", "Max. Gap Size (sqm)",
              float, 0, 100000),
         ]
 
@@ -828,29 +825,29 @@ class InputValidator:
             raw_str = str(raw).strip()
             if not raw_str:
                 result.add_error(
-                    f"Parameter '{label}': Kein Wert angegeben."
+                    f"Parameter '{label}': No value specified."
                 )
                 continue
 
             try:
                 value = num_type(raw_str)
             except (ValueError, TypeError):
-                expected = "Ganzzahl" if num_type == int else "Zahl"
+                expected = "integer" if num_type == int else "number"
                 result.add_error(
-                    f"Parameter '{label}': '{raw_str}' ist keine "
-                    f"gueltige {expected}."
+                    f"Parameter '{label}': '{raw_str}' is not a "
+                    f"valid {expected}."
                 )
                 continue
 
             if min_val is not None and value < min_val:
                 result.add_error(
-                    f"Parameter '{label}': Wert {value} ist kleiner "
-                    f"als das Minimum ({min_val})."
+                    f"Parameter '{label}': Value {value} is less "
+                    f"than the minimum ({min_val})."
                 )
             if max_val is not None and value > max_val:
                 result.add_error(
-                    f"Parameter '{label}': Wert {value} ist groesser "
-                    f"als das Maximum ({max_val})."
+                    f"Parameter '{label}': Value {value} is greater "
+                    f"than the maximum ({max_val})."
                 )
 
     def _check_spatial_reference_param(
@@ -869,16 +866,16 @@ class InputValidator:
         crs = QgsCoordinateReferenceSystem(sr_text)
         if not crs.isValid():
             result.add_error(
-                f"Parameter 'CRS': '{sr_text}' ist "
-                f"kein gueltiges CRS. "
-                f"Hinweis: z.B. EPSG:25832 verwenden."
+                f"Parameter 'CRS': '{sr_text}' is not "
+                f"a valid CRS. "
+                f"Hint: Use e.g. EPSG:25832."
             )
         elif crs.isGeographic():
             result.add_warning(
-                f"Parameter 'CRS': '{sr_text}' ist "
-                f"ein geographisches CRS (Grad). "
-                f"Hinweis: Ein projiziertes CRS (Meter) wie "
-                f"EPSG:25832 wird empfohlen."
+                f"Parameter 'CRS': '{sr_text}' is "
+                f"a geographic CRS (degrees). "
+                f"Hint: A projected CRS (metres) such as "
+                f"EPSG:25832 is recommended."
             )
 
     def _check_partition_range_params(
@@ -902,25 +899,25 @@ class InputValidator:
                 if ps < 0:
                     result.add_error(
                         f"Parameter 'Partition Start': "
-                        f"Wert {ps} ist ungueltig. "
-                        f"Hinweis: -1 (alle) oder >= 0."
+                        f"Value {ps} is invalid. "
+                        f"Hint: -1 (all) or >= 0."
                     )
                 if pe < 0:
                     result.add_error(
                         f"Parameter 'Partition End': "
-                        f"Wert {pe} ist ungueltig. "
-                        f"Hinweis: -1 (alle) oder >= 0."
+                        f"Value {pe} is invalid. "
+                        f"Hint: -1 (all) or >= 0."
                     )
                 if ps >= 0 and pe >= 0 and ps >= pe:
                     result.add_error(
                         f"Parameter: Partition Start ({ps}) >= "
                         f"Partition End ({pe}). "
-                        f"Hinweis: Start muss kleiner als "
-                        f"End sein."
+                        f"Hint: Start must be less than "
+                        f"End."
                     )
         except ValueError:
             result.add_error(
                 f"Parameter 'Partition Start/End': "
-                f"'{part_start}'/'{part_end}' sind keine "
-                f"gueltigen Ganzzahlen."
+                f"'{part_start}'/'{part_end}' are not "
+                f"valid integers."
             )
