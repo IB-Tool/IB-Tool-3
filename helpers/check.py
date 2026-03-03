@@ -5,6 +5,8 @@ Validates all input layers, fields, geometry types, CRS, and filter files
 before processing starts.
 """
 
+#todo übersetze die meldungen auch ins englsiche
+
 import os
 import re
 from dataclasses import dataclass, field
@@ -62,7 +64,7 @@ class InputValidator:
         return True, ""
 
     # Required fields per layer type
-    HU_REQUIRED_FIELDS = ("fkt", "funktion")  # At least one must exist
+    HU_REQUIRED_FIELDS = ("fkt", "gfkzshh", "funktion")  # At least one must exist
     HU_FKT_PATTERN = re.compile(r"^\d{5}_\d{4}")  # ATKIS: 31001_1000
     PART_REQUIRED_FIELD = "NAME"
     PART_NAME_REGEX = re.compile(r"^PART_\d+$")  # PART_36, PART_433
@@ -392,9 +394,9 @@ class InputValidator:
 
         if not fkt_field:
             result.add_error(
-                f"Gebäudeumrisse (HU): Feld 'fkt' oder 'funktion' fehlt. "
+                f"Gebäudeumrisse (HU): Feld 'fkt', 'gfkzshh' oder 'funktion' fehlt. "
                 f"Vorhandene Felder: {', '.join(field_names[:15])}. "
-                f"Hinweis: Ein Feld 'fkt' oder 'funktion' mit "
+                f"Hinweis: Ein Feld 'fkt', 'gfkzshh' oder 'funktion' mit "
                 f"Gebäudefunktionscodes hinzufügen."
             )
             return
@@ -416,7 +418,7 @@ class InputValidator:
                     invalid_format.append(str(val)[:20])
 
         if null_count > 0:
-            result.add_error(
+            result.add_warning(
                 f"Gebäudeumrisse (HU): {null_count} Features mit "
                 f"leerem/NULL-Wert im Feld '{fkt_field}'. "
                 f"Hinweis: Alle Features brauchen einen "
