@@ -160,35 +160,11 @@ For the full development setup, CI/CD pipeline details, Docker environment, test
 
 ---
 
-## Logging System
+## Logging
 
-IBTool includes a comprehensive logging system that outputs messages to three locations:
+IBTool writes log messages to the plugin dialog, to a timestamped log file in `logs/`, and to the QGIS message bar for critical errors. Four levels are supported: `CRITICAL`, `WARNING`, `INFO`, and `SUCCESS`. The active log level and log directory are configurable in the dialog.
 
-1. The user interface (message window)
-2. A log file in the configurable log directory
-3. The QGIS message log
-
-### Log Levels
-
-The system supports four log levels in descending priority:
-
-- **CRITICAL**: Critical errors that affect execution
-- **WARNING**: Warnings indicating possible issues
-- **INFO**: Informational messages about normal operation
-- **SUCCESS**: Detailed success and debug messages
-
-Selecting a log level shows all messages at that level and higher priority. Example: selecting "INFO" shows INFO, WARNING, and CRITICAL messages, but not SUCCESS messages.
-
-### Configuration
-
-The log level can be set in the user interface:
-
-1. Select the desired level of detail from the "Log Level" dropdown.
-2. Optionally: choose a different directory for log files via the "Log Directory" button.
-
-### Log Files
-
-Log files are stored by default in the `logs` subdirectory of the plugin and are named with a timestamp in the format `logfile_YYYY-MM-DD_HH-MM-SS.txt`. A new log file is created each time the plugin starts.
+For the full logging reference including level definitions, output destinations, and the debug mode, see **[docs/error-handling.md](docs/error-handling.md)**.
 
 ---
 

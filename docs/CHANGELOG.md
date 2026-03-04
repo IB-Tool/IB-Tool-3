@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## Unreleased
+
+### Changed
+- **Docs**: Harmonized `docs/` folder and `README.md` — removed redundancies, unified style (unnumbered headings, `---` separators, intro paragraphs, `## Related Files` sections), replaced duplicate content with cross-references. Added `parameterization.md`, `input-data.md`, and `CONFIG_README.md` to the `CLAUDE.md` documentation table.
+- **Docs**: Added module-level docstring to `helpers/data_loader.py`.
+- **Docs**: Converted `ibtool_tools/GapFix.py` docstring to Google style; added module-level docstring. Created `ai/domain/gap-fix.md` documenting the donut-ring algorithm and `native:dissolve` workaround.
+- **Docs**: Created `ai/domain/gap-close.md` documenting GapClose design decisions, the three GEOS/dissolve workarounds, and the two-threshold filter strategy.
+- **Docs**: Updated `ibtool/ibtool.py` — replaced GPL boilerplate with proper module docstring; converted `__init__`, `tr`, `add_action` from Sphinx to Google style; translated three German docstrings to English; improved `start_processing`, `load_filter_file`, `_collect_params` docstrings.
+- **Refactor**: `ibtool/ibtool.py` — extracted `_parse_float()` static helper and `_parse_numeric_params()` method; replaced 8 repeated try/except parameter-parsing blocks in `start_processing()` with a single `_parse_numeric_params()` call (~40 lines removed).
+
+---
+
 ## 2026-03-03
 
 ### Added

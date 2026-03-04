@@ -52,7 +52,7 @@ ignore=CVS
 # ignore-list. The regex matches against paths and can be in Posix or Windows
 # format. Because '\\' represents the directory delimiter on Windows systems,
 # it can't be used as an escape character.
-ignore-paths=
+ignore-paths=ibtool/resources.py
 
 # Files or directories matching the regular expression patterns are skipped.
 # The regex matches against base names, not paths. The default value ignores
@@ -87,9 +87,6 @@ load-plugins=
 # Pickle collected data for later comparisons.
 persistent=yes
 
-# Resolve imports to .pyi stubs if available. May reduce no-member messages and
-# increase not-an-iterable messages.
-prefer-stubs=no
 
 # Minimum Python version to use for version dependent checks. Will default to
 # the version used to run pylint.
@@ -195,7 +192,12 @@ good-names=i,
            k,
            ex,
            Run,
-           _
+           _,
+           a,
+           f,
+           hu,
+           rn,
+           e
 
 # Good variable names regexes, separated by a comma. If names match any regex,
 # they will always be accepted
@@ -307,9 +309,6 @@ max-locals=15
 # Maximum number of parents for a class (see R0901).
 max-parents=7
 
-# Maximum number of positional arguments for function / method.
-max-positional-arguments=5
-
 # Maximum number of public methods for a class (see R0904).
 max-public-methods=20
 
@@ -345,7 +344,7 @@ indent-after-paren=4
 indent-string='    '
 
 # Maximum number of characters on a single line.
-max-line-length=100
+max-line-length=120
 
 # Maximum number of lines in a module.
 max-module-lines=1000
@@ -436,12 +435,9 @@ disable=raw-checker-failed,
         suppressed-message,
         useless-suppression,
         deprecated-pragma,
-        use-implicit-booleaness-not-comparison-to-string,
-        use-implicit-booleaness-not-comparison-to-zero,
         use-symbolic-message-instead,
-        missing-docstring,
-        invalid-name,
-        import-error
+        import-error,
+        wrong-import-position
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
@@ -479,10 +475,6 @@ max-nested-blocks=5
 # printed.
 never-returning-functions=sys.exit,argparse.parse_error
 
-# Let 'consider-using-join' be raised when the separator to join on would be
-# non-empty (resulting in expected fixes of the type: ``"- " + " -
-# ".join(items)``)
-suggest-join-with-non-empty-separator=yes
 
 
 [REPORTS]

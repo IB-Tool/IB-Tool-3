@@ -55,9 +55,12 @@ _PATH_FIELD_NAMES = [
 
 
 class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
+    """Main dialog for the IBTool plugin — 4-step stepper UI."""
+
     def __init__(self, parent=None):
         """Constructor."""
-        super(IBToolDialog, self).__init__(parent)
+        super().__init__(parent)
+        self._close_callback = None
         # Set up the user interface from Designer through FORM_CLASS.
         self.setupUi(self)
 
@@ -93,7 +96,7 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
     # Per-field status labels
     # ------------------------------------------------------------------
 
-    def set_field_status(self, field_name: str, ok, message: str = "") -> None:
+    def set_field_status(self, field_name: str, ok, message: str = "") -> None:  # pylint: disable=invalid-name
         """Set the status indicator label for a path field.
 
         Args:
@@ -206,12 +209,12 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
     # Config auto-save on close
     # ------------------------------------------------------------------
 
-    def closeEvent(self, event) -> None:
+    def closeEvent(self, event) -> None:  # pylint: disable=invalid-name
         """Emit a custom signal / call a registered callback on close.
 
         ibtool.py connects _on_dialog_close to this to auto-save the config.
         """
-        if hasattr(self, '_close_callback') and callable(self._close_callback):
+        if self._close_callback is not None and callable(self._close_callback):
             self._close_callback()
         super().closeEvent(event)
 
@@ -242,6 +245,7 @@ class FilterPreviewDialog(QDialog):
         self._build_ui(positive_text, negative_text)
 
     def _build_ui(self, positive_text: str, negative_text: str) -> None:
+        """Build the two-pane filter preview layout."""
         root = QVBoxLayout(self)
 
         splitter = QSplitter(Qt.Horizontal)

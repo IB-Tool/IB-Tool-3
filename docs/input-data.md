@@ -1,5 +1,9 @@
 # Input Data
 
+This document specifies the five input datasets required by IBTool: geometry types, field requirements, minimum feature counts, and the filter file format. It also lists the complete set of validation checks run by the **Check** button in the dialog.
+
+---
+
 ## Overview
 
 | Layer | Role |
@@ -71,7 +75,7 @@ The Aux layer is merged with RN and used to refine block derivation (e.g. additi
 
 Controls which buildings are included or excluded. Format:
 
-```
+```text
 #Filter positive
 31001_1000, Wohngeb
 31001_1010, Wohnhaus
@@ -121,3 +125,13 @@ The **Check** button in the dialog runs all checks before processing. Critical e
 | Part:HU ratio | Warning | Ratio of HU to Part should not exceed 1:10,000 |
 | Filter file format | Error | Sections `#Filter positive` and `#Filter negative` required |
 | Output paths | Error | Output and working directories must exist |
+
+---
+
+## Related Files
+
+| File | Content |
+|------|---------|
+| [`docs/how-it-works.md`](how-it-works.md) | Full algorithmic pipeline — how input layers are used in each step |
+| [`docs/parameterization.md`](parameterization.md) | Processing parameters, defaults, and sensitivity notes |
+| [`helpers/check.py`](../helpers/check.py) | `InputValidator` class implementing all validation checks |

@@ -1,3 +1,14 @@
+"""File-dialog helpers and partition-list builder for the IBTool plugin.
+
+Provides thin wrappers around Qt file/directory dialogs that write the selected
+path directly into the matching QLineEdit widget of IBToolDialog, plus a utility
+function that constructs the ordered list of partition names to process.
+
+Constants:
+    COMMENT_MARKER: Sentinel string (``'#'``) used as the first element of
+        ``part_list`` to signal "load all partitions from the layer".
+"""
+
 from PyQt5.QtWidgets import QFileDialog
 
 # Sentinel value indicating "use all partitions from the layer" in partition list config.

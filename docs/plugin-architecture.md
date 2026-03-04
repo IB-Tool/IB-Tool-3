@@ -1,8 +1,8 @@
 # Plugin Architecture
 
-## Overview
+IBTool follows the standard QGIS plugin pattern with a clear separation between UI components and processing logic. This document covers the code structure, entry points, package layout, and import strategy. For CI/CD and development setup, see [docs/contributing.md](contributing.md). For input layer specifications, see [docs/input-data.md](input-data.md).
 
-IBTool is a QGIS plugin for settlement delineation based on building footprints. It follows the standard QGIS plugin pattern with a clear separation between UI components and processing logic.
+---
 
 ## Entry Point
 
@@ -14,7 +14,9 @@ from .ibtool.ibtool import IBTool
 
 QGIS calls `classFactory(iface)` to instantiate the plugin, passing the `QgisInterface` object.
 
-## Main Class: `IBTool` (ibtool/ibtool.py)
+---
+
+## Main Class: `IBTool` (`ibtool/ibtool.py`)
 
 ### `initGui()`
 
@@ -42,6 +44,8 @@ Called when the plugin is deactivated:
 - Removes the toolbar
 - Cleans up resources
 
+---
+
 ## UI / Logic Separation
 
 | Layer | Location | Responsibility |
@@ -52,13 +56,19 @@ Called when the plugin is deactivated:
 | Processing Tools | `ibtool_tools/*.py` | Stateless geospatial algorithms |
 | Helpers | `helpers/*.py` | Shared utilities (logging, geometry, config) |
 
+---
+
 ## Processing Pipeline
 
 The main class reads user inputs from the dialog, resolves layer references, and delegates work to stateless processing tools in `ibtool_tools/`. Each tool receives input layers and parameters, performs geometric operations via QGIS Processing, and returns result layers.
 
+For the full step-by-step algorithmic description, see [docs/how-it-works.md](how-it-works.md).
+
+---
+
 ## Package Layout
 
-```
+```text
 ibtool/                    # Plugin root (QGIS package name)
 ├── __init__.py           # classFactory() entry point
 ├── helpers/              # Shared utility modules
@@ -68,15 +78,23 @@ ibtool/                    # Plugin root (QGIS package name)
 └── docs/                 # Documentation (this directory)
 ```
 
+---
+
 ## Import Strategy
 
 - **Root-level modules** (`helpers/`, `ibtool_tools/`): Use relative imports within their package
-- **Main class** (`ibtool/ibtool.py`): Uses absolute imports (`from ibtool.helpers...`) because helpers and tools are sibling packages, not parents
+- **Main class** (`ibtool/ibtool.py`): Uses absolute imports (`from ibtool.helpers…`) because helpers and tools are sibling packages, not parents
 - **Tests**: `conftest.py` adds the plugin root to `sys.path`
+
+---
 
 ## Configuration
 
 User-configurable settings (workspace path, log level, layer selections) are managed through the dialog UI and persisted via `helpers/config_manager.py`. Technical QGIS parameters (buffer segments, precision) are centralized in `helpers/qgis_defaults.py`.
+
+For the full `CONFIG.ini` reference including all sections and keys, see [docs/CONFIG_README.md](CONFIG_README.md).
+
+---
 
 ## Key Configuration Files
 
@@ -89,31 +107,22 @@ User-configurable settings (workspace path, log level, layer selections) are man
 | `compile.bat` | Windows compilation script |
 | `.github/workflows/ci.yml` | Continuous integration pipeline |
 
+---
+
 ## Plugin Installation Paths
 
 - **Windows**: `C:\Users\<User>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
 - **Linux**: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
 - **macOS**: `~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins`
 
-## CI/CD Pipeline
+---
 
-GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push and PR:
+## Related Files
 
-1. Builds Docker image with QGIS 3.40 environment
-2. Installs all Python dependencies
-3. Runs pytest test suite with coverage
-4. Uploads coverage reports to Codecov
-
-## Input Data Requirements
-
-The plugin expects specific layer types:
-
-| Layer | Type | Description |
-|-------|------|-------------|
-| **HU** | Polygon | Building footprint polygons (Hausumringe) |
-| **RN** | LineString | Road network linestrings |
-| **Part** | Polygon | Partitioning/zoning polygons |
-| **Aux** | varies | Auxiliary analysis layers |
-| **Filter File** | Text | Positive/negative filtering criteria |
-
-All input layers must use the same coordinate reference system (CRS).
+| File | Content |
+|------|---------|
+| [`docs/how-it-works.md`](how-it-works.md) | Full algorithmic pipeline, step-by-step explanation |
+| [`docs/input-data.md`](input-data.md) | Input layer specs, field requirements, validation checks |
+| [`docs/CONFIG_README.md`](CONFIG_README.md) | `CONFIG.ini` reference — all keys, sections, defaults |
+| [`docs/contributing.md`](contributing.md) | CI/CD pipeline, Docker environment, test structure |
+| [`docs/error-handling.md`](error-handling.md) | Logging system, error categories, debug mode |
