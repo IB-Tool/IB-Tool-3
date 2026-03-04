@@ -19,18 +19,7 @@ Because large topographic datasets can contain millions of objects, the study ar
 
 ---
 
-## Input Data
-
-| Layer | Type | Description |
-|-------|------|-------------|
-| **HU** — Building Footprints | Polygon | Building outlines (Hausumringe). Required field: `fkt` or `funktion` (ATKIS function code). |
-| **RN** — Road Network | LineString | Road and path network. Acts as the primary settlement barrier. |
-| **Part** — Partitions | Polygon | Processing zones. Required field: `NAME` (e.g. `PART_36`). |
-| **Aux** — Auxiliary Layer | Polygon/Line | Additional barriers (railway lines, forest edges, water bodies). Merged with RN. |
-| **Filter File** | `.txt` | Positive and negative lists of ATKIS building function codes. |
-
-![IBTool Dialog — Input fields](images/01_dialog_input.png)
-*The plugin dialog with all input fields filled in.*
+For input layer specifications, field requirements, filter file format, and the complete validation check table, see [docs/input-data.md](input-data.md).
 
 ---
 
@@ -446,17 +435,7 @@ After all partitions are processed, the per-partition results are merged into a 
 
 ---
 
-## Parameters
-
-| Parameter | UI field | Paper reference | Default |
-|-----------|----------|-----------------|---------|
-| `min_overlap_blocks` | Min Overlap Blocks | BCR threshold for dense-block classification (§ 2.5) | 18% |
-| `global_footprint_density` | Global Footprint Density | Global BCR fallback (§ 2.3); 0 = auto-calculate | 0 |
-| `min_area` | Min Area | Minimum building footprint area, Stage 3 filter (§ 2.4) | 56.8 m² |
-| `min_bdg_count` | Min Building Count | Minimum buildings in BCR reference block (§ 2.3) | 20 |
-| `min_patch_size` | Min Patch Size | Minimum area of a result polygon (§ 2.7) | 10,000 m² |
-| `max_hole_size` | Max Hole Size | Holes larger than this are cut out (§ 2.7) | 10,000 m² |
-| `max_gap_size` | Max Gap Size | Maximum gap area to bridge (§ 2.7) | 4,900 m² |
+For the full parameter reference including defaults, sensitivity notes, and academic background, see [docs/parameterization.md](parameterization.md).
 
 ---
 
@@ -482,3 +461,14 @@ The workspace folder additionally contains:
 - Intermediate GeoPackages per partition (for inspection)
 - A partition log file (`IB_Tool2_Log.txt`) — tracks completed partitions, allows resuming interrupted runs
 - Debug layers in `debug/` subdirectories (when **Debug Mode** is enabled in the dialog)
+
+---
+
+## Related Files
+
+| File | Content |
+|------|---------|
+| [`docs/input-data.md`](input-data.md) | Input layer specifications, field requirements, filter file format |
+| [`docs/parameterization.md`](parameterization.md) | Full parameter reference with defaults and sensitivity notes |
+| [`docs/error-handling.md`](error-handling.md) | Logging system, debug mode, error categories |
+| [`docs/plugin-architecture.md`](plugin-architecture.md) | Code structure, entry points, package layout |
