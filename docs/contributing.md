@@ -11,7 +11,7 @@ The project uses two GitHub Actions workflows:
 | Workflow | File | Trigger | Purpose |
 |----------|------|---------|---------|
 | **CI** | `.github/workflows/ci.yml` | push to `master`/`main`, PRs | Docker-based tests + Codecov coverage |
-| **QGIS Plugin CI** | `.github/workflows/qgis-plugin-ci.yml` | every push + PRs | Lint, security scan, ZIP build + validation |
+| **QGIS Plugin CI** | `.github/workflows/qgis-plugin-ci.yml` | push to `master`/`main`, PRs | Lint, security scan, ZIP build + validation |
 
 ---
 
@@ -96,7 +96,7 @@ docker run --rm -it qgis-plugin-test /bin/bash
 
 ### Workflow 2 — QGIS Plugin CI (`.github/workflows/qgis-plugin-ci.yml`)
 
-Runs on every push and every pull request (all branches).
+Runs on pushes to `master`/`main` and on all pull requests.
 
 Steps:
 
@@ -234,3 +234,14 @@ pylint $(git ls-files '*.py')
 | [`ai/core/architecture-guidelines.md`](../ai/core/architecture-guidelines.md) | Class design and code organisation |
 | [`ai/core/debug-mode.md`](../ai/core/debug-mode.md) | Debug mode integration |
 | [`docs/error-handling.md`](error-handling.md) | Logging system and error categories |
+
+---
+
+## Related Files
+
+| File | Content |
+|------|---------|
+| [`docs/test-strategy.md`](test-strategy.md) | Test taxonomy, coverage targets, module-to-test mapping, gap backlog |
+| [`docs/error-handling.md`](error-handling.md) | Logging system, error categories, debug mode |
+| [`docs/plugin-architecture.md`](plugin-architecture.md) | Plugin structure and package layout |
+| [`ai/core/testing-rules.md`](../ai/core/testing-rules.md) | Tactical rules: geometry checks, test structure, framework conventions |
