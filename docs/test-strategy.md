@@ -1,49 +1,45 @@
 # Test Strategy
 
-## 1. Purpose and Scope
-
-This document is the single authoritative reference for **why** the test suite is structured the way it is, **how** to choose the right test tier for a new test, and **where** known coverage gaps exist.
+This document is the single authoritative reference for **why** the test suite is structured the way it is, **how** to choose the right test tier for a new test, and **where** known coverage gaps exist. Consult it before writing any new test or assessing CI failures.
 
 **What this document is not:**
 - A tutorial on pytest syntax — see the pytest documentation.
 - A list of tactical rules for geometry checks or test structure — see [`ai/core/testing-rules.md`](../ai/core/testing-rules.md).
 - An MST-specific test catalog — see [`ai/domain/mst-testing.md`](../ai/domain/mst-testing.md).
 
-**Who should read this:** Any developer about to write a new test, assess coverage, or understand CI failures.
-
 ---
 
-## 2. Test Philosophy
+## Test Philosophy
 
 Five principles explain the structural decisions made in this project:
 
-### 2.1 Geometry bugs produce plausible-looking wrong results
+### Geometry bugs produce plausible-looking wrong results
 
 A dissolve that silently fails returns an empty or null geometry — not an exception. A polygon that self-intersects still renders on screen. This is why **geometry validity checks are mandatory** for every test that touches a layer-returning function. Checking only `featureCount > 0` is insufficient.
 
-### 2.2 `processing.run()` is the unit/integration boundary
+### `processing.run()` is the unit/integration boundary
 
 The demarcation between unit and integration tests is not "uses QGIS API" but specifically **whether `processing.run()` is called**. Functions that use `QgsVectorLayer("…memory")`, `QgsFeature`, or `QgsGeometry` directly can be unit-tested without the full Processing framework. Functions that delegate to QGIS algorithms (e.g. `native:dissolve`, `native:buffer`) require an initialized Processing environment and are integration tests.
 
-### 2.3 Error paths are first-class citizens
+### Error paths are first-class citizens
 
 Empty layers, null geometries, mismatched CRS, and missing partitions are not accidents — they are guaranteed inputs in a geospatial pipeline. Every tool's error-handling branch must be tested explicitly, not just the happy path.
 
-### 2.4 Tests document expected behavior
+### Tests document expected behavior
 
 Constants, thresholds, and accepted defaults should be visible in test docstrings or assertions, not buried in source code. A test like `assert density > 0.5` without explanation is opaque. A test with `"""Density floor is 0.5 per km² per project spec."""` is documentation.
 
-### 2.5 `debug_mode=True` must not alter return values
+### `debug_mode=True` must not alter return values
 
 The debug branch of every processing tool must be exercised in tests. The invariant: enabling debug mode may write additional layers to disk but must not change the function's return value, raise new exceptions, or alter the geometry of output features.
 
 ---
 
-## 3. Test Taxonomy
+## Test Taxonomy
 
 Four tiers are used. Every test must carry exactly one tier marker and may additionally carry `edge_case`.
 
-### 3.1 Unit (`@pytest.mark.unit`)
+### Unit (`@pytest.mark.unit`)
 
 **Definition:** No call to `processing.run()`. No file I/O. May instantiate `QgsVectorLayer("…memory")`, `QgsFeature`, or `QgsGeometry` directly.
 
@@ -53,7 +49,7 @@ Four tiers are used. Every test must carry exactly one tier marker and may addit
 
 **Example targets:** `check.py`, `config_manager.py`, `system_utils.py`, `mst_utils.py`, `debug_utils.py`, individual math or geometry helper functions.
 
-### 3.2 Integration (`@pytest.mark.integration`)
+### Integration (`@pytest.mark.integration`)
 
 **Definition:** Calls `processing.run()` at least once, directly or indirectly through the module under test.
 
@@ -63,7 +59,7 @@ Four tiers are used. Every test must carry exactly one tier marker and may addit
 
 **Example targets:** All `ibtool_tools/` modules, `geometry_utils.py` functions that call `native:*` algorithms.
 
-### 3.3 Edge case (`@pytest.mark.edge_case`)
+### Edge case (`@pytest.mark.edge_case`)
 
 **Definition:** Cross-cutting tag combined with `unit` or `integration`. Marks a test that exercises a boundary or degenerate input.
 
@@ -75,7 +71,7 @@ Four tiers are used. Every test must carry exactly one tier marker and may addit
 - Multipart geometry where singlepart is expected
 - Partition ID `-1` (unassigned features in Blocker output)
 
-### 3.4 Performance (`@pytest.mark.performance` + `@pytest.mark.slow`)
+### Performance (`@pytest.mark.performance` + `@pytest.mark.slow`)
 
 **Definition:** Exercises time or memory bounds on datasets of more than 50 features. Always carries both `performance` and `slow`.
 
@@ -87,7 +83,7 @@ Four tiers are used. Every test must carry exactly one tier marker and may addit
 
 ---
 
-## 4. Coverage Targets
+## Coverage Targets
 
 These are per-category floor values, not aspirational goals. Coverage below these thresholds signals a gap that should be addressed before merging new features.
 
@@ -106,9 +102,9 @@ These are per-category floor values, not aspirational goals. Coverage below thes
 
 ---
 
-## 5. Test Data and Fixture Strategy
+## Test Data and Fixture Strategy
 
-### 5.1 Shared vs. per-file factories
+### Shared vs. per-file factories
 
 **`conftest.py`** handles only pytest infrastructure: it adds the plugin root to `sys.path` and registers the `ibtool` package stub so that absolute imports resolve correctly in both local and Docker environments. It does **not** provide pytest fixtures or import QGIS modules — doing so would trigger a circular import error via `qgis.utils._import` before QGIS is initialized.
 
@@ -130,7 +126,7 @@ Current functions in `layer_factories.py`:
 
 **Per-file:** Domain-specific layouts (exact building positions, street networks, block structures) stay in the file that uses them. Example: `_make_two_block_layer()` in `test_gap_fix.py`.
 
-### 5.2 Fixture scope rules
+### Fixture scope rules
 
 | Fixture type | Scope |
 |---|---|
@@ -141,7 +137,7 @@ Current functions in `layer_factories.py`:
 
 ---
 
-## 6. Module-to-Test Mapping
+## Module-to-Test Mapping
 
 Cross-reference of every production module, its test file, approximate test count, dominant tier, and known gaps.
 
@@ -153,7 +149,7 @@ Cross-reference of every production module, its test file, approximate test coun
 | `config_manager.py` | `test_config_manager.py` | 56 | unit | None significant |
 | `system_utils.py` | `test_manage_directory.py` | 22 | unit | — |
 | `data_loader.py` | `test_data_loader.py` | 15 | unit | Integration tests for file-loading paths |
-| `geometry_utils.py` | `test_geometry_utils.py` | 41 | unit | Processing-delegating wrappers untested (see §9) |
+| `geometry_utils.py` | `test_geometry_utils.py` | 41 | unit | Processing-delegating wrappers untested (see Justified Exclusions) |
 | `safe_processing.py` | `test_safe_processing.py` | 8 | unit | — |
 | `debug_utils.py` | `test_debug_utils.py` | 14 | unit | — |
 | `mst_utils.py` | `test_mst_utils.py` | 19 | unit | — |
@@ -182,8 +178,8 @@ Cross-reference of every production module, its test file, approximate test coun
 
 | Production module | Test file | ~Tests | Dominant tier | Notable gaps |
 |---|---|---|---|---|
-| `ibtool/ibtool.py` | `test_ibtool.py` | 54 | unit | Full `run()` orchestration (§8) |
-| `ibtool/ibtool_dialog.py` | `test_ibtool_dialog.py` | 68 | unit | Signal/slot wiring (§9) |
+| `ibtool/ibtool.py` | `test_ibtool.py` | 54 | unit | Full `run()` orchestration |
+| `ibtool/ibtool_dialog.py` | `test_ibtool_dialog.py` | 68 | unit | Signal/slot wiring |
 | `__init__.py` | `test_init.py` | 1 | smoke | `classFactory()` with live `iface` |
 
 ### Infrastructure / environment
@@ -192,17 +188,13 @@ Cross-reference of every production module, its test file, approximate test coun
 |---|---|---|---|
 | `scripts/create_release_zip.py` | `test_create_release_zip.py` | 36 | Pure-Python unit tests; no QGIS dependency |
 | (MST fixtures) | `test_fixtures_mst.py` | 0 | Helper module, not directly tested |
-| (MST components) | `test_mst_components.py` | 15 | Unit/integration tests for MST sub-components |
-| (MST modules) | `test_mst_modules.py` | 16 | Integration tests for full MST modules |
-| (MST performance/edge) | `test_mst_performance_edge_cases.py` | 8 | Performance + edge case tests for MST |
-| (MST test runner) | — | — | `run_mst_tests.py` is a runner, not a test |
 | — | `test_qgis_environment.py` | 2 | Smoke: QGIS init and Processing available |
 | — | `test_resources.py` | 1 | Smoke: plugin resources compiled |
 | — | `test_translations.py` | 1 | Smoke: translation file present |
 
 ---
 
-## 7. Decision Guide for New Tests
+## Decision Guide for New Tests
 
 Use this 6-step checklist when adding a new test.
 
@@ -214,7 +206,7 @@ Use this 6-step checklist when adding a new test.
 
 ### Step 2 — Choose the tier
 
-```
+```text
 Does the function under test call processing.run()?
 ├── No  → @pytest.mark.unit
 └── Yes → @pytest.mark.integration
@@ -270,7 +262,7 @@ def test_gap_is_closed_when_below_threshold(self):
 
 ---
 
-## 8. Gap Analysis and Prioritized Backlog
+## Gap Analysis and Prioritized Backlog
 
 ### Priority 1 — Small effort, high impact
 
@@ -285,40 +277,31 @@ def test_gap_is_closed_when_below_threshold(self):
 | Gap | Action |
 |---|---|
 | No full `run()` orchestration test for `ibtool/ibtool.py` | Add integration test that calls the full plugin `run()` with mock `iface` |
-| Integration tests for Processing-delegating helpers in `geometry_utils.py` | Add integration tests for the wrappers identified in §9 |
+| Integration tests for Processing-delegating helpers in `geometry_utils.py` | Add integration tests for the wrappers identified in Justified Exclusions |
 
 ---
 
-## 9. Justified Exclusions
+## Justified Exclusions
 
 These are documented decisions that **are not gaps** — they are known exclusions with stated reasons.
 
 | Module / function | Reason for exclusion |
 |---|---|
 | `ibtool/__init__.py` `classFactory()` | Requires a live `iface` object provided by the running QGIS application. Tested via smoke tests in `test_init.py` and the Docker CI run. |
-| Processing-delegating wrappers in `geometry_utils.py` (e.g. functions that call `native:dissolve`, `native:buffer`) | These are thin wrappers around QGIS algorithms. They are indirectly tested by every integration test for tools that use them (e.g. `test_blocker.py`, `test_hole_close.py`). Adding direct tests would duplicate coverage without adding value. |
+| Processing-delegating wrappers in `geometry_utils.py` | These are thin wrappers around QGIS algorithms. They are indirectly tested by every integration test for tools that use them (e.g. `test_blocker.py`, `test_hole_close.py`). Adding direct tests would duplicate coverage without adding value. |
 | `ibtool_dialog.py` signal/slot wiring | The Qt event loop is not available in the test environment. Wiring is tested manually in QGIS. UI widget presence is covered by `test_ibtool_dialog.py`. |
 | `test_fixtures_mst.py` `MSTTestFixtures` class | This is a fixture helper, not production code. It has no test of its own by design. |
 
 ---
 
-## 10. CI/CD Summary
+## CI/CD
 
-Tests run automatically on every push to `master`/`main` and on every pull request via GitHub Actions (`.github/workflows/ci.yml`).
+For the full CI/CD pipeline description, Docker environment setup, and local commands, see [docs/contributing.md](contributing.md).
 
-### Pipeline steps
-
-1. **Build Docker image** — `docker build --pull -t qgis-plugin-test .`
-2. **Run tests with coverage** — `docker run --rm -v $(pwd):/plugins/ibtool qgis-plugin-test`
-   - Runs `pytest test/ -v --tb=short --durations=10` with coverage
-   - Writes `coverage.xml` to the mounted volume
-3. **Fix coverage paths** — replaces container-absolute paths with relative paths for Codecov
-4. **Upload to Codecov** — `codecov/codecov-action@v5` with token from repository secrets
-
-### Useful local commands
+Quick reference for common test runs:
 
 ```bash
-# Fast local run — unit tests only (no QGIS Processing required)
+# Unit tests only (no QGIS Processing required)
 pytest test/ -m "unit" -v
 
 # Skip slow tests
@@ -329,21 +312,17 @@ docker run --rm qgis-plugin-test
 
 # Coverage report
 pytest test/ --cov=. --cov-report=html
-open htmlcov/index.html
 
 # Single module
 pytest test/test_blocker.py -v
-
-# Run all MST tests
-pytest test/test_*mst*.py test/test_create_mst.py -v
 ```
 
-### Marker cheatsheet
+---
 
-```bash
-pytest test/ -m "unit"              # unit tests only
-pytest test/ -m "integration"       # integration tests only
-pytest test/ -m "edge_case"         # edge case tests only
-pytest test/ -m "not slow"          # skip performance tests
-pytest test/ -m "unit and edge_case" # unit edge cases only
-```
+## Related Files
+
+| File | Content |
+|------|---------|
+| [`docs/contributing.md`](contributing.md) | CI/CD pipeline, Docker environment, full test file list, code linting |
+| [`ai/core/testing-rules.md`](../ai/core/testing-rules.md) | Tactical rules: geometry checks, test structure, framework conventions |
+| [`ai/domain/mst-testing.md`](../ai/domain/mst-testing.md) | MST-specific test catalog, fixtures, performance benchmarks |
