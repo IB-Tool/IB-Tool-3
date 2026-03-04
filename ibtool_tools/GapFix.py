@@ -1,3 +1,14 @@
+"""Gap-fixing tool for the IBTool plugin.
+
+Closes narrow gaps between adjacent polygon settlement features and removes
+interior holes (inner rings). Operates entirely in memory using QGIS Processing
+algorithms and a pure-Python pairwise spatial-index intersection step.
+
+Constants:
+    _DEBUG_TOOL_NAME: Folder-name prefix for debug layer output, reflecting the
+        call order in the main processing pipeline (``"08_GapFix"``).
+"""
+
 from qgis.core import (
     QgsVectorLayer,
     QgsFeature,
@@ -15,42 +26,56 @@ from ..helpers.safe_processing import safe_processing_run
 _DEBUG_TOOL_NAME = "08_GapFix"
 
 
-def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,
+def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,  # pylint: disable=invalid-name
             bufferwidth=70, max_gap=10.0, debug_mode=False):
-    """
-    Closes narrow gaps between adjacent polygon features and removes interior
-    holes (inner rings) from input polygons.
+    """Close inter-polygon gaps and remove interior holes from a polygon layer.
 
-    Algorithm:
-      1. Fix geometries
-      2. Close holes: polygons → lines → polygonize → dissolve (fills inner rings)
-      3. Multipart → singlepart, assign unique integer field ``gap_uid``
-      4. Build buffer rings: buffer each polygon by max_gap, subtract all originals
-         → donut-shaped ring per polygon that covers only empty space
-      5. Pairwise intersect all buffer rings using a spatial index.
-         Intersection areas = gap zones between two polygons.
-      6. Validate each gap zone: keep only those that intersect both source polygons
-         (filters out exterior buffer fringes and artefacts)
-      7. Merge each valid gap zone into the adjacent polygon with the longer
-         shared boundary
-      8. Return updated layer
+    Applies a seven-step algorithm:
 
-    Note on attributes: the global dissolve in step 2 rebuilds polygon topology,
-    so original feature attributes are replaced by the new ``gap_uid`` field.
+    1. Fix geometries (``native:fixgeometries``).
+    2. Close interior holes: polygons → lines → polygonize → collect +
+       buffer(0, dissolve=True). Produces hole-free, merged polygons.
+    3. Multipart → singlepart; assign unique integer field ``gap_uid``.
+    4. Build *donut* buffer rings per polygon: buffer by ``max_gap``,
+       then subtract all original polygons. Rings cover only empty space.
+    5. Pairwise intersect buffer rings via a spatial index.
+       Each intersection area is a gap-zone candidate between two polygons.
+    6. Validate candidates: keep only gap zones that geometrically intersect
+       *both* source polygons. Exterior fringes and artefacts are discarded.
+    7. Merge each valid gap zone into the neighbor with the longer shared
+       boundary; rebuild a memory output layer.
 
-    Note on native:dissolve: intentionally avoided — it silently fails on large
-    MultiPolygon datasets. The workaround native:collect + native:buffer(0,
-    dissolve=True) is used throughout.
+    Note on attributes: the global dissolve in step 2 rebuilds polygon
+    topology, so original feature attributes are replaced by ``gap_uid``.
 
-    Requires QGIS >= 3.20. Input layer must use a metric CRS (units = meters).
+    Note on ``native:dissolve``: intentionally avoided — it silently fails on
+    large MultiPolygon datasets. The workaround ``native:collect`` +
+    ``native:buffer(distance=0, dissolve=True)`` is used throughout.
 
-    :param Inputpoly: Input polygon layer (QgsVectorLayer or path string).
-    :param InputRoadnetwork: Not used; kept for API compatibility.
-    :param workspace_path: Workspace path for debug output.
-    :param bufferwidth: Not used; kept for API compatibility.
-    :param max_gap: Buffer distance and effective maximum gap width to close (m).
-    :param debug_mode: If True, saves intermediate layers for debugging.
-    :return: QgsVectorLayer with interior holes removed and gaps filled.
+    Requires QGIS >= 3.20. The input layer must use a metric CRS (meters).
+
+    Args:
+        Inputpoly: Input polygon layer as a ``QgsVectorLayer`` or a file-path
+            string. Must use a metric CRS.
+        InputRoadnetwork: Unused; kept for API compatibility.
+        workspace_path: Absolute path to the workspace directory used for
+            debug layer output. Ignored when ``debug_mode`` is ``False``.
+        bufferwidth: Unused; kept for API compatibility.
+        max_gap: Buffer distance in meters. Defines the maximum gap width that
+            will be closed between neighboring polygons.
+        debug_mode: When ``True``, saves intermediate layers to
+            ``workspace_path`` for visual inspection.
+
+    Returns:
+        A memory ``QgsVectorLayer`` (geometry type ``MultiPolygon``) with
+        interior holes removed and inter-polygon gaps up to ``max_gap`` filled.
+        Returns the (possibly invalid) input layer unchanged if it has no
+        valid features.
+
+    Raises:
+        Exception: Any unexpected processing error is logged at ``CRITICAL``
+            level and re-raised after optionally saving a debug snapshot of the
+            input layer.
     """
     Logger.log("GapFix Start", level="INFO")
     _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name=_DEBUG_TOOL_NAME)
