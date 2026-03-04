@@ -1,5 +1,9 @@
 # Error Handling
 
+This document describes the logging system, user-facing error messages, processing error handling, and the debug mode. Consult it when adding logging to a new module, deciding between WARNING and INFO, or diagnosing unexpected processing results.
+
+---
+
 ## Logging System
 
 The plugin uses a centralized logging system (`helpers/logger.py`) with four levels:
@@ -40,6 +44,8 @@ Use `INFO` for all **normal processing outcomes**, even if the result is empty:
 - Log directory is selectable through the plugin interface
 - Include context (tool name, step) in log messages
 
+---
+
 ## User-Facing Error Messages
 
 ### QMessageBox
@@ -64,6 +70,8 @@ iface.messageBar().pushMessage("IBTool", "Message text", level=Qgis.Warning)
 - Use for warnings that don't stop the workflow
 - Keep messages concise
 
+---
+
 ## Processing Error Handling
 
 ### safe_processing_run()
@@ -84,15 +92,19 @@ Activated via the "Fehlerhafte Features speichern" checkbox in the Debugging tab
 - Manual debug points can be added with `save_debug_layer()` / `save_debug_features()`
 - When disabled: zero overhead, no folders created
 
+---
+
 ## Error Categories
 
 | Category | Handling | Example |
 |----------|----------|---------|
 | Missing input | Block with QMessageBox | No HU layer selected |
-| Invalid geometry | Log **WARNING**, attempt fix | Self-intersecting polygon detected → repair triggered |
-| Processing failure | Log **CRITICAL**, save debug | Algorithm crash |
-| Empty result | Log **INFO**, continue | No features passed the boundary-overlap filter |
+| Invalid geometry | Log `WARNING`, attempt fix | Self-intersecting polygon detected → repair triggered |
+| Processing failure | Log `CRITICAL`, save debug | Algorithm crash |
+| Empty result | Log `INFO`, continue | No features passed the boundary-overlap filter |
 | CRS mismatch | Block with QMessageBox | Layers in different CRS |
+
+---
 
 ## Principles
 
@@ -101,4 +113,14 @@ Activated via the "Fehlerhafte Features speichern" checkbox in the Debugging tab
 3. **Graceful degradation for processing** — log and continue where possible
 4. **Debug mode for diagnostics** — save state for post-mortem analysis
 
+---
 
+## Related Files
+
+| File | Content |
+|------|---------|
+| [`helpers/logger.py`](../helpers/logger.py) | Logger class implementation |
+| [`helpers/safe_processing.py`](../helpers/safe_processing.py) | `safe_processing_run()` wrapper |
+| [`helpers/debug_utils.py`](../helpers/debug_utils.py) | `save_debug_layer()`, `save_debug_features()` |
+| [`ai/core/debug-mode.md`](../ai/core/debug-mode.md) | Debug mode integration patterns and conventions |
+| [`docs/plugin-architecture.md`](plugin-architecture.md) | Plugin structure and configuration |
