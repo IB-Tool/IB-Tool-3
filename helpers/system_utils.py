@@ -1,6 +1,7 @@
 import os
 import sys
 import shutil
+import hashlib
 from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter, Qgis
 from .logger import Logger
 
@@ -14,6 +15,29 @@ MAX_QGIS = 35000  # QGIS 3.50
 
 # Shapefile sidecar extensions that must be copied alongside the main .shp file.
 _SHAPEFILE_EXTENSIONS = ['.shp', '.shx', '.dbf', '.prj', '.cpg', '.qpj']
+
+
+def compute_file_checksum(path: str, chunk_size: int = 8192) -> str:
+    """Compute the MD5 checksum of a file.
+
+    Reads the file in chunks to avoid loading large geodata files fully into
+    memory. Returns an empty string if the file cannot be read.
+
+    Args:
+        path: Absolute path to the file.
+        chunk_size: Read buffer size in bytes.
+
+    Returns:
+        Hex-encoded MD5 digest, or ``""`` on any I/O error.
+    """
+    try:
+        h = hashlib.md5(usedforsecurity=False)  # nosec B324 — checksum only, not crypto
+        with open(path, 'rb') as fh:
+            for chunk in iter(lambda: fh.read(chunk_size), b''):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return ""
 
 
 def save_temp_layer_to_gpkg(
@@ -62,10 +86,11 @@ def save_temp_layer_to_gpkg(
     # Determine layer name for the GeoPackage
     layer_name = layer.name()
 
-    # Save as GeoPackage
+    # Save as GeoPackage (overwrite if file already exists)
     options = QgsVectorFileWriter.SaveVectorOptions()
     options.driverName = "GPKG"
     options.layerName = layer_name
+    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
 
     error = QgsVectorFileWriter.writeAsVectorFormatV3(
         layer,

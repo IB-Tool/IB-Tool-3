@@ -15,14 +15,17 @@ from PyQt5.QtWidgets import QFileDialog
 COMMENT_MARKER = '#'
 
 
-def _select_shapefile(dlg: object, field_name: str) -> None:
-    """Open a .shp file dialog and write the selected path to a dialog text field.
+def _select_vector_file(dlg: object, field_name: str) -> None:
+    """Open a file dialog for vector files and write the selected path to a dialog text field.
 
     Args:
         dlg: The dialog instance whose text field will be updated.
         field_name: Attribute name of the QLineEdit on ``dlg`` to receive the path.
     """
-    filename, _ = QFileDialog.getOpenFileName(dlg, "Select input file", "", "*.shp")
+    filename, _ = QFileDialog.getOpenFileName(
+        dlg, "Select input file", "",
+        "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
+    )
     getattr(dlg, field_name).setText(filename)
 
 
@@ -32,7 +35,7 @@ def select_HU_file(dlg: object) -> None:
     Args:
         dlg: The plugin dialog instance.
     """
-    _select_shapefile(dlg, "HuPath")
+    _select_vector_file(dlg, "HuPath")
 
 
 def select_RN_file(dlg: object) -> None:
@@ -41,7 +44,7 @@ def select_RN_file(dlg: object) -> None:
     Args:
         dlg: The plugin dialog instance.
     """
-    _select_shapefile(dlg, "RnPath")
+    _select_vector_file(dlg, "RnPath")
 
 
 def select_PART_file(dlg: object) -> None:
@@ -50,7 +53,7 @@ def select_PART_file(dlg: object) -> None:
     Args:
         dlg: The plugin dialog instance.
     """
-    _select_shapefile(dlg, "PartPath")
+    _select_vector_file(dlg, "PartPath")
 
 
 def select_AUX_file(dlg: object) -> None:
@@ -59,7 +62,7 @@ def select_AUX_file(dlg: object) -> None:
     Args:
         dlg: The plugin dialog instance.
     """
-    _select_shapefile(dlg, "AuxPath")
+    _select_vector_file(dlg, "AuxPath")
 
 
 def select_output_file(dlg: object) -> None:
