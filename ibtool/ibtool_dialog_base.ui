@@ -1008,6 +1008,16 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="DeleteConfigButton">
+       <property name="text">
+        <string>Reset Config</string>
+       </property>
+       <property name="toolTip">
+        <string>Delete CONFIG.ini and reset all fields to defaults</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer>
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
