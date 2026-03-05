@@ -5,7 +5,6 @@ Configuration Manager
 Manages plugin configuration from CONFIG.ini file and provides default settings.
 """
 
-import json
 import os
 import configparser
 from typing import Dict, Any
