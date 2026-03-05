@@ -870,7 +870,7 @@ class TestCheckPathFieldChecksum:
 
         tool._check_path_field("RnPath", str(f))
 
-        expected = hashlib.md5(content).hexdigest()
+        expected = hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324
         assert tool._file_checksums.get("RnPath") == expected
 
     @pytest.mark.unit

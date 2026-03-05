@@ -49,7 +49,7 @@ class TestComputeFileChecksum:
         f = tmp_path / "roads.gpkg"
         f.write_bytes(content)
 
-        expected = hashlib.md5(content).hexdigest()
+        expected = hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324
         result = compute_file_checksum(str(f))
 
         assert result == expected
