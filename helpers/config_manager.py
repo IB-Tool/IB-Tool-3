@@ -5,22 +5,40 @@ Configuration Manager
 Manages plugin configuration from CONFIG.ini file and provides default settings.
 """
 
+import json
 import os
 import configparser
 from typing import Dict, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from .logger import Logger
 from .qgis_defaults import DEFAULT_CRS_EPSG
 
 
 @dataclass
 class InputDataConfig:
-    """Configuration for input data paths."""
+    """Configuration for input data paths and their last-known file checksums."""
     building_footprints_path: str = ""
     road_network_path: str = ""
     partitions_path: str = ""
     aux_layer_path: str = ""
     filter_file_path: str = ""
+    # MD5 checksums computed at the time of the last successful path check.
+    building_footprints_checksum: str = ""
+    road_network_checksum: str = ""
+    partitions_checksum: str = ""
+    aux_layer_checksum: str = ""
+    filter_file_checksum: str = ""
+
+
+@dataclass
+class ValidationCacheConfig:
+    """Cached result of the last successful full validation run.
+
+    Errors and warnings are stored as JSON-encoded lists so they survive a
+    plugin restart and allow skipping re-validation when checksums match.
+    """
+    errors: str = "[]"    # JSON list[str]
+    warnings: str = "[]"  # JSON list[str]
 
 
 @dataclass
@@ -90,6 +108,7 @@ class PluginConfig:
     processing: ProcessingConfig
     output: OutputConfig
     ui: UIConfig
+    validation_cache: ValidationCacheConfig = field(default_factory=ValidationCacheConfig)
 
 
 class ConfigManager:
@@ -123,7 +142,8 @@ class ConfigManager:
             ),
             ui=UIConfig(
                 log_directory=default_log_dir
-            )
+            ),
+            validation_cache=ValidationCacheConfig(),
         )
 
     def _load_config_if_exists(self) -> None:
@@ -151,6 +171,17 @@ class ConfigManager:
             self.config.input_data.partitions_path = section.get('partitions_path', '')
             self.config.input_data.aux_layer_path = section.get('aux_layer_path', '')
             self.config.input_data.filter_file_path = section.get('filter_file_path', '')
+            self.config.input_data.building_footprints_checksum = section.get('building_footprints_checksum', '')
+            self.config.input_data.road_network_checksum = section.get('road_network_checksum', '')
+            self.config.input_data.partitions_checksum = section.get('partitions_checksum', '')
+            self.config.input_data.aux_layer_checksum = section.get('aux_layer_checksum', '')
+            self.config.input_data.filter_file_checksum = section.get('filter_file_checksum', '')
+
+        # Load validation cache
+        if config_parser.has_section('VALIDATION_CACHE'):
+            section = config_parser['VALIDATION_CACHE']
+            self.config.validation_cache.errors = section.get('errors', '[]')
+            self.config.validation_cache.warnings = section.get('warnings', '[]')
 
         # Load processing configuration
         if config_parser.has_section('PROCESSING'):
@@ -206,7 +237,12 @@ class ConfigManager:
             'road_network_path': self.config.input_data.road_network_path,
             'partitions_path': self.config.input_data.partitions_path,
             'aux_layer_path': self.config.input_data.aux_layer_path,
-            'filter_file_path': self.config.input_data.filter_file_path
+            'filter_file_path': self.config.input_data.filter_file_path,
+            'building_footprints_checksum': self.config.input_data.building_footprints_checksum,
+            'road_network_checksum': self.config.input_data.road_network_checksum,
+            'partitions_checksum': self.config.input_data.partitions_checksum,
+            'aux_layer_checksum': self.config.input_data.aux_layer_checksum,
+            'filter_file_checksum': self.config.input_data.filter_file_checksum,
         }
 
         # Add processing section
@@ -251,6 +287,12 @@ class ConfigManager:
             'log_level': self.config.ui.log_level,
             'log_directory': self.config.ui.log_directory,
             'remember_window_size': str(self.config.ui.remember_window_size)
+        }
+
+        # Add validation cache section
+        config_parser['VALIDATION_CACHE'] = {
+            'errors': self.config.validation_cache.errors,
+            'warnings': self.config.validation_cache.warnings,
         }
 
         # Write to file
