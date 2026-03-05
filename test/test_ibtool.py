@@ -822,3 +822,504 @@ class TestDisplayValidationResult:
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
         assert any("passed" in m for m in logged_msgs), \
             "Expected 'passed' in logged messages for valid result with warnings"
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers for new test classes
+# ---------------------------------------------------------------------------
+
+_ALL_CHECKSUM_FIELDS = ("HuPath", "RnPath", "PartPath", "AuxPath", "FilterPath")
+
+
+def _set_matching_checksums(tool, value: str = "deadbeef1234") -> None:
+    """Populate both checksum dicts with the same non-empty value for all 5 fields."""
+    for field in _ALL_CHECKSUM_FIELDS:
+        tool._file_checksums[field] = value
+        tool._validated_checksums[field] = value
+
+
+# ---------------------------------------------------------------------------
+# TestCheckPathFieldChecksum
+# ---------------------------------------------------------------------------
+
+class TestCheckPathFieldChecksum:
+    """Tests for the checksum-computation logic added to _check_path_field."""
+
+    @pytest.mark.unit
+    def test_valid_file_stores_md5_checksum(self, tmp_path):
+        """_check_path_field stores a 32-char MD5 checksum for an existing file."""
+        tool = _make_tool()
+        f = tmp_path / "buildings.shp"
+        f.write_bytes(b"dummy shapefile content")
+
+        tool._check_path_field("HuPath", str(f))
+
+        assert "HuPath" in tool._file_checksums, \
+            "Checksum must be stored for a valid HuPath file"
+        assert len(tool._file_checksums["HuPath"]) == 32, \
+            "MD5 checksum must be exactly 32 hex characters"
+
+    @pytest.mark.unit
+    def test_stored_checksum_matches_direct_md5(self, tmp_path):
+        """Stored checksum equals the MD5 of the exact file bytes."""
+        import hashlib
+        tool = _make_tool()
+        content = b"road network binary data"
+        f = tmp_path / "roads.shp"
+        f.write_bytes(content)
+
+        tool._check_path_field("RnPath", str(f))
+
+        expected = hashlib.md5(content).hexdigest()
+        assert tool._file_checksums.get("RnPath") == expected
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_nonexistent_path_removes_existing_checksum(self):
+        """_check_path_field removes a stale checksum when the file no longer exists."""
+        tool = _make_tool()
+        tool._file_checksums["HuPath"] = "stale_checksum"
+
+        tool._check_path_field("HuPath", "/nonexistent/buildings.shp")
+
+        assert "HuPath" not in tool._file_checksums, \
+            "Stale checksum must be removed for a non-existent file"
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_empty_path_removes_existing_checksum(self):
+        """_check_path_field removes the checksum when path is cleared to ''."""
+        tool = _make_tool()
+        tool._file_checksums["HuPath"] = "some_checksum"
+
+        tool._check_path_field("HuPath", "")
+
+        assert "HuPath" not in tool._file_checksums, \
+            "Checksum must be removed when path is empty"
+
+    @pytest.mark.unit
+    def test_non_checksum_field_does_not_store_checksum(self, tmp_path):
+        """_check_path_field skips checksum computation for WorkspacePath (directory field)."""
+        tool = _make_tool()
+
+        tool._check_path_field("WorkspacePath", str(tmp_path))
+
+        assert "WorkspacePath" not in tool._file_checksums, \
+            "WorkspacePath is not a checksum field — no entry must be stored"
+
+
+# ---------------------------------------------------------------------------
+# TestRunValidationSkipLogic
+# ---------------------------------------------------------------------------
+
+class TestRunValidationSkipLogic:
+    """Tests for the checksum-based validation-skip in run_validation."""
+
+    @pytest.mark.unit
+    def test_first_call_without_cache_always_runs_validation(self):
+        """run_validation calls validate_all when _last_validation_result is None."""
+        tool = _make_tool()
+        assert tool._last_validation_result is None  # precondition
+
+        mock_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        with patch("ibtool.ibtool.ibtool.InputValidator") as mock_cls, \
+             patch("ibtool.ibtool.ibtool.logger"):
+            mock_cls.return_value.validate_all.return_value = mock_result
+            tool.run_validation()
+
+        mock_cls.return_value.validate_all.assert_called_once()
+
+    @pytest.mark.unit
+    def test_matching_checksums_and_cached_result_skips_validate_all(self):
+        """run_validation skips validate_all when all 5 checksums match and cache exists."""
+        tool = _make_tool()
+        tool._last_validation_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        _set_matching_checksums(tool)
+
+        with patch("ibtool.ibtool.ibtool.InputValidator") as mock_cls, \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool.run_validation()
+
+        mock_cls.return_value.validate_all.assert_not_called()
+
+    @pytest.mark.unit
+    def test_changed_checksum_triggers_revalidation(self):
+        """run_validation calls validate_all when one file checksum has changed."""
+        tool = _make_tool()
+        tool._last_validation_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        _set_matching_checksums(tool)
+        # Simulate externally modified file — HuPath checksum differs
+        tool._file_checksums["HuPath"] = "new_checksum_after_file_edit"
+
+        mock_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        with patch("ibtool.ibtool.ibtool.InputValidator") as mock_cls, \
+             patch("ibtool.ibtool.ibtool.logger"):
+            mock_cls.return_value.validate_all.return_value = mock_result
+            tool.run_validation()
+
+        mock_cls.return_value.validate_all.assert_called_once()
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_empty_checksum_field_prevents_skip(self):
+        """run_validation does not skip when any checksum is empty (file not yet checked)."""
+        tool = _make_tool()
+        tool._last_validation_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        _set_matching_checksums(tool)
+        # FilterPath was never path-checked — remove its entry
+        del tool._file_checksums["FilterPath"]
+        del tool._validated_checksums["FilterPath"]
+
+        mock_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        with patch("ibtool.ibtool.ibtool.InputValidator") as mock_cls, \
+             patch("ibtool.ibtool.ibtool.logger"):
+            mock_cls.return_value.validate_all.return_value = mock_result
+            tool.run_validation()
+
+        mock_cls.return_value.validate_all.assert_called_once()
+
+    @pytest.mark.unit
+    def test_after_validation_validated_checksums_snapshot_is_updated(self):
+        """run_validation snapshots _file_checksums into _validated_checksums after a run."""
+        tool = _make_tool()
+        for field in _ALL_CHECKSUM_FIELDS:
+            tool._file_checksums[field] = f"cs_{field}"
+
+        mock_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        with patch("ibtool.ibtool.ibtool.InputValidator") as mock_cls, \
+             patch("ibtool.ibtool.ibtool.logger"):
+            mock_cls.return_value.validate_all.return_value = mock_result
+            tool.run_validation()
+
+        assert tool._validated_checksums == tool._file_checksums, \
+            "_validated_checksums must mirror _file_checksums after validation"
+        assert tool._last_validation_result is mock_result
+
+
+# ---------------------------------------------------------------------------
+# TestSaveConfigChecksumPersistence
+# ---------------------------------------------------------------------------
+
+class TestSaveConfigChecksumPersistence:
+    """Tests for checksum and validation-cache serialisation in _save_config_from_ui."""
+
+    @pytest.mark.unit
+    def test_file_checksums_passed_to_update_config(self):
+        """_save_config_from_ui forwards _file_checksums to update_config as checksum keys."""
+        tool = _make_tool()
+        tool._file_checksums = {
+            "HuPath":     "aaa111",
+            "RnPath":     "bbb222",
+            "PartPath":   "ccc333",
+            "AuxPath":    "ddd444",
+            "FilterPath": "eee555",
+        }
+
+        captured = []
+        def capture(**kwargs):
+            captured.append(kwargs)
+
+        with patch.object(tool.config_manager, "update_config", side_effect=capture), \
+             patch.object(tool.config_manager, "save_config"):
+            tool._save_config_from_ui()
+
+        # Find the call that contains input_data
+        inp_call = next((c for c in captured if "input_data" in c), None)
+        assert inp_call is not None, "update_config must be called with input_data"
+        inp = inp_call["input_data"]
+        assert inp.get("building_footprints_checksum") == "aaa111"
+        assert inp.get("road_network_checksum") == "bbb222"
+        assert inp.get("partitions_checksum") == "ccc333"
+        assert inp.get("aux_layer_checksum") == "ddd444"
+        assert inp.get("filter_file_checksum") == "eee555"
+
+    @pytest.mark.unit
+    def test_validation_cache_serialised_when_result_is_cached(self):
+        """_save_config_from_ui writes JSON-serialised errors/warnings when cache present."""
+        import json
+        tool = _make_tool()
+        result = MagicMock()
+        result.errors = ["path error A"]
+        result.warnings = ["warning B"]
+        tool._last_validation_result = result
+
+        captured = []
+        def capture(**kwargs):
+            captured.append(kwargs)
+
+        with patch.object(tool.config_manager, "update_config", side_effect=capture), \
+             patch.object(tool.config_manager, "save_config"):
+            tool._save_config_from_ui()
+
+        cache_call = next((c for c in captured if "validation_cache" in c), None)
+        assert cache_call is not None, \
+            "update_config must be called with validation_cache when result is cached"
+        vc = cache_call["validation_cache"]
+        assert json.loads(vc["errors"]) == ["path error A"]
+        assert json.loads(vc["warnings"]) == ["warning B"]
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_no_validation_cache_call_when_result_is_none(self):
+        """_save_config_from_ui omits the validation_cache update_config call when no cache."""
+        tool = _make_tool()
+        assert tool._last_validation_result is None  # precondition
+
+        captured = []
+        def capture(**kwargs):
+            captured.append(kwargs)
+
+        with patch.object(tool.config_manager, "update_config", side_effect=capture), \
+             patch.object(tool.config_manager, "save_config"):
+            tool._save_config_from_ui()
+
+        cache_calls = [c for c in captured if "validation_cache" in c]
+        assert len(cache_calls) == 0, \
+            "No validation_cache update must be issued when _last_validation_result is None"
+
+
+# ---------------------------------------------------------------------------
+# TestApplyConfigChecksumRestore
+# ---------------------------------------------------------------------------
+
+class TestApplyConfigChecksumRestore:
+    """Tests for _validated_checksums and _last_validation_result restore in _apply_config_to_ui."""
+
+    def _make_mock_cfg(self, checksums=None, errors="[]", warnings="[]"):
+        """Build a minimal mock PluginConfig with checksum and cache fields set."""
+        mock_cfg = MagicMock()
+        mock_cfg.ui.auto_load_last_used = True
+        mock_cfg.ui.log_level = "INFO"
+        mock_cfg.processing.crs_epsg = 0
+        mock_cfg.processing.part_start = 0
+        mock_cfg.processing.part_end = 0
+        mock_cfg.processing.part_list = ""
+        mock_cfg.processing.min_building_count = 0
+        mock_cfg.processing.min_overlap_blocks = 0
+        mock_cfg.processing.global_footprint_density = 0
+        mock_cfg.processing.min_area = 0
+        mock_cfg.processing.min_patch_size = 0
+        mock_cfg.processing.max_hole_size = 0
+        mock_cfg.processing.max_gap_size = 0
+        mock_cfg.processing.debug_mode = False
+        mock_cfg.processing.delete_part_log = False
+        mock_cfg.input_data.filter_file_path = ""
+
+        cs = checksums or {}
+        mock_cfg.input_data.building_footprints_checksum = cs.get("HuPath", "")
+        mock_cfg.input_data.road_network_checksum = cs.get("RnPath", "")
+        mock_cfg.input_data.partitions_checksum = cs.get("PartPath", "")
+        mock_cfg.input_data.aux_layer_checksum = cs.get("AuxPath", "")
+        mock_cfg.input_data.filter_file_checksum = cs.get("FilterPath", "")
+
+        mock_cfg.validation_cache.errors = errors
+        mock_cfg.validation_cache.warnings = warnings
+        return mock_cfg
+
+    @pytest.mark.unit
+    def test_validated_checksums_populated_from_config(self):
+        """_apply_config_to_ui loads all 5 checksum fields into _validated_checksums."""
+        tool = _make_tool()
+        mock_cfg = self._make_mock_cfg(checksums={
+            "HuPath": "hu_aa", "RnPath": "rn_bb",
+            "PartPath": "pt_cc", "AuxPath": "ax_dd", "FilterPath": "fl_ee",
+        })
+
+        with patch.object(tool.config_manager, "config_exists", return_value=True), \
+             patch.object(tool.config_manager, "get_config", return_value=mock_cfg), \
+             patch.object(tool.config_manager, "apply_to_ui_elements"), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._apply_config_to_ui()
+
+        assert tool._validated_checksums["HuPath"] == "hu_aa"
+        assert tool._validated_checksums["RnPath"] == "rn_bb"
+        assert tool._validated_checksums["PartPath"] == "pt_cc"
+        assert tool._validated_checksums["AuxPath"] == "ax_dd"
+        assert tool._validated_checksums["FilterPath"] == "fl_ee"
+
+    @pytest.mark.unit
+    def test_validation_result_restored_from_valid_json_cache(self):
+        """_apply_config_to_ui restores ValidationResult from valid JSON in validation_cache."""
+        import json
+        tool = _make_tool()
+        tool._last_validation_result = None
+
+        mock_cfg = self._make_mock_cfg(
+            errors=json.dumps(["path missing"]),
+            warnings=json.dumps(["feature count low"]),
+        )
+
+        with patch.object(tool.config_manager, "config_exists", return_value=True), \
+             patch.object(tool.config_manager, "get_config", return_value=mock_cfg), \
+             patch.object(tool.config_manager, "apply_to_ui_elements"), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._apply_config_to_ui()
+
+        assert tool._last_validation_result is not None
+        assert tool._last_validation_result.errors == ["path missing"]
+        assert tool._last_validation_result.warnings == ["feature count low"]
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_corrupt_json_in_cache_does_not_crash(self):
+        """_apply_config_to_ui silently ignores corrupt JSON in validation_cache."""
+        tool = _make_tool()
+        tool._last_validation_result = None
+
+        mock_cfg = self._make_mock_cfg(errors="{not: valid json!", warnings="[]")
+
+        with patch.object(tool.config_manager, "config_exists", return_value=True), \
+             patch.object(tool.config_manager, "get_config", return_value=mock_cfg), \
+             patch.object(tool.config_manager, "apply_to_ui_elements"), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._apply_config_to_ui()  # Must not raise
+
+        assert tool._last_validation_result is None, \
+            "Corrupt cache must leave _last_validation_result as None"
+
+
+# ---------------------------------------------------------------------------
+# TestDeleteConfig
+# ---------------------------------------------------------------------------
+
+class TestDeleteConfig:
+    """Tests for IBTool._delete_config — confirmation, deletion, and UI reset."""
+
+    from helpers.config_manager import ConfigManager as _CM
+
+    @staticmethod
+    def _setup_tool_with_tmpdir(tmp_path):
+        """Create a tool with its config_manager pointing to tmp_path."""
+        from helpers.config_manager import ConfigManager
+        tool = _make_tool()
+        tool.plugin_dir = str(tmp_path)
+        tool.config_manager = ConfigManager(str(tmp_path))
+        return tool
+
+    @pytest.mark.unit
+    def test_cancel_dialog_does_not_delete_config_file(self, tmp_path):
+        """_delete_config leaves CONFIG.ini untouched when the user cancels."""
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = self._setup_tool_with_tmpdir(tmp_path)
+        cfg_file = tmp_path / "CONFIG.ini"
+        cfg_file.write_text("[UI]\n", encoding="utf-8")
+        tool.config_manager.config_file_path = str(cfg_file)
+
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.No), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._delete_config()
+
+        assert cfg_file.exists(), \
+            "CONFIG.ini must not be deleted when user cancels the dialog"
+
+    @pytest.mark.unit
+    def test_confirm_deletes_config_file(self, tmp_path):
+        """_delete_config removes CONFIG.ini when the user confirms."""
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = self._setup_tool_with_tmpdir(tmp_path)
+        cfg_file = tmp_path / "CONFIG.ini"
+        cfg_file.write_text("[UI]\n", encoding="utf-8")
+
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.Yes), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._delete_config()
+
+        assert not cfg_file.exists(), \
+            "CONFIG.ini must be deleted after user confirms"
+
+    @pytest.mark.unit
+    def test_confirm_clears_all_path_line_edits(self, tmp_path):
+        """_delete_config clears HuPath and all other path fields after confirmation."""
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = self._setup_tool_with_tmpdir(tmp_path)
+        tool.dlg.HuPath.setText("/some/buildings.shp")
+        tool.dlg.RnPath.setText("/some/roads.gpkg")
+        tool.dlg.WorkspacePath.setText("/some/workspace")
+
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.Yes), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._delete_config()
+
+        assert tool.dlg.HuPath.text() == ""
+        assert tool.dlg.RnPath.text() == ""
+        assert tool.dlg.WorkspacePath.text() == ""
+
+    @pytest.mark.unit
+    def test_confirm_resets_all_checksum_caches(self, tmp_path):
+        """_delete_config clears _file_checksums, _validated_checksums, and _last_validation_result."""
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = self._setup_tool_with_tmpdir(tmp_path)
+        tool._file_checksums = {"HuPath": "abc"}
+        tool._validated_checksums = {"HuPath": "abc"}
+        tool._last_validation_result = MagicMock()
+
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.Yes), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._delete_config()
+
+        assert tool._file_checksums == {}, \
+            "_file_checksums must be empty after reset"
+        assert tool._validated_checksums == {}, \
+            "_validated_checksums must be empty after reset"
+        assert tool._last_validation_result is None, \
+            "_last_validation_result must be None after reset"
+
+    @pytest.mark.unit
+    def test_confirm_disables_start_button(self, tmp_path):
+        """_delete_config disables StartButton after confirmation (re-check required)."""
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = self._setup_tool_with_tmpdir(tmp_path)
+        tool.dlg.set_start_button_ready(True)  # enable it first
+
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.Yes), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._delete_config()
+
+        assert not tool.dlg.StartButton.isEnabled(), \
+            "StartButton must be disabled after config reset"
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_no_config_file_does_not_crash(self, tmp_path):
+        """_delete_config does not raise when CONFIG.ini does not exist."""
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = self._setup_tool_with_tmpdir(tmp_path)
+        # No CONFIG.ini created in tmp_path
+
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.Yes), \
+             patch("ibtool.ibtool.ibtool.logger"):
+            tool._delete_config()  # Must not raise
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_file_deletion_error_returns_early_without_resetting_fields(self, tmp_path):
+        """_delete_config logs CRITICAL and returns early when os.remove raises OSError."""
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = self._setup_tool_with_tmpdir(tmp_path)
+        cfg_file = tmp_path / "CONFIG.ini"
+        cfg_file.write_text("[UI]\n", encoding="utf-8")
+        tool.dlg.HuPath.setText("/some/path.shp")
+
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.Yes), \
+             patch("ibtool.ibtool.ibtool.logger") as mock_log, \
+             patch("os.remove", side_effect=OSError("permission denied")):
+            tool._delete_config()
+
+        # Must have logged the error at CRITICAL level
+        critical_calls = [
+            c for c in mock_log.log.call_args_list
+            if c[1].get("level") == "CRITICAL"
+        ]
+        assert len(critical_calls) > 0, \
+            "An OSError during deletion must be logged at CRITICAL level"
+
+        # Early return: path fields must not have been cleared
+        assert tool.dlg.HuPath.text() == "/some/path.shp", \
+            "Path fields must remain unchanged when deletion fails"
