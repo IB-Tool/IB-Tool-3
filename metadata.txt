@@ -21,7 +21,7 @@ license=GPL-2.0-or-later
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=0.1.4 - Added GPL-2.0 license, release packaging script, Flake8/Bandit configs, and GitHub Actions CI. Complete UI overhaul: 4-step QStackedWidget stepper with per-field validation labels, phase progress display, and result actions. Debug mode forwarded to all processing tools (ImportFilter, MST_Clustering, PatchRemove). Comprehensive refactoring of all helpers and tool modules (docstrings, type hints, constants, snake_case). 13 new test modules added.
+changelog=0.2.0 - Added GPL-2.0 license, release packaging script, Flake8/Bandit configs, and GitHub Actions CI. Complete UI overhaul: 4-step QStackedWidget stepper with per-field validation labels, phase progress display, and result actions. Debug mode forwarded to all processing tools (ImportFilter, MST_Clustering, PatchRemove). Comprehensive refactoring of all helpers and tool modules (docstrings, type hints, constants, snake_case). 13 new test modules added.
 
 
 # Tags are comma separated with spaces allowed
