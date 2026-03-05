@@ -32,6 +32,7 @@ from helpers.config_manager import (
     OutputConfig,
     UIConfig,
     PluginConfig,
+    ValidationCacheConfig,
 )
 
 
@@ -759,3 +760,203 @@ class TestGetProcessingParameters:
             assert params["road_length_threshold"] == 50.0
             assert params["crs_epsg"] == 25832
             assert params["output_format"] == "gpkg"
+
+
+# ---------------------------------------------------------------------------
+# TestValidationCacheConfig — new dataclass
+# ---------------------------------------------------------------------------
+
+class TestValidationCacheConfig:
+    """Tests for the ValidationCacheConfig dataclass."""
+
+    @pytest.mark.unit
+    def test_default_errors_is_empty_json_list(self):
+        """Default errors field is '[]' — a JSON-encoded empty list."""
+        cfg = ValidationCacheConfig()
+        assert cfg.errors == "[]"
+
+    @pytest.mark.unit
+    def test_default_warnings_is_empty_json_list(self):
+        """Default warnings field is '[]' — a JSON-encoded empty list."""
+        cfg = ValidationCacheConfig()
+        assert cfg.warnings == "[]"
+
+
+# ---------------------------------------------------------------------------
+# TestInputDataChecksumFields — new fields on InputDataConfig
+# ---------------------------------------------------------------------------
+
+class TestInputDataChecksumFields:
+    """Tests for the five checksum fields added to InputDataConfig."""
+
+    @pytest.mark.unit
+    def test_all_checksum_fields_default_to_empty_string(self):
+        """All five checksum fields default to ''."""
+        cfg = InputDataConfig()
+        assert cfg.building_footprints_checksum == ""
+        assert cfg.road_network_checksum == ""
+        assert cfg.partitions_checksum == ""
+        assert cfg.aux_layer_checksum == ""
+        assert cfg.filter_file_checksum == ""
+
+    @pytest.mark.unit
+    def test_checksum_fields_accept_and_store_string_values(self):
+        """Checksum fields store arbitrary string values without error."""
+        cfg = InputDataConfig()
+        cfg.building_footprints_checksum = "aabbccddeeff0011"
+        assert cfg.building_footprints_checksum == "aabbccddeeff0011"
+
+
+# ---------------------------------------------------------------------------
+# TestPluginConfigValidationCache — new field on PluginConfig
+# ---------------------------------------------------------------------------
+
+class TestPluginConfigValidationCache:
+    """Tests for the validation_cache field added to PluginConfig."""
+
+    @pytest.mark.unit
+    def test_plugin_config_has_validation_cache_attribute(self):
+        """PluginConfig exposes a validation_cache attribute of type ValidationCacheConfig."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            cfg = mgr.get_config()
+            assert hasattr(cfg, "validation_cache")
+            assert isinstance(cfg.validation_cache, ValidationCacheConfig)
+
+    @pytest.mark.unit
+    def test_validation_cache_defaults_to_empty_json_lists(self):
+        """Fresh PluginConfig has validation_cache with errors='[]' and warnings='[]'."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            cfg = mgr.get_config()
+            assert cfg.validation_cache.errors == "[]"
+            assert cfg.validation_cache.warnings == "[]"
+
+
+# ---------------------------------------------------------------------------
+# TestConfigManagerChecksumRoundtrip — save/load for new fields
+# ---------------------------------------------------------------------------
+
+class TestConfigManagerChecksumRoundtrip:
+    """Tests for checksum and validation-cache persistence in save_config / load_config."""
+
+    @pytest.mark.unit
+    def test_all_five_checksums_survive_save_load_cycle(self):
+        """All five checksum fields are written and read back correctly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.input_data.building_footprints_checksum = "aabb11"
+            mgr.config.input_data.road_network_checksum = "ccdd22"
+            mgr.config.input_data.partitions_checksum = "eeff33"
+            mgr.config.input_data.aux_layer_checksum = "aabb44"
+            mgr.config.input_data.filter_file_checksum = "ccdd55"
+            mgr.save_config()
+
+            mgr2 = _make_manager(tmpdir)
+            assert mgr2.config.input_data.building_footprints_checksum == "aabb11"
+            assert mgr2.config.input_data.road_network_checksum == "ccdd22"
+            assert mgr2.config.input_data.partitions_checksum == "eeff33"
+            assert mgr2.config.input_data.aux_layer_checksum == "aabb44"
+            assert mgr2.config.input_data.filter_file_checksum == "ccdd55"
+
+    @pytest.mark.unit
+    def test_save_writes_validation_cache_section(self):
+        """save_config creates a [VALIDATION_CACHE] section in CONFIG.ini."""
+        import configparser
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.validation_cache.errors = '["path error"]'
+            mgr.config.validation_cache.warnings = '["minor warning"]'
+            mgr.save_config()
+
+            parser = configparser.ConfigParser()
+            parser.read(os.path.join(tmpdir, "CONFIG.ini"), encoding="utf-8")
+            assert parser.has_section("VALIDATION_CACHE"), \
+                "[VALIDATION_CACHE] section must exist in CONFIG.ini"
+
+    @pytest.mark.unit
+    def test_save_writes_correct_errors_and_warnings_values(self):
+        """save_config writes the exact errors and warnings strings to [VALIDATION_CACHE]."""
+        import configparser
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.validation_cache.errors = '["err_a", "err_b"]'
+            mgr.config.validation_cache.warnings = '["warn_x"]'
+            mgr.save_config()
+
+            parser = configparser.ConfigParser()
+            parser.read(os.path.join(tmpdir, "CONFIG.ini"), encoding="utf-8")
+            assert parser["VALIDATION_CACHE"]["errors"] == '["err_a", "err_b"]'
+            assert parser["VALIDATION_CACHE"]["warnings"] == '["warn_x"]'
+
+    @pytest.mark.unit
+    def test_validation_cache_survives_save_load_cycle(self):
+        """Validation cache errors and warnings round-trip through save and load."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.validation_cache.errors = '["path error"]'
+            mgr.config.validation_cache.warnings = '["minor warning"]'
+            mgr.save_config()
+
+            mgr2 = _make_manager(tmpdir)
+            assert mgr2.config.validation_cache.errors == '["path error"]'
+            assert mgr2.config.validation_cache.warnings == '["minor warning"]'
+
+    @pytest.mark.unit
+    def test_load_reads_checksum_keys_from_input_data_section(self):
+        """load_config reads checksum keys from an existing [INPUT_DATA] section."""
+        content = (
+            "[INPUT_DATA]\n"
+            "building_footprints_path = /data/buildings.shp\n"
+            "building_footprints_checksum = abc123def456\n"
+            "road_network_checksum = 11223344\n"
+            "filter_file_checksum = ff998877\n"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_ini(tmpdir, content)
+            mgr = _make_manager(tmpdir)
+            assert mgr.config.input_data.building_footprints_checksum == "abc123def456"
+            assert mgr.config.input_data.road_network_checksum == "11223344"
+            assert mgr.config.input_data.filter_file_checksum == "ff998877"
+
+    @pytest.mark.unit
+    def test_load_reads_validation_cache_errors_and_warnings(self):
+        """load_config reads errors and warnings from [VALIDATION_CACHE]."""
+        content = (
+            "[VALIDATION_CACHE]\n"
+            'errors = ["err1", "err2"]\n'
+            'warnings = ["warn1"]\n'
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_ini(tmpdir, content)
+            mgr = _make_manager(tmpdir)
+            assert mgr.config.validation_cache.errors == '["err1", "err2"]'
+            assert mgr.config.validation_cache.warnings == '["warn1"]'
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_missing_checksum_keys_in_input_data_default_to_empty_string(self):
+        """[INPUT_DATA] without checksum keys leaves all checksum fields as ''."""
+        content = (
+            "[INPUT_DATA]\n"
+            "building_footprints_path = /data/buildings.shp\n"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_ini(tmpdir, content)
+            mgr = _make_manager(tmpdir)
+            assert mgr.config.input_data.building_footprints_checksum == ""
+            assert mgr.config.input_data.road_network_checksum == ""
+            assert mgr.config.input_data.partitions_checksum == ""
+            assert mgr.config.input_data.aux_layer_checksum == ""
+            assert mgr.config.input_data.filter_file_checksum == ""
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_missing_validation_cache_section_keeps_default_empty_lists(self):
+        """Config without [VALIDATION_CACHE] leaves errors and warnings as '[]'."""
+        content = "[PROCESSING]\nroad_length_threshold = 50.0\n"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            _write_ini(tmpdir, content)
+            mgr = _make_manager(tmpdir)
+            assert mgr.config.validation_cache.errors == "[]"
+            assert mgr.config.validation_cache.warnings == "[]"
