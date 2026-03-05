@@ -831,7 +831,7 @@ class TestDisplayValidationResult:
 _ALL_CHECKSUM_FIELDS = ("HuPath", "RnPath", "PartPath", "AuxPath", "FilterPath")
 
 
-def _set_matching_checksums(tool, value: str = "deadbeef1234") -> None:
+def _set_matching_checksums(tool, value: str = "deadbeef1234") -> None:  # pragma: allowlist secret
     """Populate both checksum dicts with the same non-empty value for all 5 fields."""
     for field in _ALL_CHECKSUM_FIELDS:
         tool._file_checksums[field] = value

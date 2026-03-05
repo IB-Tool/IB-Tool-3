@@ -915,7 +915,7 @@ class TestConfigManagerChecksumRoundtrip:
         with tempfile.TemporaryDirectory() as tmpdir:
             _write_ini(tmpdir, content)
             mgr = _make_manager(tmpdir)
-            assert mgr.config.input_data.building_footprints_checksum == "abc123def456"
+            assert mgr.config.input_data.building_footprints_checksum == "abc123def456"  # pragma: allowlist secret
             assert mgr.config.input_data.road_network_checksum == "11223344"
             assert mgr.config.input_data.filter_file_checksum == "ff998877"
 
