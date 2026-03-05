@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- **GeoPackage support** (`helpers/data_loader.py`, `ibtool/ibtool.py`): All four file-browse dialogs now accept `.gpkg` in addition to `.shp` (`"Vector files (*.shp *.gpkg);;…"`).
+- **Checksum-based validation skip** (`ibtool/ibtool.py`, `helpers/system_utils.py`): `run_validation()` computes an MD5 checksum for each input file after every path-field change (via `compute_file_checksum()`). If all checksums match those from the previous successful validation run, the cached `ValidationResult` is re-displayed instead of reloading QGIS layers — avoiding redundant layer loads when the user clicks *Check* repeatedly without changing files.
+- **Cross-session validation cache** (`helpers/config_manager.py`, `ibtool/ibtool.py`): File checksums and the last `ValidationResult` (errors + warnings as JSON) are persisted to `CONFIG.ini` under a new `[VALIDATION_CACHE]` section and restored on plugin startup, so the skip logic works across plugin restarts.
+- **"Reset Config" button** (`ibtool/ibtool_dialog_base.ui`, `ibtool/ibtool.py`): New `DeleteConfigButton` in the UI. Clicking it asks for confirmation, deletes `CONFIG.ini`, re-initialises `ConfigManager` with factory defaults, clears all path / parameter fields, and resets checksum and validation caches.
+- **`compute_file_checksum()`** (`helpers/system_utils.py`): New helper that returns the hex-encoded MD5 digest of a file, reading in 8 kB chunks to avoid large in-memory loads; returns `""` on any I/O error.
+- **`ValidationCacheConfig` dataclass** (`helpers/config_manager.py`): New dataclass storing the cached validation errors and warnings as JSON-encoded strings; included in `PluginConfig` and serialised/deserialised by `ConfigManager`.
+- **Checksum fields in `InputDataConfig`** (`helpers/config_manager.py`): Five new checksum fields (`building_footprints_checksum`, `road_network_checksum`, `partitions_checksum`, `aux_layer_checksum`, `filter_file_checksum`) persisted alongside the corresponding path fields.
+
+### Tests
+- **`test/test_config_manager.py`**: Extended with tests covering checksum field persistence, `ValidationCacheConfig` round-trip, and `[VALIDATION_CACHE]` section load/save.
+- **`test/test_ibtool.py`**: Extended with tests for `_delete_config()`, checksum caching in `_check_path_field()`, and the skip logic in `run_validation()`.
+- **`test/test_system_utils.py`**: New test file covering `compute_file_checksum()` (normal file, I/O error, chunked reads).
+
 ### Changed
 - **Docs**: Harmonized `docs/` folder and `README.md` — removed redundancies, unified style (unnumbered headings, `---` separators, intro paragraphs, `## Related Files` sections), replaced duplicate content with cross-references. Added `parameterization.md`, `input-data.md`, and `CONFIG_README.md` to the `CLAUDE.md` documentation table.
 - **Docs**: Added module-level docstring to `helpers/data_loader.py`.
