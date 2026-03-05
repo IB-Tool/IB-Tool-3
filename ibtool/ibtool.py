@@ -16,6 +16,7 @@ Copyright: (C) 2026 by Oliver Harig
 License: GNU General Public License v2 or later
 """
 
+import json
 import os
 import sys
 
@@ -74,6 +75,7 @@ from qgis.PyQt.QtWidgets import (  # noqa: E402
     QDialog,
     QFileDialog,
     QApplication,
+    QMessageBox,
 )
 from qgis.core import (  # noqa: E402
     QgsCoordinateReferenceSystem,
@@ -91,7 +93,8 @@ from ibtool.helpers.geometry_utils import (  # noqa: E402
 from ibtool.helpers.system_utils import (  # noqa: E402
     manage_directory,
     save_temp_layer_to_gpkg,
-    version_check
+    version_check,
+    compute_file_checksum,
 )
 from ibtool.helpers.message import msg  # noqa: E402
 from ibtool.helpers.check import InputValidator, ValidationResult  # noqa: E402
@@ -195,6 +198,13 @@ class IBTool:
         # Last successful output paths (used by result action buttons)
         self._last_output_path = ""
         self._last_output_folder = ""
+
+        # Checksum cache: field_name → MD5 hex of file at last path-check
+        self._file_checksums: dict = {}
+        # Checksum snapshot at the time of the last completed validation run
+        self._validated_checksums: dict = {}
+        # Cached ValidationResult from the last run (None = never validated)
+        self._last_validation_result = None
 
     def update_progress(self, value):
         """Update progress bar"""
@@ -350,6 +360,7 @@ class IBTool:
             self.dlg.StartButton.clicked.connect(self.start_processing)
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
             self.dlg.SaveConfigButton.clicked.connect(self._save_config_from_ui)
+            self.dlg.DeleteConfigButton.clicked.connect(self._delete_config)
             # Start button disabled by default — requires successful check
             self.dlg.set_start_button_ready(False)
             # Disable Start button when input paths change (re-check required)
@@ -434,7 +445,7 @@ class IBTool:
             self.dlg,  # Dialog is part of the GUI
             "Select building footprints file",
             "",
-            "Shapefiles (*.shp);;All Files (*)"
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.HuPath.setText(file_path)  # Display the path in QLineEdit
@@ -445,7 +456,7 @@ class IBTool:
             self.dlg,
             "Select road network file",
             "",
-            "Shapefiles (*.shp);;All Files (*)"
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.RnPath.setText(file_path)  # Display the path in QLineEdit
@@ -456,7 +467,7 @@ class IBTool:
             self.dlg,
             "Select partitions file",
             "",
-            "Shapefiles (*.shp);;All Files (*)"
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.PartPath.setText(
@@ -468,7 +479,7 @@ class IBTool:
             self.dlg,
             "Select auxiliary data file",
             "",
-            "Shapefiles (*.shp);;All Files (*)"
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.AuxPath.setText(file_path)
@@ -536,17 +547,31 @@ class IBTool:
     # Inline path validation
     # ------------------------------------------------------------------
 
+    # Fields for which a checksum is computed (input files, not directories).
+    _CHECKSUM_FIELDS = frozenset({'HuPath', 'RnPath', 'PartPath', 'AuxPath', 'FilterPath'})
+
     def _check_path_field(self, field_name: str, path: str) -> None:
         """Quick path-existence check triggered by textChanged.
 
         Does not load any QGIS layer — pure filesystem check.
+        For input file fields the MD5 checksum of the file is stored in
+        ``self._file_checksums`` so that :meth:`run_validation` can skip
+        re-validation when files have not changed.
         """
         if not path:
             self.dlg.set_field_status(field_name, None)
+            self._file_checksums.pop(field_name, None)
             return
 
         is_ok, message = InputValidator().quick_path_check(path)
         self.dlg.set_field_status(field_name, is_ok, message if not is_ok else "")
+
+        # Compute and cache checksum for input file fields
+        if field_name in self._CHECKSUM_FIELDS:
+            if is_ok and os.path.isfile(path):
+                self._file_checksums[field_name] = compute_file_checksum(path)
+            else:
+                self._file_checksums.pop(field_name, None)
 
         # Enable showFilterButton only when FilterPath is a valid file
         if field_name == 'FilterPath':
@@ -715,6 +740,30 @@ class IBTool:
         if filter_path and os.path.exists(filter_path):
             self.load_filter_file(filter_path)
 
+        # Restore validated-checksums snapshot so run_validation can skip
+        # re-validation when the files haven't changed since last session.
+        inp = cfg.input_data
+        self._validated_checksums = {
+            'HuPath':     inp.building_footprints_checksum,
+            'RnPath':     inp.road_network_checksum,
+            'PartPath':   inp.partitions_checksum,
+            'AuxPath':    inp.aux_layer_checksum,
+            'FilterPath': inp.filter_file_checksum,
+        }
+
+        # Restore cached ValidationResult from last session
+        try:
+            vc = cfg.validation_cache
+            cached_errors = json.loads(vc.errors) if vc.errors else []
+            cached_warnings = json.loads(vc.warnings) if vc.warnings else []
+            if cached_errors is not None or cached_warnings:
+                restored = ValidationResult()
+                restored.errors = cached_errors
+                restored.warnings = cached_warnings
+                self._last_validation_result = restored
+        except Exception:
+            pass  # Corrupt cache — will re-validate on demand
+
         logger.log("Konfiguration aus CONFIG.ini geladen.", level="INFO")
 
     def _save_config_from_ui(self) -> None:
@@ -726,6 +775,12 @@ class IBTool:
                 'partitions_path': self.dlg.PartPath.text(),
                 'aux_layer_path': self.dlg.AuxPath.text(),
                 'filter_file_path': self.dlg.FilterPath.text(),
+                # Persist last-known checksums for cross-session skip logic
+                'building_footprints_checksum': self._file_checksums.get('HuPath', ''),
+                'road_network_checksum': self._file_checksums.get('RnPath', ''),
+                'partitions_checksum': self._file_checksums.get('PartPath', ''),
+                'aux_layer_checksum': self._file_checksums.get('AuxPath', ''),
+                'filter_file_checksum': self._file_checksums.get('FilterPath', ''),
             },
             output={
                 'workspace_directory': self.dlg.WorkspacePath.text(),
@@ -751,8 +806,69 @@ class IBTool:
                 'delete_part_log': self.dlg.PartLogBox.isChecked(),
             },
         )
+        # Persist the cached validation result (errors/warnings as JSON lists)
+        if self._last_validation_result is not None:
+            self.config_manager.update_config(
+                validation_cache={
+                    'errors': json.dumps(self._last_validation_result.errors),
+                    'warnings': json.dumps(self._last_validation_result.warnings),
+                }
+            )
+
         self.config_manager.save_config()
         logger.log("Konfiguration in CONFIG.ini gespeichert.", level="INFO")
+
+    def _delete_config(self) -> None:
+        """Delete CONFIG.ini and reset all UI fields to factory defaults.
+
+        Asks the user for confirmation before deleting. After deletion the
+        ConfigManager is re-initialised with an empty default configuration
+        and all path / parameter fields in the UI are cleared.
+        """
+        reply = QMessageBox.question(
+            self.dlg,
+            "Konfiguration zurücksetzen",
+            "CONFIG.ini löschen und alle Felder zurücksetzen?\n"
+            "Diese Aktion kann nicht rückgängig gemacht werden.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        # Delete the file if it exists
+        cfg_path = self.config_manager.config_file_path
+        if os.path.exists(cfg_path):
+            try:
+                os.remove(cfg_path)
+            except OSError as e:
+                logger.log(f"Fehler beim Löschen der CONFIG.ini: {e}", level="CRITICAL")
+                return
+
+        # Re-init manager with empty defaults
+        self.config_manager = ConfigManager(self.plugin_dir)
+
+        # Clear all path fields
+        for widget in [
+            self.dlg.HuPath, self.dlg.RnPath, self.dlg.PartPath,
+            self.dlg.AuxPath, self.dlg.FilterPath,
+            self.dlg.OutputPath, self.dlg.WorkspacePath, self.dlg.LogDirPath,
+        ]:
+            widget.clear()
+
+        # Clear filter preview text fields
+        self.dlg.txtPositive.clear()
+        self.dlg.txtNegative.clear()
+
+        # Reset checksum and validation caches
+        self._file_checksums.clear()
+        self._validated_checksums.clear()
+        self._last_validation_result = None
+
+        # Disable Start button (re-check required)
+        self.dlg.set_start_button_ready(False)
+
+        logger.log("Konfiguration zurückgesetzt — CONFIG.ini gelöscht.", level="INFO")
 
     def _collect_params(self) -> dict:
         """Collect all UI parameter values as raw strings for validation.
@@ -828,8 +944,33 @@ class IBTool:
         }
 
     def run_validation(self):
-        """Run input validation and display results in MessageBox."""
+        """Run input validation and display results in MessageBox.
+
+        Skips the full QGIS-layer validation when all input-file checksums
+        match those stored from the previous run and a cached
+        ``ValidationResult`` is available. This avoids redundant layer loads
+        when the user clicks *Check* multiple times without changing files.
+        """
         self.dlg.MessageBox.clear()
+
+        # ------------------------------------------------------------------
+        # Checksum-based skip: if files haven't changed since last validation,
+        # re-display the cached result instead of running the full check.
+        # ------------------------------------------------------------------
+        if self._last_validation_result is not None:
+            if all(
+                self._file_checksums.get(f) == self._validated_checksums.get(f)
+                and self._file_checksums.get(f)  # both sides must be non-empty
+                for f in self._CHECKSUM_FIELDS
+            ):
+                logger.log(
+                    "Validierung übersprungen — Eingabedateien unverändert "
+                    "(Prüfsummen stimmen überein).",
+                    level="INFO",
+                )
+                self._display_validation_result(self._last_validation_result)
+                self.dlg.set_start_button_ready(self._last_validation_result.is_valid)
+                return
 
         spatial_reference = self.dlg.SpatialReferenceBox.crs()
 
@@ -845,6 +986,10 @@ class IBTool:
             spatial_reference=spatial_reference,
             params=self._collect_params(),
         )
+
+        # Store result and snapshot checksums for next skip-check
+        self._last_validation_result = result
+        self._validated_checksums = dict(self._file_checksums)
 
         self._display_validation_result(result)
         self.dlg.set_start_button_ready(result.is_valid)
