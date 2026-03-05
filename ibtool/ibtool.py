@@ -744,10 +744,10 @@ class IBTool:
         # re-validation when the files haven't changed since last session.
         inp = cfg.input_data
         self._validated_checksums = {
-            'HuPath':     inp.building_footprints_checksum,
-            'RnPath':     inp.road_network_checksum,
-            'PartPath':   inp.partitions_checksum,
-            'AuxPath':    inp.aux_layer_checksum,
+            'HuPath': inp.building_footprints_checksum,
+            'RnPath': inp.road_network_checksum,
+            'PartPath': inp.partitions_checksum,
+            'AuxPath': inp.aux_layer_checksum,
             'FilterPath': inp.filter_file_checksum,
         }
 
