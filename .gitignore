@@ -59,9 +59,9 @@ debug_*.py
 # Alte Dateien
 /IB-Tool2.py
 
-# Claude Code
+# Build-Artefakte
+dist/
+
+# Claude Code (lokale Einstellungen, nicht committen)
 /.claude/settings.local.json
-/.claude
-/ai
-CLAUDE.md
 
