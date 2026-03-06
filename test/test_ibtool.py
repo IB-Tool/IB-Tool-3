@@ -1,10 +1,7 @@
 """
 Tests for ibtool/ibtool/ibtool.py.
 
-The module exposes three components under test:
-
-  initialize_environment()
-    - Sets PYTHONPATH in os.environ and extends sys.path.
+The module exposes two components under test:
 
   ProcessingThread(QThread)
     - Background thread with progress_update and log_message signals.
@@ -14,7 +11,6 @@ The module exposes three components under test:
       QSettings to detect the locale.
 
 Unit tests cover (no Processing or real iface operations):
-  - initialize_environment: PYTHONPATH env var is set after call
   - ProcessingThread: instantiation does not crash
   - ProcessingThread: isRunning() is False directly after construction
   - ProcessingThread: progress_update signal exists
@@ -38,8 +34,8 @@ Unit tests cover (no Processing or real iface operations):
   - IBTool.run_validation: enables/disables StartButton, clears MessageBox
   - IBTool._display_validation_result: correct log messages for all result branches
 """
+# pylint: disable=too-many-lines,protected-access,import-outside-toplevel,wrong-import-order
 
-import os
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -47,7 +43,7 @@ from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 
-from ibtool.ibtool.ibtool import IBTool, ProcessingThread, initialize_environment
+from ibtool.ibtool.ibtool import IBTool, ProcessingThread  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -59,28 +55,6 @@ def _make_tool() -> IBTool:
     with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs:
         mock_qs.return_value.value.return_value = "de_DE"
         return IBTool(_IFACE)
-
-
-# ---------------------------------------------------------------------------
-# TestInitializeEnvironment
-# ---------------------------------------------------------------------------
-
-class TestInitializeEnvironment:
-    """Unit tests for the module-level initialize_environment function."""
-
-    @pytest.mark.unit
-    def test_sets_pythonpath_in_os_environ(self):
-        """initialize_environment must set the PYTHONPATH environment variable."""
-        initialize_environment()
-
-        assert "PYTHONPATH" in os.environ, \
-            "PYTHONPATH must be present in os.environ after initialize_environment()"
-
-    @pytest.mark.unit
-    def test_can_be_called_multiple_times_without_crash(self):
-        """Calling initialize_environment repeatedly must not raise."""
-        initialize_environment()
-        initialize_environment()
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +116,7 @@ class TestProcessingThread:
 # TestIBTool
 # ---------------------------------------------------------------------------
 
-class TestIBTool:
+class TestIBTool:  # pylint: disable=too-many-public-methods
     """Unit tests for the IBTool plugin class."""
 
     @classmethod
@@ -503,12 +477,12 @@ class TestAddAction:
     def _add(tool, **kwargs):
         """Call add_action with a MagicMock iface (avoids real Qt toolbar/menu calls)."""
         tool.iface = MagicMock()
-        defaults = dict(
-            icon_path="",
-            text="Test Action",
-            callback=lambda: None,
-            parent=_PARENT,
-        )
+        defaults = {
+            "icon_path": "",
+            "text": "Test Action",
+            "callback": lambda: None,
+            "parent": _PARENT,
+        }
         defaults.update(kwargs)
         return tool.add_action(**defaults)
 
@@ -870,7 +844,7 @@ class TestCheckPathFieldChecksum:
 
         tool._check_path_field("RnPath", str(f))
 
-        expected = hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324
+        expected = hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324  # pylint: disable=unexpected-keyword-arg
         assert tool._file_checksums.get("RnPath") == expected
 
     @pytest.mark.unit
@@ -1000,6 +974,7 @@ class TestRunValidationSkipLogic:
 # TestSaveConfigChecksumPersistence
 # ---------------------------------------------------------------------------
 
+# pylint: disable=invalid-name
 class TestSaveConfigChecksumPersistence:
     """Tests for checksum and validation-cache serialisation in _save_config_from_ui."""
 
