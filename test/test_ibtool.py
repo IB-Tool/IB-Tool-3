@@ -1364,7 +1364,8 @@ class TestLoadInputLayers:
     def _call_with_mocks(self, _mock_load, _mock_proc):
         """Invoke _load_input_layers with all external deps already patched."""
         return self.tool._load_input_layers(
-            "hu.shp", "rn.shp", "aux.shp", "part.shp", "/tmp/ws/", self.crs)
+            "hu.shp", "rn.shp", "aux.shp", "part.shp",
+            "/tmp/ws/", self.crs)  # nosec B108 — fake path, all I/O is mocked
 
     @pytest.mark.unit
     def test_returns_five_element_tuple(self):
@@ -1466,7 +1467,7 @@ class TestRunPartitionPipeline:
     def _call(self, layers):
         return self.tool._run_partition_pipeline(
             "PART_01", 1, 5, layers, self.crs,
-            "/tmp/ws/", False, 0.5, _PIPELINE_PARAMS)
+            "/tmp/ws/", False, 0.5, _PIPELINE_PARAMS)  # nosec B108 — fake path, all I/O is mocked
 
     # ------------------------------------------------------------------
     # Skip: too few buildings
