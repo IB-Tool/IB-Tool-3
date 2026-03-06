@@ -1,10 +1,7 @@
 """
 Tests for ibtool/ibtool/ibtool.py.
 
-The module exposes three components under test:
-
-  initialize_environment()
-    - Sets PYTHONPATH in os.environ and extends sys.path.
+The module exposes two components under test:
 
   ProcessingThread(QThread)
     - Background thread with progress_update and log_message signals.
@@ -14,7 +11,6 @@ The module exposes three components under test:
       QSettings to detect the locale.
 
 Unit tests cover (no Processing or real iface operations):
-  - initialize_environment: PYTHONPATH env var is set after call
   - ProcessingThread: instantiation does not crash
   - ProcessingThread: isRunning() is False directly after construction
   - ProcessingThread: progress_update signal exists
@@ -37,9 +33,13 @@ Unit tests cover (no Processing or real iface operations):
   - IBTool.unload: delegates remove calls to iface, closes logger
   - IBTool.run_validation: enables/disables StartButton, clears MessageBox
   - IBTool._display_validation_result: correct log messages for all result branches
+  - IBTool._update_phase: forwards args to dlg.set_phase_progress; boundary values
+  - IBTool._load_input_layers: returns 5-tuple; 4 load calls; spatial indices; merges aux+rn
+  - IBTool._run_partition_pipeline: skip <10 buildings; skip MST failure; success;
+      boundary 10 buildings; zero buildings edge case
 """
+# pylint: disable=too-many-lines,protected-access,import-outside-toplevel,wrong-import-order
 
-import os
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -47,7 +47,7 @@ from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 
-from ibtool.ibtool.ibtool import IBTool, ProcessingThread, initialize_environment
+from ibtool.ibtool.ibtool import IBTool, ProcessingThread  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -59,28 +59,6 @@ def _make_tool() -> IBTool:
     with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs:
         mock_qs.return_value.value.return_value = "de_DE"
         return IBTool(_IFACE)
-
-
-# ---------------------------------------------------------------------------
-# TestInitializeEnvironment
-# ---------------------------------------------------------------------------
-
-class TestInitializeEnvironment:
-    """Unit tests for the module-level initialize_environment function."""
-
-    @pytest.mark.unit
-    def test_sets_pythonpath_in_os_environ(self):
-        """initialize_environment must set the PYTHONPATH environment variable."""
-        initialize_environment()
-
-        assert "PYTHONPATH" in os.environ, \
-            "PYTHONPATH must be present in os.environ after initialize_environment()"
-
-    @pytest.mark.unit
-    def test_can_be_called_multiple_times_without_crash(self):
-        """Calling initialize_environment repeatedly must not raise."""
-        initialize_environment()
-        initialize_environment()
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +120,7 @@ class TestProcessingThread:
 # TestIBTool
 # ---------------------------------------------------------------------------
 
-class TestIBTool:
+class TestIBTool:  # pylint: disable=too-many-public-methods
     """Unit tests for the IBTool plugin class."""
 
     @classmethod
@@ -503,12 +481,12 @@ class TestAddAction:
     def _add(tool, **kwargs):
         """Call add_action with a MagicMock iface (avoids real Qt toolbar/menu calls)."""
         tool.iface = MagicMock()
-        defaults = dict(
-            icon_path="",
-            text="Test Action",
-            callback=lambda: None,
-            parent=_PARENT,
-        )
+        defaults = {
+            "icon_path": "",
+            "text": "Test Action",
+            "callback": lambda: None,
+            "parent": _PARENT,
+        }
         defaults.update(kwargs)
         return tool.add_action(**defaults)
 
@@ -870,7 +848,7 @@ class TestCheckPathFieldChecksum:
 
         tool._check_path_field("RnPath", str(f))
 
-        expected = hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324
+        expected = hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec B324  # pylint: disable=unexpected-keyword-arg
         assert tool._file_checksums.get("RnPath") == expected
 
     @pytest.mark.unit
@@ -1000,6 +978,7 @@ class TestRunValidationSkipLogic:
 # TestSaveConfigChecksumPersistence
 # ---------------------------------------------------------------------------
 
+# pylint: disable=invalid-name
 class TestSaveConfigChecksumPersistence:
     """Tests for checksum and validation-cache serialisation in _save_config_from_ui."""
 
@@ -1323,3 +1302,362 @@ class TestDeleteConfig:
         # Early return: path fields must not have been cleared
         assert tool.dlg.HuPath.text() == "/some/path.shp", \
             "Path fields must remain unchanged when deletion fails"
+
+
+# ---------------------------------------------------------------------------
+# TestUpdatePhase
+# ---------------------------------------------------------------------------
+
+class TestUpdatePhase:
+    """Unit tests for IBTool._update_phase."""
+
+    @classmethod
+    def setup_class(cls):
+        """Set up test fixture with IBTool instance."""
+        cls.tool = _make_tool()
+
+    @pytest.mark.unit
+    def test_forwards_all_args_to_set_phase_progress(self):
+        """Forwards phase, total, name, and percent to dlg.set_phase_progress."""
+        with patch.object(self.tool.dlg, "set_phase_progress") as mock_spp:
+            self.tool._update_phase(3, 6, "Calculate MST", 40)
+
+        mock_spp.assert_called_once_with(3, 6, "Calculate MST", 40)
+
+    @pytest.mark.unit
+    def test_boundary_phase_1_percent_0(self):
+        """Does not raise for the first phase at 0 percent."""
+        with patch.object(self.tool.dlg, "set_phase_progress") as mock_spp:
+            self.tool._update_phase(1, 6, "Load Data", 0)
+
+        mock_spp.assert_called_once_with(1, 6, "Load Data", 0)
+
+    @pytest.mark.unit
+    def test_boundary_phase_6_percent_100(self):
+        """Does not raise for the last phase at 100 percent."""
+        with patch.object(self.tool.dlg, "set_phase_progress") as mock_spp:
+            self.tool._update_phase(6, 6, "Save Output", 100)
+
+        mock_spp.assert_called_once_with(6, 6, "Save Output", 100)
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_empty_phase_name_does_not_raise(self):
+        """Handles an empty phase name without raising."""
+        with patch.object(self.tool.dlg, "set_phase_progress"):
+            self.tool._update_phase(2, 6, "", 20)  # Must not raise
+
+
+# ---------------------------------------------------------------------------
+# TestLoadInputLayers
+# ---------------------------------------------------------------------------
+
+class TestLoadInputLayers:
+    """Unit tests for IBTool._load_input_layers (load_to_geopackage and processing.run mocked)."""
+
+    @classmethod
+    def setup_class(cls):
+        """Set up test fixture with IBTool instance and mock CRS."""
+        cls.tool = _make_tool()
+        cls.crs = MagicMock()
+
+    def _call_with_mocks(self, _mock_load, _mock_proc):
+        """Invoke _load_input_layers with all external deps already patched."""
+        return self.tool._load_input_layers(
+            "hu.shp", "rn.shp", "aux.shp", "part.shp",
+            "/tmp/ws/", self.crs)  # nosec B108 — fake path, all I/O is mocked
+
+    @pytest.mark.unit
+    def test_returns_five_element_tuple(self):
+        """Returns a tuple of exactly five elements."""
+        mock_layer = MagicMock()
+        merged = MagicMock()
+        with patch("ibtool.ibtool.ibtool.load_to_geopackage", return_value=mock_layer), \
+             patch("ibtool.ibtool.ibtool.processing") as mock_proc:
+            mock_proc.run.return_value = {"OUTPUT": merged}
+            result = self._call_with_mocks(mock_layer, mock_proc)
+
+        assert len(result) == 5, f"Expected 5-element tuple, got {len(result)}"
+
+    @pytest.mark.unit
+    def test_calls_load_to_geopackage_four_times(self):
+        """Calls load_to_geopackage once per input file (hu, rn, aux, part = 4 total)."""
+        mock_layer = MagicMock()
+        with patch("ibtool.ibtool.ibtool.load_to_geopackage",
+                   return_value=mock_layer) as mock_load, \
+             patch("ibtool.ibtool.ibtool.processing") as mock_proc:
+            mock_proc.run.return_value = {"OUTPUT": MagicMock()}
+            self._call_with_mocks(mock_load, mock_proc)
+
+        assert mock_load.call_count == 4, \
+            f"Expected 4 load_to_geopackage calls, got {mock_load.call_count}"
+
+    @pytest.mark.unit
+    def test_creates_spatial_index_on_each_layer(self):
+        """Calls createSpatialIndex() once on each of the four loaded layers."""
+        mock_layer = MagicMock()
+        with patch("ibtool.ibtool.ibtool.load_to_geopackage", return_value=mock_layer), \
+             patch("ibtool.ibtool.ibtool.processing") as mock_proc:
+            mock_proc.run.return_value = {"OUTPUT": MagicMock()}
+            self._call_with_mocks(mock_layer, mock_proc)
+
+        assert mock_layer.dataProvider().createSpatialIndex.call_count == 4, \
+            "createSpatialIndex must be called once per input layer"
+
+    @pytest.mark.unit
+    def test_uses_mergevectorlayers_to_combine_aux_and_rn(self):
+        """Invokes qgis:mergevectorlayers to merge the aux and rn layers."""
+        mock_layer = MagicMock()
+        with patch("ibtool.ibtool.ibtool.load_to_geopackage", return_value=mock_layer), \
+             patch("ibtool.ibtool.ibtool.processing") as mock_proc:
+            mock_proc.run.return_value = {"OUTPUT": MagicMock()}
+            self._call_with_mocks(mock_layer, mock_proc)
+
+        mock_proc.run.assert_called_once()
+        assert mock_proc.run.call_args[0][0] == "qgis:mergevectorlayers", \
+            "Must use qgis:mergevectorlayers to build the combined line layer"
+
+    @pytest.mark.unit
+    def test_aux_layers_line_is_last_tuple_element(self):
+        """Returns the merged aux+rn layer as the fifth (last) element."""
+        mock_layer = MagicMock()
+        merged = MagicMock()
+        with patch("ibtool.ibtool.ibtool.load_to_geopackage", return_value=mock_layer), \
+             patch("ibtool.ibtool.ibtool.processing") as mock_proc:
+            mock_proc.run.return_value = {"OUTPUT": merged}
+            result = self._call_with_mocks(mock_layer, mock_proc)
+
+        assert result[4] is merged, \
+            "Fifth element must be the merged aux+rn layer (aux_layers_line)"
+
+
+# ---------------------------------------------------------------------------
+# TestRunPartitionPipeline
+# ---------------------------------------------------------------------------
+
+_PIPELINE_PARAMS = {
+    "min_bdg_count": 5,
+    "min_overlap_blocks": 0.3,
+    "min_area": 50.0,
+    "max_hole_size": 5000.0,
+    "max_gap_size": 3000.0,
+    "min_patch_size": 1000.0,
+    "input_filter": "",
+}
+
+
+class TestRunPartitionPipeline:
+    """Unit tests for IBTool._run_partition_pipeline (all external calls mocked)."""
+
+    @classmethod
+    def setup_class(cls):
+        """Set up test fixture with IBTool instance and mock CRS."""
+        cls.tool = _make_tool()
+        cls.crs = MagicMock()
+
+    @staticmethod
+    def _make_layers():
+        return {
+            "layer_part": MagicMock(),
+            "layer_hu": MagicMock(),
+            "layer_rn": MagicMock(),
+            "aux_layers_line": MagicMock(),
+        }
+
+    def _call(self, layers):
+        return self.tool._run_partition_pipeline(
+            "PART_01", 1, 5, layers, self.crs,
+            "/tmp/ws/", False, 0.5, _PIPELINE_PARAMS)  # nosec B108 — fake path, all I/O is mocked
+
+    # ------------------------------------------------------------------
+    # Skip: too few buildings
+    # ------------------------------------------------------------------
+
+    @pytest.mark.unit
+    def test_returns_none_when_fewer_than_10_buildings(self):
+        """Returns (None, anz_hu) when the partition has fewer than 10 buildings."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 5
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   return_value=sel_hu), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase"):
+            mock_proc.run.return_value = {"OUTPUT": MagicMock()}
+            result, anz_hu = self._call(layers)
+
+        assert result is None, "Must return None layer when < 10 buildings"
+        assert anz_hu == 5
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_returns_none_when_zero_buildings(self):
+        """Returns (None, 0) for a partition with no buildings at all."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 0
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   return_value=sel_hu), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase"):
+            mock_proc.run.return_value = {"OUTPUT": MagicMock()}
+            result, anz_hu = self._call(layers)
+
+        assert result is None
+        assert anz_hu == 0
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_exactly_10_buildings_is_not_skipped(self):
+        """Proceeds when partition has exactly 10 buildings (boundary — not < 10)."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 10
+        sel_roads = MagicMock()
+        sel_roads.featureCount.return_value = 8
+        generic = MagicMock()
+        expected = MagicMock()
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   side_effect=[sel_hu, sel_roads, generic, generic]), \
+             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.patch_remove", return_value=expected), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase"):
+            mock_proc.run.return_value = {"OUTPUT": generic}
+            result, anz_hu = self._call(layers)
+
+        assert result is expected, \
+            "Partition with exactly 10 buildings must not be skipped"
+        assert anz_hu == 10
+
+    # ------------------------------------------------------------------
+    # Skip: MST failure
+    # ------------------------------------------------------------------
+
+    @pytest.mark.unit
+    def test_returns_none_when_mst_calculation_fails(self):
+        """Returns (None, anz_hu) when calculate_mst returns None."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 50
+        sel_roads = MagicMock()
+        sel_roads.featureCount.return_value = 20
+        generic = MagicMock()
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   side_effect=[sel_hu, sel_roads, generic, generic]), \
+             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=None), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase"):
+            mock_proc.run.return_value = {"OUTPUT": generic}
+            result, anz_hu = self._call(layers)
+
+        assert result is None, "Must return None layer when MST calculation fails"
+        assert anz_hu == 50
+
+    # ------------------------------------------------------------------
+    # Happy path
+    # ------------------------------------------------------------------
+
+    @pytest.mark.unit
+    def test_returns_result_layer_and_anz_hu_on_success(self):
+        """Returns (patch_remove output, anz_hu) when all pipeline steps succeed."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 30
+        sel_roads = MagicMock()
+        sel_roads.featureCount.return_value = 12
+        generic = MagicMock()
+        expected = MagicMock()
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   side_effect=[sel_hu, sel_roads, generic, generic]), \
+             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.patch_remove", return_value=expected), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase"):
+            mock_proc.run.return_value = {"OUTPUT": generic}
+            result, anz_hu = self._call(layers)
+
+        assert result is expected, "Must return the patch_remove output layer"
+        assert anz_hu == 30, "Must return the building count from sel_hu_layer"
+
+    @pytest.mark.unit
+    def test_anz_hu_matches_building_feature_count(self):
+        """Returned anz_hu equals sel_hu_layer.featureCount() regardless of skip."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 7  # triggers < 10 skip
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   return_value=sel_hu), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase"):
+            mock_proc.run.return_value = {"OUTPUT": MagicMock()}
+            _, anz_hu = self._call(layers)
+
+        assert anz_hu == 7, \
+            "anz_hu must equal sel_hu_layer.featureCount() even on skip"
+
+    @pytest.mark.unit
+    def test_phases_2_through_5_are_updated(self):
+        """Calls _update_phase for phases 2, 3, 4, and 5 on a successful run."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 20
+        sel_roads = MagicMock()
+        sel_roads.featureCount.return_value = 8
+        generic = MagicMock()
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   side_effect=[sel_hu, sel_roads, generic, generic]), \
+             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.patch_remove", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase") as mock_phase:
+            mock_proc.run.return_value = {"OUTPUT": generic}
+            self._call(layers)
+
+        called_phases = [c[0][0] for c in mock_phase.call_args_list]
+        assert 2 in called_phases, "_update_phase must be called for phase 2 (Blocks)"
+        assert 3 in called_phases, "_update_phase must be called for phase 3 (Filter)"
+        assert 4 in called_phases, "_update_phase must be called for phase 4 (MST)"
+        assert 5 in called_phases, "_update_phase must be called for phase 5 (Clustering)"

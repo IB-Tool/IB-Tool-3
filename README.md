@@ -178,6 +178,7 @@ This plugin is licensed under the **GNU General Public License v2.0**. You are f
 
 - **Author**: Oliver Harig
 - **Created with support from**: [QGIS Plugin Builder](http://g-sherman.github.io/Qgis-Plugin-Builder/)
+- **Development assisted by**: [Claude Code](https://claude.ai/code) (Anthropic) — AI-assisted coding, documentation, and test generation. See `ai/` and `CLAUDE.md` for the project-specific AI rules and domain knowledge used during development.
 
 ### Publication
 
