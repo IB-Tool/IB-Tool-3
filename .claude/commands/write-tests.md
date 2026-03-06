@@ -155,7 +155,17 @@ def test_gap_is_closed_when_below_threshold(self):
     """Closes gaps smaller than the threshold distance."""
 ```
 
-## Step 5 — Output
+## Step 5 — Run pylint
+
+Run pylint on the test file and on the module under test:
+
+```bash
+pylint test/test_<module_name>.py ibtool/ibtool_tools/<ModuleName>.py
+```
+
+Fix any warnings introduced by your changes. The pylint score must not decrease compared to the project baseline (9.98/10).
+
+## Step 6 — Output
 
 Report:
 1. Path of the created/modified test file

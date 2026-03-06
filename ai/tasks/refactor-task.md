@@ -49,6 +49,7 @@ Template for structural improvements in the IBTool project. Goal: better code st
 - [ ] No orphaned imports or dead code
 - [ ] No German text remains in touched code
 - [ ] All significant intermediate layers have a `save_debug_layer` checkpoint
+- [ ] Run `pylint <changed_module>` — no new warnings, score must not decrease
 
 ## Allowed Changes
 
@@ -81,6 +82,7 @@ Template for structural improvements in the IBTool project. Goal: better code st
 [ ] API compatibility maintained
 [ ] No German text remaining in touched code
 [ ] Missing save_debug_layer checkpoints added
+[ ] pylint score not decreased
 [ ] CHANGELOG updated
 ```
 

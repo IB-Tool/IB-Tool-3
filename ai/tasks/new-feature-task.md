@@ -47,6 +47,7 @@ Template for implementing new functionality in the IBTool project. Goal: clean i
 - [ ] Integration tests in the overall workflow
 - [ ] Existing tests unchanged and passing
 - [ ] Geometry validation in tests
+- [ ] Run `pylint <new_module>` — no warnings, score must not decrease
 
 ### 6. Documentation
 
@@ -79,6 +80,7 @@ Template for implementing new functionality in the IBTool project. Goal: clean i
 [ ] Debug mode supported
 [ ] Unit tests written
 [ ] Existing tests pass
+[ ] pylint score not decreased
 [ ] CHANGELOG updated
 [ ] Ready for code review
 ```

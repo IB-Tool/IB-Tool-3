@@ -39,6 +39,7 @@ Template for bug fixes in the IBTool project. Goal: minimal, targeted changes to
 - [ ] New test for the fixed bug
 - [ ] For geometry fixes: validity and multipart checks
 - [ ] Debug mode tested (if processing-related)
+- [ ] Run `pylint <changed_module>` — no new warnings, score must not decrease
 
 ### 5. Documentation
 
@@ -67,6 +68,7 @@ Template for bug fixes in the IBTool project. Goal: minimal, targeted changes to
 [ ] Fix is minimal and targeted
 [ ] No regression in existing tests
 [ ] New test covers the bug
+[ ] pylint score not decreased
 [ ] CHANGELOG updated
 [ ] Ready for code review
 ```

@@ -100,4 +100,5 @@ For multiple sequential processing steps:
 [ ] Debug mode integrated
 [ ] Error case tested
 [ ] Performance with large datasets considered
+[ ] pylint <changed_module> — no new warnings, score must not decrease
 ```

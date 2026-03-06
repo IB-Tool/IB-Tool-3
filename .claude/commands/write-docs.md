@@ -119,14 +119,24 @@ Document any workarounds, edge cases, performance limits.
 ### Cross-link requirement
 New docs must be linked from `CLAUDE.md` (in the relevant table) and from `docs/plugin-architecture.md` if architecturally significant.
 
-## Step 5 — Update CHANGELOG.md
+## Step 5 — Run pylint
+
+Run pylint on the module where docstrings were changed:
+
+```bash
+pylint ibtool/ibtool_tools/<ModuleName>.py
+```
+
+Fix any warnings introduced by your changes. The pylint score must not decrease compared to the project baseline (9.98/10).
+
+## Step 6 — Update CHANGELOG.md
 
 Add a line under the `[Unreleased]` section:
 ```
 - Docs: Added/updated documentation for `$ARGUMENTS`
 ```
 
-## Step 6 — Output
+## Step 7 — Output
 
 Report:
 1. List of functions/classes where docstrings were added or updated
