@@ -5,7 +5,7 @@
 [![codecov](https://codecov.io/gh/K3lT10N/IB-Tool-3/branch/master/graph/badge.svg)](https://codecov.io/gh/K3lT10N/IB-Tool-3)
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 ![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green)
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 
 
 ## Description
