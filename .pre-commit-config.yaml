@@ -1,0 +1,17 @@
+repos:
+  - repo: local
+    hooks:
+      - id: bandit
+        name: bandit (security scan)
+        entry: python -m bandit
+        args: [-r, ibtool/, --severity-level, medium, -q]
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: detect-secrets
+        name: detect-secrets (secret scan)
+        entry: detect-secrets-hook
+        args: [--baseline, .secrets.baseline]
+        language: system
+        types: [python]
