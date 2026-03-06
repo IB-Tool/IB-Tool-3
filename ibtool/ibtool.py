@@ -560,7 +560,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Open the output directory in the file explorer."""
         folder = self._last_output_folder or os.path.dirname(self._last_output_path)
         if folder and os.path.isdir(folder):
-            os.startfile(folder)
+            os.startfile(folder)  # nosec B606 — path validated by os.path.isdir above
         else:
             msg("Output directory not found.")
 
