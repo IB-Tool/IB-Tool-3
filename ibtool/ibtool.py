@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# pylint: disable=too-many-lines
 """Main plugin class and processing orchestrator for IBTool.
 
 This module contains the ``IBTool`` QGIS plugin class, which owns the plugin
@@ -18,110 +19,64 @@ License: GNU General Public License v2 or later
 
 import json
 import os
-import sys
 
-from qgis._core import QgsFeatureRequest
-from qgis.core import QgsProcessingContext
-
-# In der edge_catch4 Funktion:
-context = QgsProcessingContext()
-context.setInvalidGeometryCheck(QgsFeatureRequest.GeometryNoCheck)
-
-
-# Constants for configuration
-PYTHONPATH = '/helpers'
-
-
-def initialize_environment():
-    """Set up environment variables and system paths."""
-    os.environ['PYTHONPATH'] = PYTHONPATH
-    sys.path.append(PYTHONPATH)
-
-    qgis_prefix = os.environ.get('QGIS_PREFIX_PATH')
-    if not qgis_prefix:
-        potential_paths = [
-            '/usr',
-            '/usr/local',
-            '/Applications/QGIS.app/Contents/MacOS'
-        ]
-        for path in potential_paths:
-            if os.path.exists(os.path.join(path, 'bin', 'qgis')) or \
-               os.path.exists(os.path.join(path, 'bin', 'qgis.bin')):
-                qgis_prefix = path
-                break
-
-    if qgis_prefix:
-        os.environ['PATH'] += os.pathsep + os.path.join(qgis_prefix, 'bin')
-        python_path = os.path.join(qgis_prefix, 'share', 'qgis', 'python')
-        os.environ['PYTHONPATH'] += os.pathsep + python_path
-        if python_path not in sys.path:
-            sys.path.append(python_path)
-
-
-# Initialize the environment
-initialize_environment()
-
-
-from qgis.PyQt.QtCore import (  # noqa: E402
+from qgis.PyQt.QtCore import (
     QCoreApplication,
     QSettings,
     QThread,
     QTranslator,
     pyqtSignal
 )
-from qgis.PyQt.QtGui import QIcon  # noqa: E402
-from qgis.PyQt.QtWidgets import (  # noqa: E402
+from qgis.PyQt.QtGui import QIcon
+from qgis.PyQt.QtWidgets import (
     QAction,
     QDialog,
     QFileDialog,
     QApplication,
     QMessageBox,
 )
-from qgis.core import (  # noqa: E402
+from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsProcessing,
     QgsVectorLayer,
     QgsProject,
 )
-from qgis import processing  # noqa: E402
-from ibtool.helpers.logger import Logger as MainLogger  # noqa: E402
-from ibtool.helpers.geometry_utils import (  # noqa: E402
+from qgis import processing
+from ibtool.helpers.logger import Logger as MainLogger
+from ibtool.helpers.geometry_utils import (
     load_to_geopackage,
     select_and_save_by_location,
     create_empty_layer
 )
-from ibtool.helpers.system_utils import (  # noqa: E402
+from ibtool.helpers.system_utils import (
     manage_directory,
     save_temp_layer_to_gpkg,
     version_check,
     compute_file_checksum,
 )
-from ibtool.helpers.message import msg  # noqa: E402
-from ibtool.helpers.check import InputValidator, ValidationResult  # noqa: E402
-from ibtool.helpers.config_manager import ConfigManager  # noqa: E402
-from ibtool.helpers.data_loader import create_partitions_list  # noqa: E402
-
-from ibtool.ibtool_tools.FootprintDensity import (  # noqa: E402
+from ibtool.helpers.message import msg
+from ibtool.helpers.check import InputValidator, ValidationResult
+from ibtool.helpers.config_manager import ConfigManager
+from ibtool.helpers.data_loader import create_partitions_list
+from ibtool.ibtool_tools.FootprintDensity import (
     calc_footprint_density,
     identify_dense_blocks
 )
-from ibtool.ibtool_tools.Blocker import blocker  # noqa: E402
-from ibtool.ibtool_tools.ImportFilter import input_hu_filter  # noqa: E402
-from ibtool.ibtool_tools.CreateMST import calculate_mst  # noqa: E402
-from ibtool.ibtool_tools.MST_Clustering import mst_clustering  # noqa: E402
-from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg  # noqa: E402
-from ibtool.ibtool_tools.EdgeCatch import edge_catch  # noqa: E402
-from ibtool.ibtool_tools.GapClose import gap_close  # noqa: E402
-from ibtool.ibtool_tools.PatchRemove import patch_remove  # noqa: E402
-
+from ibtool.ibtool_tools.Blocker import blocker
+from ibtool.ibtool_tools.ImportFilter import input_hu_filter
+from ibtool.ibtool_tools.CreateMST import calculate_mst
+from ibtool.ibtool_tools.MST_Clustering import mst_clustering
+from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
+from ibtool.ibtool_tools.EdgeCatch import edge_catch
+from ibtool.ibtool_tools.GapClose import gap_close
+from ibtool.ibtool_tools.PatchRemove import patch_remove
 # Import the dialog class
-from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog  # noqa: E402
-
+from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
 # Initialize the logger instance
 logger = MainLogger()
 
 
-class ProcessingThread(QThread):
+class ProcessingThread(QThread):  # pylint: disable=too-few-public-methods
     """Thread for background processing"""
     progress_update = pyqtSignal(int)
     log_message = pyqtSignal(str)
@@ -136,11 +91,11 @@ class ProcessingThread(QThread):
                 self.msleep(50)  # Simulated processing (50 ms delay)
                 self.progress_update.emit(i)  # Update progress
                 self.log_message.emit(f"Progress: {i}%")  # Send message
-        except Exception as e:
+        except RuntimeError as e:
             self.log_message.emit(f"Error: {str(e)}")
 
 
-class IBTool:
+class IBTool:  # pylint: disable=too-many-instance-attributes
     """QGIS Plugin Implementation."""
 
     def __init__(self, iface):
@@ -235,7 +190,7 @@ class IBTool:
         # noinspection PyTypeChecker,PyArgumentList,PyCallByClass
         return QCoreApplication.translate('IBTool', message)
 
-    def add_action(
+    def add_action(  # pylint: disable=too-many-arguments
             self,
             icon_path,
             text,
@@ -626,7 +581,7 @@ class IBTool:
                 with open(file_path, 'w', encoding='utf-8') as f:
                     f.write(text)
                 logger.log(f"Log exported to: {file_path}", level="INFO")
-            except Exception as e:
+            except OSError as e:
                 msg(f"Could not export log: {e}")
 
     def _show_filter_preview(self):
@@ -673,11 +628,11 @@ class IBTool:
 
             # logger.log("Filter file successfully loaded.", level="INFO")
 
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.log(f"Error while loading the filter file: {str(e)}",
                        level="CRITICAL")
 
-    def _apply_config_to_ui(self) -> None:
+    def _apply_config_to_ui(self) -> None:  # pylint: disable=too-many-branches
         """Populate all UI fields from CONFIG.ini if it exists and auto_load_last_used is True."""
         if not self.config_manager.config_exists():
             return
@@ -753,15 +708,15 @@ class IBTool:
 
         # Restore cached ValidationResult from last session
         try:
-            vc = cfg.validation_cache
-            cached_errors = json.loads(vc.errors) if vc.errors else []
-            cached_warnings = json.loads(vc.warnings) if vc.warnings else []
+            validation_cache = cfg.validation_cache
+            cached_errors = json.loads(validation_cache.errors) if validation_cache.errors else []
+            cached_warnings = json.loads(validation_cache.warnings) if validation_cache.warnings else []
             if cached_errors is not None or cached_warnings:
                 restored = ValidationResult()
                 restored.errors = cached_errors
                 restored.warnings = cached_warnings
                 self._last_validation_result = restored
-        except Exception:
+        except (json.JSONDecodeError, AttributeError, TypeError):
             pass  # Corrupt cache — will re-validate on demand
 
         logger.log("Konfiguration aus CONFIG.ini geladen.", level="INFO")
@@ -1038,7 +993,165 @@ class IBTool:
         # Navigate to step 2 (Validierung) so the checklist is visible
         self.dlg.set_step(2)
 
-    def start_processing(self):
+    def _update_phase(self, phase: int, total: int, name: str, percent: int) -> None:
+        """Update the phase progress indicator and flush pending UI events."""
+        self.dlg.set_phase_progress(phase, total, name, percent)
+        QApplication.processEvents()
+
+    def _load_input_layers(self, input_hu, input_rn, input_aux, input_part,  # pylint: disable=too-many-arguments
+                           workspace_path, spatial_reference):
+        """Load all input files into GeoPackage and build the merged aux line layer.
+
+        Args:
+            input_hu: Path to the building footprint layer.
+            input_rn: Path to the road network layer.
+            input_aux: Path to the auxiliary lines layer.
+            input_part: Path to the partition layer.
+            workspace_path: Workspace directory path (trailing slash).
+            spatial_reference: Target CRS for all layers.
+
+        Returns:
+            Tuple of ``(layer_hu, layer_rn, layer_aux, layer_part, aux_layers_line)``.
+        """
+        layer_rn = load_to_geopackage(
+            input_rn, workspace_path + "layer_rn.gpkg", "layer_rn", spatial_reference)
+        layer_rn.dataProvider().createSpatialIndex()
+        layer_aux = load_to_geopackage(
+            input_aux, workspace_path + "layer_aux.gpkg", "layer_aux", spatial_reference)
+        layer_aux.dataProvider().createSpatialIndex()
+        layer_part = load_to_geopackage(
+            input_part, workspace_path + "layer_part.gpkg", "layer_part", spatial_reference)
+        layer_part.dataProvider().createSpatialIndex()
+        layer_hu = load_to_geopackage(
+            input_hu, workspace_path + "layer_hu.gpkg", "layer_hu", spatial_reference)
+        layer_hu.dataProvider().createSpatialIndex()
+        aux_layers_line = processing.run("qgis:mergevectorlayers", {
+            'LAYERS': [layer_aux, layer_rn],
+            'CRS': spatial_reference,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+        return layer_hu, layer_rn, layer_aux, layer_part, aux_layers_line
+
+    def _run_partition_pipeline(  # pylint: disable=too-many-arguments,too-many-locals
+            self, part_name, part_index, part_count,
+            layers, spatial_reference, workspace_path,
+            debug_mode, global_footprint_density, params):
+        """Run the six-step delineation pipeline for a single partition.
+
+        Args:
+            part_name: Partition identifier string (matches ``NAME`` field).
+            part_index: 1-based position in the current run (for log messages).
+            part_count: Total number of partitions (for log messages).
+            layers: Dict with keys ``layer_part``, ``layer_hu``, ``layer_rn``,
+                and ``aux_layers_line``.
+            spatial_reference: QgsCoordinateReferenceSystem for all outputs.
+            workspace_path: Workspace directory path (trailing slash).
+            debug_mode: Whether to save intermediate debug layers.
+            global_footprint_density: Pre-computed global density threshold.
+            params: Numeric parameter dict from ``_parse_numeric_params()``,
+                extended with ``input_filter`` (path string).
+
+        Returns:
+            Tuple of ``(result_layer, anz_hu)`` where *result_layer* is the
+            ``patch_removed`` output or ``None`` if the partition is skipped,
+            and *anz_hu* is the building count used for overall progress tracking.
+        """
+        logger.log("###############################", 'CRITICAL')
+        logger.log(
+            f"PARTITION: {part_name} - {part_index} of {part_count}", 'CRITICAL')
+
+        sel_part_layer = processing.run(
+            "native:extractbyexpression", {
+                'INPUT': layers['layer_part'],
+                'EXPRESSION': f"\"NAME\" = '{part_name}'",
+                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+            })['OUTPUT']
+
+        sel_hu_layer = select_and_save_by_location(layers['layer_hu'], sel_part_layer)
+        anz_hu = sel_hu_layer.featureCount()
+
+        if anz_hu < 10:
+            logger.log(
+                "Warning: No or less than 10 buildings selected in partition", 'WARNING')
+            return None, anz_hu
+
+        sel_strassen_layer = select_and_save_by_location(layers['layer_rn'], sel_part_layer)
+        anz_strassen = sel_strassen_layer.featureCount()
+
+        if anz_strassen < 5:
+            logger.log(
+                f"Warning: No or less than 5 roads selected in partition {part_name}",
+                'WARNING')
+
+        aux_lines_sel = select_and_save_by_location(layers['aux_layers_line'], sel_part_layer)
+
+        logger.log(f"SelHU Count = {anz_hu}", 'SUCCESS')
+        logger.log(f"SelStrassen Count = {anz_strassen}", 'SUCCESS')
+
+        min_overlap_mst = calc_footprint_density(
+            sel_hu_layer, sel_strassen_layer, 100,
+            global_footprint_density, 'local', params['min_bdg_count'])
+        logger.log(f"Local building coverage = {min_overlap_mst}", 'SUCCESS')
+
+        self._update_phase(2, 6, "Calculate Blocks", 10)
+        blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
+                         debug_mode=debug_mode, workspace_path=workspace_path)
+
+        self._update_phase(3, 6, "Apply Filter", 20)
+        hu_filter = input_hu_filter(
+            sel_hu_layer, params['input_filter'], params['min_area'], 50, 200,
+            debug_mode=debug_mode, workspace_path=workspace_path)
+        blocks_dense = identify_dense_blocks(hu_filter, blocks, params['min_overlap_blocks'])
+        hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
+
+        self._update_phase(4, 6, "Calculate MST", 40)
+        mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
+
+        if mst_layer is None:
+            logger.log(
+                f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
+            return None, anz_hu
+
+        self._update_phase(5, 6, "Clustering", 60)
+        hu_cluster_output = mst_clustering(
+            hu_filter_sel, mst_layer, spatial_reference,
+            min_overlap_mst, debug_mode=debug_mode, workspace_path=workspace_path)
+
+        add_sing_bdg = add_single_bdg(
+            hu_filter_sel, hu_cluster_output, spatial_reference,
+            workspace_path, debug_mode=debug_mode)
+
+        rect_merged = processing.run("qgis:mergevectorlayers", {
+            'LAYERS': [add_sing_bdg, hu_cluster_output],
+            'CRS': spatial_reference,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+        snapped_rect = edge_catch(
+            rect_merged, hu_filter_sel, sel_strassen_layer, blocks,
+            spatial_reference, workspace_path, debug_mode=debug_mode)
+
+        blocks_merge = processing.run("qgis:mergevectorlayers", {
+            'LAYERS': [snapped_rect, blocks_dense],
+            'CRS': spatial_reference,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+        gaps_closed = gap_close(
+            blocks_merge, blocks, params['max_hole_size'], params['max_gap_size'],
+            spatial_reference, gap_dist=30,
+            debug_mode=debug_mode, workspace_path=workspace_path)
+
+        result = patch_remove(
+            gaps_closed, sel_hu_layer, spatial_reference, workspace_path,
+            min_patch_size=params['min_patch_size'],
+            min_bdg_count=params['min_bdg_count'],
+            footprint_area_sum=6000,
+            footprint_density_threshold=18,
+            debug_mode=debug_mode)
+        return result, anz_hu
+
+    def start_processing(self):  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         """Run the full settlement-delineation pipeline for all partitions.
 
         Reads all parameter values from the UI, re-validates input, loads
@@ -1054,7 +1167,6 @@ class IBTool:
         ``ProcessingThread``). ``QApplication.processEvents()`` is called
         after each phase-progress update to keep the UI responsive.
         """
-
         # Navigate to the processing page and reset UX state
         self.dlg.set_step(3)
         self.dlg.hide_result_actions()
@@ -1078,18 +1190,7 @@ class IBTool:
         os.chdir(workspace)
 
         _p = self._parse_numeric_params()
-        min_overlap_blocks = _p['min_overlap_blocks']
-        global_footprint_density = _p['global_footprint_density']
-        min_area = _p['min_area']
-        min_bdg_count = _p['min_bdg_count']
-        min_patch_size = _p['min_patch_size']
-        max_hole_size = _p['max_hole_size']
-        max_gap_size = _p['max_gap_size']
-        part_start = _p['part_start']
-        part_end = _p['part_end']
-
         part_list_input = self.dlg.partlistBox.text()
-
         del_part_log = self.dlg.PartLogBox.isChecked()
         msg(f"del_part_log={del_part_log}")
         debug_mode = self.dlg.DebugModeBox.isChecked()
@@ -1106,22 +1207,21 @@ class IBTool:
         part_log_path = workspace_path + 'IB_Tool_Results/IB_Tool2_Log.txt'
         part_log_fin = workspace_path + 'IB_Tool_Results/IB_Tool2_Log_Fin.txt'
 
-        # Pfade zu den Eingabe-Shapefiles
         input_hu = self.dlg.HuPath.text()
         input_rn = self.dlg.RnPath.text()
         input_aux = self.dlg.AuxPath.text()
         input_part = self.dlg.PartPath.text()
-        input_filter = self.dlg.FilterPath.text()
         output_file = self.dlg.OutputPath.text()
+        _p['input_filter'] = self.dlg.FilterPath.text()
 
-        # Input validation (replaces old check_projection call)
+        # Input validation
         validator = InputValidator()
         validation_result = validator.validate_all(
             hu_path=input_hu,
             rn_path=input_rn,
             part_path=input_part,
             aux_path=input_aux,
-            filter_path=input_filter,
+            filter_path=_p['input_filter'],
             output_path=output_file,
             workspace_path=self.dlg.WorkspacePath.text(),
             spatial_reference=spatial_reference,
@@ -1134,32 +1234,9 @@ class IBTool:
             return
 
         # Phase 1: Load Data
-        self.dlg.set_phase_progress(1, 6, "Load Data", 0)
-        QApplication.processEvents()
-
-        # Alle Eingabe-Shapefiles in das GeoPackage laden
-        layer_rn = load_to_geopackage(input_rn,
-                                      workspace_path + "layer_rn.gpkg",
-                                      "layer_rn", spatial_reference)
-        layer_rn.dataProvider().createSpatialIndex()
-        layer_aux = load_to_geopackage(input_aux,
-                                       workspace_path + "layer_aux.gpkg",
-                                       "layer_aux", spatial_reference)
-        layer_aux.dataProvider().createSpatialIndex()
-        layer_part = load_to_geopackage(input_part,
-                                        workspace_path + "layer_part.gpkg",
-                                        "layer_part", spatial_reference)
-        layer_part.dataProvider().createSpatialIndex()
-        layer_hu = load_to_geopackage(input_hu,
-                                      workspace_path + "layer_hu.gpkg",
-                                      "layer_hu", spatial_reference)
-        layer_hu.dataProvider().createSpatialIndex()
-
-        aux_layers_line = processing.run("qgis:mergevectorlayers", {
-            'LAYERS': [layer_aux, layer_rn],
-            'CRS': spatial_reference,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        self._update_phase(1, 6, "Load Data", 0)
+        layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
+            input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
 
         merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
         if not del_part_log and os.path.isfile(merge_temp_file):
@@ -1173,34 +1250,22 @@ class IBTool:
         else:
             merge_layer = create_empty_layer("global_merge_layer", "Polygon",
                                              spatial_reference.authid())
-        merge = merge_layer  # Initialize to avoid UnboundLocalError if loop doesn't execute
-        # Partitionen aus Gesamtdatei für Debugging auswählen
-        part_list = create_partitions_list(layer_part,  # noqa: F405
-                                           part_list_input,
-                                           part_start,
-                                           part_end)
+        merge = merge_layer  # guard against empty part_list
 
+        part_list = create_partitions_list(
+            layer_part, part_list_input, _p['part_start'], _p['part_end'])
         logger.log(f"Part list: {part_list}", 'SUCCESS')
 
-        # calculate threshold value for footprint density
+        global_footprint_density = _p['global_footprint_density']
         if global_footprint_density == 0:
             global_footprint_density = calc_footprint_density(
-                layer_hu,
-                layer_rn,
-                100,
-                0,
-                'global',
-                min_bdg_count,
-                layer_part)
-        else:
-            pass
-
-        logger.log(f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
+                layer_hu, layer_rn, 100, 0, 'global', _p['min_bdg_count'], layer_part)
+        logger.log(
+            f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
 
         if del_part_log:
             if os.path.isfile(part_log_path):
                 os.remove(part_log_path)
-
             with open(part_log_fin, 'w', encoding='utf-8') as part_log:
                 part_log.write("")
 
@@ -1218,6 +1283,12 @@ class IBTool:
 
         anz_hu_gesamt = layer_hu.featureCount()
         anz_hu_sum = 0
+        layers = {
+            'layer_part': layer_part,
+            'layer_hu': layer_hu,
+            'layer_rn': layer_rn,
+            'aux_layers_line': aux_layers_line,
+        }
 
         for a, i in enumerate(part_list, start=1):
             logger.log(f"Check if {i} is in Partlist.", 'SUCCESS')
@@ -1227,159 +1298,38 @@ class IBTool:
             with open(part_log_path, 'a', encoding='utf-8') as part_log:
                 part_log.write("\n" + i)
 
-            part_name = i
-            logger.log("###############################", 'CRITICAL')
-            logger.log("PARTITION: " + str(part_name) + " - " + str(a) + " of "
-                       + str(len(part_list)), 'CRITICAL')
+            result, anz_hu = self._run_partition_pipeline(
+                i, a, len(part_list), layers, spatial_reference,
+                workspace_path, debug_mode, global_footprint_density, _p)
 
-            # Partition auswählen
-            sel_part_layer = processing.run(
-                "native:extractbyexpression", {
-                    'INPUT': layer_part,
-                    'EXPRESSION': f"\"NAME\" = '{part_name}'",
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
-
-            # Gebäude-Features selektieren
-            sel_hu_layer = select_and_save_by_location(layer_hu, sel_part_layer)
-
-            # Anzahl der ausgewählten Gebäude prüfen
-            anz_hu = sel_hu_layer.featureCount()
-
-            if anz_hu < 10:
+            if result is None:
                 with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                    part_log.write("\n" + part_name)
-                logger.log("Warning: No or less than 10 buildings selected in partition", 'WARNING')
+                    part_log.write("\n" + i)
                 continue
 
-            # Straßen-Features selektieren
-            sel_strassen_layer = select_and_save_by_location(layer_rn, sel_part_layer)
-
-            # Anzahl der ausgewählten Straßen prüfen
-            anz_strassen = sel_strassen_layer.featureCount()
-
-            if anz_strassen < 5:
-                with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                    part_log.write("\n" + part_name)
-                logger.log(f"Warning: No or less than 5 roads selected in partition {part_name}", 'WARNING')
-
-            aux_lines_sel = select_and_save_by_location(aux_layers_line, sel_part_layer)
-
-            # Debug-Ausgaben
-            logger.log(f"SelHU Count = {anz_hu}", 'SUCCESS')
-            logger.log(f"SelStrassen Count = {anz_strassen}", 'SUCCESS')
-
-            min_overlap_mst = calc_footprint_density(sel_hu_layer, sel_strassen_layer, 100, global_footprint_density, 'local',  # noqa: E501
-                                                     min_bdg_count)
-
-            logger.log("Local building coverage =" + str(min_overlap_mst), 'SUCCESS')
-
-            # Phase 2: Calculate Blocks
-            self.dlg.set_phase_progress(2, 6, "Calculate Blocks", 10)
-            QApplication.processEvents()
-
-            blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
-                             debug_mode=debug_mode, workspace_path=workspace_path)
-
-            # Phase 3: Apply Filter
-            self.dlg.set_phase_progress(3, 6, "Apply Filter", 20)
-            QApplication.processEvents()
-
-            hu_filter = input_hu_filter(sel_hu_layer, input_filter, min_area, 50, 200,
-                                        debug_mode=debug_mode, workspace_path=workspace_path)
-
-            blocks_dense = identify_dense_blocks(hu_filter, blocks, min_overlap_blocks)
-
-            hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
-
-            # Phase 4: Calculate MST
-            self.dlg.set_phase_progress(4, 6, "Calculate MST", 40)
-            QApplication.processEvents()
-
-            mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
-
-            # Check if MST calculation succeeded
-            if mst_layer is None:
-                with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                    part_log.write("\n" + part_name)
-                logger.log(f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
-                continue
-
-            # Phase 5: Clustering
-            self.dlg.set_phase_progress(5, 6, "Clustering", 60)
-            QApplication.processEvents()
-
-            hu_cluster_output = mst_clustering(hu_filter_sel, mst_layer, spatial_reference, min_overlap_mst,
-                                               debug_mode=debug_mode, workspace_path=workspace_path)
-
-            add_sing_bdg = add_single_bdg(hu_filter_sel, hu_cluster_output, spatial_reference,
-                                          workspace_path, debug_mode=debug_mode)
-
-            rect_merged = processing.run("qgis:mergevectorlayers", {
-                'LAYERS': [add_sing_bdg, hu_cluster_output],
-                'CRS': spatial_reference,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
-
-            snapped_rect = edge_catch(rect_merged, hu_filter_sel,
-                                      sel_strassen_layer, blocks,
-                                      spatial_reference, workspace_path,
-                                      debug_mode=debug_mode)
-
-            blocks_merge = processing.run("qgis:mergevectorlayers", {
-                'LAYERS': [snapped_rect, blocks_dense],
-                'CRS': spatial_reference,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
-
-            gaps_colsed = gap_close(blocks_merge, blocks, max_hole_size, max_gap_size, spatial_reference, gap_dist=30,
-                                    debug_mode=debug_mode, workspace_path=workspace_path)
-
-            patch_removed = patch_remove(gaps_colsed,
-                                         sel_hu_layer,
-                                         spatial_reference,
-                                         workspace_path,
-                                         min_patch_size=min_patch_size,
-                                         min_bdg_count=min_bdg_count,
-                                         footprint_area_sum=6000,
-                                         footprint_density_threshold=18,
-                                         debug_mode=debug_mode)
-
-            # Fortschritt aktualisieren
-            anz_hu_sum = anz_hu_sum + anz_hu
-            prozent = int(anz_hu_sum / anz_hu_gesamt * 100)
-            self.dlg.ProgressBar.setValue(prozent)
+            anz_hu_sum += anz_hu
+            self.dlg.ProgressBar.setValue(int(anz_hu_sum / anz_hu_gesamt * 100))
 
             merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [patch_removed, merge_layer],
+                'LAYERS': [result, merge_layer],
                 'CRS': spatial_reference,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
             })['OUTPUT']
             merge_layer = merge
 
-            # Zwischenergebnis auf Disk sichern (für Resume)
             save_temp_layer_to_gpkg(
-                merge_layer,
-                'IB_Tool_merge_temp',
-                workspace_path + 'IB_Tool_Results/'
-            )
-            # Partition als abgeschlossen markieren
-            with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                part_log.write("\n" + part_name)
-            finished_parts.add(part_name)
+                merge_layer, 'IB_Tool_merge_temp', workspace_path + 'IB_Tool_Results/')
 
-        # Load output from previous step
+            with open(part_log_fin, 'a', encoding='utf-8') as part_log:
+                part_log.write("\n" + i)
+            finished_parts.add(i)
+
         if not merge.isValid():
             logger.log("Failed to load final merge layer", "CRITICAL")
             return
 
-        # gap_fixed = gap_fix(merge, layer_rn, workspace_path, debug_mode=debug_mode)
-
         # Phase 6: Save Output
-        self.dlg.set_phase_progress(6, 6, "Save Output", 95)
-        QApplication.processEvents()
-
-        # Split the output_file into path, filename, and extension
+        self._update_phase(6, 6, "Save Output", 95)
         output_folder, file_with_extension = os.path.split(output_file)
         output_filename, _ = os.path.splitext(file_with_extension)
         msg(output_folder)
@@ -1387,7 +1337,6 @@ class IBTool:
 
         save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
 
-        # Processing complete
         self.dlg.ProgressBar.setValue(100)
         self.dlg.phaseLabel.setText("Processing complete")
         self._last_output_path = output_file
