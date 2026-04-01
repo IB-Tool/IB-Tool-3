@@ -24,8 +24,9 @@ RUN apt-get update \
     python3-psycopg2 \
     python3-shapely \
     python3-fiona \
+    python3-pip \
  && rm -rf /var/lib/apt/lists/* \
- && pip3 install --no-cache-dir bandit detect-secrets
+ && python3 -m pip install --no-cache-dir --break-system-packages bandit detect-secrets
 
 # 4. Arbeitsverzeichnis im Container
 WORKDIR /plugins

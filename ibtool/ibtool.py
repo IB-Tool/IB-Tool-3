@@ -9,7 +9,7 @@ the ``start_processing()`` method that drives the full settlement-delineation
 pipeline partition by partition.
 
 Classes:
-    ProcessingThread: QThread subclass (currently unused stub — processing runs
+    ProcessingThread: QThread subclass (currently unused stub Ã¢â‚¬â€ processing runs
         synchronously on the main thread via ``start_processing()``).
     IBTool: Main QGIS plugin class registered via ``classFactory()``.
 
@@ -72,8 +72,8 @@ from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
 # Import the dialog class
 from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
-# Initialize the logger instance
-logger = MainLogger()
+# Logger class (singleton handled internally; no early file init on import)
+logger = MainLogger
 
 
 class ProcessingThread(QThread):  # pylint: disable=too-few-public-methods
@@ -154,10 +154,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._last_output_path = ""
         self._last_output_folder = ""
 
-        # Checksum cache: field_name → MD5 hex of file at last path-check
+        # Checksum cache: field_name Ã¢â€ â€™ MD5 hex of file at last path-check
         self._file_checksums: dict = {}
         # Checksum snapshot at the time of the last completed validation run
         self._validated_checksums: dict = {}
+        # Full validation context snapshot (paths, checksums, CRS, params)
+        self._validated_context: dict = {}
         # Cached ValidationResult from the last run (None = never validated)
         self._last_validation_result = None
 
@@ -265,7 +267,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 action)
             self.iface.removeToolBarIcon(action)
 
-        # Logger schließen
+        # Logger schlieÃƒÅ¸en
         logger.close_logger()
 
     def setup_logging_in_plugin(self):
@@ -316,16 +318,38 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
             self.dlg.SaveConfigButton.clicked.connect(self._save_config_from_ui)
             self.dlg.DeleteConfigButton.clicked.connect(self._delete_config)
-            # Start button disabled by default — requires successful check
+            # Start button disabled by default Ã¢â‚¬â€ requires successful check
             self.dlg.set_start_button_ready(False)
-            # Disable Start button when input paths change (re-check required)
-            for path_widget in [self.dlg.HuPath, self.dlg.RnPath,
-                                self.dlg.PartPath, self.dlg.AuxPath,
-                                self.dlg.FilterPath, self.dlg.OutputPath,
-                                self.dlg.WorkspacePath]:
-                path_widget.textChanged.connect(
-                    lambda: self.dlg.set_start_button_ready(False)
-                )
+            # Any validation-relevant UI change invalidates the cached result.
+            for path_widget in [
+                self.dlg.HuPath,
+                self.dlg.RnPath,
+                self.dlg.PartPath,
+                self.dlg.AuxPath,
+                self.dlg.FilterPath,
+                self.dlg.OutputPath,
+                self.dlg.WorkspacePath,
+            ]:
+                path_widget.textChanged.connect(self._invalidate_validation_cache)
+            for param_widget in [
+                self.dlg.MinOverlapBlocksBox,
+                self.dlg.GlobalFootprintDensityBox,
+                self.dlg.MinAreaBox,
+                self.dlg.MinBdgCountBox,
+                self.dlg.MinPatchSizeBox,
+                self.dlg.MaxHoleSizeBox,
+                self.dlg.MaxGapSizeBox,
+            ]:
+                param_widget.valueChanged.connect(self._invalidate_validation_cache)
+            for part_widget in [
+                self.dlg.partstartBox,
+                self.dlg.partendBox,
+                self.dlg.partlistBox,
+            ]:
+                part_widget.textChanged.connect(self._invalidate_validation_cache)
+            self.dlg.SpatialReferenceBox.crsChanged.connect(
+                self._invalidate_validation_cache
+            )
             # Populate LogLevel dropdown (setup_logging_in_plugin ran on the
             # old dialog in initGui; this new dialog instance needs items added)
             for _lvl in ['INFO', 'WARNING', 'CRITICAL', 'SUCCESS']:
@@ -384,7 +408,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         # Automatische Aktualisierung der Textfelder bei Start
         file_path = self.dlg.FilterPath.text()  # Pfad aus dem QLineEdit abrufen
-        if file_path and os.path.exists(file_path):  # Prüfen, ob Pfad existiert
+        if file_path and os.path.exists(file_path):  # PrÃƒÂ¼fen, ob Pfad existiert
             self.load_filter_file(file_path)
 
         logger.set_message_box(self.dlg.MessageBox)
@@ -504,11 +528,46 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
     # Fields for which a checksum is computed (input files, not directories).
     _CHECKSUM_FIELDS = frozenset({'HuPath', 'RnPath', 'PartPath', 'AuxPath', 'FilterPath'})
+    _VALIDATION_PATH_FIELDS = (
+        'HuPath', 'RnPath', 'PartPath', 'AuxPath',
+        'FilterPath', 'OutputPath', 'WorkspacePath',
+    )
+
+    def _invalidate_validation_cache(self, *_args) -> None:
+        """Clear cached validation state after a relevant UI change."""
+        self._last_validation_result = None
+        self._validated_checksums.clear()
+        self._validated_context = {}
+        self.dlg.set_start_button_ready(False)
+
+    def _build_validation_context(self) -> dict:
+        """Capture the current validation-relevant UI state."""
+        return {
+            'paths': {
+                field_name: getattr(self.dlg, field_name).text()
+                for field_name in self._VALIDATION_PATH_FIELDS
+            },
+            'checksums': {
+                field_name: self._file_checksums.get(field_name, '')
+                for field_name in self._CHECKSUM_FIELDS
+            },
+            'params': self._collect_params(),
+        }
+
+    def _can_reuse_validation_result(self) -> bool:
+        """Return True when the cached validation result still matches the UI."""
+        if self._last_validation_result is None:
+            return False
+
+        if not all(self._file_checksums.get(field) for field in self._CHECKSUM_FIELDS):
+            return False
+
+        return self._validated_context == self._build_validation_context()
 
     def _check_path_field(self, field_name: str, path: str) -> None:
         """Quick path-existence check triggered by textChanged.
 
-        Does not load any QGIS layer — pure filesystem check.
+        Does not load any QGIS layer Ã¢â‚¬â€ pure filesystem check.
         For input file fields the MD5 checksum of the file is stored in
         ``self._file_checksums`` so that :meth:`run_validation` can skip
         re-validation when files have not changed.
@@ -560,7 +619,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Open the output directory in the file explorer."""
         folder = self._last_output_folder or os.path.dirname(self._last_output_path)
         if folder and os.path.isdir(folder):
-            os.startfile(folder)  # nosec B606 — path validated by os.path.isdir above
+            os.startfile(folder)  # nosec B606 Ã¢â‚¬â€ path validated by os.path.isdir above
         else:
             msg("Output directory not found.")
 
@@ -632,7 +691,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             logger.log(f"Error while loading the filter file: {str(e)}",
                        level="CRITICAL")
 
-    def _apply_config_to_ui(self) -> None:  # pylint: disable=too-many-branches
+    def _apply_config_to_ui(self) -> None:  # pylint: disable=too-many-branches,too-many-statements
         """Populate all UI fields from CONFIG.ini if it exists and auto_load_last_used is True."""
         if not self.config_manager.config_exists():
             return
@@ -640,7 +699,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if not cfg.ui.auto_load_last_used:
             return
 
-        # Pfad-Felder befüllen
+        # Pfad-Felder befÃƒÂ¼llen
         self.config_manager.apply_to_ui_elements({
             'HuPath': self.dlg.HuPath,
             'RnPath': self.dlg.RnPath,
@@ -669,7 +728,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if cfg.processing.part_list:
             self.dlg.partlistBox.setText(cfg.processing.part_list)
 
-        # Settlement-Analyse-Parameter (QSpinBox — nur wenn > 0)
+        # Settlement-Analyse-Parameter (QSpinBox Ã¢â‚¬â€ nur wenn > 0)
         proc = cfg.processing
         if proc.min_building_count > 0:
             self.dlg.MinBdgCountBox.setValue(int(proc.min_building_count))
@@ -711,13 +770,20 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             validation_cache = cfg.validation_cache
             cached_errors = json.loads(validation_cache.errors) if validation_cache.errors else []
             cached_warnings = json.loads(validation_cache.warnings) if validation_cache.warnings else []
+            cached_context = (
+                json.loads(validation_cache.context_signature)
+                if getattr(validation_cache, 'context_signature', '')
+                else {}
+            )
             if cached_errors is not None or cached_warnings:
                 restored = ValidationResult()
                 restored.errors = cached_errors
                 restored.warnings = cached_warnings
                 self._last_validation_result = restored
+            self._validated_context = cached_context if isinstance(cached_context, dict) else {}
         except (json.JSONDecodeError, AttributeError, TypeError):
-            pass  # Corrupt cache — will re-validate on demand
+            self._last_validation_result = None
+            self._validated_context = {}
 
         logger.log("Konfiguration aus CONFIG.ini geladen.", level="INFO")
 
@@ -761,14 +827,18 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 'delete_part_log': self.dlg.PartLogBox.isChecked(),
             },
         )
-        # Persist the cached validation result (errors/warnings as JSON lists)
+        validation_cache = {
+            'errors': '[]',
+            'warnings': '[]',
+            'context_signature': '',
+        }
         if self._last_validation_result is not None:
-            self.config_manager.update_config(
-                validation_cache={
-                    'errors': json.dumps(self._last_validation_result.errors),
-                    'warnings': json.dumps(self._last_validation_result.warnings),
-                }
-            )
+            validation_cache = {
+                'errors': json.dumps(self._last_validation_result.errors),
+                'warnings': json.dumps(self._last_validation_result.warnings),
+                'context_signature': json.dumps(self._validated_context),
+            }
+        self.config_manager.update_config(validation_cache=validation_cache)
 
         self.config_manager.save_config()
         logger.log("Konfiguration in CONFIG.ini gespeichert.", level="INFO")
@@ -782,9 +852,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """
         reply = QMessageBox.question(
             self.dlg,
-            "Konfiguration zurücksetzen",
-            "CONFIG.ini löschen und alle Felder zurücksetzen?\n"
-            "Diese Aktion kann nicht rückgängig gemacht werden.",
+            "Konfiguration zurÃƒÂ¼cksetzen",
+            "CONFIG.ini lÃƒÂ¶schen und alle Felder zurÃƒÂ¼cksetzen?\n"
+            "Diese Aktion kann nicht rÃƒÂ¼ckgÃƒÂ¤ngig gemacht werden.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -797,7 +867,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             try:
                 os.remove(cfg_path)
             except OSError as e:
-                logger.log(f"Fehler beim Löschen der CONFIG.ini: {e}", level="CRITICAL")
+                logger.log(f"Fehler beim LÃƒÂ¶schen der CONFIG.ini: {e}", level="CRITICAL")
                 return
 
         # Re-init manager with empty defaults
@@ -818,12 +888,13 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Reset checksum and validation caches
         self._file_checksums.clear()
         self._validated_checksums.clear()
+        self._validated_context = {}
         self._last_validation_result = None
 
         # Disable Start button (re-check required)
         self.dlg.set_start_button_ready(False)
 
-        logger.log("Konfiguration zurückgesetzt — CONFIG.ini gelöscht.", level="INFO")
+        logger.log("Konfiguration zurÃƒÂ¼ckgesetzt Ã¢â‚¬â€ CONFIG.ini gelÃƒÂ¶scht.", level="INFO")
 
     def _collect_params(self) -> dict:
         """Collect all UI parameter values as raw strings for validation.
@@ -862,7 +933,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             return float(text)
         except ValueError:
             logger.log(
-                f"Invalid numeric value: {text!r} — using fallback {fallback}.",
+                f"Invalid numeric value: {text!r} Ã¢â‚¬â€ using fallback {fallback}.",
                 level="WARNING",
             )
             return fallback
@@ -909,23 +980,17 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.MessageBox.clear()
 
         # ------------------------------------------------------------------
-        # Checksum-based skip: if files haven't changed since last validation,
-        # re-display the cached result instead of running the full check.
+        # Validation skip: re-use the cached result only when the current
+        # inputs and validation-relevant parameters still match exactly.
         # ------------------------------------------------------------------
-        if self._last_validation_result is not None:
-            if all(
-                self._file_checksums.get(f) == self._validated_checksums.get(f)
-                and self._file_checksums.get(f)  # both sides must be non-empty
-                for f in self._CHECKSUM_FIELDS
-            ):
-                logger.log(
-                    "Validierung übersprungen — Eingabedateien unverändert "
-                    "(Prüfsummen stimmen überein).",
-                    level="INFO",
-                )
-                self._display_validation_result(self._last_validation_result)
-                self.dlg.set_start_button_ready(self._last_validation_result.is_valid)
-                return
+        if self._can_reuse_validation_result():
+            logger.log(
+                "Validierung Ã¼bersprungen - Eingaben und Parameter unverÃ¤ndert.",
+                level="INFO",
+            )
+            self._display_validation_result(self._last_validation_result)
+            self.dlg.set_start_button_ready(self._last_validation_result.is_valid)
+            return
 
         spatial_reference = self.dlg.SpatialReferenceBox.crs()
 
@@ -945,6 +1010,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Store result and snapshot checksums for next skip-check
         self._last_validation_result = result
         self._validated_checksums = dict(self._file_checksums)
+        self._validated_context = self._build_validation_context()
 
         self._display_validation_result(result)
         self.dlg.set_start_button_ready(result.is_valid)
@@ -1157,7 +1223,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         Reads all parameter values from the UI, re-validates input, loads
         layers into GeoPackage format, then iterates over the partition list.
         For each partition the pipeline runs six sequential steps:
-        Load → Blocker → ImportFilter → MST → Clustering → GapClose →
+        Load Ã¢â€ â€™ Blocker Ã¢â€ â€™ ImportFilter Ã¢â€ â€™ MST Ã¢â€ â€™ Clustering Ã¢â€ â€™ GapClose Ã¢â€ â€™
         PatchRemove. Intermediate results are accumulated in a merge layer
         and saved to disk after each partition to enable resume. On
         completion the result is saved to the configured output GeoPackage

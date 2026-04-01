@@ -1,3 +1,5 @@
+"""Logging helpers for routing IBTool messages to QGIS, the UI, and an optional log file."""
+
 import logging
 import os
 import time
@@ -8,7 +10,7 @@ from .message import msg
 class Logger:
     """Singleton logger that writes to the QGIS message panel, a log file, and a message box.
 
-    On first instantiation the log file is created under ``log_dir``.
+    A log file is only created after :meth:`set_log_dir` is called.
     Use :meth:`set_message_box` to attach a UI widget for in-dialog output.
     """
 
@@ -21,17 +23,15 @@ class Logger:
     def __new__(cls) -> "Logger":
         if cls._instance is None:
             cls._instance = super(Logger, cls).__new__(cls)
-            cls._initialize_logging()
         return cls._instance
 
     @classmethod
     def _initialize_logging(cls) -> None:
-        """Initialise the log file and configure the Python logging handler."""
-        start_time = time.strftime("%Y-%m-%d_%H-%M-%S")
+        """Initialise the log file handler for the current log directory."""
         if not cls.log_dir:
-            cls.log_dir = os.path.join(os.getcwd(), "logs")  # default: current working directory
-        msg(cls.log_dir)
-        os.makedirs(cls.log_dir, exist_ok=True)
+            return
+
+        start_time = time.strftime("%Y-%m-%d_%H-%M-%S")
         log_filename = os.path.join(cls.log_dir, f"logfile_{start_time}.txt")
 
         cls.file_handler = logging.FileHandler(log_filename, mode='a')
@@ -39,8 +39,9 @@ class Logger:
         formatter = logging.Formatter('%(levelname)s %(asctime)s - %(message)s', datefmt='%H:%M:%S')
         cls.file_handler.setFormatter(formatter)
 
-        # configure logging
-        logging.basicConfig(level=cls.log_level, handlers=[cls.file_handler])
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(cls.file_handler)
         cls.log(f"Logger initialisiert. Logdatei: {log_filename}", level="INFO")
 
     @classmethod
@@ -66,8 +67,13 @@ class Logger:
             cls.file_handler.close()
             logging.getLogger().removeHandler(cls.file_handler)
             cls.file_handler = None
-        cls.log_dir = log_dir
-        cls._initialize_logging()
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            cls.log_dir = log_dir
+            cls._initialize_logging()
+        except OSError as e:
+            cls.log_dir = None
+            cls.log(f"Log-Verzeichnis nicht schreibbar: {log_dir} ({e})", level="CRITICAL")
 
     @classmethod
     def set_log_level(cls, level: str) -> None:
@@ -85,7 +91,6 @@ class Logger:
             'CRITICAL': logging.CRITICAL,
             'SUCCESS': logging.DEBUG,  # SUCCESS maps to DEBUG level
         }
-        msg(level)
         if level not in log_levels:
             raise ValueError(
                 f"Invalid log level: '{level}'. "
@@ -105,7 +110,7 @@ class Logger:
 
         Args:
             message: The message to log. Non-string values are converted with ``str()``.
-            level: Severity — one of ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
+            level: Severity â€” one of ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
                 ``'SUCCESS'``. Defaults to ``'WARNING'``.
 
         Raises:
@@ -131,8 +136,9 @@ class Logger:
             if not isinstance(message, str):
                 message = str(message)
 
-            # write to log file
-            logging.getLogger().log(logger_level, message)
+            # write to log file if a file handler is configured
+            if cls.file_handler:
+                logging.getLogger().log(logger_level, message)
 
             # display in message box
             if cls.message_box:
@@ -153,7 +159,7 @@ class Logger:
         """Map an IBTool log level string to the corresponding QGIS message level.
 
         Args:
-            level: IBTool level string — ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
+            level: IBTool level string â€” ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
                 or ``'SUCCESS'``.
 
         Returns:
@@ -172,6 +178,8 @@ class Logger:
     def close_logger(cls) -> None:
         """Close the file handler and remove it from the root logger."""
         if cls.file_handler:
-            cls.file_handler.close()
-            logging.getLogger().removeHandler(cls.file_handler)
+            handler = cls.file_handler
+            cls.file_handler = None
+            handler.close()
+            logging.getLogger().removeHandler(handler)
             cls.log("Logger geschlossen.", level="INFO")
