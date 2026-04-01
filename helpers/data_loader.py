@@ -9,7 +9,7 @@ Constants:
         ``part_list`` to signal "load all partitions from the layer".
 """
 
-from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtWidgets import QFileDialog  # pylint: disable=no-name-in-module
 
 # Sentinel value indicating "use all partitions from the layer" in partition list config.
 COMMENT_MARKER = '#'
@@ -29,8 +29,8 @@ def _select_vector_file(dlg: object, field_name: str) -> None:
     getattr(dlg, field_name).setText(filename)
 
 
-def select_HU_file(dlg: object) -> None:
-    """Open a file dialog and set the selected .shp path as the HU input path.
+def select_HU_file(dlg: object) -> None:  # pylint: disable=invalid-name
+    """Open a file dialog and set the selected vector-file path as the HU input path.
 
     Args:
         dlg: The plugin dialog instance.
@@ -38,8 +38,8 @@ def select_HU_file(dlg: object) -> None:
     _select_vector_file(dlg, "HuPath")
 
 
-def select_RN_file(dlg: object) -> None:
-    """Open a file dialog and set the selected .shp path as the RN input path.
+def select_RN_file(dlg: object) -> None:  # pylint: disable=invalid-name
+    """Open a file dialog and set the selected vector-file path as the RN input path.
 
     Args:
         dlg: The plugin dialog instance.
@@ -47,8 +47,8 @@ def select_RN_file(dlg: object) -> None:
     _select_vector_file(dlg, "RnPath")
 
 
-def select_PART_file(dlg: object) -> None:
-    """Open a file dialog and set the selected .shp path as the partition input path.
+def select_PART_file(dlg: object) -> None:  # pylint: disable=invalid-name
+    """Open a file dialog and set the selected vector-file path as the partition input path.
 
     Args:
         dlg: The plugin dialog instance.
@@ -56,8 +56,8 @@ def select_PART_file(dlg: object) -> None:
     _select_vector_file(dlg, "PartPath")
 
 
-def select_AUX_file(dlg: object) -> None:
-    """Open a file dialog and set the selected .shp path as the auxiliary input path.
+def select_AUX_file(dlg: object) -> None:  # pylint: disable=invalid-name
+    """Open a file dialog and set the selected vector-file path as the auxiliary input path.
 
     Args:
         dlg: The plugin dialog instance.

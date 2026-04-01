@@ -8,6 +8,7 @@ Coverage:
 - InputValidator._check_geometries
 - InputValidator._check_hu_layer
 - InputValidator._check_rn_layer
+- InputValidator._check_aux_layer
 - InputValidator._check_part_layer
 - InputValidator._check_multipart_lines
 - InputValidator._check_part_hu_ratio
@@ -211,6 +212,20 @@ class TestCheckFeatureCounts:
 
     @pytest.mark.unit
     @pytest.mark.edge_case
+    def test_empty_part_layer_adds_error(self):
+        """Error when the Part layer has zero features."""
+        part_layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "part", "memory")
+        part_layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        part_layer.updateFields()
+        result = ValidationResult()
+        self.validator._check_feature_counts(
+            {"Partitioning (Part)": part_layer}, result
+        )
+        assert not result.is_valid
+        assert any("empty" in e.lower() for e in result.errors)
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
     def test_unknown_layer_name_is_skipped(self):
         """Layers not in the min_counts dict produce no error."""
         unknown_layer = _make_polygon_layer()
@@ -386,6 +401,35 @@ class TestCheckRnLayer:
 
 
 # ---------------------------------------------------------------------------
+# TestCheckAuxLayer — requires QGIS
+# ---------------------------------------------------------------------------
+
+class TestCheckAuxLayer:
+    """Tests for InputValidator._check_aux_layer."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.qgis_app, cls.canvas, cls.iface, cls.parent = get_qgis_app()
+        cls.validator = InputValidator()
+
+    @pytest.mark.unit
+    def test_line_geometry_no_error(self):
+        """No error for a line-geometry Aux layer."""
+        layer = _make_line_layer()
+        result = ValidationResult()
+        self.validator._check_aux_layer(layer, result)
+        assert result.is_valid
+
+    @pytest.mark.unit
+    def test_polygon_geometry_adds_error(self):
+        """Error when Aux layer has polygon instead of line geometry."""
+        layer = _make_polygon_layer()
+        result = ValidationResult()
+        self.validator._check_aux_layer(layer, result)
+        assert not result.is_valid
+
+
+# ---------------------------------------------------------------------------
 # TestCheckPartLayer — requires QGIS
 # ---------------------------------------------------------------------------
 
@@ -450,6 +494,23 @@ class TestCheckPartLayer:
         result = ValidationResult()
         self.validator._check_part_layer(layer, result)
         assert not result.is_valid
+
+    @pytest.mark.unit
+    def test_line_geometry_adds_error(self):
+        """Error when Part layer is not polygon geometry."""
+        layer = QgsVectorLayer("LineString?crs=EPSG:25833", "part", "memory")
+        layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        layer.updateFields()
+        feat = QgsFeature(layer.fields())
+        feat.setGeometry(QgsGeometry.fromPolylineXY([
+            QgsPointXY(0, 0), QgsPointXY(1, 1)
+        ]))
+        feat["NAME"] = "PART_1"
+        layer.dataProvider().addFeatures([feat])
+        result = ValidationResult()
+        self.validator._check_part_layer(layer, result)
+        assert not result.is_valid
+        assert any("Polygon geometry required" in e for e in result.errors)
 
 
 # ---------------------------------------------------------------------------
@@ -827,22 +888,30 @@ class TestCheckOutputPaths:
         assert not result.is_valid
 
     @pytest.mark.unit
-    def test_nonexistent_output_directory_adds_error(self):
-        """Error when the directory of the output path does not exist."""
+    def test_output_path_without_directory_adds_error(self):
+        """Error when the output path does not include a directory."""
+        validator = InputValidator()
+        result = ValidationResult()
+        validator._check_output_paths("output.gpkg", "/some/workspace", result)
+        assert not result.is_valid
+
+    @pytest.mark.unit
+    def test_non_gpkg_output_extension_adds_error(self):
+        """Error when the output path does not end with .gpkg."""
         validator = InputValidator()
         result = ValidationResult()
         validator._check_output_paths(
-            "/nonexistent/dir/output.gpkg", "/some/workspace", result
+            "C:/data/output.shp", "C:/workspace", result
         )
         assert not result.is_valid
 
     @pytest.mark.unit
     def test_valid_paths_no_errors(self):
-        """No errors when output directory exists and workspace path is set."""
+        """No errors when output path is a full .gpkg path and workspace is set."""
         validator = InputValidator()
         result = ValidationResult()
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = os.path.join(tmpdir, "result.gpkg")
+            output_path = os.path.join(tmpdir, "subdir", "result.gpkg")
             validator._check_output_paths(output_path, tmpdir, result)
         assert result.is_valid, f"Errors: {result.errors}"
 

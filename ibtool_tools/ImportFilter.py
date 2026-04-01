@@ -1,3 +1,7 @@
+"""Import filter for building footprints based on ATKIS function codes and density analysis."""
+
+from __future__ import annotations
+
 import os
 
 from qgis.core import QgsWkbTypes, QgsVectorLayer, QgsProcessingUtils
@@ -53,23 +57,23 @@ def import_filter(
 
     Args:
         filename: Path to the filter definition text file.
-        hu_layer: Building footprint polygon layer. Must have a ``fkt`` or
-            ``funktion`` attribute field.
+        hu_layer: Building footprint polygon layer. Must have a ``fkt``,
+            ``gfkzshh`` or ``funktion`` attribute field.
 
     Returns:
         Tuple of ``(filter_positive, filter_negative, fieldname)`` where both
         filter strings are QGIS expression strings.
 
     Raises:
-        Exception: If the file does not exist, the layer is invalid, or the
+        ValueError: If the file does not exist, the layer is invalid, or the
             required attribute field is missing.
     """
     if not os.path.isfile(filename):
-        raise Exception(f"{filename} existiert nicht im Arbeitsverzeichnis.")
+        raise ValueError(f"{filename} existiert nicht im Arbeitsverzeichnis.")
 
     # Validate input layer geometry type
     if not hu_layer.isValid() or hu_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
-        raise Exception("hu_layer must be a valid polygon layer.")
+        raise ValueError("hu_layer must be a valid polygon layer.")
 
     # Determine attribute field name
     fieldname = None
@@ -81,7 +85,7 @@ def import_filter(
     elif fields.indexOf("funktion") != -1:
         fieldname = "funktion"
     else:
-        raise Exception("Der Eingabelayer hat weder ein 'fkt', 'gfkzshh'- noch ein 'funktion'-Feld.")
+        raise ValueError("Der Eingabelayer hat weder ein 'fkt', 'gfkzshh'- noch ein 'funktion'-Feld.")
 
     # Read filter file and build entry lists
     with open(filename, 'r', encoding='utf-8') as file:
@@ -109,7 +113,7 @@ def import_filter(
     return filterpos, filterneg, fieldname
 
 
-def input_hu_filter(
+def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
     hu_layer: QgsVectorLayer,
     filter_file: str,
     min_area: float = 56.8,
@@ -147,14 +151,14 @@ def input_hu_filter(
         Filtered building footprint layer as a dissolved QgsVectorLayer.
     """
     if not hu_layer.isValid() or hu_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
-        raise Exception("hu_layer must be a valid polygon layer.")
+        raise RuntimeError("hu_layer must be a valid polygon layer.")
 
     building_count = hu_layer.featureCount()
 
     if building_count > min_area:
 
         hu_layer = shp_area(hu_layer)
-        filterpos, filterneg, fieldname = import_filter(filter_file, hu_layer)
+        filterpos, filterneg, _ = import_filter(filter_file, hu_layer)
 
         # Step 1: Select residential buildings (positive filter)
         residential_layer = processing.run("native:extractbyexpression", {
@@ -163,7 +167,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(residential_layer, QgsVectorLayer):
-            raise Exception("Failed to create residential_layer")
+            raise RuntimeError("Failed to create residential_layer")
         if debug_mode and workspace_path:
             save_debug_layer(residential_layer, _DEBUG_TOOL_NAME, "after_positive_filter", workspace_path)
 
@@ -174,7 +178,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(res_cent, QgsVectorLayer):
-            raise Exception("Failed to create res_cent")
+            raise RuntimeError("Failed to create res_cent")
         if debug_mode and workspace_path:
             save_debug_layer(res_cent, _DEBUG_TOOL_NAME, "after_centroids", workspace_path)
 
@@ -203,7 +207,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(res_density_points, QgsVectorLayer):
-            raise Exception("Failed to create res_density_points")
+            raise RuntimeError("Failed to create res_density_points")
 
         # Filter points by density value
         filtered_points = processing.run("native:extractbyexpression", {
@@ -212,7 +216,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(filtered_points, QgsVectorLayer):
-            raise Exception("Failed to create filtered_points")
+            raise RuntimeError("Failed to create filtered_points")
         if debug_mode and workspace_path:
             save_debug_layer(filtered_points, _DEBUG_TOOL_NAME, "after_density_filter", workspace_path)
 
@@ -229,7 +233,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(points_buffer, QgsVectorLayer):
-            raise Exception("Failed to create points_buffer")
+            raise RuntimeError("Failed to create points_buffer")
         if debug_mode and workspace_path:
             save_debug_layer(points_buffer, _DEBUG_TOOL_NAME, "after_density_buffer", workspace_path)
 
@@ -240,7 +244,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(negative_layer, QgsVectorLayer):
-            raise Exception("Failed to create negative_layer")
+            raise RuntimeError("Failed to create negative_layer")
         if debug_mode and workspace_path:
             save_debug_layer(negative_layer, _DEBUG_TOOL_NAME, "after_negative_filter", workspace_path)
 
@@ -269,7 +273,7 @@ def input_hu_filter(
             'OUTPUT': 'memory:'
         })['OUTPUT']
         if not isinstance(diss_del, QgsVectorLayer):
-            raise Exception("Failed to create final_layer")
+            raise RuntimeError("Failed to create final_layer")
         if debug_mode and workspace_path:
             save_debug_layer(diss_del, _DEBUG_TOOL_NAME, "after_group_filter", workspace_path)
 
@@ -297,9 +301,8 @@ def input_hu_filter(
 
         return final_layer_diss
 
-    else:
-        Logger.log(
-            f"Anzahl der Gebäude für Filterung zu gering: {building_count}",
-            level="WARNING",
-        )
-        return hu_layer
+    Logger.log(
+        f"Anzahl der Gebäude für Filterung zu gering: {building_count}",
+        level="WARNING",
+    )
+    return hu_layer

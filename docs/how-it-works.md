@@ -64,7 +64,7 @@ All input layers (HU, RN, Part, Aux) are copied into temporary GeoPackages in th
 
 **Merge RN + Aux**
 
-The auxiliary layer (railway lines, forest edges, water bodies) is merged with the road network into a single combined barrier layer. Both line and polygon geometries are supported.
+The auxiliary layer is merged with the road network into a single combined barrier layer. It must be provided as a line layer.
 
 **Global footprint density threshold**
 

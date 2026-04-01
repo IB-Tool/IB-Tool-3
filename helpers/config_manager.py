@@ -65,7 +65,7 @@ class ProcessingConfig:  # pylint: disable=too-many-instance-attributes
 
     # General processing
     crs_epsg: int = DEFAULT_CRS_EPSG  # Default EPSG code
-    output_format: str = "gpkg"  # gpkg or shp
+    output_format: str = "gpkg"  # Persisted in config; runtime output is GeoPackage
 
     # Settlement analysis parameters (UI fields)
     min_overlap_blocks: float = 0.0
@@ -84,7 +84,7 @@ class ProcessingConfig:  # pylint: disable=too-many-instance-attributes
 class OutputConfig:
     """Configuration for output settings."""
     workspace_directory: str = ""
-    output_directory: str = ""  # Specific output directory, overrides workspace if set
+    output_directory: str = ""  # Historical key name: stores the full OutputPath file path
     output_prefix: str = "ibtool_result"
     auto_save: bool = True
     add_to_map: bool = True

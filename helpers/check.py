@@ -31,9 +31,11 @@ class ValidationResult:
         return len(self.errors) == 0
 
     def add_error(self, message: str) -> None:
+        """Append a critical error message."""
         self.errors.append(message)
 
     def add_warning(self, message: str) -> None:
+        """Append a non-critical warning message."""
         self.warnings.append(message)
 
 
@@ -72,12 +74,13 @@ class InputValidator:
     # Minimum feature counts per layer
     MIN_FEATURES_HU = 50
     MIN_FEATURES_RN = 30
+    MIN_FEATURES_PART = 1
     MIN_FEATURES_AUX = 10
 
     # Maximum ratio of Part features to HU features
     MAX_PART_TO_HU_RATIO = 10000
 
-    def validate_all(
+    def validate_all(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
         self,
         hu_path: str,
         rn_path: str,
@@ -167,12 +170,16 @@ class InputValidator:
         if rn_key in valid_layers:
             self._check_rn_layer(valid_layers[rn_key], result)
 
+        aux_key = "Auxiliary layer (Aux)"
+        if aux_key in valid_layers:
+            self._check_aux_layer(valid_layers[aux_key], result)
+
         part_key = "Partitioning (Part)"
         if part_key in valid_layers:
             self._check_part_layer(valid_layers[part_key], result)
 
         # Multipart geometry check for line layers
-        for key in [rn_key, "Auxiliary layer (Aux)"]:
+        for key in [rn_key, aux_key]:
             if key in valid_layers:
                 self._check_multipart_lines(valid_layers[key], key, result)
 
@@ -222,6 +229,7 @@ class InputValidator:
         min_counts = {
             "Building footprints (HU)": self.MIN_FEATURES_HU,
             "Road network (RN)": self.MIN_FEATURES_RN,
+            "Partitioning (Part)": self.MIN_FEATURES_PART,
             "Auxiliary layer (Aux)": self.MIN_FEATURES_AUX,
         }
 
@@ -299,7 +307,7 @@ class InputValidator:
                 f"(native:fixgeometries)."
             )
 
-    def _check_validity_processing(
+    def _check_validity_processing(  # pylint: disable=too-many-locals,too-many-branches
         self, layer: QgsVectorLayer, layer_name: str,
         result: ValidationResult,
     ) -> None:
@@ -358,7 +366,7 @@ class InputValidator:
                 f"(native:fixgeometries)."
             )
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             result.add_warning(
                 f"{layer_name}: 'qgis:checkvalidity' could not "
                 f"be executed: {e}"
@@ -444,10 +452,30 @@ class InputValidator:
                 f"Hint: Use a layer with line geometry."
             )
 
+    def _check_aux_layer(
+        self, layer: QgsVectorLayer, result: ValidationResult
+    ) -> None:
+        """Validate Aux layer: must be LineString geometry."""
+        if layer.geometryType() != QgsWkbTypes.LineGeometry:
+            geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
+            result.add_error(
+                f"Auxiliary layer (Aux): Line geometry required, "
+                f"but {geom_type} found. "
+                f"Hint: Use a layer with line geometry."
+            )
+
     def _check_part_layer(
         self, layer: QgsVectorLayer, result: ValidationResult
     ) -> None:
-        """Validate Part layer: NAME field and naming pattern."""
+        """Validate Part layer: polygon geometry, NAME field and naming pattern."""
+        if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+            geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
+            result.add_error(
+                f"Partitioning (Part): Polygon geometry required, "
+                f"but {geom_type} found. "
+                f"Hint: Use a layer with polygon geometry."
+            )
+
         field_names = [f.name() for f in layer.fields()]
 
         # Required field: NAME
@@ -618,7 +646,7 @@ class InputValidator:
         try:
             with open(filter_path, 'r', encoding='utf-8') as f:
                 return f.readlines()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             result.add_error(
                 f"Filter file: File cannot be read: {e}. "
                 f"Hint: File must be UTF-8 encoded and readable."
@@ -758,17 +786,23 @@ class InputValidator:
         self, output_path: str, workspace_path: str,
         result: ValidationResult
     ) -> None:
-        """Validate output and workspace paths."""
+        """Validate output path format and workspace-path presence."""
         if not output_path or not output_path.strip():
             result.add_error("Output file: No path specified.")
         else:
-            output_dir = os.path.dirname(output_path)
-            if output_dir and not os.path.exists(output_dir):
+            if not output_path.lower().endswith(".gpkg"):
                 result.add_error(
-                    f"Output file: Directory does not exist: "
-                    f"{output_dir}. "
-                    f"Hint: Create the directory or choose a "
-                    f"different path."
+                    f"Output file: GeoPackage (.gpkg) required, "
+                    f"but got: {output_path}. "
+                    f"Hint: Choose a .gpkg output file."
+                )
+            output_dir = os.path.dirname(output_path)
+            if not output_dir:
+                result.add_error(
+                    f"Output file: Path must include a directory: "
+                    f"{output_path}. "
+                    f"Hint: Choose a full output path such as "
+                    f"C:/data/result.gpkg."
                 )
 
         if not workspace_path or not workspace_path.strip():
@@ -893,25 +927,25 @@ class InputValidator:
             return
 
         try:
-            ps = int(part_start)
-            pe = int(part_end)
-            if ps != -1 and pe != -1:
-                if ps < 0:
+            start_val = int(part_start)
+            end_val = int(part_end)
+            if start_val != -1 and end_val != -1:
+                if start_val < 0:
                     result.add_error(
                         f"Parameter 'Partition Start': "
-                        f"Value {ps} is invalid. "
+                        f"Value {start_val} is invalid. "
                         f"Hint: -1 (all) or >= 0."
                     )
-                if pe < 0:
+                if end_val < 0:
                     result.add_error(
                         f"Parameter 'Partition End': "
-                        f"Value {pe} is invalid. "
+                        f"Value {end_val} is invalid. "
                         f"Hint: -1 (all) or >= 0."
                     )
-                if ps >= 0 and pe >= 0 and ps >= pe:
+                if 0 <= end_val <= start_val:
                     result.add_error(
-                        f"Parameter: Partition Start ({ps}) >= "
-                        f"Partition End ({pe}). "
+                        f"Parameter: Partition Start ({start_val}) >= "
+                        f"Partition End ({end_val}). "
                         f"Hint: Start must be less than "
                         f"End."
                     )
