@@ -79,14 +79,25 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
 
 The easiest way to install IBTool is to download the ready-to-use ZIP file from the [GitHub Releases](https://github.com/K3lT10N/IB-Tool-3/releases) page and install it directly inside QGIS:
 
-1. Go to the [Releases](https://github.com/K3lT10N/IB-Tool-3/releases) page and download the latest `ibtool_<version>.zip`.
+1. Go to the [Releases](https://github.com/K3lT10N/IB-Tool-3/releases) page and download the latest `IB-Tool-3.<version>.zip`.
 2. Open QGIS.
 3. In the menu bar, click **Plugins → Manage and Install Plugins…**
 4. Switch to the **Install from ZIP** tab.
 5. Click the **…** button, select the downloaded ZIP file, then click **Install Plugin**.
 6. The plugin is now available under **Plugins → IB-Tool**.
 
-> The ZIP file is a self-contained plugin package and does not require any manual path configuration.
+> **Important — Plugin folder name:**
+> QGIS creates the plugin folder from the top-level folder inside the ZIP. The release ZIP contains the folder `IB-Tool-3`, which includes hyphens and digits. QGIS requires plugin folder names to be valid Python identifiers (no hyphens, no leading digits). If the plugin does not appear in QGIS after installation, navigate to your QGIS plugins folder (see paths below) and **rename** the extracted folder to `ibtool`:
+>
+> | OS | Plugins folder |
+> |----|----------------|
+> | Windows | `C:\Users\<username>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins` |
+> | Linux | `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins` |
+> | macOS | `~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins` |
+>
+> Rename: `IB-Tool-3` → `ibtool`
+>
+> Then restart QGIS and enable the plugin.
 
 ---
 
@@ -102,13 +113,18 @@ The easiest way to install IBTool is to download the ready-to-use ZIP file from 
    - Windows: `C:\Users\<username>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
    - Linux: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
    - Note: The AppData folder may be hidden — enable "Show hidden items" in the Explorer settings.
-3. **Configure the QGIS path (optional):**
+3. **Rename the plugin folder:**
+   QGIS requires plugin folder names to be valid Python identifiers. The repository folder `IB-Tool-3` contains hyphens and a trailing digit, which are not allowed. **Rename** the folder to `ibtool`:
+   ```
+   IB-Tool-3  →  ibtool
+   ```
+4. **Configure the QGIS path (optional):**
    - IBTool detects QGIS automatically via the `QGIS_PREFIX_PATH` environment variable or common install locations.
    - If QGIS is installed in a non-standard location, set `QGIS_PREFIX_PATH` manually, e.g.:
      ```bash
      export QGIS_PREFIX_PATH=/opt/qgis
      ```
-4. **Activate the plugin:**
+5. **Activate the plugin:**
    - Start QGIS and enable IBTool in **Plugins → Manage and Install Plugins**.
 
 ---
@@ -190,6 +206,7 @@ If you use IBTool in research, please cite:
 
 ## Troubleshooting
 
+- **Plugin not visible in QGIS after installation?** Check that the plugin folder is named `ibtool` (lowercase, no hyphens). ZIP installation may create a folder like `IB-Tool-3` or `IB-Tool-3.0.1.5` — rename it to `ibtool` and restart QGIS. See [Installation](#installation) for details.
 - Use the **Check** button to validate input data before processing. Error messages contain specific hints for fixing issues.
 - Make sure all input data uses the same **CRS** (coordinate reference system).
 - Verify that all dependencies (e.g. libraries) are correctly installed.
