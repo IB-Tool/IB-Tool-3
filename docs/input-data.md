@@ -11,7 +11,7 @@ This document specifies the five input datasets required by IBTool: geometry typ
 | **HU** — Building Footprints | Building outlines used for filtering, density analysis, and boundary generation |
 | **RN** — Road Network | Road network used to derive street blocks and to snap boundaries |
 | **Part** — Partitioning | Polygons that divide the study area into processing units |
-| **Aux** — Auxiliary Layer | Additional line/polygon barriers merged with the road network |
+| **Aux** — Auxiliary Layer | Additional line barriers merged with the road network |
 | **Filter File** | `.txt` file defining positive and negative ATKIS function-code filters |
 
 ---
@@ -50,6 +50,7 @@ Road segments shorter than 50 m (dead ends) are filtered automatically during MS
 | Property | Requirement |
 |----------|-------------|
 | Geometry type | **Polygon** |
+| Minimum features | 1 |
 | Required field | `NAME` — partition label (e.g. `PART_123`) |
 | Name format | `PART_<number>` (e.g. `PART_36`, `PART_433`) |
 | Part:HU ratio | Should not exceed 1:10,000. Too few partitions leads to very long per-partition runtimes. |
@@ -60,10 +61,10 @@ The partitioning defines independent processing units. In the plugin interface a
 
 | Property | Requirement |
 |----------|-------------|
-| Geometry type | Polygon or LineString |
+| Geometry type | **LineString** |
 | Minimum features | 10 |
 
-The Aux layer is merged with RN and used to refine block derivation (e.g. additional barriers or boundaries).
+The Aux layer is merged with RN and used to refine block derivation (e.g. additional barriers or boundaries). Polygon layers are not supported here.
 
 ### Filter File
 
@@ -90,7 +91,7 @@ Controls which buildings are included or excluded. Format:
 ```
 
 - Lines starting with `#` are section headers or comments; blank lines are ignored.
-- Only the **first 10 characters** of each entry are matched against the `fkt`/`funktion` field.
+- Only the **first 10 characters** of each entry are matched against the `fkt`/`gfkzshh`/`funktion` field.
 - **Positive filter**: only buildings whose code matches an entry are retained.
 - **Negative filter**: buildings whose code matches an entry are excluded.
 
@@ -98,8 +99,8 @@ Controls which buildings are included or excluded. Format:
 
 | Property | Requirement |
 |----------|-------------|
-| Output file | Path for the result GeoPackage (`.gpkg`). The parent directory must exist. |
-| Working directory | Path for intermediate files. Parent directory must exist; the directory itself is created during processing. |
+| Output file | Full path for the result GeoPackage (`.gpkg`). The output directory is created automatically if needed. |
+| Working directory | Path for intermediate files. The directory is created automatically during processing if needed. |
 
 ---
 
@@ -109,22 +110,25 @@ The **Check** button in the dialog runs all checks before processing. Critical e
 
 | Check | Type | Description |
 |-------|------|-------------|
-| File paths | Error | All paths must be specified and exist |
+| File paths | Error | Input-layer and filter-file paths must be specified and exist |
 | Layer loadability | Error | Files must be loadable as valid QGIS layers |
 | Empty layers | Error | Layers must not be empty (0 features) |
 | Minimum features HU | Error | At least 50 features required |
 | Minimum features RN | Error | At least 30 features required |
+| Minimum features Part | Error | At least 1 feature required |
 | Minimum features Aux | Error | At least 10 features required |
 | CRS match | Error | All layers must use the CRS selected in the UI |
 | HU geometry type | Error | Must be polygon geometry |
 | HU required field | Error | Field `fkt`, `gfkzshh`, or `funktion` must be present |
 | RN geometry type | Error | Must be line geometry |
-| Multipart geometries | Warning | Line layers should not contain multipart geometries |
+| Part geometry type | Error | Must be polygon geometry |
+| Aux geometry type | Error | Must be line geometry |
+| Multipart geometries | Error | Line layers must not contain MultiLineString features with more than one part |
 | Part required field | Error | Field `NAME` must be present |
 | Part name format | Error | NAME values must match the `PART_<number>` pattern |
 | Part:HU ratio | Warning | Ratio of HU to Part should not exceed 1:10,000 |
 | Filter file format | Error | Sections `#Filter positive` and `#Filter negative` required |
-| Output paths | Error | Output and working directories must exist |
+| Output paths | Error | Output path must include a directory and end with `.gpkg`; workspace path must be specified |
 
 ---
 

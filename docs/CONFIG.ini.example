@@ -33,7 +33,7 @@ max_distance = 200.0                # Maximum distance between cluster members (
 
 # Coordinate system and output format
 crs_epsg = 25832                    # EPSG code for coordinate reference system
-output_format = gpkg                # Output format: gpkg or shp
+output_format = gpkg                # Persisted in config; current UI writes GeoPackage output
 
 # Settlement analysis parameters
 min_overlap_blocks = 0.0            # Minimum building coverage per block (0 = auto)
@@ -46,7 +46,8 @@ max_gap_size = 0.0                  # Maximum gap size to close (m²)
 [OUTPUT]
 # Output and workspace settings
 # workspace_directory = C:/Users/YourName/ibtool_workspace
-output_prefix = ibtool_result       # Prefix for output file names
+# output_directory = C:/Users/YourName/results/ibtool_result.gpkg
+output_prefix = ibtool_result       # Stored in config, currently not applied by the runtime workflow
 auto_save = True                    # Automatically save results
 add_to_map = True                   # Add results to QGIS map
 overwrite_existing = False          # Overwrite existing output files

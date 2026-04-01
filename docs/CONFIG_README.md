@@ -14,7 +14,7 @@ button.
 ## File Location
 
 ```
-<QGIS profile>/python/plugins/ibtool/CONFIG.ini
+<QGIS profile>/python/plugins/<plugin-folder>/CONFIG.ini
 ```
 
 The plugin root is the directory that also contains `helpers/`, `ibtool_tools/`, and
@@ -67,7 +67,7 @@ max_distance           = 200.0     # Maximum distance between cluster members (m
 
 # Coordinate system and output
 crs_epsg               = 25832     # EPSG code → written as EPSG:25832 into dialog
-output_format          = gpkg      # gpkg or shp
+output_format          = gpkg      # Persisted in config; current UI workflow writes GeoPackage output
 
 # Settlement analysis parameters (UI tab: Parameters)
 min_overlap_blocks      = 0.0      # Minimum building coverage per block (%)
@@ -90,15 +90,16 @@ part_list              = #         # Comma-separated list of partition IDs (# = 
 ```ini
 [OUTPUT]
 workspace_directory  = C:/projects/my_project     # Workspace folder
-output_directory     =                            # Override output path (optional)
-output_prefix        = ibtool_result              # Prefix for output filenames
+output_directory     = C:/projects/my_project/results/ibtool_result.gpkg  # Historical key name: full output file path for OutputPath
+output_prefix        = ibtool_result              # Stored in config, currently not applied by the runtime workflow
 auto_save            = True
 add_to_map           = True
 overwrite_existing   = False
 ```
 
-If `output_directory` is set, it takes precedence over `workspace_directory` as the
-effective output location.
+`workspace_directory` fills the `WorkspacePath` field. Despite its historical name,
+`output_directory` fills the `OutputPath` field directly and therefore must contain a
+full output file path, not just a directory.
 
 ---
 
