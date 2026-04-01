@@ -115,6 +115,18 @@ For the full `CONFIG.ini` reference including all sections and keys, see [docs/C
 - **Linux**: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
 - **macOS**: `~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins`
 
+### Plugin Folder Naming
+
+QGIS loads plugins by importing the folder name as a Python module. This means the plugin folder **must be a valid Python identifier** — only lowercase letters, digits, and underscores are allowed; the name must not start with a digit and must not contain hyphens or dots.
+
+The GitHub repository is named `IB-Tool-3` and the release ZIP packages the plugin under the same folder name. After extracting or cloning, the folder must be **renamed** to `ibtool` for QGIS to recognise it:
+
+```
+IB-Tool-3  →  ibtool
+```
+
+The plugin's `__init__.py` registers a virtual `ibtool` package at runtime so that absolute imports (`from ibtool.helpers…`) work regardless of the actual folder name on disk. However, QGIS itself must first be able to import the folder — and that import fails if the folder name contains hyphens or dots.
+
 ---
 
 ## Related Files
