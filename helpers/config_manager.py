@@ -14,7 +14,7 @@ from .qgis_defaults import DEFAULT_CRS_EPSG
 
 
 @dataclass
-class InputDataConfig:
+class InputDataConfig:  # pylint: disable=too-many-instance-attributes
     """Configuration for input data paths and their last-known file checksums."""
     building_footprints_path: str = ""
     road_network_path: str = ""
@@ -38,10 +38,11 @@ class ValidationCacheConfig:
     """
     errors: str = "[]"    # JSON list[str]
     warnings: str = "[]"  # JSON list[str]
+    context_signature: str = ""  # JSON object with validation-relevant UI state
 
 
 @dataclass
-class ProcessingConfig:
+class ProcessingConfig:  # pylint: disable=too-many-instance-attributes
     """Configuration for processing parameters."""
     # MST parameters
     road_length_threshold: float = 50.0
@@ -106,7 +107,7 @@ class PluginConfig:
     input_data: InputDataConfig
     processing: ProcessingConfig
     output: OutputConfig
-    ui: UIConfig
+    ui: UIConfig  # pylint: disable=invalid-name
     validation_cache: ValidationCacheConfig = field(default_factory=ValidationCacheConfig)
 
 
@@ -150,11 +151,11 @@ class ConfigManager:
         if os.path.exists(self.config_file_path):
             try:
                 self.load_config()
-            except Exception as e:
-                Logger.log(f"Could not load CONFIG.ini: {e}", level="WARNING")
+            except (configparser.Error, OSError, ValueError) as exc:
+                Logger.log(f"Could not load CONFIG.ini: {exc}", level="WARNING")
                 Logger.log("Using default configuration instead.", level="WARNING")
 
-    def load_config(self) -> None:
+    def load_config(self) -> None:  # pylint: disable=too-many-statements
         """Load configuration from CONFIG.ini file."""
         if not os.path.exists(self.config_file_path):
             raise FileNotFoundError(f"Config file not found: {self.config_file_path}")
@@ -181,6 +182,9 @@ class ConfigManager:
             section = config_parser['VALIDATION_CACHE']
             self.config.validation_cache.errors = section.get('errors', '[]')
             self.config.validation_cache.warnings = section.get('warnings', '[]')
+            self.config.validation_cache.context_signature = section.get(
+                'context_signature', ''
+            )
 
         # Load processing configuration
         if config_parser.has_section('PROCESSING'):
@@ -292,6 +296,7 @@ class ConfigManager:
         config_parser['VALIDATION_CACHE'] = {
             'errors': self.config.validation_cache.errors,
             'warnings': self.config.validation_cache.warnings,
+            'context_signature': self.config.validation_cache.context_signature,
         }
 
         # Write to file

@@ -51,7 +51,7 @@ from ibtool.ibtool.ibtool import IBTool, ProcessingThread  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Helper — create IBTool with QSettings mocked to avoid locale issues
+# Helper â€” create IBTool with QSettings mocked to avoid locale issues
 # ---------------------------------------------------------------------------
 
 def _make_tool() -> IBTool:
@@ -108,7 +108,7 @@ class TestProcessingThread:
         thread.progress_update.connect(lambda v: received.append(("progress", v)))
         thread.log_message.connect(lambda m: received.append(("msg", m)))
 
-        # Emit manually — does not require the thread to actually run
+        # Emit manually â€” does not require the thread to actually run
         thread.progress_update.emit(50)
         thread.log_message.emit("hello")
 
@@ -305,7 +305,7 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
              patch.object(self.tool.config_manager, "save_config") as mock_save:
             self.tool._save_config_from_ui()
 
-        mock_update.assert_called_once()
+        assert mock_update.call_count == 2
         mock_save.assert_called_once()
 
     @pytest.mark.unit
@@ -315,7 +315,7 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
              patch.object(self.tool.config_manager, "save_config"):
             self.tool._save_config_from_ui()  # Must not raise
 
-    # --- run() orchestration (STEP 10 — test-plan.md) ---
+    # --- run() orchestration (STEP 10 â€” test-plan.md) ---
 
     @pytest.mark.unit
     def test_run_with_mock_iface_does_not_raise(self):
@@ -814,6 +814,7 @@ def _set_matching_checksums(tool, value: str = "deadbeef1234") -> None:  # pragm
     for field in _ALL_CHECKSUM_FIELDS:
         tool._file_checksums[field] = value
         tool._validated_checksums[field] = value
+    tool._validated_context = tool._build_validation_context()
 
 
 # ---------------------------------------------------------------------------
@@ -883,7 +884,7 @@ class TestCheckPathFieldChecksum:
         tool._check_path_field("WorkspacePath", str(tmp_path))
 
         assert "WorkspacePath" not in tool._file_checksums, \
-            "WorkspacePath is not a checksum field — no entry must be stored"
+            "WorkspacePath is not a checksum field â€” no entry must be stored"
 
 
 # ---------------------------------------------------------------------------
@@ -926,7 +927,7 @@ class TestRunValidationSkipLogic:
         tool = _make_tool()
         tool._last_validation_result = MagicMock(is_valid=True, errors=[], warnings=[])
         _set_matching_checksums(tool)
-        # Simulate externally modified file — HuPath checksum differs
+        # Simulate externally modified file â€” HuPath checksum differs
         tool._file_checksums["HuPath"] = "new_checksum_after_file_edit"
 
         mock_result = MagicMock(is_valid=True, errors=[], warnings=[])
@@ -944,7 +945,7 @@ class TestRunValidationSkipLogic:
         tool = _make_tool()
         tool._last_validation_result = MagicMock(is_valid=True, errors=[], warnings=[])
         _set_matching_checksums(tool)
-        # FilterPath was never path-checked — remove its entry
+        # FilterPath was never path-checked â€” remove its entry
         del tool._file_checksums["FilterPath"]
         del tool._validated_checksums["FilterPath"]
 
@@ -972,6 +973,27 @@ class TestRunValidationSkipLogic:
         assert tool._validated_checksums == tool._file_checksums, \
             "_validated_checksums must mirror _file_checksums after validation"
         assert tool._last_validation_result is mock_result
+        assert tool._validated_context == tool._build_validation_context(), \
+            "_validated_context must mirror the current validation state after validation"
+
+    @pytest.mark.unit
+    def test_changed_spatial_reference_triggers_revalidation(self):
+        """run_validation must not reuse a cached result after the CRS selection changes."""
+        from qgis.core import QgsCoordinateReferenceSystem
+
+        tool = _make_tool()
+        tool._last_validation_result = MagicMock(is_valid=False, errors=["old"], warnings=[])
+        _set_matching_checksums(tool)
+        tool._validated_context = tool._build_validation_context()
+        tool.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25833"))
+
+        mock_result = MagicMock(is_valid=True, errors=[], warnings=[])
+        with patch("ibtool.ibtool.ibtool.InputValidator") as mock_cls, \
+             patch("ibtool.ibtool.ibtool.logger"):
+            mock_cls.return_value.validate_all.return_value = mock_result
+            tool.run_validation()
+
+        mock_cls.return_value.validate_all.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -1021,6 +1043,7 @@ class TestSaveConfigChecksumPersistence:
         result.errors = ["path error A"]
         result.warnings = ["warning B"]
         tool._last_validation_result = result
+        tool._validated_context = tool._build_validation_context()
 
         captured = []
         def capture(**kwargs):
@@ -1036,11 +1059,12 @@ class TestSaveConfigChecksumPersistence:
         vc = cache_call["validation_cache"]
         assert json.loads(vc["errors"]) == ["path error A"]
         assert json.loads(vc["warnings"]) == ["warning B"]
+        assert json.loads(vc["context_signature"]) == tool._validated_context
 
     @pytest.mark.unit
     @pytest.mark.edge_case
-    def test_no_validation_cache_call_when_result_is_none(self):
-        """_save_config_from_ui omits the validation_cache update_config call when no cache."""
+    def test_validation_cache_is_cleared_when_result_is_none(self):
+        """_save_config_from_ui clears stale validation_cache data when no result is cached."""
         tool = _make_tool()
         assert tool._last_validation_result is None  # precondition
 
@@ -1052,9 +1076,14 @@ class TestSaveConfigChecksumPersistence:
              patch.object(tool.config_manager, "save_config"):
             tool._save_config_from_ui()
 
-        cache_calls = [c for c in captured if "validation_cache" in c]
-        assert len(cache_calls) == 0, \
-            "No validation_cache update must be issued when _last_validation_result is None"
+        cache_call = next((c for c in captured if "validation_cache" in c), None)
+        assert cache_call is not None, \
+            "validation_cache must be written so stale cached results are cleared"
+        assert cache_call["validation_cache"] == {
+            "errors": "[]",
+            "warnings": "[]",
+            "context_signature": "",
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -1064,7 +1093,7 @@ class TestSaveConfigChecksumPersistence:
 class TestApplyConfigChecksumRestore:
     """Tests for _validated_checksums and _last_validation_result restore in _apply_config_to_ui."""
 
-    def _make_mock_cfg(self, checksums=None, errors="[]", warnings="[]"):
+    def _make_mock_cfg(self, checksums=None, errors="[]", warnings="[]", context_signature=""):
         """Build a minimal mock PluginConfig with checksum and cache fields set."""
         mock_cfg = MagicMock()
         mock_cfg.ui.auto_load_last_used = True
@@ -1093,6 +1122,7 @@ class TestApplyConfigChecksumRestore:
 
         mock_cfg.validation_cache.errors = errors
         mock_cfg.validation_cache.warnings = warnings
+        mock_cfg.validation_cache.context_signature = context_signature
         return mock_cfg
 
     @pytest.mark.unit
@@ -1126,6 +1156,11 @@ class TestApplyConfigChecksumRestore:
         mock_cfg = self._make_mock_cfg(
             errors=json.dumps(["path missing"]),
             warnings=json.dumps(["feature count low"]),
+            context_signature=json.dumps({
+                "checksums": {field: f"cs_{field}" for field in _ALL_CHECKSUM_FIELDS},
+                "paths": {},
+                "params": {},
+            }),
         )
 
         with patch.object(tool.config_manager, "config_exists", return_value=True), \
@@ -1137,6 +1172,7 @@ class TestApplyConfigChecksumRestore:
         assert tool._last_validation_result is not None
         assert tool._last_validation_result.errors == ["path missing"]
         assert tool._last_validation_result.warnings == ["feature count low"]
+        assert tool._validated_context["checksums"]["HuPath"] == "cs_HuPath"
 
     @pytest.mark.unit
     @pytest.mark.edge_case
@@ -1162,7 +1198,7 @@ class TestApplyConfigChecksumRestore:
 # ---------------------------------------------------------------------------
 
 class TestDeleteConfig:
-    """Tests for IBTool._delete_config — confirmation, deletion, and UI reset."""
+    """Tests for IBTool._delete_config â€” confirmation, deletion, and UI reset."""
 
     from helpers.config_manager import ConfigManager as _CM
 
@@ -1233,6 +1269,7 @@ class TestDeleteConfig:
         tool = self._setup_tool_with_tmpdir(tmp_path)
         tool._file_checksums = {"HuPath": "abc"}
         tool._validated_checksums = {"HuPath": "abc"}
+        tool._validated_context = {"paths": {"HuPath": "dummy"}}
         tool._last_validation_result = MagicMock()
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
@@ -1244,6 +1281,8 @@ class TestDeleteConfig:
             "_file_checksums must be empty after reset"
         assert tool._validated_checksums == {}, \
             "_validated_checksums must be empty after reset"
+        assert tool._validated_context == {}, \
+            "_validated_context must be empty after reset"
         assert tool._last_validation_result is None, \
             "_last_validation_result must be None after reset"
 
@@ -1365,7 +1404,7 @@ class TestLoadInputLayers:
         """Invoke _load_input_layers with all external deps already patched."""
         return self.tool._load_input_layers(
             "hu.shp", "rn.shp", "aux.shp", "part.shp",
-            "/tmp/ws/", self.crs)  # nosec B108 — fake path, all I/O is mocked
+            "/tmp/ws/", self.crs)  # nosec B108 â€” fake path, all I/O is mocked
 
     @pytest.mark.unit
     def test_returns_five_element_tuple(self):
@@ -1467,7 +1506,7 @@ class TestRunPartitionPipeline:
     def _call(self, layers):
         return self.tool._run_partition_pipeline(
             "PART_01", 1, 5, layers, self.crs,
-            "/tmp/ws/", False, 0.5, _PIPELINE_PARAMS)  # nosec B108 — fake path, all I/O is mocked
+            "/tmp/ws/", False, 0.5, _PIPELINE_PARAMS)  # nosec B108 â€” fake path, all I/O is mocked
 
     # ------------------------------------------------------------------
     # Skip: too few buildings
@@ -1513,7 +1552,7 @@ class TestRunPartitionPipeline:
     @pytest.mark.unit
     @pytest.mark.edge_case
     def test_exactly_10_buildings_is_not_skipped(self):
-        """Proceeds when partition has exactly 10 buildings (boundary — not < 10)."""
+        """Proceeds when partition has exactly 10 buildings (boundary â€” not < 10)."""
         layers = self._make_layers()
         sel_hu = MagicMock()
         sel_hu.featureCount.return_value = 10
