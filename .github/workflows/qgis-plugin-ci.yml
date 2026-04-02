@@ -38,9 +38,11 @@ jobs:
 
       - name: detect-secrets (secrets)
         run: |
+          # Codecov badge token in README.md is a public graph token, not a secret
           detect-secrets scan --force-use-all-plugins \
             --exclude-files 'Testdaten/.*' \
             --exclude-files 'README\.md' \
+            --exclude-secrets 'O2KUA158A3' \
             > /tmp/secrets.json
           python - <<'PY'
           import json, sys

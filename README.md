@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/ci.yml/badge.svg)](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/ci.yml)
 [![QGIS Plugin CI](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml/badge.svg)](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml)
-[![codecov](https://codecov.io/gh/K3lT10N/IB-Tool-3/branch/master/graph/badge.svg)](https://codecov.io/gh/K3lT10N/IB-Tool-3)
+<a href="https://codecov.io/gh/K3lT10N/IB-Tool-3" > 
+ <img src="https://codecov.io/gh/K3lT10N/IB-Tool-3/graph/badge.svg?token=O2KUA158A3"/> 
+ </a>
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 ![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
