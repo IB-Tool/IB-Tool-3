@@ -91,6 +91,11 @@ def save_temp_layer_to_gpkg(
     options.driverName = "GPKG"
     options.layerName = layer_name
     options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
+    # Use a dedicated primary-key column so OGR does not mistake an existing
+    # "fid" attribute field (e.g. inherited from a GeoPackage source via
+    # native:intersection) for the GeoPackage row-ID, which would cause a
+    # UNIQUE constraint failure when duplicate fid attribute values are present.
+    options.layerOptions = ["FID=gpkg_fid"]
 
     error = QgsVectorFileWriter.writeAsVectorFormatV3(
         layer,
