@@ -413,14 +413,17 @@ def shp_area2(layer, field_name="Area", logger=None):
             logger.log(f"Layer '{layer.name()}' is invalid.", level="ERROR")
         return False
 
-    field_names = [field.name() for field in layer.fields()]
-    if field_name not in field_names:
+    # Case-insensitive check: OGR/GeoPackage treats field names case-insensitively,
+    # so a pre-existing "area" field must not be shadowed by a new "Area" field.
+    existing = {f.name().lower(): f.name() for f in layer.fields()}
+    if field_name.lower() in existing:
+        field_name = existing[field_name.lower()]  # use the existing casing for writes
+        if logger:
+            logger.log(f"Field '{field_name}' already exists.", level="WARNING")
+    else:
         layer_provider = layer.dataProvider()
         layer_provider.addAttributes([QgsField(field_name, QMetaType.Double)])
         layer.updateFields()
-    else:
-        if logger:
-            logger.log(f"Field '{field_name}' already exists.", level="WARNING")
 
     try:
         with edit(layer):
