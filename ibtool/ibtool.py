@@ -1218,9 +1218,13 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             footprint_density_threshold=18,
             debug_mode=debug_mode)
 
+        gaps_fixed = gap_fix(
+            patch_removed, sel_strassen_layer,
+            workspace_path=workspace_path, debug_mode=debug_mode)
+
         self._update_phase(6, 6, "Erode Empty Areas", 90)
         eroded = erode_empty_areas(
-            patch_removed, sel_hu_layer,
+            gaps_fixed, sel_hu_layer,
             workspace_path=workspace_path,
             debug_mode=debug_mode,
         )
