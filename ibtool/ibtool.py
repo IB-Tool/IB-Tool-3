@@ -1230,7 +1230,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         Reads all parameter values from the UI, re-validates input, loads
         layers into GeoPackage format, then iterates over the partition list.
         For each partition the pipeline runs six sequential steps:
-        Load Ã¢â€ â€™ Blocker Ã¢â€ â€™ ImportFilter Ã¢â€ â€™ MST Ã¢â€ â€™ Clustering Ã¢â€ â€™ GapClose Ã¢â€ â€™
+        Load Blocker, ImportFilter,  MST Clustering, GapClose
         PatchRemove. Intermediate results are accumulated in a merge layer
         and saved to disk after each partition to enable resume. On
         completion the result is saved to the configured output GeoPackage
