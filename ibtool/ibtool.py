@@ -1209,19 +1209,22 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             spatial_reference, gap_dist=30,
             debug_mode=debug_mode, workspace_path=workspace_path)
 
-        gaps_fixed = gap_fix(gaps_closed, sel_strassen_layer, workspace_path=workspace_path)
-
-        result = patch_remove(
-            gaps_fixed, sel_hu_layer, spatial_reference, workspace_path,
+        patch_removed = patch_remove(
+            gaps_closed, sel_hu_layer, spatial_reference, workspace_path,
             min_patch_size=params['min_patch_size'],
             min_bdg_count=params['min_bdg_count'],
             footprint_area_sum=6000,
             footprint_density_threshold=18,
             debug_mode=debug_mode)
-        return result, anz_hu
 
+        gaps_fixed = gap_fix(
+            patch_removed, sel_strassen_layer,
+            workspace_path=workspace_path, debug_mode=debug_mode)
 
-    def start_processing(self):  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+        return gaps_fixed, anz_hu
+
+    def start_processing(
+            self):  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         """Run the full settlement-delineation pipeline for all partitions.
 
         Reads all parameter values from the UI, re-validates input, loads
