@@ -70,7 +70,6 @@ from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
 from ibtool.ibtool_tools.EdgeCatch import edge_catch
 from ibtool.ibtool_tools.GapClose import gap_close
 from ibtool.ibtool_tools.PatchRemove import patch_remove
-from ibtool.ibtool_tools.GapFix import gap_fix
 from ibtool.ibtool_tools.ErodeEmptyAreas import erode_empty_areas
 # Import the dialog class
 from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
@@ -1218,13 +1217,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             footprint_density_threshold=18,
             debug_mode=debug_mode)
 
-        gaps_fixed = gap_fix(
-            patch_removed, sel_strassen_layer,
-            workspace_path=workspace_path, debug_mode=debug_mode)
-
         self._update_phase(6, 6, "Erode Empty Areas", 90)
         eroded = erode_empty_areas(
-            gaps_fixed, sel_hu_layer,
+            patch_removed, sel_hu_layer,
             workspace_path=workspace_path,
             debug_mode=debug_mode,
         )
