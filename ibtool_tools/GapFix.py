@@ -101,43 +101,12 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,  # pylint: di
         if debug_mode and workspace_path:
             save_debug_layer(fixed, _DEBUG_TOOL_NAME, "step0_fixed", workspace_path)
 
-        # --- Step 1: Close interior holes ---
-        # polygons → lines → polygonize → collect + buffer(0, dissolve=True)
-        # Polygonize creates faces for all enclosed rings (including hole areas).
-        # Dissolving everything merges hole faces into the surrounding polygon area.
-        Logger.log("GapFix: Step 1 – closing interior holes…", level="INFO")
-
-        lines = safe_processing_run("native:polygonstolines", {
-            'INPUT': fixed,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        faces = safe_processing_run("native:polygonize", {
-            'INPUT': lines,
-            'KEEP_FIELDS': False,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        collected_faces = safe_processing_run("native:collect", {
-            'INPUT': faces,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        dissolved = safe_processing_run("native:buffer", {
-            'INPUT': collected_faces,
-            'DISTANCE': 0,
-            'DISSOLVE': True,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        if debug_mode and workspace_path:
-            save_debug_layer(dissolved, _DEBUG_TOOL_NAME, "step1_dissolved", workspace_path)
 
         # --- Step 2: Multipart → singlepart + unique ID field ---
         Logger.log("GapFix: Step 2 – singleparts and unique IDs…", level="INFO")
 
         singleparts = safe_processing_run("native:multiparttosingleparts", {
-            'INPUT': dissolved,
+            'INPUT': fixed,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
         }, **_dbg)['OUTPUT']
 
