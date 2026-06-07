@@ -55,6 +55,7 @@ class TestErodeEmptyAreasEarlyReturn:
         result = erode_empty_areas(invalid_layer, buildings)
 
         assert result is not None
+        assert result is invalid_layer
 
     @pytest.mark.unit
     @pytest.mark.edge_case
