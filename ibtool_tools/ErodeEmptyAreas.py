@@ -55,8 +55,13 @@ MAX_BUFFER_M = 100.0
 MIN_EMPTY_AREA_M2 = 500.0
 """Minimum area (m²) of a building-free void to remove. Smaller voids are kept."""
 
-TOPOLOGY_GRID_SIZE = 0.00001
-"""Grid size for difference operations (topology snapping)."""
+TOPOLOGY_GRID_SIZE = 0.001
+"""Grid size for difference operations (topology snapping).
+
+Set to 1 mm rather than the 10 µm value used elsewhere: the 10 µm grid can
+snap sub-millimetre void slivers to zero, producing empty output geometries
+that QGIS cannot write (→ "Konnte Objekt nicht schreiben"). 1 mm removes
+floating-point noise while preserving all geometrically meaningful voids."""
 
 BOUNDARY_CONTACT_THRESHOLD_PCT = 30.0
 """Maximum fraction (%) of a void's boundary touching the settlement outer
@@ -406,6 +411,14 @@ def erode_empty_areas(input_layer, buildings_layer,
             'MITER_LIMIT': 2,
             'DISSOLVE': True,
             'SEPARATE_DISJOINT': False,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        }, **_dbg)['OUTPUT']
+        # Explicit fixgeometries on buffer_union before difference — the
+        # collect+buffer(0) workaround can leave near-duplicate vertices that
+        # cause native:difference to produce unwritable output geometry.
+        buffer_union = safe_processing_run("native:fixgeometries", {
+            'INPUT': buffer_union,
+            'METHOD': 1,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
         }, **_dbg)['OUTPUT']
         if debug_mode and workspace_path:
