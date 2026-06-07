@@ -3,9 +3,12 @@
 ## Overview
 
 `ibtool_tools/GapFix.py` closes narrow empty gaps between adjacent settlement
-polygon features and removes interior holes (inner rings). It is called as step
-8 in the main processing pipeline, after gap and hole closing on individual
-partitions (`GapClose.py`) and before the final output is saved.
+polygon features. It is called as step 8 in the main processing pipeline,
+after gap and hole closing on individual partitions (`GapClose.py`) and before
+the final output is saved.
+
+Hole closing is **not** done by this tool — interior holes are preserved and
+pass through unchanged. Hole handling lives in a separate pipeline step.
 
 The module works entirely in memory: no intermediate files are written unless
 `debug_mode=True`.
@@ -21,10 +24,10 @@ Input polygons
 [Step 0] native:fixgeometries          — repair invalid geometries
     │
     ▼
-[Step 1] Hole closing
-         polygonstolines → polygonize → collect → buffer(0, dissolve=True)
-         Polygonize creates faces for all enclosed rings including holes.
-         Dissolving everything merges hole faces into surrounding area.
+[Step 1] Dissolve adjacent polygons (interior holes preserved)
+         collect → buffer(0, dissolve=True)
+         Merges touching/overlapping polygons. Interior holes pass
+         through unchanged — hole closing is handled elsewhere.
     │
     ▼
 [Step 2] multiparttosingleparts + addautoincrementalfield (gap_uid)
@@ -38,6 +41,8 @@ Input polygons
     ▼
 [Step 4] Pairwise spatial-index intersection of all rings
          ring_i ∩ ring_j = gap zone between polygon i and polygon j
+         MultiPolygon intersections are split into single connected
+         components, so each gap piece is classified independently.
     │
     ▼
 [Step 5] Validate gap zones
@@ -46,7 +51,14 @@ Input polygons
          Distant artefacts     → discarded.
     │
     ▼
-[Step 6] Assign each valid gap to the neighbor with the longer shared boundary
+[Step 5b] Linearity filter (erosion + area-fraction)
+          eroded = gap_geom.buffer(-erosion_width)
+          keep if (area(gap) - area(eroded)) / area(gap) >= linearity_area_fraction
+          → narrow corridors (incl. branching/tree-like shapes) pass
+          → blocky zones (plazas, real open spaces) are discarded and stay open
+    │
+    ▼
+[Step 6] Assign each linear gap to the neighbor with the longer shared boundary
          (measured as intersection().length())
     │
     ▼
@@ -60,6 +72,8 @@ Output memory layer (MultiPolygon, same CRS as input)
 | Parameter | Default | Meaning |
 |-----------|---------|---------|
 | `max_gap` | `10.0` | Buffer distance (m); defines the maximum closable gap width |
+| `erosion_width` | `None` (= `max_gap / 2`) | Half-width (m) of the negative buffer used by the Step 5b linearity filter |
+| `linearity_area_fraction` | `0.7` | Minimum fraction of the gap-zone area that must vanish under erosion for the gap to count as linear. `0.0` disables the filter |
 | `Inputpoly` | — | Input polygon layer (`QgsVectorLayer` or file path) |
 | `InputRoadnetwork` | `None` | **Unused** — kept for API compatibility only |
 | `bufferwidth` | `70` | **Unused** — kept for API compatibility only |
@@ -83,7 +97,7 @@ dissolved = native:buffer(collected, distance=0, dissolve=True)
 
 This achieves the same topology merge without the null-geometry failure.
 
-### Attribute loss after hole closing
+### Attribute loss after the global dissolve
 
 The global dissolve in Step 1 rebuilds polygon topology from scratch.
 Original feature attributes (settlement name, class, etc.) are **lost**.
@@ -115,9 +129,11 @@ raising — when the input has zero valid features.
 | Suffix | After step | Content |
 |--------|-----------|---------|
 | `step0_fixed` | 0 | Geometry-fixed input |
-| `step1_dissolved` | 1 | Hole-closed, dissolved polygons |
+| `step1_dissolved` | 1 | Dissolved polygons (interior holes preserved) |
 | `step2_clean_polys` | 2 | Singlepart polygons with `gap_uid` |
 | `step3_buffer_rings` | 3 | Donut rings (empty-space buffers) |
+| `step5b_linear_gaps` | 5b | Gap zones classified as linear (will be merged). Attributes: `uid_a`, `uid_b`, `linearity_index` (= `frac_removed`), `total_area`, `eroded_area` |
+| `step5b_discarded_blocky_gaps` | 5b | Gap zones classified as blocky (stay open). Same attribute schema as `step5b_linear_gaps` |
 | `gap_fix_result` | 6 | Final output with gaps filled |
 | `exception_input` | on error | Raw input at time of crash |
 
