@@ -71,7 +71,6 @@ def _build_buffer_layer(sel_buildings, min_buffer_m, max_buffer_m):
     mem_uri = f"Polygon?crs={crs.authid()}"
     buf_layer = QgsVectorLayer(mem_uri, "building_buffers", "memory")
     provider = buf_layer.dataProvider()
-    buf_layer.updateFields()
 
     buf_feats = []
     for feat in sel_buildings.getFeatures():
@@ -138,6 +137,7 @@ def erode_empty_areas(input_layer, buildings_layer,
     Logger.log("ErodeEmptyAreas Start", level="INFO")
     _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path,
                 tool_name=_DEBUG_TOOL_NAME)
+    orig_layer = input_layer
 
     try:
         if isinstance(input_layer, str):
@@ -204,6 +204,13 @@ def erode_empty_areas(input_layer, buildings_layer,
         if debug_mode and workspace_path:
             save_debug_layer(buf_layer, _DEBUG_TOOL_NAME,
                              "step2_building_buffers", workspace_path)
+
+        if buf_layer.featureCount() == 0:
+            Logger.log(
+                "ErodeEmptyAreas: all building geometries null/empty, returning unchanged.",
+                level="INFO",
+            )
+            return fixed_input
 
         # --- Step 3: Dissolve buffer union ---
         # Uses collect + buffer(0, dissolve=True) workaround — native:dissolve
@@ -293,8 +300,8 @@ def erode_empty_areas(input_layer, buildings_layer,
         return result
 
     except Exception as e:
-        if debug_mode and workspace_path and isinstance(input_layer, QgsVectorLayer):
-            save_debug_layer(input_layer, _DEBUG_TOOL_NAME, "exception_input",
+        if debug_mode and workspace_path and isinstance(orig_layer, QgsVectorLayer):
+            save_debug_layer(orig_layer, _DEBUG_TOOL_NAME, "exception_input",
                              workspace_path, is_error=True)
         Logger.log(f"Error in ErodeEmptyAreas: {str(e)}", level="CRITICAL")
         raise
