@@ -35,15 +35,16 @@ Global preparation
          ▼
 Per-partition loop  (for each PART_xxx)
 │
-├── 1. Blocker         →  street blocks + city blocks from road/aux network
-├── 2. ImportFilter    →  3-stage semantic + spatial + size filtering of buildings
-├── 3. FootprintDensity →  calculate building coverage ratio; identify dense blocks
-├── 4. CreateMST       →  Delaunay triangulation → MST, cut road-crossing edges
-├── 5. MST_Clustering  →  MST-based aggregation into minimum bounding rectangles
-├── 6. AddSingleBuilding →  bounding rect for large isolated buildings (> 300 m²)
-├── 7. EdgeCatch       →  snap rectangles to road network
-├── 8. GapClose        →  close holes (> 1 ha removed) and gaps (≤ 70 m bridged)
-└── 9. PatchRemove     →  remove splinter areas (< 1 ha, < 20 buildings)
+├──  1. Blocker          →  street blocks + city blocks from road/aux network
+├──  2. ImportFilter     →  3-stage semantic + spatial + size filtering of buildings
+├──  3. FootprintDensity →  calculate building coverage ratio; identify dense blocks
+├──  4. CreateMST        →  Delaunay triangulation → MST, cut road-crossing edges
+├──  5. MST_Clustering   →  MST-based aggregation into minimum bounding rectangles
+├──  6. AddSingleBuilding →  bounding rect for large isolated buildings (> 300 m²)
+├──  7. EdgeCatch        →  snap rectangles to road network
+├──  8. GapClose         →  close holes (> 1 ha removed) and gaps (≤ 70 m bridged)
+├──  9. PatchRemove      →  remove splinter areas (< 1 ha, < 20 buildings)
+└── 10. ErodeEmptyAreas  →  remove building-free voids (≥ 500 m²) from settlement
          │
          ▼
 Merge all partition results
@@ -423,6 +424,35 @@ After patch removal, the gap-closing step is applied once more across the entire
 
 ![Splinter areas removed](images/10_patch_remove.png)
 *Small isolated result polygons (red outlines) removed from the output.*
+
+---
+
+### Step 10 — ErodeEmptyAreas: Building-Free Void Removal
+
+`ErodeEmptyAreas.py` removes areas within the settlement polygon where no buildings stand — parks, open fields, or water bodies enclosed by building clusters. Without this step, such voids inflate the settlement footprint.
+
+```
+INPUT: settlement polygon (output of PatchRemove), building footprints
+
+1. Select buildings within the settlement boundary (intersects predicate)
+   → If no buildings found: return settlement unchanged
+
+2. Buffer each building by clamp(sqrt(area), 10 m, 100 m)
+   → Small buildings (≤ 100 m²): 10 m buffer
+   → Large buildings (≥ 10 000 m²): 100 m buffer
+
+3. Dissolve all building buffers into a single union polygon
+   (via collect + buffer(0, dissolve=True) workaround)
+
+4. Compute building-free voids:
+   difference(settlement, buffer_union) → empty areas
+   Keep only areas ≥ 500 m²
+
+5. Subtract retained voids from settlement
+OUTPUT: settlement polygon with building-free voids removed
+```
+
+The buffer distance scales with `sqrt(building_area)`, giving each building a protection zone proportional to its geometric radius. In dense clusters the buffer zones merge, naturally covering the built-up area; isolated buildings still protect a 10–100 m surroundings.
 
 ---
 
