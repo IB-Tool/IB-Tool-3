@@ -9,7 +9,7 @@ the ``start_processing()`` method that drives the full settlement-delineation
 pipeline partition by partition.
 
 Classes:
-    ProcessingThread: QThread subclass (currently unused stub Ã¢â‚¬â€ processing runs
+    ProcessingThread: QThread subclass (currently unused stub processing runs
         synchronously on the main thread via ``start_processing()``).
     IBTool: Main QGIS plugin class registered via ``classFactory()``.
 
@@ -1127,6 +1127,11 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         logger.log(
             f"PARTITION: {part_name} - {part_index} of {part_count}", 'CRITICAL')
 
+        if debug_mode and workspace_path:
+            part_workspace = os.path.join(workspace_path, "debug", f"PART_{part_name}")
+        else:
+            part_workspace = workspace_path
+
         sel_part_layer = processing.run(
             "native:extractbyexpression", {
                 'INPUT': layers['layer_part'],
@@ -1162,12 +1167,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         self._update_phase(2, 6, "Calculate Blocks", 10)
         blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
-                         debug_mode=debug_mode, workspace_path=workspace_path)
+                         debug_mode=debug_mode, workspace_path=part_workspace)
 
         self._update_phase(3, 6, "Apply Filter", 20)
         hu_filter = input_hu_filter(
             sel_hu_layer, params['input_filter'], params['min_area'], 50, 200,
-            debug_mode=debug_mode, workspace_path=workspace_path)
+            debug_mode=debug_mode, workspace_path=part_workspace)
         blocks_dense = identify_dense_blocks(hu_filter, blocks, params['min_overlap_blocks'])
         hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
 
@@ -1182,11 +1187,11 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._update_phase(5, 6, "Clustering", 60)
         hu_cluster_output = mst_clustering(
             hu_filter_sel, mst_layer, spatial_reference,
-            min_overlap_mst, debug_mode=debug_mode, workspace_path=workspace_path)
+            min_overlap_mst, debug_mode=debug_mode, workspace_path=part_workspace)
 
         add_sing_bdg = add_single_bdg(
             hu_filter_sel, hu_cluster_output, spatial_reference,
-            workspace_path, debug_mode=debug_mode)
+            part_workspace, debug_mode=debug_mode)
 
         rect_merged = processing.run("qgis:mergevectorlayers", {
             'LAYERS': [add_sing_bdg, hu_cluster_output],
@@ -1196,7 +1201,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         snapped_rect = edge_catch(
             rect_merged, hu_filter_sel, sel_strassen_layer, blocks,
-            spatial_reference, workspace_path, debug_mode=debug_mode)
+            spatial_reference, part_workspace, debug_mode=debug_mode)
 
         blocks_merge = processing.run("qgis:mergevectorlayers", {
             'LAYERS': [snapped_rect, blocks_dense],
@@ -1204,26 +1209,27 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
-        gaps_closed = gap_close(
-            blocks_merge, blocks, params['max_hole_size'], params['max_gap_size'],
-            spatial_reference, gap_dist=30,
-            debug_mode=debug_mode, workspace_path=workspace_path)
+        eroded = erode_empty_areas(
+            blocks_merge, sel_hu_layer,
+            workspace_path=part_workspace,
+            debug_mode=debug_mode,
+        )
 
+        gaps_closed = gap_close(
+            eroded, blocks, params['max_hole_size'], params['max_gap_size'],
+            spatial_reference, gap_dist=30,
+            debug_mode=debug_mode, workspace_path=part_workspace)
+
+        self._update_phase(6, 6, "Erode Empty Areas", 90)
         patch_removed = patch_remove(
-            gaps_closed, sel_hu_layer, spatial_reference, workspace_path,
+            gaps_closed, sel_hu_layer, spatial_reference, part_workspace,
             min_patch_size=params['min_patch_size'],
             min_bdg_count=params['min_bdg_count'],
             footprint_area_sum=6000,
             footprint_density_threshold=18,
             debug_mode=debug_mode)
 
-        self._update_phase(6, 6, "Erode Empty Areas", 90)
-        eroded = erode_empty_areas(
-            patch_removed, sel_hu_layer,
-            workspace_path=workspace_path,
-            debug_mode=debug_mode,
-        )
-        return eroded, anz_hu
+        return patch_removed, anz_hu
 
     def start_processing(
             self):  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
