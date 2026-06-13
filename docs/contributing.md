@@ -62,7 +62,7 @@ Test coverage is measured with `pytest-cov` and uploaded to [Codecov](https://co
 
 The `Dockerfile` is based on the official QGIS image `3liz/qgis-platform:3.40` and:
 
-- Installs all required Python dependencies (numpy, pandas, matplotlib, scipy, sklearn, etc.)
+- Installs runtime dependencies (numpy, scipy, networkx) and test dependencies (pytest, pytest-cov) via apt
 - Configures a headless X server environment (xvfb) for GUI tests
 - Sets the necessary environment variables for QGIS
 - Initialises the QGIS Processing provider
@@ -81,16 +81,15 @@ docker run --rm -it qgis-plugin-test /bin/bash
 
 #### System Dependencies (Docker)
 
-| Package | Purpose |
-|---------|---------|
-| `xvfb` | X Virtual Framebuffer for headless GUI tests |
-| `python3-pytest` | Test framework |
-| `python3-numpy`, `python3-pandas`, `python3-matplotlib` | Numerical libraries |
-| `python3-scipy`, `python3-sklearn` | Scientific libraries |
-| `python3-networkx` | Network analysis |
-| `python3-geopandas`, `python3-gdal` | Geodata processing |
-| `python3-psycopg2` | PostgreSQL connection |
-| `python3-shapely`, `python3-fiona` | Geometry processing |
+| Package | Purpose | Category |
+|---------|---------|----------|
+| `xvfb` | X Virtual Framebuffer for headless GUI tests | CI infrastructure |
+| `python3-pytest`, `python3-pytest-cov`, `python3-coverage` | Test framework and coverage | Dev/test |
+| `python3-numpy` | Numerical arrays (MST, clustering) | Runtime |
+| `python3-scipy` | Delaunay triangulation, spatial distance | Runtime |
+| `python3-networkx` | MST graph algorithms | Runtime |
+
+All runtime packages are also bundled with QGIS 3.40+ and are only listed here to ensure they are available in the Docker test environment where QGIS is not the system package manager.
 
 ---
 

@@ -6,6 +6,10 @@ USER root
 
 
 # 3. System-Updates, Headless-X-Server und Python-Abhängigkeiten installieren
+#    Runtime-deps (numpy, scipy, networkx) werden als System-Pakete installiert,
+#    da sie im QGIS-Ökosystem über apt verwaltet werden.
+#    Test-deps (pytest, coverage) werden ebenfalls über apt bezogen.
+#    bandit/detect-secrets werden in qgis-plugin-ci.yml direkt via pip installiert.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     xvfb \
@@ -13,20 +17,10 @@ RUN apt-get update \
     python3-pytest-cov \
     python3-coverage \
     python3-numpy \
-    python3-pandas \
-    python3-matplotlib \
     python3-scipy \
-    python3-sklearn \
     python3-networkx \
-    python3-geopandas \
-    python3-gdal \
-    gdal-bin \
-    python3-psycopg2 \
-    python3-shapely \
-    python3-fiona \
     python3-pip \
- && rm -rf /var/lib/apt/lists/* \
- && python3 -m pip install --no-cache-dir --break-system-packages bandit detect-secrets
+ && rm -rf /var/lib/apt/lists/*
 
 # 4. Arbeitsverzeichnis im Container
 WORKDIR /plugins

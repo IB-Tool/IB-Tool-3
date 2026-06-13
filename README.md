@@ -64,14 +64,19 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
 - **QGIS**: Version 3.40–3.50
 - **Python**: Version >= 3.11
 
-- Required Python libraries:
-  - `numpy`
-  - `pytest`
-  - `scipy`
-  - `sklearn`
-  - `networkx`
-  - `PyQt5`
-  - `qgis.core`
+### Runtime
+
+All Python dependencies used by the plugin (`numpy`, `scipy`, `networkx`, `PyQt5`) are bundled with QGIS 3.40+ and do not require separate installation.
+
+### Development & Testing
+
+To run the test suite outside of QGIS (e.g. locally or in CI):
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+This installs `pytest` and `pytest-cov`. The test suite itself runs inside Docker (see `Dockerfile`) which also provides the QGIS environment including all runtime dependencies.
 
 ---
 
