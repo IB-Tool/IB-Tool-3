@@ -109,7 +109,6 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,  # pylint: di
         if debug_mode and workspace_path:
             save_debug_layer(fixed, _DEBUG_TOOL_NAME, "step0_fixed", workspace_path)
 
-
         # --- Step 2: Multipart → singlepart + unique ID field ---
         Logger.log("GapFix: Step 2 – singleparts and unique IDs…", level="INFO")
 
