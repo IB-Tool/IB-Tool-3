@@ -6,19 +6,19 @@ selected and buffered by ``clamp(sqrt(building_area), MIN_BUFFER_M, MAX_BUFFER_M
 metres. Areas inside the settlement that lie outside all building buffers are
 treated as building-free voids. Only voids where less than
 ``BOUNDARY_CONTACT_THRESHOLD_PCT`` percent of their boundary coincides with
-the settlement's outer boundary are removed. Voids with higher contact are
-at the settlement fringe and are left intact.
+the settlement's outer boundary are removed. Interior voids with high or zero
+outer-boundary contact are left intact.
 
 Constants:
     _DEBUG_TOOL_NAME: Folder-name prefix for debug layer output, reflecting
-        the call order in the main processing pipeline (``"09_ErodeEmptyAreas"``).
+        the call order in the main processing pipeline (``"06_ErodeEmptyAreas"``).
     MIN_BUFFER_M: Minimum per-building buffer distance in metres (10.0).
     MAX_BUFFER_M: Maximum per-building buffer distance in metres (100.0).
-    MIN_EMPTY_AREA_M2: Minimum area (m²) of a building-free void to consider (500.0).
-    TOPOLOGY_GRID_SIZE: Grid size for difference operations (0.00001).
+    MIN_EMPTY_AREA_M2: Minimum area (m2) of a building-free void to consider (500.0).
+    TOPOLOGY_GRID_SIZE: Grid size for difference operations (0.001).
     BOUNDARY_CONTACT_THRESHOLD_PCT: Maximum fraction (%) of a void's boundary
         that may touch the settlement outer boundary for the void to be removed
-        (30.0). Voids at or above this threshold are kept.
+        (20.0). Voids at or above this threshold are kept.
     _BOUNDARY_SEGMENT_M: Segment length (m) used when splitting void boundaries
         for the contact-fraction measurement (10.0).
     _BOUNDARY_SNAP_M: Buffer distance (m) around the settlement boundary used
@@ -27,9 +27,12 @@ Constants:
 
 import math
 
+from qgis import processing
 from qgis.core import (
     QgsVectorLayer,
     QgsFeature,
+    QgsGeometry,
+    QgsWkbTypes,
     QgsProcessing,
 )
 
@@ -38,35 +41,34 @@ from ..helpers.debug_utils import save_debug_layer
 from ..helpers.safe_processing import safe_processing_run
 
 # ---------------------------------------------------------------------------
-# Debug folder name — prefix reflects call order in the main pipeline
+# Debug folder name -- prefix reflects call order in the main pipeline
 # ---------------------------------------------------------------------------
-_DEBUG_TOOL_NAME = "09_ErodeEmptyAreas"
+_DEBUG_TOOL_NAME = "06_ErodeEmptyAreas"
 
 # ---------------------------------------------------------------------------
 # Module-level constants
 # ---------------------------------------------------------------------------
 
 MIN_BUFFER_M = 10.0
-"""Minimum per-building buffer distance (m). Applies to buildings with area ≤ 100 m²."""
+"""Minimum per-building buffer distance (m). Applies to buildings with area <= 100 m2."""
 
 MAX_BUFFER_M = 100.0
-"""Maximum per-building buffer distance (m). Applies to buildings with area ≥ 10 000 m²."""
+"""Maximum per-building buffer distance (m). Applies to buildings with area >= 10 000 m2."""
 
 MIN_EMPTY_AREA_M2 = 500.0
-"""Minimum area (m²) of a building-free void to remove. Smaller voids are kept."""
+"""Minimum area (m2) of a building-free void to remove. Smaller voids are kept."""
 
 TOPOLOGY_GRID_SIZE = 0.001
 """Grid size for difference operations (topology snapping).
 
-Set to 1 mm rather than the 10 µm value used elsewhere: the 10 µm grid can
-snap sub-millimetre void slivers to zero, producing empty output geometries
-that QGIS cannot write (→ "Konnte Objekt nicht schreiben"). 1 mm removes
-floating-point noise while preserving all geometrically meaningful voids."""
+1 mm (vs 10 um used elsewhere): the finer 10 um grid can snap sub-millimetre
+void slivers to zero, producing degenerate output geometries. 1 mm is coarse
+enough to remove floating-point noise while preserving meaningful voids."""
 
-BOUNDARY_CONTACT_THRESHOLD_PCT = 30.0
+BOUNDARY_CONTACT_THRESHOLD_PCT = 20.0
 """Maximum fraction (%) of a void's boundary touching the settlement outer
-boundary for the void to be removed. Voids at or above this threshold are
-left intact — they are fringe features, not isolated pockets."""
+boundary for the void to be removed. Only voids whose contact is strictly
+below this threshold are eroded away; voids with higher contact are kept."""
 
 _BOUNDARY_SEGMENT_M = 10.0
 """Segment length (m) for splitting void boundaries during contact measurement."""
@@ -115,37 +117,66 @@ def _build_buffer_layer(sel_buildings, min_buffer_m, max_buffer_m):
     return buf_layer
 
 
-def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
-    """Return void polygons where < threshold_pct of boundary touches settlement boundary.
+def _settlement_outer_buffer(settlement_layer, void_layer):
+    """Build a buffered strip around the settlement's outer boundary only.
 
-    Measures the fraction of each void's perimeter that coincides with the
-    settlement polygon's outer boundary. Voids at or above the threshold are
-    considered fringe features and are NOT returned. Voids with zero contact
-    (fully interior) are included in the result.
-
-    Algorithm mirrors ``_gap_select`` in ``GapClose.py``.
-
-    Args:
-        settlement_layer: Settlement polygon (``QgsVectorLayer``).
-        void_layer: Building-free void polygons (singlepart ``QgsVectorLayer``).
-        threshold_pct: Contact fraction threshold in percent. Voids with
-            contact strictly below this value are returned.
+    Deletes interior rings before converting to lines so that inner-ring edges
+    (which border existing holes) are excluded from the reference boundary.
 
     Returns:
-        ``QgsVectorLayer`` containing the void polygons whose boundary-contact
-        fraction with ``settlement_layer`` is below ``threshold_pct``.
-        Returns ``void_layer`` unchanged when no voids touch the settlement
-        boundary at all (all have 0 % contact).
+        QgsVectorLayer (Polygon) — thin buffer strip around the outer boundary.
     """
-    # Settlement outer boundary lines
-    settlement_lines = safe_processing_run("native:polygonstolines", {
+    settlement_no_holes = safe_processing_run("native:deleteholes", {
         'INPUT': settlement_layer,
+        'MIN_AREA': 0,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
 
-    # Void boundary lines — record total perimeter as length_1 and a stable fid_copy
-    void_lines = safe_processing_run("native:polygonstolines", {
+    settlement_fixed = safe_processing_run("native:fixgeometries", {
+        'INPUT': settlement_no_holes,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    })['OUTPUT']
+    void_fixed = safe_processing_run("native:fixgeometries", {
         'INPUT': void_layer,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    })['OUTPUT']
+
+    settlement_diff = safe_processing_run("native:difference", {
+        'INPUT': settlement_fixed,
+        'OVERLAY': void_fixed,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+        'GRID_SIZE': TOPOLOGY_GRID_SIZE,
+    })['OUTPUT']
+
+    settlement_lines = safe_processing_run("native:polygonstolines", {
+        'INPUT': settlement_diff,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    })['OUTPUT']
+
+    return safe_processing_run("native:buffer", {
+        'INPUT': settlement_lines,
+        'DISTANCE': _BOUNDARY_SNAP_M,
+        'SEGMENTS': 5,
+        'END_CAP_STYLE': 0,
+        'JOIN_STYLE': 0,
+        'MITER_LIMIT': 2,
+        'DISSOLVE': False,
+        'SEPARATE_DISJOINT': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    })['OUTPUT']
+
+
+def _void_split_lines(void_with_fid):
+    """Convert void polygons to length-annotated boundary line segments.
+
+    Returns:
+        QgsVectorLayer of short line segments with ``fid_copy`` and
+        ``length_1`` (total perimeter of the parent void) attributes.
+    """
+    void_lines = safe_processing_run("native:polygonstolines", {
+        'INPUT': void_with_fid,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
     void_lines_single = safe_processing_run("native:multiparttosingleparts", {
@@ -162,8 +193,44 @@ def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
         'FORMULA': '$length',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
-    void_lines_fid = safe_processing_run("native:fieldcalculator", {
+    return safe_processing_run("native:splitlinesbylength", {
         'INPUT': void_lines_length,
+        'LENGTH': _BOUNDARY_SEGMENT_M,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    })['OUTPUT']
+
+
+def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
+    """Return void polygons whose boundary-contact with the settlement outer
+    boundary is strictly below threshold_pct.
+
+    Measures the fraction of each void's perimeter that coincides with the
+    settlement polygon's exterior boundary only. Interior ring lines (edges
+    of existing holes) are excluded by deleting holes from the settlement before
+    converting to lines -- otherwise voids inside existing holes would show high
+    contact with those inner-ring lines and would never be selected for removal.
+
+    Only voids whose contact fraction is strictly below the threshold are
+    returned as polygon features for removal. Interior voids (0 % contact)
+    never appear in the overlap result and are never returned.
+
+    Args:
+        settlement_layer: Settlement polygon (``QgsVectorLayer``).
+        void_layer: Building-free void polygons (singlepart ``QgsVectorLayer``).
+        threshold_pct: Contact fraction threshold in percent. Only voids with
+            contact strictly below this value are returned for removal.
+
+    Returns:
+        ``QgsVectorLayer`` (Polygon) containing void polygons whose
+        boundary-contact fraction with the settlement outer boundary is
+        strictly below ``threshold_pct``. Returns an empty polygon layer when
+        no voids qualify.
+    """
+    # Step 1: Assign stable fid_copy to void POLYGONS before converting to lines
+    # so that IDs survive all intermediate processing steps and can be used
+    # to select the original polygon features at the end.
+    void_with_fid = safe_processing_run("native:fieldcalculator", {
+        'INPUT': void_layer,
         'FIELD_NAME': 'fid_copy',
         'FIELD_TYPE': 0,
         'FIELD_LENGTH': 0,
@@ -172,27 +239,11 @@ def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
 
-    # Split void boundaries into short segments for fine-grained measurement
-    split_lines = safe_processing_run("native:splitlinesbylength", {
-        'INPUT': void_lines_fid,
-        'LENGTH': _BOUNDARY_SEGMENT_M,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    # Steps 2-5: Settlement outer boundary buffer + void boundary split lines
+    settlement_buff = _settlement_outer_buffer(settlement_layer, void_layer)
+    split_lines = _void_split_lines(void_with_fid)
 
-    # Buffer settlement boundary to catch near-touching void segments
-    settlement_buff = safe_processing_run("native:buffer", {
-        'INPUT': settlement_lines,
-        'DISTANCE': _BOUNDARY_SNAP_M,
-        'SEGMENTS': 5,
-        'END_CAP_STYLE': 0,
-        'JOIN_STYLE': 0,
-        'MITER_LIMIT': 2,
-        'DISSOLVE': False,
-        'SEPARATE_DISJOINT': False,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    # Select void segments that intersect the settlement boundary buffer
+    # Step 6: Select void segments that touch the settlement outer boundary
     overlapping = safe_processing_run("native:extractbylocation", {
         'INPUT': split_lines,
         'PREDICATE': [0],  # intersects
@@ -201,20 +252,21 @@ def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
     })['OUTPUT']
 
     if overlapping.featureCount() == 0:
-        # No void touches the settlement boundary → all have 0 % contact → all qualify
         Logger.log(
             "_contact_fraction_filter: no void boundary segments touch settlement "
-            "→ all voids qualify for removal.",
+            "outer boundary -> all voids are interior, none qualify for removal.",
             level="INFO",
         )
-        return void_layer
+        return QgsVectorLayer(
+            f"Polygon?crs={void_layer.crs().authid()}", "empty", "memory")
 
-    # Sum overlapping segment lengths per void (length_2)
+    # Step 7: Sum overlapping segment lengths per void (length_2)
     dissolved_overlap = safe_processing_run("qgis:dissolve", {
         'INPUT': overlapping,
         'FIELD': ['fid_copy'],
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
+
     with_length_2 = safe_processing_run("qgis:fieldcalculator", {
         'INPUT': dissolved_overlap,
         'FIELD_NAME': 'length_2',
@@ -226,44 +278,190 @@ def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
 
-    # High-contact lines: voids where contact fraction >= threshold → KEEP (not removed)
-    high_contact_lines = safe_processing_run("qgis:extractbyexpression", {
+    # Step 8: Find fid_copy values whose contact fraction is below the threshold
+    qualifying_lines = safe_processing_run("qgis:extractbyexpression", {
         'INPUT': with_length_2,
-        'EXPRESSION': f'("length_2" / "length_1") * 100 >= {threshold_pct}',
+        'EXPRESSION': f'("length_2" / "length_1") * 100 < {threshold_pct}',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
 
-    if high_contact_lines.featureCount() == 0:
-        # All voids are below the threshold → all qualify for removal
-        return void_layer
+    if qualifying_lines.featureCount() == 0:
+        return QgsVectorLayer(
+            f"Polygon?crs={void_layer.crs().authid()}", "empty", "memory")
 
-    # Recover the original void POLYGONS that are high-contact
-    high_contact_voids = safe_processing_run("native:extractbylocation", {
-        'INPUT': void_layer,
-        'PREDICATE': [0],  # intersects
-        'INTERSECT': high_contact_lines,
+    # Step 9: Select matching POLYGON features from void_with_fid using the
+    # qualifying fid_copy values -- return polygons, not line segments.
+    fid_values = [f['fid_copy'] for f in qualifying_lines.getFeatures()]
+    fid_list = ','.join(str(int(v)) for v in fid_values)
+    return safe_processing_run("qgis:extractbyexpression", {
+        'INPUT': void_with_fid,
+        'EXPRESSION': f'"fid_copy" IN ({fid_list})',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
 
-    if high_contact_voids.featureCount() == 0:
-        return void_layer
 
-    # Low-contact voids = all voids disjoint from the high-contact set
-    low_contact_voids = safe_processing_run("native:extractbylocation", {
-        'INPUT': void_layer,
-        'PREDICATE': [2],  # disjoint
-        'INTERSECT': high_contact_voids,
+def _dissolve_union(input_layer, debug_mode=False, workspace_path=None):
+    """Dissolves all features into a single geometry using a safe union workaround.
+
+    Applies ``fix -> collect -> buffer(0, dissolve=True)`` instead of
+    ``native:dissolve`` to avoid the GEOS bug that silently produces empty
+    or null geometry on large MultiPolygon datasets.
+
+    Args:
+        input_layer: Input polygon layer (QgsVectorLayer).
+        debug_mode: If True, debug files may be saved on processing errors.
+        workspace_path: Base path for debug output.
+
+    Returns:
+        QgsVectorLayer with all features dissolved into one geometry.
+    """
+    _dbg = {"debug_mode": debug_mode, "workspace_path": workspace_path,
+            "tool_name": _DEBUG_TOOL_NAME}
+
+    fixed = safe_processing_run("native:fixgeometries", {
+        'INPUT': input_layer,
+        'METHOD': 1,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    collected = safe_processing_run("native:collect", {
+        'INPUT': fixed,
+        'FIELD': [],
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    dissolved = safe_processing_run("native:buffer", {
+        'INPUT': collected,
+        'DISTANCE': 0,
+        'SEGMENTS': 5,
+        'END_CAP_STYLE': 0,
+        'JOIN_STYLE': 0,
+        'MITER_LIMIT': 2,
+        'DISSOLVE': True,
+        'SEPARATE_DISJOINT': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **_dbg)['OUTPUT']
+
+    return dissolved
+
+
+def _dissolve_to_single_feature(fixed_input, debug_mode=False, workspace_path=None):
+    """Combine all polygon features into one MultiPolygon via QgsGeometry.combine().
+
+    Uses direct GEOS union (no feature-sink write) to avoid mixed-geometry-type
+    errors that arise when native:collect receives Polygon + MultiPolygon input.
+
+    Returns:
+        QgsVectorLayer with a single dissolved feature, or ``None`` when all
+        input features are degenerate or non-polygon.
+    """
+    diss_geom = QgsGeometry()
+    for feat in fixed_input.getFeatures():
+        geom = feat.geometry()
+        if not geom or geom.isNull() or geom.isEmpty():
+            continue
+        if QgsWkbTypes.geometryType(geom.wkbType()) != QgsWkbTypes.PolygonGeometry:
+            continue
+        if diss_geom.isNull():
+            diss_geom = QgsGeometry(geom)
+        else:
+            diss_geom = diss_geom.combine(geom)
+
+    if diss_geom.isNull() or diss_geom.isEmpty():
+        return None
+
+    if not QgsWkbTypes.isMultiType(diss_geom.wkbType()):
+        diss_geom.convertToMultiType()
+
+    diss_layer = QgsVectorLayer(
+        f"MultiPolygon?crs={fixed_input.crs().authid()}", "dissolved_input", "memory"
+    )
+    diss_feat = QgsFeature()
+    diss_feat.setGeometry(diss_geom)
+    diss_layer.dataProvider().addFeatures([diss_feat])
+    if debug_mode and workspace_path:
+        save_debug_layer(diss_layer, _DEBUG_TOOL_NAME, "step0b_dissolved", workspace_path)
+    return diss_layer
+
+
+def _build_buffer_union_layer(buf_layer, crs_id, debug_mode=False, workspace_path=None):
+    """Union all building buffer geometries into a single MultiPolygon layer.
+
+    Uses ``QgsGeometry.unaryUnion()`` to avoid QGIS feature-sink issues with
+    mixed Polygon/MultiPolygon input from buffered multi-part buildings.
+
+    Returns:
+        QgsVectorLayer or ``None`` when no valid buffer geometries are found.
+    """
+    buf_geoms = [
+        bf.geometry() for bf in buf_layer.getFeatures()
+        if bf.geometry() and not bf.geometry().isNull() and not bf.geometry().isEmpty()
+    ]
+    if not buf_geoms:
+        return None
+
+    union_geom = QgsGeometry.unaryUnion(buf_geoms)
+    if union_geom.isNull() or union_geom.isEmpty():
+        return None
+
+    if not QgsWkbTypes.isMultiType(union_geom.wkbType()):
+        union_geom.convertToMultiType()
+
+    union_layer = QgsVectorLayer(f"MultiPolygon?crs={crs_id}", "buffer_union", "memory")
+    bu_feat = QgsFeature()
+    bu_feat.setGeometry(union_geom)
+    union_layer.dataProvider().addFeatures([bu_feat])
+    if debug_mode and workspace_path:
+        save_debug_layer(union_layer, _DEBUG_TOOL_NAME, "step3_buffer_union", workspace_path)
+    return union_layer
+
+
+def _compute_void_candidates(fixed_input, buffer_union, min_empty_area,
+                              debug_mode=False, workspace_path=None):
+    """Compute building-free void polygons that exceed ``min_empty_area``.
+
+    Args:
+        fixed_input: Dissolved settlement layer (QgsVectorLayer).
+        buffer_union: Union of building buffers (QgsVectorLayer).
+        min_empty_area: Minimum void area in m2.
+        debug_mode: Save intermediate debug layers when True.
+        workspace_path: Base path for debug output.
+
+    Returns:
+        QgsVectorLayer of void polygon candidates.
+    """
+    _dbg = {"debug_mode": debug_mode, "workspace_path": workspace_path,
+            "tool_name": _DEBUG_TOOL_NAME}
+    empty_areas = safe_processing_run("native:difference", {
+        'INPUT': fixed_input,
+        'OVERLAY': buffer_union,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+        'GRID_SIZE': TOPOLOGY_GRID_SIZE,
+    }, **_dbg)['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(empty_areas, _DEBUG_TOOL_NAME, "step4_empty_areas", workspace_path)
 
-    return low_contact_voids
+    empty_single = safe_processing_run("native:multiparttosingleparts", {
+        'INPUT': empty_areas,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
+
+    filtered = safe_processing_run("qgis:extractbyexpression", {
+        'INPUT': empty_single,
+        'EXPRESSION': f'area($geometry) >= {min_empty_area}',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    }, **_dbg)['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(filtered, _DEBUG_TOOL_NAME,
+                         "step4_filtered_empty_areas", workspace_path)
+    return filtered
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-def erode_empty_areas(input_layer, buildings_layer,
+def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-arguments
                       min_empty_area=MIN_EMPTY_AREA_M2,
                       min_buffer_m=MIN_BUFFER_M,
                       max_buffer_m=MAX_BUFFER_M,
@@ -276,8 +474,8 @@ def erode_empty_areas(input_layer, buildings_layer,
     ``clamp(sqrt(building_area), min_buffer_m, max_buffer_m)`` metres, then
     identifies uncovered areas (voids) inside the settlement. A void is only
     removed if less than ``contact_threshold_pct`` percent of its boundary
-    coincides with the settlement's outer boundary — voids at or above the
-    threshold are fringe features and are left intact.
+    coincides with the settlement's outer boundary -- voids at or above the
+    threshold border the settlement significantly and are left intact.
 
     The input layer's attribute schema is preserved in the output.
 
@@ -287,8 +485,8 @@ def erode_empty_areas(input_layer, buildings_layer,
         input_layer: Settlement polygon layer (``QgsVectorLayer`` or file path).
             Must use a metric CRS.
         buildings_layer: Building footprint polygon layer (``QgsVectorLayer``).
-        min_empty_area: Area threshold (m²). Building-free voids smaller than
-            this are kept. Default: ``MIN_EMPTY_AREA_M2`` (500 m²).
+        min_empty_area: Area threshold (m2). Building-free voids smaller than
+            this are kept. Default: ``MIN_EMPTY_AREA_M2`` (500 m2).
         min_buffer_m: Minimum per-building buffer distance (m).
             Default: ``MIN_BUFFER_M`` (10 m).
         max_buffer_m: Maximum per-building buffer distance (m).
@@ -296,7 +494,7 @@ def erode_empty_areas(input_layer, buildings_layer,
         contact_threshold_pct: Maximum share (%) of a void's boundary that may
             touch the settlement outer boundary for the void to be removed.
             Voids with equal or higher contact are kept.
-            Default: ``BOUNDARY_CONTACT_THRESHOLD_PCT`` (30 %).
+            Default: ``BOUNDARY_CONTACT_THRESHOLD_PCT`` (20 %).
         workspace_path: Absolute path for debug layer output. Ignored when
             ``debug_mode`` is ``False``.
         debug_mode: When ``True``, saves intermediate layers to
@@ -313,42 +511,47 @@ def erode_empty_areas(input_layer, buildings_layer,
             the input layer.
     """
     Logger.log("ErodeEmptyAreas Start", level="INFO")
-    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path,
-                tool_name=_DEBUG_TOOL_NAME)
+    _dbg = {"debug_mode": debug_mode, "workspace_path": workspace_path,
+            "tool_name": _DEBUG_TOOL_NAME}
     orig_layer = input_layer
 
-    try:
-        if isinstance(input_layer, str):
-            input_layer = QgsVectorLayer(input_layer, "input", "ogr")
+    if not input_layer.isValid():
+        Logger.log("ErodeEmptyAreas: invalid input layer, returning unchanged.", level="INFO")
+        return input_layer
 
-        # Early returns — no Processing invoked
-        if not input_layer.isValid() or input_layer.featureCount() == 0:
+    try:
+        # Fix geometries and dissolve all features into one (safe workaround for GEOS bug)
+        fixed_input = _dissolve_union(input_layer, debug_mode=debug_mode,
+                                     workspace_path=workspace_path)
+
+        if not fixed_input.isValid() or fixed_input.featureCount() == 0:
             Logger.log(
                 "ErodeEmptyAreas: no valid input features, returning unchanged.",
                 level="INFO",
             )
-            return input_layer
+            return fixed_input
 
-        if not buildings_layer.isValid() or buildings_layer.featureCount() == 0:
+        # --- Step 0b: Python-level dissolve to eliminate overlapping features ---
+        # blocks_merge contains overlapping snapped_rect + blocks_dense features
+        # whose coincident edges cause native:difference to produce a
+        # GeometryCollection output QGIS cannot write. native:collect on the same
+        # input also fails (same "Konnte Objekt nicht schreiben") because
+        # fixgeometries can transform degenerate polygons into Lines/Points,
+        # leaving mixed geometry types that mismatch the output sink.
+        # Using QgsGeometry.combine() (direct GEOS union, no feature-sink write)
+        # avoids both failure modes and always yields a clean Polygon/MultiPolygon.
+        fixed_input = _dissolve_to_single_feature(fixed_input, debug_mode, workspace_path)
+        if fixed_input is None:
             Logger.log(
-                "ErodeEmptyAreas: no buildings provided, returning input unchanged.",
-                level="INFO",
+                "ErodeEmptyAreas: all input features degenerate after fixgeometries; "
+                "returning input unchanged.",
+                level="WARNING",
             )
-            return input_layer
-
-        # --- Step 0: Fix input geometries ---
-        fixed_input = safe_processing_run("native:fixgeometries", {
-            'INPUT': input_layer,
-            'METHOD': 1,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(fixed_input, _DEBUG_TOOL_NAME,
-                             "step0_fixed", workspace_path)
+            return orig_layer
 
         # --- Step 1: Select buildings within settlement boundary ---
         Logger.log(
-            "ErodeEmptyAreas: Step 1 – selecting buildings within settlement…",
+            "ErodeEmptyAreas: Step 1 - selecting buildings within settlement...",
             level="INFO",
         )
         sel_buildings = safe_processing_run("native:extractbylocation", {
@@ -374,8 +577,8 @@ def erode_empty_areas(input_layer, buildings_layer,
 
         # --- Step 2: Build per-building buffer layer ---
         Logger.log(
-            f"ErodeEmptyAreas: Step 2 – computing building buffers "
-            f"(min={min_buffer_m} m, max={max_buffer_m} m)…",
+            f"ErodeEmptyAreas: Step 2 - computing building buffers "
+            f"(min={min_buffer_m} m, max={max_buffer_m} m)...",
             level="INFO",
         )
         buf_layer = _build_buffer_layer(sel_buildings, min_buffer_m, max_buffer_m)
@@ -383,78 +586,29 @@ def erode_empty_areas(input_layer, buildings_layer,
             save_debug_layer(buf_layer, _DEBUG_TOOL_NAME,
                              "step2_building_buffers", workspace_path)
 
-        if buf_layer.featureCount() == 0:
+        # --- Step 3: Build buffer union ---
+        Logger.log(
+            "ErodeEmptyAreas: Step 3 - dissolving buffer union...", level="INFO"
+        )
+        buffer_union = _build_buffer_union_layer(
+            buf_layer, fixed_input.crs().authid(), debug_mode, workspace_path)
+        if buffer_union is None:
             Logger.log(
-                "ErodeEmptyAreas: all building geometries null/empty, returning unchanged.",
+                "ErodeEmptyAreas: no valid building buffers or empty union, "
+                "returning unchanged.",
                 level="INFO",
             )
             return fixed_input
 
-        # --- Step 3: Dissolve buffer union ---
-        # Uses collect + buffer(0, dissolve=True) workaround — native:dissolve
-        # silently fails on large MultiPolygon datasets (QGIS ≤ 3.40).
-        Logger.log(
-            "ErodeEmptyAreas: Step 3 – dissolving buffer union…", level="INFO"
-        )
-        collected = safe_processing_run("native:collect", {
-            'INPUT': buf_layer,
-            'FIELD': [],
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        buffer_union = safe_processing_run("native:buffer", {
-            'INPUT': collected,
-            'DISTANCE': 0,
-            'SEGMENTS': 5,
-            'END_CAP_STYLE': 0,
-            'JOIN_STYLE': 0,
-            'MITER_LIMIT': 2,
-            'DISSOLVE': True,
-            'SEPARATE_DISJOINT': False,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-        # Explicit fixgeometries on buffer_union before difference — the
-        # collect+buffer(0) workaround can leave near-duplicate vertices that
-        # cause native:difference to produce unwritable output geometry.
-        buffer_union = safe_processing_run("native:fixgeometries", {
-            'INPUT': buffer_union,
-            'METHOD': 1,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(buffer_union, _DEBUG_TOOL_NAME,
-                             "step3_buffer_union", workspace_path)
-
         # --- Step 4: Compute building-free voids ---
         Logger.log(
-            "ErodeEmptyAreas: Step 4 – computing empty areas…", level="INFO"
+            "ErodeEmptyAreas: Step 4 - computing empty areas...", level="INFO"
         )
-        empty_areas = safe_processing_run("native:difference", {
-            'INPUT': fixed_input,
-            'OVERLAY': buffer_union,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            'GRID_SIZE': TOPOLOGY_GRID_SIZE,
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(empty_areas, _DEBUG_TOOL_NAME,
-                             "step4_empty_areas", workspace_path)
-
-        empty_single = safe_processing_run("native:multiparttosingleparts", {
-            'INPUT': empty_areas,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        filtered_empty = safe_processing_run("qgis:extractbyexpression", {
-            'INPUT': empty_single,
-            'EXPRESSION': f'area($geometry) >= {min_empty_area}',
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-        if debug_mode and workspace_path:
-            save_debug_layer(filtered_empty, _DEBUG_TOOL_NAME,
-                             "step4_filtered_empty_areas", workspace_path)
+        filtered_empty = _compute_void_candidates(
+            fixed_input, buffer_union, min_empty_area, debug_mode, workspace_path)
         Logger.log(
             f"ErodeEmptyAreas: {filtered_empty.featureCount()} void candidate(s) "
-            f"(>= {min_empty_area} m²), contact filter follows.",
+            f"(>= {min_empty_area} m2), contact filter follows.",
             level="INFO",
         )
 
@@ -470,8 +624,8 @@ def erode_empty_areas(input_layer, buildings_layer,
         # by less than contact_threshold_pct %. Voids at or above this threshold
         # border the settlement significantly and are left intact.
         Logger.log(
-            f"ErodeEmptyAreas: Step 4b – contact fraction filter "
-            f"(threshold={contact_threshold_pct}%)…",
+            f"ErodeEmptyAreas: Step 4b - contact fraction filter "
+            f"(threshold={contact_threshold_pct}%)...",
             level="INFO",
         )
         voids_to_remove = _contact_fraction_filter(
@@ -496,20 +650,32 @@ def erode_empty_areas(input_layer, buildings_layer,
 
         # --- Step 5: Subtract voids from settlement ---
         Logger.log(
-            "ErodeEmptyAreas: Step 5 – subtracting empty areas…", level="INFO"
+            "ErodeEmptyAreas: Step 5 - subtracting empty areas...", level="INFO"
         )
+
+        voids_to_remove_buff = processing.run("native:buffer", {
+            'INPUT': voids_to_remove,
+            'DISTANCE': 0.5,
+            'SEGMENTS': 5,
+            'END_CAP_STYLE': 1,
+            'JOIN_STYLE': 0,
+            'MITER_LIMIT': 2,
+            'DISSOLVE': False,
+            'SEPARATE_DISJOINT': False,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+            })['OUTPUT']
+
         result = safe_processing_run("native:difference", {
             'INPUT': fixed_input,
-            'OVERLAY': voids_to_remove,
+            'OVERLAY': voids_to_remove_buff,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
             'GRID_SIZE': TOPOLOGY_GRID_SIZE,
         }, **_dbg)['OUTPUT']
         if debug_mode and workspace_path:
-            save_debug_layer(result, _DEBUG_TOOL_NAME,
-                             "step5_result", workspace_path)
+            save_debug_layer(result, _DEBUG_TOOL_NAME, "step5_result", workspace_path)
 
         Logger.log(
-            f"ErodeEmptyAreas End – Output features: {result.featureCount()}",
+            f"ErodeEmptyAreas End - Output features: {result.featureCount()}",
             level="INFO",
         )
         return result
