@@ -1572,6 +1572,7 @@ class TestRunPartitionPipeline:
              patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
              patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
              patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.erode_empty_areas", return_value=generic), \
              patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
              patch("ibtool.ibtool.ibtool.patch_remove", return_value=expected), \
              patch("ibtool.ibtool.ibtool.logger"), \
@@ -1639,6 +1640,7 @@ class TestRunPartitionPipeline:
              patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
              patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
              patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.erode_empty_areas", return_value=generic), \
              patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
              patch("ibtool.ibtool.ibtool.patch_remove", return_value=expected), \
              patch("ibtool.ibtool.ibtool.logger"), \
@@ -1688,6 +1690,7 @@ class TestRunPartitionPipeline:
              patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
              patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
              patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.erode_empty_areas", return_value=generic), \
              patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
              patch("ibtool.ibtool.ibtool.patch_remove", return_value=generic), \
              patch("ibtool.ibtool.ibtool.logger"), \
