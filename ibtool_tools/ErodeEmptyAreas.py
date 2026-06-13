@@ -417,7 +417,7 @@ def _build_buffer_union_layer(buf_layer, crs_id, debug_mode=False, workspace_pat
 
 
 def _compute_void_candidates(fixed_input, buffer_union, min_empty_area,
-                              debug_mode=False, workspace_path=None):
+                             debug_mode=False, workspace_path=None):
     """Compute building-free void polygons that exceed ``min_empty_area``.
 
     Args:
@@ -522,7 +522,7 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
     try:
         # Fix geometries and dissolve all features into one (safe workaround for GEOS bug)
         fixed_input = _dissolve_union(input_layer, debug_mode=debug_mode,
-                                     workspace_path=workspace_path)
+                                      workspace_path=workspace_path)
 
         if not fixed_input.isValid() or fixed_input.featureCount() == 0:
             Logger.log(
@@ -663,7 +663,7 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
             'DISSOLVE': False,
             'SEPARATE_DISJOINT': False,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
+        })['OUTPUT']
 
         result = safe_processing_run("native:difference", {
             'INPUT': fixed_input,
