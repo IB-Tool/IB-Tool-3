@@ -42,9 +42,9 @@ Per-partition loop  (for each PART_xxx)
 ├──  5. MST_Clustering   →  MST-based aggregation into minimum bounding rectangles
 ├──  6. AddSingleBuilding →  bounding rect for large isolated buildings (> 300 m²)
 ├──  7. EdgeCatch        →  snap rectangles to road network
-├──  8. GapClose         →  close holes (> 1 ha removed) and gaps (≤ 70 m bridged)
-├──  9. PatchRemove      →  remove splinter areas (< 1 ha, < 20 buildings)
-└── 10. ErodeEmptyAreas  →  remove building-free voids (≥ 500 m²) from settlement
+├──  8. ErodeEmptyAreas  →  remove building-free voids (≥ 500 m²) from settlement
+├──  9. GapClose         →  close holes (> 1 ha removed) and gaps (≤ 70 m bridged)
+└── 10. PatchRemove      →  remove splinter areas (< 1 ha, < 20 buildings)
          │
          ▼
 Merge all partition results
@@ -352,11 +352,46 @@ OUTPUT: snapped settlement polygon
 
 ---
 
-### Step 8 — GapClose: Holes and Gap Closing
+### Step 8 — ErodeEmptyAreas: Building-Free Void Removal
 
-`GapClose.py` corrects two classes of topological defects in the merged result:
+`ErodeEmptyAreas.py` removes areas within the settlement polygon where no buildings stand — parks, open fields, or water bodies enclosed by building clusters. Without this step, such voids inflate the settlement footprint and cause GapClose (Step 9) to bridge gaps across open space that should remain open.
 
-#### Sub-step 8a — Close holes inside settlement polygons
+```
+INPUT: settlement polygon (output of EdgeCatch merge), building footprints
+
+1. Select buildings within the settlement boundary (intersects predicate)
+   → If no buildings found: return settlement unchanged
+
+2. Buffer each building by clamp(sqrt(area), 10 m, 100 m)
+   → Small buildings (≤ 100 m²): 10 m buffer
+   → Large buildings (≥ 10 000 m²): 100 m buffer
+
+3. Dissolve all building buffers into a single union polygon
+   (via QgsGeometry.unaryUnion() — avoids collect/sink-type mismatch)
+
+4. Compute building-free voids:
+   difference(settlement, buffer_union) → empty areas
+   Keep only areas ≥ 500 m²
+
+5. Contact-fraction filter: measure what fraction of each void's perimeter
+   runs along the settlement OUTER boundary (interior ring lines excluded).
+   Only voids with contact < 20% are candidates for removal.
+   → Voids with ≥ 20% contact (fringe features) are kept.
+   → Interior voids (0% contact) are also kept.
+
+6. Subtract qualifying voids from settlement
+OUTPUT: settlement polygon with building-free isolated voids removed
+```
+
+The buffer distance scales with `sqrt(building_area)`, giving each building a protection zone proportional to its geometric radius. In dense clusters the buffer zones merge, naturally covering the built-up area; isolated buildings still protect a 10–100 m surroundings.
+
+---
+
+### Step 9 — GapClose: Holes and Gap Closing
+
+`GapClose.py` corrects two classes of topological defects in the settlement polygon:
+
+#### Sub-step 9a — Close holes inside settlement polygons
 
 Undeveloped areas completely enclosed by the settlement (parks, courtyards, gardens) that are larger than a threshold are *removed* from the settlement area:
 
@@ -374,7 +409,7 @@ gap_close_in_holes():
 3. Remove remaining holes smaller than max_hole_size
 ```
 
-#### Sub-step 8b — Close gaps between adjacent settlement polygons
+#### Sub-step 9b — Close gaps between adjacent settlement polygons
 
 Narrow gaps between neighbouring polygons (e.g. a road that was cut out, or a missed building row) are bridged using a double-buffer approach:
 
@@ -389,21 +424,22 @@ INPUT: dissolved settlement polygons
    (artefacts from corners/buffering)
 
 5. FOR each remaining gap polygon:
-   IF area(gap) <= gap_threshold (4900 m²,  i.e. a ~70×70 m square):
-       IF ≥ 70% of gap perimeter borders the settlement polygon:
-           ADD gap to settlement  (parcel surrounded on ≥ 3 sides)
-   ELSE:
-       discard gap (too large to bridge)
+   Filter 1 (area ≤ max_gap_size, ≥ 70% border overlap):
+       ADD gap to settlement  (parcel surrounded on ≥ 3 sides)
+   Filter 2 (≥ 90% border overlap, any size):
+       ADD gap to settlement  (almost fully enclosed)
+   Filter 3 / compact large gaps (area ≥ max_gap_size, < 70 m longest edge):
+       tessellate into triangles; ADD gap if all triangles are narrow
 ```
 
-The 70 m threshold is based on German planning guidance (Bukies et al. 2009): an undeveloped strip of 50–60 m is generally considered inside the UGB; even 90 m does not necessarily interrupt the built-up area.
+The 70 m threshold for the compact-gap filter is based on German planning guidance (Bukies et al. 2009): an undeveloped strip of 50–60 m is generally considered inside the UGB; even 90 m does not necessarily interrupt the built-up area.
 
 ![GapClose result](images/09_gap_close.png)
 *Left: holes and gaps between polygons. Right: after GapClose — holes removed or closed, gaps bridged.*
 
 ---
 
-### Step 9 — PatchRemove: Splinter Area Removal
+### Step 10 — PatchRemove: Splinter Area Removal
 
 `PatchRemove.py` removes result polygons that are too small or contain too few buildings to represent a meaningful settlement unit.
 
@@ -424,35 +460,6 @@ After patch removal, the gap-closing step is applied once more across the entire
 
 ![Splinter areas removed](images/10_patch_remove.png)
 *Small isolated result polygons (red outlines) removed from the output.*
-
----
-
-### Step 10 — ErodeEmptyAreas: Building-Free Void Removal
-
-`ErodeEmptyAreas.py` removes areas within the settlement polygon where no buildings stand — parks, open fields, or water bodies enclosed by building clusters. Without this step, such voids inflate the settlement footprint.
-
-```
-INPUT: settlement polygon (output of PatchRemove), building footprints
-
-1. Select buildings within the settlement boundary (intersects predicate)
-   → If no buildings found: return settlement unchanged
-
-2. Buffer each building by clamp(sqrt(area), 10 m, 100 m)
-   → Small buildings (≤ 100 m²): 10 m buffer
-   → Large buildings (≥ 10 000 m²): 100 m buffer
-
-3. Dissolve all building buffers into a single union polygon
-   (via collect + buffer(0, dissolve=True) workaround)
-
-4. Compute building-free voids:
-   difference(settlement, buffer_union) → empty areas
-   Keep only areas ≥ 500 m²
-
-5. Subtract retained voids from settlement
-OUTPUT: settlement polygon with building-free voids removed
-```
-
-The buffer distance scales with `sqrt(building_area)`, giving each building a protection zone proportional to its geometric radius. In dense clusters the buffer zones merge, naturally covering the built-up area; isolated buildings still protect a 10–100 m surroundings.
 
 ---
 
