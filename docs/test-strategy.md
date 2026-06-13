@@ -173,6 +173,7 @@ Cross-reference of every production module, its test file, approximate test coun
 | `AddSingleBuilding.py` | `test_add_single_building.py` | 8 | integration | — |
 | `PatchRemove.py` | `test_patch_remove.py` | 9 | integration | — |
 | `GapFix.py` | `test_gap_fix.py` | 13 | integration | — |
+| `ErodeEmptyAreas.py` | `test_erode_empty_areas.py` | 17 | unit + integration | Performance tests |
 
 ### ibtool/ (UI + plugin)
 

@@ -10,26 +10,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- **GeoPackage support** (`helpers/data_loader.py`, `ibtool/ibtool.py`): All four file-browse dialogs now accept `.gpkg` in addition to `.shp` (`"Vector files (*.shp *.gpkg);;…"`).
-- **Checksum-based validation skip** (`ibtool/ibtool.py`, `helpers/system_utils.py`): `run_validation()` computes an MD5 checksum for each input file after every path-field change (via `compute_file_checksum()`). If all checksums match those from the previous successful validation run, the cached `ValidationResult` is re-displayed instead of reloading QGIS layers — avoiding redundant layer loads when the user clicks *Check* repeatedly without changing files.
-- **Cross-session validation cache** (`helpers/config_manager.py`, `ibtool/ibtool.py`): File checksums and the last `ValidationResult` (errors + warnings as JSON) are persisted to `CONFIG.ini` under a new `[VALIDATION_CACHE]` section and restored on plugin startup, so the skip logic works across plugin restarts.
-- **"Reset Config" button** (`ibtool/ibtool_dialog_base.ui`, `ibtool/ibtool.py`): New `DeleteConfigButton` in the UI. Clicking it asks for confirmation, deletes `CONFIG.ini`, re-initialises `ConfigManager` with factory defaults, clears all path / parameter fields, and resets checksum and validation caches.
-- **`compute_file_checksum()`** (`helpers/system_utils.py`): New helper that returns the hex-encoded MD5 digest of a file, reading in 8 kB chunks to avoid large in-memory loads; returns `""` on any I/O error.
-- **`ValidationCacheConfig` dataclass** (`helpers/config_manager.py`): New dataclass storing the cached validation errors and warnings as JSON-encoded strings; included in `PluginConfig` and serialised/deserialised by `ConfigManager`.
-- **Checksum fields in `InputDataConfig`** (`helpers/config_manager.py`): Five new checksum fields (`building_footprints_checksum`, `road_network_checksum`, `partitions_checksum`, `aux_layer_checksum`, `filter_file_checksum`) persisted alongside the corresponding path fields.
+- **GapClose Filter 2c — narrow large gaps** (`ibtool_tools/GapClose.py`): large gaps (area ≥ `max_gap_size`) not captured by the 90%-overlap filter are now additionally tested by tessellation: each candidate is densified, tessellated into triangles, and the longest triangle edge per feature is recorded. Gaps where the longest edge is shorter than `MAX_NARROW_GAP_EXTENT_M` (70 m) are considered compact/narrow and are absorbed into the settlement. New constant `MAX_NARROW_GAP_EXTENT_M = 70`.
+- **Per-partition debug workspace** (`ibtool/ibtool.py`): in debug mode, `_run_partition_pipeline()` now creates a `debug/PART_{name}/` sub-folder per partition and passes it to all tool calls (`blocker`, `input_hu_filter`, `mst_clustering`, `add_single_bdg`, `edge_catch`, `erode_empty_areas`, `gap_close`, `patch_remove`). Debug layers from different partitions are now stored in separate folders instead of being mixed in a single directory.
+- **GapFix linearity filter for gap zones** (`ibtool_tools/GapFix.py`): Step 5b classifies each candidate inter-polygon gap zone via erosion (negative buffer + area-fraction threshold). Only narrow / corridor-like gaps are merged into the neighboring polygon; blocky gap zones (plazas, real open spaces) stay open. Controlled by the new parameters `erosion_width` (default `max_gap/2`) and `linearity_area_fraction` (default `0.7`); setting `linearity_area_fraction=0.0` disables the filter. Step 4 now splits MultiPolygon ring intersections into single connected components so each gap piece is classified independently. Two new debug layers when `debug_mode=True`: `step5b_linear_gaps`, `step5b_discarded_blocky_gaps` — both carry `uid_a`, `uid_b`, `linearity_index`, `total_area`, `eroded_area`.
+- **GapFix no longer closes interior holes** (`ibtool_tools/GapFix.py`): the polygonstolines+polygonize trick in Step 1 has been removed. Step 1 now only dissolves adjacent polygons via `collect`+`buffer(0)`; interior holes pass through unchanged. Hole handling is delegated to a separate pipeline step (planned).
+- **GapFix debug mode wired into pipeline** (`ibtool/ibtool.py`): `gap_fix()` now receives the global `debug_mode` flag from `_run_partition_pipeline()` (previously always defaulted to `False`).
+- **GapFix integrated into pipeline** (`ibtool/ibtool.py`): `gap_fix()` is now called after `gap_close()` and before `patch_remove()` in `_run_partition_pipeline()`; its output is passed directly into `patch_remove`.
+- **GeoPackage support** (`data_loader.py`, `ibtool.py`): File dialogs accept `.gpkg` in addition to `.shp`.
+- **Checksum-based validation skip** (`ibtool.py`, `system_utils.py`): Repeated *Check* clicks with unchanged files reuse cached `ValidationResult` instead of reloading layers.
+- **Cross-session validation cache** (`config_manager.py`, `ibtool.py`): Checksums and `ValidationResult` persisted to `CONFIG.ini [VALIDATION_CACHE]`, surviving plugin restarts.
+- **"Reset Config" button** (`ibtool_dialog_base.ui`, `ibtool.py`): Deletes `CONFIG.ini`, resets all fields to factory defaults.
+- **`compute_file_checksum()`** (`system_utils.py`): MD5 file digest helper (8 kB chunks, `usedforsecurity=False`).
+- **Pre-commit security hooks**: Bandit and detect-secrets integrated; `.secrets.baseline` added.
+- **AI rules & documentation** (`ai/core/`, `ai/domain/`, `ai/tasks/`, `CLAUDE.md`): Architecture guidelines, naming conventions, testing rules, QGIS API rules, debug mode, domain knowledge (MST, GapFix, GapClose, geometry validation, feature processing), and task templates (bugfix, refactor, new feature, QGIS processing).
 
-### Tests
-- **`test/test_config_manager.py`**: Extended with tests covering checksum field persistence, `ValidationCacheConfig` round-trip, and `[VALIDATION_CACHE]` section load/save.
-- **`test/test_ibtool.py`**: Extended with tests for `_delete_config()`, checksum caching in `_check_path_field()`, and the skip logic in `run_validation()`.
-- **`test/test_system_utils.py`**: New test file covering `compute_file_checksum()` (normal file, I/O error, chunked reads).
+### Fixed
+- **ErodeEmptyAreas `_contact_fraction_filter` — three logic bugs** (`ErodeEmptyAreas.py`):
+  - *Interior ring contamination*: `polygonstolines` on a polygon with holes yields lines for all rings (exterior AND interior). If void contact was measured against interior ring lines (edges of existing holes), voids inside those holes showed artificially high contact and were never removed. Fixed by running `native:deleteholes(MIN_AREA=0)` on the settlement before `polygonstolines`, plus a `native:difference` against the voids to exclude their own outlines from the reference boundary.
+  - *fid_copy timing*: `fid_copy` was assigned to the void LINE layer (after `polygonstolines`). After splitting into segments and dissolving overlaps, `@id` no longer matched the original void features. Fixed by assigning `fid_copy` via `native:fieldcalculator` on the void POLYGON layer before any line conversion.
+  - *Wrong return value when no contact exists*: when no void boundary segments touched the settlement outer boundary, the function returned ALL voids (the full void layer) instead of none, causing erroneous mass removal of interior voids. Fixed by returning an empty polygon layer when `overlapping.featureCount() == 0`.
+- **ErodeEmptyAreas "Konnte Objekt nicht schreiben" crash** (`ErodeEmptyAreas.py`): Root cause: `native:collect` in QGIS 3.40 fails when a `Polygon`-declared layer contains `MultiPolygon` features — it creates a `GeometryCollection` output that QGIS cannot write to a `MultiPolygon` sink. This affects both `fixed_input` (where `fixgeometries` can split polygons to multi-part) and `buf_layer` (where buffering multi-part buildings yields `MultiPolygon` geometries). Fixed by replacing Steps 0b and 3 with `QgsGeometry.combine()` / `QgsGeometry.unaryUnion()` (GEOS calls at the Python level, no feature-sink write path). Step 0b dissolves `fixed_input` to a clean single polygon before any difference operation; Step 3 builds `buffer_union` the same way.
 
 ### Changed
-- **Docs**: Harmonized `docs/` folder and `README.md` — removed redundancies, unified style (unnumbered headings, `---` separators, intro paragraphs, `## Related Files` sections), replaced duplicate content with cross-references. Added `parameterization.md`, `input-data.md`, and `CONFIG_README.md` to the `CLAUDE.md` documentation table.
-- **Docs**: Added module-level docstring to `helpers/data_loader.py`.
-- **Docs**: Converted `ibtool_tools/GapFix.py` docstring to Google style; added module-level docstring. Created `ai/domain/gap-fix.md` documenting the donut-ring algorithm and `native:dissolve` workaround.
-- **Docs**: Created `ai/domain/gap-close.md` documenting GapClose design decisions, the three GEOS/dissolve workarounds, and the two-threshold filter strategy.
-- **Docs**: Updated `ibtool/ibtool.py` — replaced GPL boilerplate with proper module docstring; converted `__init__`, `tr`, `add_action` from Sphinx to Google style; translated three German docstrings to English; improved `start_processing`, `load_filter_file`, `_collect_params` docstrings.
-- **Refactor**: `ibtool/ibtool.py` — extracted `_parse_float()` static helper and `_parse_numeric_params()` method; replaced 8 repeated try/except parameter-parsing blocks in `start_processing()` with a single `_parse_numeric_params()` call (~40 lines removed).
+- **Pipeline reorder — ErodeEmptyAreas moved to Step 8** (`ibtool/ibtool.py`): `erode_empty_areas()` now runs immediately after `edge_catch()` on the raw `blocks_merge` output, before `gap_close()`. Previously it was the final step after `patch_remove()`. The new order ensures that large building-free voids are removed before gap detection, so GapClose does not attempt to bridge voids that should be excluded. `patch_remove()` receives the GapClose output (as before); `erode_empty_areas()` now receives `blocks_merge` as input.
+- **ErodeEmptyAreas pipeline position** (`ErodeEmptyAreas.py`): `_DEBUG_TOOL_NAME` changed from `"09_ErodeEmptyAreas"` to `"06_ErodeEmptyAreas"` to reflect the new earlier call position in the per-partition debug folder sorting.
+- **ErodeEmptyAreas `BOUNDARY_CONTACT_THRESHOLD_PCT`** (`ErodeEmptyAreas.py`): threshold reduced from `30.0` to `20.0`. Only voids with less than 20 % of their perimeter touching the settlement outer boundary are removed; voids with 20 % or more contact (including interior voids with 0 % contact) are kept. The lower threshold avoids over-removal of voids at the settlement fringe.
+- **GapClose `HOLE_DETECTION_THRESHOLD_M2`** (`GapClose.py`): reduced from `1_000_000` (1 km²) to `10_000` (1 ha). The previous 1 km² cap was far larger than any realistic interior hole and offered no practical protection; 1 ha matches the `max_hole_size` default and prevents accidental fill of legitimate large holes.
+- **GapClose debug layer names** (`GapClose.py`): numeric step prefixes removed from all `save_debug_layer` step names (e.g. `"01_hole_closed"` → `"hole_closed"`, `"13.1_final_gap1_70pct"` → `"final_gap1_70pct"`). Debug layers now sort by creation time within a run rather than by an arbitrary hardcoded prefix.
+- **PatchRemove debug folder** (`PatchRemove.py`): `_DEBUG_TOOL_NAME` changed from `"07_PatchRemove"` to `"08_PatchRemove"` to reflect that ErodeEmptyAreas now occupies the step-06 slot (and a future step-07 is reserved).
+- **`save_debug_layer` path contract** (`helpers/debug_utils.py`): the function no longer appends a `"debug/"` sub-folder automatically. `debug_dir` is now `os.path.join(workspace_path, tool_name)` instead of `os.path.join(workspace_path, "debug", tool_name)`. Callers are responsible for including any desired sub-structure in `workspace_path` (e.g. `base/debug/PART_7`). This enables the new per-partition workspace pattern without double-nesting.
+- **EdgeCatch log level on processing errors** (`helpers/edge_catch_utils.py`): when `error_count > 0` in `create_shortest_lines_to_roads`, the combined message is now logged at `WARNING` instead of `INFO`, making processing errors visible even at default log-level filters.
+- **Version** (`metadata.txt`): bumped from `0.1.5` to `0.1.6`.
+- **Logging** (`logger.py`): Log file creation deferred until `set_log_dir()` is called; validation cache uses context signature (Fixes #117).
+- **Configuration** (`config_manager.py`, `ibtool.py`): Improved handling, refactored validation and error messages (Fixes #115).
+- **Refactor** (`ibtool.py`): `start_processing` split into `_load_input_layers` and `_run_partition_pipeline`; extracted `_parse_float()` / `_parse_numeric_params()`; replaced wildcard imports.
+- **Refactor** (`helpers/__init__.py`): Removed bulk imports and unused `__all__`.
+- **GapClose** (`GapClose.py`): Added error handling for `gap_close_in_holes` (log and skip on failure).
+- **safe_processing** (`safe_processing.py`): Removed `GRID_SIZE` from last-resort fallback to prevent null geometries.
+- **Dockerfile**: Added `python3-pip`, Bandit, detect-secrets.
+- **Minimum Python version** raised to 3.11.
+- **README**: Codecov badge fix (Fixes #120), plugin folder naming clarified (Fixes #114), AI acknowledgement added.
+- **Docs**: Harmonized `docs/` folder — unified style, removed redundancies, added cross-references. New: `parameterization.md`, `input-data.md`, `CONFIG_README.md`. Updated docstrings across `ibtool.py`, `data_loader.py`, `GapFix.py`, `ibtool_dialog.py`.
+- **CI**: Clarified workflow triggers; tests non-blocking with explicit fail step; plugin validation supports multiple zip files.
+- **`.pylintrc`**: Adjusted ignored paths, increased line length, refined disabled checks.
+
+### Removed
+- `IB-Tool2.py` (obsolete predecessor).
+- `initialize_environment` function and its tests.
+- Old dialog-related files, resources, and obsolete data files.
+- `docs/test-plan.md` (superseded by `test-strategy.md`).
+
+### Fixed
+- **GeoPackage FID conflict** (`helpers/system_utils.py`): Added `FID=gpkg_fid` layer option to `save_temp_layer_to_gpkg()` to prevent `UNIQUE constraint` failures when a source layer carries a duplicate `fid` attribute field (e.g. inherited from `native:intersection`). (Fixes #122)
+- **Case-insensitive field check in `shp_area2()`** (`helpers/geometry_utils.py`): OGR/GeoPackage treats field names case-insensitively; a pre-existing `area` field was not detected when checking for `Area`, leading to a duplicate-field error. Now uses a case-folded lookup and reuses the existing field's casing for writes. (Fixes #123)
+
+### Tests
+- New tests for `_update_phase`, `_load_input_layers`, `_run_partition_pipeline`, `compute_file_checksum`, `_delete_config`, checksum caching, and validation skip logic.
+- Security annotations (`nosec B108`, `pragma: allowlist secret`) for false positives.
 
 ---
 

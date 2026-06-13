@@ -357,10 +357,11 @@ def create_shortest_lines_to_roads(
 
     temp_layer_data.addFeatures(new_features)
 
-    status_msg = f"Created {processed_count} connection lines successfully."
     if error_count > 0:
-        status_msg += f" {error_count} features could not be processed (see log)."
-    Logger.log(status_msg, level="INFO")
+        Logger.log(
+            f"Created {processed_count} connection lines. {error_count} features could not be processed (see log).",
+            level="WARNING",
+        )
 
     return temp_layer
 

@@ -7,7 +7,7 @@ name=IB-Tool
 qgisMinimumVersion=3.40
 pythonMinimumVersion=3.11
 description=QGIS plugin for settlement delineation based on building footprints. Provides automated geospatial processing tools for clustering, density calculations, and minimum spanning tree (MST) analysis.
-version=0.1.5
+version=0.1.6
 author=Oliver Harig
 email=ottmar.hittzfeld@web.de
 

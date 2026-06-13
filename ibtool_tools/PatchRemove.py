@@ -16,7 +16,7 @@ from ..helpers.debug_utils import save_debug_layer
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
 # ---------------------------------------------------------------------------
-_DEBUG_TOOL_NAME = "07_PatchRemove"
+_DEBUG_TOOL_NAME = "08_PatchRemove"
 
 
 def patch_remove(

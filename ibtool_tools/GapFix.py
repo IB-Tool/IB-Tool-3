@@ -27,7 +27,8 @@ _DEBUG_TOOL_NAME = "08_GapFix"
 
 
 def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,  # pylint: disable=invalid-name
-            bufferwidth=70, max_gap=10.0, debug_mode=False):
+            bufferwidth=70, max_gap=10.0, debug_mode=False,
+            erosion_width=None, linearity_area_fraction=0.7):
     """Close inter-polygon gaps and remove interior holes from a polygon layer.
 
     Applies a seven-step algorithm:
@@ -65,6 +66,13 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,  # pylint: di
             will be closed between neighboring polygons.
         debug_mode: When ``True``, saves intermediate layers to
             ``workspace_path`` for visual inspection.
+        erosion_width: Inward erosion applied to each gap zone to measure
+            linearity. Defaults to ``max_gap / 2`` when ``None``. A gap zone
+            is kept only if ``frac_removed >= linearity_area_fraction``.
+        linearity_area_fraction: Minimum fraction of gap zone area that must
+            be removed by erosion for the gap to be classified as linear and
+            merged. ``0.0`` disables the filter (all valid gaps are merged,
+            reproducing legacy behaviour). Default ``0.7``.
 
     Returns:
         A memory ``QgsVectorLayer`` (geometry type ``MultiPolygon``) with
@@ -101,43 +109,11 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,  # pylint: di
         if debug_mode and workspace_path:
             save_debug_layer(fixed, _DEBUG_TOOL_NAME, "step0_fixed", workspace_path)
 
-        # --- Step 1: Close interior holes ---
-        # polygons → lines → polygonize → collect + buffer(0, dissolve=True)
-        # Polygonize creates faces for all enclosed rings (including hole areas).
-        # Dissolving everything merges hole faces into the surrounding polygon area.
-        Logger.log("GapFix: Step 1 – closing interior holes…", level="INFO")
-
-        lines = safe_processing_run("native:polygonstolines", {
-            'INPUT': fixed,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        faces = safe_processing_run("native:polygonize", {
-            'INPUT': lines,
-            'KEEP_FIELDS': False,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        collected_faces = safe_processing_run("native:collect", {
-            'INPUT': faces,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        dissolved = safe_processing_run("native:buffer", {
-            'INPUT': collected_faces,
-            'DISTANCE': 0,
-            'DISSOLVE': True,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        }, **_dbg)['OUTPUT']
-
-        if debug_mode and workspace_path:
-            save_debug_layer(dissolved, _DEBUG_TOOL_NAME, "step1_dissolved", workspace_path)
-
         # --- Step 2: Multipart → singlepart + unique ID field ---
         Logger.log("GapFix: Step 2 – singleparts and unique IDs…", level="INFO")
 
         singleparts = safe_processing_run("native:multiparttosingleparts", {
-            'INPUT': dissolved,
+            'INPUT': fixed,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
         }, **_dbg)['OUTPUT']
 
@@ -248,6 +224,29 @@ def gap_fix(Inputpoly, InputRoadnetwork=None, workspace_path=None,  # pylint: di
             f"{len(gap_zones) - len(valid_gaps)} exterior/artefact area(s) discarded.",
             level="INFO",
         )
+
+        # --- Step 5b: Linearity filter ---
+        # Keep only gap zones whose shape is narrow/linear: erode by erosion_width,
+        # compute frac_removed = 1 - eroded_area/original_area. Blocky zones
+        # (large remaining area after erosion) are discarded.
+        if linearity_area_fraction > 0:
+            eff_erosion = erosion_width if erosion_width is not None else max_gap / 2
+            filtered = []
+            for gap_geom, uid_a, uid_b in valid_gaps:
+                orig_area = gap_geom.area()
+                if orig_area <= 0:
+                    continue
+                eroded = gap_geom.buffer(-eff_erosion, 5)
+                eroded_area = eroded.area() if (eroded and not eroded.isEmpty()) else 0.0
+                frac_removed = 1.0 - (eroded_area / orig_area)
+                if frac_removed >= linearity_area_fraction:
+                    filtered.append((gap_geom, uid_a, uid_b))
+            Logger.log(
+                f"GapFix: Step 5b – {len(filtered)} linear gap(s) kept, "
+                f"{len(valid_gaps) - len(filtered)} blocky zone(s) discarded.",
+                level="INFO",
+            )
+            valid_gaps = filtered
 
         # --- Step 6: Merge valid gap zones into adjacent polygons ---
         gaps_merged = 0

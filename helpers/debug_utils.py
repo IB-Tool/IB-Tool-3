@@ -45,9 +45,11 @@ def save_debug_layer(
 ) -> Optional[str]:
     """Save a layer as a numbered debug file in the tool sub-folder.
 
-    Creates ``workspace/debug/{tool_name}/`` and writes the layer as a
-    GeoPackage. The filename receives an auto-incremented numeric prefix and —
-    for error snapshots — an ``_err`` suffix:
+    Creates ``workspace_path/{tool_name}/`` and writes the layer as a
+    GeoPackage. The caller is responsible for passing a ``workspace_path`` that
+    already includes any desired sub-structure (e.g.
+    ``base/debug/PART_7``). The filename receives an auto-incremented numeric
+    prefix and — for error snapshots — an ``_err`` suffix:
 
     - Checkpoint:    ``001_after_dissolve.gpkg``
     - Failed step:   ``002_failed_buffer_err.gpkg``
@@ -70,7 +72,7 @@ def save_debug_layer(
         Logger.log(f"Debug: no features to save for {tool_name}/{step_name}", level="INFO")
         return None
 
-    debug_dir = os.path.join(workspace_path, "debug", tool_name)
+    debug_dir = os.path.join(workspace_path, tool_name)
     idx = _next_debug_index(debug_dir)
     suffix = "_err" if is_error else ""
     filename = f"{idx:03d}_{step_name}{suffix}"
