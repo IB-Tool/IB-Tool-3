@@ -7,7 +7,7 @@ from qgis.core import (
     QgsField, QgsFields, QgsWkbTypes,
     QgsCoordinateReferenceSystem, QgsProcessing,
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from .geometry_utils import shp_area2
 from .logger import Logger
@@ -265,14 +265,14 @@ def create_shortest_lines_to_roads(
         return None
 
     fields = QgsFields()
-    fields.append(QgsField("x1", QVariant.Double))
-    fields.append(QgsField("y1", QVariant.Double))
-    fields.append(QgsField("x2", QVariant.Double))
-    fields.append(QgsField("y2", QVariant.Double))
-    fields.append(QgsField("angle", QVariant.Double))
-    fields.append(QgsField("distance", QVariant.Double))
-    fields.append(QgsField("point_id", QVariant.Int))
-    fields.append(QgsField("line_id", QVariant.Int))
+    fields.append(QgsField("x1", QMetaType.Double))
+    fields.append(QgsField("y1", QMetaType.Double))
+    fields.append(QgsField("x2", QMetaType.Double))
+    fields.append(QgsField("y2", QMetaType.Double))
+    fields.append(QgsField("angle", QMetaType.Double))
+    fields.append(QgsField("distance", QMetaType.Double))
+    fields.append(QgsField("point_id", QMetaType.Int))
+    fields.append(QgsField("line_id", QMetaType.Int))
 
     crs = point_layer.crs()
     temp_layer = QgsVectorLayer(
@@ -718,7 +718,7 @@ def _build_minimized_lines_from_selection(
     visited_segments = set()
     result_layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "road_network_reduced", "memory")
     result_provider = result_layer.dataProvider()
-    result_provider.addAttributes([QgsField("src_count", QVariant.Int)])
+    result_provider.addAttributes([QgsField("src_count", QMetaType.Int)])
     result_layer.updateFields()
 
     def _traverse_chain(start_node, next_node):
