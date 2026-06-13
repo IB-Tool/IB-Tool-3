@@ -12,7 +12,7 @@
 
 ## Description
 
-**IBTool** is a QGIS plugin for the automatic delineation of **Urban Growth Boundaries (UGBs)** based on building footprints and topographic data. It implements the method described in:
+**IBTool** is a QGIS plugin for the automatic delineation of **Urban Growth Boundaries (UGBs)** based on building footprints and topographic data. It is mostly based on the method described in:
 
 > Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. **Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study.** *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
 
@@ -198,7 +198,7 @@ This plugin is licensed under the **GNU General Public License v2.0**. You are f
 - **Created with support from**: [QGIS Plugin Builder](http://g-sherman.github.io/Qgis-Plugin-Builder/)
 - **Development assisted by**: [Claude Code](https://claude.ai/code) (Anthropic) — AI-assisted coding, documentation, and test generation. See `ai/` and `CLAUDE.md` for the project-specific AI rules and domain knowledge used during development.
 
-### Publication
+## Publication
 
 If you use IBTool in research, please cite:
 
