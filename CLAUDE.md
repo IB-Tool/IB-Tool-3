@@ -83,7 +83,8 @@ make pylint
 ## Prerequisites
 
 - QGIS 3.40–3.50, Python 3.11+
-- Dependencies: numpy, scipy, sklearn, networkx, pandas, matplotlib, geopandas, shapely
+- Runtime dependencies (all bundled with QGIS 3.40+): numpy, scipy, networkx, PyQt5
+- Dev/test dependencies (not bundled): pytest, pytest-cov (see requirements-dev.txt)
 
 ## Important Notes
 
