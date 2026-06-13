@@ -26,7 +26,7 @@ from ..helpers.safe_processing import safe_processing_run
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
 # ---------------------------------------------------------------------------
-_DEBUG_TOOL_NAME = "06_GapClose"
+_DEBUG_TOOL_NAME = "07_GapClose"
 
 # ---------------------------------------------------------------------------
 # Module-level constants
@@ -59,12 +59,20 @@ BOUNDARY_OVERLAP_THRESHOLD_PCT = 70
 BOUNDARY_OVERLAP_STRICT_PCT = 90
 """Strict minimum share (%) for large gaps that are almost fully enclosed."""
 
+MAX_NARROW_GAP_EXTENT_M = 70
+"""Maximum bounding-box extent (m) for supplementary large-gap selection (Filter 2c).
+
+Gaps that exceeded the area cap and were not captured by the 90 %-filter are
+kept if their longest axis-aligned bounding-box side is shorter than this
+threshold — meaning they are compact/narrow rather than large open areas.
+"""
+
 MIN_GAP_AREA_SCALE_FACTOR = 200
 """Base area (m²) for the artefact filter; scaled by ``gap_dist / 15``."""
 
 # Hole analysis
-HOLE_DETECTION_THRESHOLD_M2 = 1_000_000
-"""Area threshold (m²) — fills all realistic holes to expose hole polygons (1 km²)."""
+HOLE_DETECTION_THRESHOLD_M2 = 10_000
+"""Area threshold (m²) — fills all realistic holes to expose hole polygons (1 ha)."""
 
 MIN_PROCESSED_HOLE_AREA_M2 = 500
 """Minimum area (m²) a morphologically closed hole candidate must have to be kept."""
@@ -309,7 +317,7 @@ def _close_block_gaps(input_diss, blocks, max_hole_size, max_gap_size, crs, _dbg
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(hole_closed, _DEBUG_TOOL_NAME, "01_hole_closed", workspace_path)
+        save_debug_layer(hole_closed, _DEBUG_TOOL_NAME, "hole_closed", workspace_path)
 
     # Fix geometries on both inputs to prevent sym-diff failures
     blocks_fixed = safe_processing_run("native:fixgeometries", {
@@ -333,7 +341,7 @@ def _close_block_gaps(input_diss, blocks, max_hole_size, max_gap_size, crs, _dbg
         'GRID_SIZE': TOPOLOGY_GRID_SIZE
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(block_sym_diff, _DEBUG_TOOL_NAME, "03_block_sym_diff", workspace_path)
+        save_debug_layer(block_sym_diff, _DEBUG_TOOL_NAME, "block_sym_diff", workspace_path)
 
     # Explode multipart polygons so each gap fragment is a separate feature
     block_sym_diff_single = safe_processing_run("native:multiparttosingleparts", {
@@ -348,13 +356,13 @@ def _close_block_gaps(input_diss, blocks, max_hole_size, max_gap_size, crs, _dbg
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(selected_areas, _DEBUG_TOOL_NAME, "04_selected_areas", workspace_path)
+        save_debug_layer(selected_areas, _DEBUG_TOOL_NAME, "selected_areas", workspace_path)
 
     # Confirm that candidate gaps share >= BOUNDARY_OVERLAP_THRESHOLD_PCT of their
     # boundary with the settlement — filters out block fragments that are not actual gaps
     merged_gap = _gap_select(hole_closed, selected_areas, crs, BOUNDARY_OVERLAP_THRESHOLD_PCT)
     if debug_mode and workspace_path:
-        save_debug_layer(merged_gap, _DEBUG_TOOL_NAME, "05_merged_gap", workspace_path)
+        save_debug_layer(merged_gap, _DEBUG_TOOL_NAME, "merged_gap", workspace_path)
 
     # Absorb confirmed gap polygons into the settlement polygon and dissolve
     merged_output = safe_processing_run("native:mergevectorlayers", {
@@ -367,7 +375,7 @@ def _close_block_gaps(input_diss, blocks, max_hole_size, max_gap_size, crs, _dbg
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(dissolved_output, _DEBUG_TOOL_NAME, "06_dissolved_output", workspace_path)
+        save_debug_layer(dissolved_output, _DEBUG_TOOL_NAME, "dissolved_output", workspace_path)
 
     # Close gaps embedded inside large interior holes (missed by both other approaches)
     try:
@@ -381,7 +389,7 @@ def _close_block_gaps(input_diss, blocks, max_hole_size, max_gap_size, crs, _dbg
             level="WARNING"
         )
     if debug_mode and workspace_path:
-        save_debug_layer(dissolved_output, _DEBUG_TOOL_NAME, "07_hole_gaps_closed", workspace_path)
+        save_debug_layer(dissolved_output, _DEBUG_TOOL_NAME, "hole_gaps_closed", workspace_path)
 
     # Final hole removal to clean up any remaining small interior rings
     holes_closed = safe_processing_run("native:deleteholes", {
@@ -435,7 +443,7 @@ def _close_buffer_gaps(holes_closed, input_layer, max_hole_size, max_gap_size,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(initial_buffer, _DEBUG_TOOL_NAME, "08_initial_buffer", workspace_path)
+        save_debug_layer(initial_buffer, _DEBUG_TOOL_NAME, "initial_buffer", workspace_path)
 
     # Extract the outer boundary of the expanded polygon as lines
     boundary_line = safe_processing_run("native:polygonstolines", {
@@ -458,7 +466,7 @@ def _close_buffer_gaps(holes_closed, input_layer, max_hole_size, max_gap_size,
         'GRID_SIZE': TOPOLOGY_GRID_SIZE,
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(poly_cut_1, _DEBUG_TOOL_NAME, "10_poly_cut_inner_ring", workspace_path)
+        save_debug_layer(poly_cut_1, _DEBUG_TOOL_NAME, "poly_cut_inner_ring", workspace_path)
 
     # Subtract original buildings so gap candidates contain only empty space
     poly_cut_2 = safe_processing_run("native:difference", {
@@ -468,7 +476,7 @@ def _close_buffer_gaps(holes_closed, input_layer, max_hole_size, max_gap_size,
         'GRID_SIZE': TOPOLOGY_GRID_SIZE,
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(poly_cut_2, _DEBUG_TOOL_NAME, "11_poly_cut_minus_buildings", workspace_path)
+        save_debug_layer(poly_cut_2, _DEBUG_TOOL_NAME, "poly_cut_minus_buildings", workspace_path)
 
     # Small positive buffer to close sub-metre topology gaps in the candidates
     poly_cut_2_puffer = safe_processing_run("native:buffer", {
@@ -491,7 +499,7 @@ def _close_buffer_gaps(holes_closed, input_layer, max_hole_size, max_gap_size,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(small_removed, _DEBUG_TOOL_NAME, "12_small_removed", workspace_path)
+        save_debug_layer(small_removed, _DEBUG_TOOL_NAME, "small_removed", workspace_path)
 
     # Filter 2: >= BOUNDARY_OVERLAP_THRESHOLD_PCT of boundary touching settlement.
     # Uses holes_closed (1 dissolved feature) instead of input_layer (N buildings):
@@ -500,13 +508,13 @@ def _close_buffer_gaps(holes_closed, input_layer, max_hole_size, max_gap_size,
     # holes_closed is geometrically correct: inter-cluster gap edges lie on its perimeter.
     final_gap1 = _gap_select(holes_closed, small_removed, crs, BOUNDARY_OVERLAP_THRESHOLD_PCT)
     if debug_mode and workspace_path:
-        save_debug_layer(final_gap1, _DEBUG_TOOL_NAME, "13.1_final_gap1_70pct", workspace_path)
+        save_debug_layer(final_gap1, _DEBUG_TOOL_NAME, "final_gap1_70pct", workspace_path)
     Logger.log(f"GapClose – final_gap1 (70%): {final_gap1.featureCount()} features", level="INFO")
 
     # Filter 3: Strict variant — >= BOUNDARY_OVERLAP_STRICT_PCT for large enclosed gaps
     final_gap2 = _gap_select(holes_closed, small_removed, crs, BOUNDARY_OVERLAP_STRICT_PCT)
     if debug_mode and workspace_path:
-        save_debug_layer(final_gap2, _DEBUG_TOOL_NAME, "13.2_final_gap2_90pct", workspace_path)
+        save_debug_layer(final_gap2, _DEBUG_TOOL_NAME, "final_gap2_90pct", workspace_path)
     Logger.log(f"GapClose – final_gap2 (90%): {final_gap2.featureCount()} features", level="INFO")
 
     # Filter 2b: From the 70%-selection, keep only polygons smaller than max_gap_size
@@ -516,23 +524,109 @@ def _close_buffer_gaps(holes_closed, input_layer, max_hole_size, max_gap_size,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(gap_poly_max_size, _DEBUG_TOOL_NAME, "14_gap_poly_max_size", workspace_path)
+        save_debug_layer(gap_poly_max_size, _DEBUG_TOOL_NAME, "gap_poly_max_size", workspace_path)
     Logger.log(
         f"GapClose – gap_poly_max_size: {gap_poly_max_size.featureCount()} features "
         f"after area filter (< {max_gap_size} m²)",
         level="INFO"
     )
 
-    # Merge size-filtered gaps, large enclosed gaps, and settlement; dissolve to absorb all
+    # Filter 2c: Large gaps in final_gap1 not covered by gap_poly_max_size or final_gap2.
+    # These exceeded the area cap (area >= max_gap_size) and have only 70–90 % boundary
+    # overlap. Among them, compact shapes whose longest bounding-box side is shorter than
+    # MAX_NARROW_GAP_EXTENT_M are still visually enclosed and should be closed.
+    large_unselected = safe_processing_run("qgis:extractbyexpression", {
+        'INPUT': final_gap1,
+        'EXPRESSION': f'area($geometry) >= {max_gap_size}',
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    })['OUTPUT']
+
+    if final_gap2.featureCount() > 0:
+        # Exclude features already captured by final_gap2 (≥90 % overlap)
+        large_unselected = safe_processing_run("native:extractbylocation", {
+            'INPUT': large_unselected,
+            'PREDICATE': [2],  # disjoint
+            'INTERSECT': final_gap2,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        })['OUTPUT']
+
+    if debug_mode and workspace_path:
+        save_debug_layer(large_unselected, _DEBUG_TOOL_NAME, "large_unselected", workspace_path)
+    Logger.log(
+        f"GapClose – large_unselected (area >= {max_gap_size} m², not in final_gap2): "
+        f"{large_unselected.featureCount()} features",
+        level="INFO"
+    )
+
+    if large_unselected.featureCount() > 0:
+        densified = safe_processing_run("native:densifygeometriesgivenaninterval", {
+            'INPUT': large_unselected,
+            'INTERVAL': 10,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }, **_dbg)['OUTPUT']
+
+        mosaik = safe_processing_run("3d:tessellate", {
+            'INPUT': densified,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }, **_dbg)['OUTPUT']
+
+        if debug_mode and workspace_path:
+            save_debug_layer(mosaik, _DEBUG_TOOL_NAME, "mosaik_tessellated", workspace_path)
+
+        mosaik_single = safe_processing_run("native:multiparttosingleparts", {
+            'INPUT': mosaik,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }, **_dbg)['OUTPUT']
+
+        with_edge_len = safe_processing_run("native:fieldcalculator", {
+            'INPUT': mosaik_single,
+            'FIELD_NAME': 'longest_side_m',
+            'FIELD_TYPE': 0,
+            'FIELD_LENGTH': 20,
+            'FIELD_PRECISION': 2,
+            'FORMULA': (
+                "with_variable('p0', point_n($geometry, 1),"
+                " with_variable('p1', point_n($geometry, 2),"
+                " with_variable('p2', point_n($geometry, 3),"
+                " max(distance(@p0, @p1), distance(@p1, @p2), distance(@p2, @p0)))))"
+            ),
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }, **_dbg)['OUTPUT']
+
+        if debug_mode and workspace_path:
+            save_debug_layer(with_edge_len, _DEBUG_TOOL_NAME, "triangles_with_edge_len", workspace_path)
+        Logger.log(
+            f"GapClose – tessellated triangles: {with_edge_len.featureCount()} features",
+            level="INFO"
+        )
+
+        narrow_large_gaps = safe_processing_run("qgis:extractbyexpression", {
+            'INPUT': with_edge_len,
+            'EXPRESSION': f'"longest_side_m" < {MAX_NARROW_GAP_EXTENT_M}',
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }, **_dbg)['OUTPUT']
+    else:
+        narrow_large_gaps = large_unselected  # empty layer, featureCount() == 0
+
+    if debug_mode and workspace_path:
+        save_debug_layer(narrow_large_gaps, _DEBUG_TOOL_NAME, "narrow_large_gaps", workspace_path)
+    Logger.log(
+        f"GapClose – narrow_large_gaps (extent < {MAX_NARROW_GAP_EXTENT_M} m): "
+        f"{narrow_large_gaps.featureCount()} features",
+        level="INFO"
+    )
+
+    # Merge size-filtered gaps, large enclosed gaps, narrow large gaps, and settlement
     Logger.log(
         f"GapClose – merge input counts: "
         f"gap_poly_max_size={gap_poly_max_size.featureCount()}, "
         f"final_gap2={final_gap2.featureCount()}, "
+        f"narrow_large_gaps={narrow_large_gaps.featureCount()}, "
         f"holes_closed={holes_closed.featureCount()}",
         level="INFO"
     )
     merged_final = safe_processing_run("native:mergevectorlayers", {
-        'LAYERS': [gap_poly_max_size, final_gap2, holes_closed],
+        'LAYERS': [gap_poly_max_size, final_gap2, narrow_large_gaps, holes_closed],
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
 
@@ -554,7 +648,7 @@ def _close_buffer_gaps(holes_closed, input_layer, max_hole_size, max_gap_size,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     })['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(dissolved_final_hole_closed, _DEBUG_TOOL_NAME, "15_result", workspace_path)
+        save_debug_layer(dissolved_final_hole_closed, _DEBUG_TOOL_NAME, "result", workspace_path)
 
     # Tiny positive buffer to snap any sub-millimetre topology gaps in the result
     final_buffer = safe_processing_run("native:buffer", {
@@ -667,7 +761,7 @@ def gap_close_in_holes(input_layer, buffer_dist=15,
         'GRID_SIZE': TOPOLOGY_GRID_SIZE,
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(holes, _DEBUG_TOOL_NAME, "07.1_holes_identified", workspace_path)
+        save_debug_layer(holes, _DEBUG_TOOL_NAME, "holes_identified", workspace_path)
 
     if holes.featureCount() == 0:
         return input_layer
@@ -728,7 +822,7 @@ def gap_close_in_holes(input_layer, buffer_dist=15,
         'GRID_SIZE': TOPOLOGY_GRID_SIZE,
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(holes_shrunk, _DEBUG_TOOL_NAME, "07.3_holes_shrunk", workspace_path)
+        save_debug_layer(holes_shrunk, _DEBUG_TOOL_NAME, "holes_shrunk", workspace_path)
 
     # Tiny positive buffer to close sub-metre topology gaps before splitting to singlepart
     holes_shrunk_puffer = safe_processing_run("native:buffer", {
@@ -758,7 +852,7 @@ def gap_close_in_holes(input_layer, buffer_dist=15,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(holes_to_close, _DEBUG_TOOL_NAME, "07.4_holes_to_close", workspace_path)
+        save_debug_layer(holes_to_close, _DEBUG_TOOL_NAME, "holes_to_close", workspace_path)
 
     if holes_to_close.featureCount() == 0:
         return input_layer
@@ -774,6 +868,6 @@ def gap_close_in_holes(input_layer, buffer_dist=15,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
-        save_debug_layer(result, _DEBUG_TOOL_NAME, "07.5_result", workspace_path)
+        save_debug_layer(result, _DEBUG_TOOL_NAME, "holes_result", workspace_path)
 
     return result
