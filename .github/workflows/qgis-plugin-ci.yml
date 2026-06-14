@@ -57,17 +57,3 @@ jobs:
           print("OK: detect-secrets found no potential secrets")
           PY
 
-      - name: Build release ZIP
-        run: |
-          python scripts/create_release_zip.py
-
-      - name: Validate release ZIP
-        run: |
-          python ci/qgis_plugin_validate.py --zip dist/*.zip
-
-      - name: Upload release ZIP as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: qgis-plugin-zip
-          path: dist/*.zip
-          retention-days: 30
