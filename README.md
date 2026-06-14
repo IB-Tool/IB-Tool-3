@@ -51,7 +51,7 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
 - **Debug mode:**
   - Checkbox in the dialog enables per-module GeoPackage snapshots written to `workspace/debug/<Module>/`.
   - Files are numbered sequentially (`001_after_positive_filter.gpkg`, …) and sort chronologically in any GIS.
-  - All major processing modules supported: `Blocker`, `AddSingleBuilding`, `EdgeCatch`, `GapClose`, `GapFix`, `ImportFilter`, `MST_Clustering`, `PatchRemove`.
+  - All major processing modules supported: `Blocker`, `AddSingleBuilding`, `EdgeCatch`, `GapClose`, `ImportFilter`, `MST_Clustering`, `PatchRemove`.
 
 - **QGIS integration:**
   - Processes `.shp` and `.gpkg` inputs; writes results as GeoPackages.
@@ -169,7 +169,6 @@ The plugin processes each partition through a fixed sequence of steps:
 7. **EdgeCatch** — snaps boundaries to road network (nearest road within 25 m)
 8. **GapClose** — closes enclosed holes above area threshold; bridges narrow gaps at the fringe
 9. **PatchRemove** — removes splinter areas below size and building-count thresholds
-10. **GapFix** — topological gap repair between partition boundaries using buffer-ring intersection
 
 For the full algorithmic description including pseudocode, parameter references, and accuracy results, see **[docs/how-it-works.md](docs/how-it-works.md)**.
 

@@ -31,8 +31,7 @@ ibtool/                    # Plugin root (QGIS package)
 │   ├── HoleClose.py     # Hole closing
 │   ├── EdgeCatch.py     # Edge detection
 │   ├── AddSingleBuilding.py # Single building processing
-│   ├── PatchRemove.py   # Patch removal
-│   └── GapFix.py        # Gap fixing between partitions
+│   └── PatchRemove.py   # Patch removal
 ├── ibtool/              # Nested package for main plugin class
 │   ├── ibtool.py        # Main plugin class
 │   └── ibtool_dialog.py # UI dialog
@@ -130,7 +129,6 @@ For task-specific rules and deeper context, consult these files:
 | [feature-processing.md](ai/domain/feature-processing.md) | Feature iteration, attribute joins, field calculator, ID handling, layer creation |
 | [mst-architecture.md](ai/domain/mst-architecture.md) | Current MST module state, target architecture, refactoring plan |
 | [mst-testing.md](ai/domain/mst-testing.md) | MST test files, fixtures, markers, performance benchmarks, known issues |
-| [gap-fix.md](ai/domain/gap-fix.md) | GapFix algorithm (donut-ring gap detection), dissolve workaround, debug layers |
 | [gap-close.md](ai/domain/gap-close.md) | GapClose design decisions, dissolve/dissolve-in-large-layer workarounds, constants |
 
 ### `ai/tasks/` — Task Templates
