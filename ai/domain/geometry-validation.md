@@ -117,7 +117,7 @@ if not intersection.isEmpty():
 
 ### Gaps
 
-Gaps between adjacent polygons are handled by `GapClose` and `GapFix`. Completeness check:
+Gaps between adjacent polygons are handled by `GapClose`. Completeness check:
 
 - Form the union of all polygons
 - Compare with the expected boundary

@@ -131,28 +131,6 @@ The configurable **parameters** control different stages of this process and gov
 
 ---
 
-### `erosion_width` — Linearity Erosion Half-Width (GapFix)
-
-- **Type:** Float (m), or `None`
-- **Function:** Used by `gap_fix()` Step 5b to test whether a candidate gap zone is locally narrow. The gap zone is shrunk by `buffer(-erosion_width)`; the share of vanished area feeds the linearity decision.
-- **Default:** `None` ⇒ resolves to `max_gap / 2` (with the internal `max_gap=10.0` default this is `5.0 m`).
-- **Background:** Negative-buffer erosion captures local width regardless of branching topology, so it works for tree-like / multi-pronged gap zones where global hull measures (OMBR aspect ratio, Polsby-Popper) fail.
-- **Effect:** Larger values disqualify more zones as non-linear (strict); smaller values pass more zones (lenient). Setting `erosion_width` to an absolute value decouples the linearity threshold from `max_gap`.
-
----
-
-### `linearity_area_fraction` — Linearity Area-Fraction Threshold (GapFix)
-
-- **Type:** Float (0.0–1.0)
-- **Function:** Used by `gap_fix()` Step 5b together with `erosion_width`. A candidate gap zone is classified as linear when at least this fraction of its area disappears after erosion.
-- **Default:** `0.7` (70 % of area must vanish).
-- **Background:** Trades off how blocky a gap is allowed to be before it counts as "open space worth keeping". Lower fractions tolerate thicker knots in otherwise narrow branching gaps.
-- **Effect:**
-  - `0.0` disables the filter — all valid gap zones are merged (legacy behaviour).
-  - Around `0.5` keeps moderately branched corridors; `0.7`–`0.8` enforces predominantly narrow shapes; `> 0.85` only merges very pronounced linear strips.
-
----
-
 ### `footprint_density_threshold` — Density Threshold for Dense-Block Identification in PatchRemove
 
 - **Type:** Float
@@ -186,8 +164,6 @@ The configurable **parameters** control different stages of this process and gov
 | `min_patch_size` | 10,000 m² | Noise suppression; removes splinter areas | medium |
 | `max_hole_size` | 10,000 m² | Fills enclosed open spaces within settlements | medium |
 | `max_gap_size` | 4,900 m² | Bridges building gaps at the settlement edge | high |
-| `erosion_width`* | `max_gap/2` | Linearity-filter half-width in `gap_fix()` Step 5b | medium |
-| `linearity_area_fraction`* | 0.7 | Min. area share to vanish under erosion in `gap_fix()` Step 5b | medium |
 | `footprint_density_threshold`* | 18 | Dense-block retention threshold in PatchRemove | low |
 | `footprint_area_sum`* | 6,000 m² | Minimum footprint area for dense-block retention | low |
 

@@ -151,7 +151,5 @@ extent.
 ## Related Files
 
 - `ibtool_tools/GapClose.py` — implementation
-- `ibtool_tools/GapFix.py` — post-partition gap fixing (called after merge)
-- `ai/domain/gap-fix.md` — GapFix domain reference
 - `helpers/safe_processing.py` — `safe_processing_run()` wrapper
 - `docs/how-it-works.md` — user-facing pipeline overview (Step 9)

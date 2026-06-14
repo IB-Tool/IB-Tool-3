@@ -170,7 +170,6 @@ Tests are located in the `test/` directory and run with pytest:
 | `test_data_loader.py` | Data loading functions |
 | `test_ibtool.py` | Main plugin class |
 | `test_ibtool_dialog.py` | UI dialog |
-| `test_gap_fix.py` | GapFix module |
 | `test_footprint_density.py` | Footprint density calculations |
 | `test_gap_close.py` | GapClose module |
 | `test_hole_close.py` | HoleClose module |

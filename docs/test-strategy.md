@@ -93,7 +93,7 @@ These are per-category floor values, not aspirational goals. Coverage below thes
 | QGIS-wrapping helpers | `data_loader.py`, `geometry_utils.py`, `safe_processing.py`, `debug_utils.py`, `mst_utils.py`, `edge_catch_utils.py` | 80% |
 | Logger / message infrastructure | `logger.py`, `message.py` | 75% |
 | Constants file | `qgis_defaults.py` | Smoke test only (instantiation + default values) |
-| All `ibtool_tools/` geometry tools | `GapClose.py`, `HoleClose.py`, `EdgeCatch.py`, `AddSingleBuilding.py`, `PatchRemove.py`, `ImportFilter.py`, `FootprintDensity.py`, `GapFix.py` | 80% |
+| All `ibtool_tools/` geometry tools | `GapClose.py`, `HoleClose.py`, `EdgeCatch.py`, `AddSingleBuilding.py`, `PatchRemove.py`, `ImportFilter.py`, `FootprintDensity.py` | 80% |
 | Complex multi-step tools | `Blocker.py`, `MST_Clustering.py` | 75% |
 | MST tools | `CreateMST.py` | See [`ai/domain/mst-testing.md`](../ai/domain/mst-testing.md) (overall >90%, core algorithms >95%) |
 | UI layer | `ibtool/ibtool.py`, `ibtool/ibtool_dialog.py` | 65–70% |
@@ -124,7 +124,7 @@ Current functions in `layer_factories.py`:
 - `make_square_geom(x0, y0, size)` — axis-aligned square `QgsGeometry`
 - `add_feature_to_layer(layer, geom)` — adds a `QgsFeature` and returns it
 
-**Per-file:** Domain-specific layouts (exact building positions, street networks, block structures) stay in the file that uses them. Example: `_make_two_block_layer()` in `test_gap_fix.py`.
+**Per-file:** Domain-specific layouts (exact building positions, street networks, block structures) stay in the file that uses them. Example: `_make_two_block_layer()` in `test_gap_close.py`.
 
 ### Fixture scope rules
 
@@ -172,7 +172,6 @@ Cross-reference of every production module, its test file, approximate test coun
 | `EdgeCatch.py` | `test_edge_catch.py` | 14 | integration | Performance cases |
 | `AddSingleBuilding.py` | `test_add_single_building.py` | 8 | integration | — |
 | `PatchRemove.py` | `test_patch_remove.py` | 9 | integration | — |
-| `GapFix.py` | `test_gap_fix.py` | 13 | integration | — |
 | `ErodeEmptyAreas.py` | `test_erode_empty_areas.py` | 17 | unit + integration | Performance tests |
 
 ### ibtool/ (UI + plugin)
@@ -269,7 +268,7 @@ def test_gap_is_closed_when_below_threshold(self):
 
 | Gap | Action |
 |---|---|
-| Performance tests missing for `FootprintDensity` and `GapFix` | Add `@pytest.mark.performance` + `@pytest.mark.slow` tests with 100+ feature datasets |
+| Performance tests missing for `FootprintDensity` | Add `@pytest.mark.performance` + `@pytest.mark.slow` tests with 100+ feature datasets |
 | Performance tests missing for `Blocker` | Add `@pytest.mark.performance` + `@pytest.mark.slow` test with 200+ buildings |
 | `EdgeCatch` performance coverage thin | Add performance test with a large street network dataset |
 

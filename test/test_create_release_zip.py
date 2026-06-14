@@ -157,7 +157,7 @@ class TestIsExcluded:
     @pytest.mark.unit
     def test_nested_source_file_is_not_excluded(self):
         """A Python file nested two levels deep in a kept directory passes through."""
-        rel = Path("ibtool") / "ibtool_tools" / "GapFix.py"
+        rel = Path("ibtool") / "ibtool_tools" / "GapClose.py"
         assert not is_excluded(rel)
 
     @pytest.mark.unit

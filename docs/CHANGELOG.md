@@ -9,20 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Removed
+- **GapFix** (`ibtool_tools/GapFix.py`, `test/test_gap_fix.py`, `ai/domain/gap-fix.md`): module removed from the pipeline and codebase. The buffer-ring intersection approach for inter-polygon gap repair is no longer called; `gap_close()` followed by `patch_remove()` covers the relevant cases.
+
 ### Added
 - **GapClose Filter 2c — narrow large gaps** (`ibtool_tools/GapClose.py`): large gaps (area ≥ `max_gap_size`) not captured by the 90%-overlap filter are now additionally tested by tessellation: each candidate is densified, tessellated into triangles, and the longest triangle edge per feature is recorded. Gaps where the longest edge is shorter than `MAX_NARROW_GAP_EXTENT_M` (70 m) are considered compact/narrow and are absorbed into the settlement. New constant `MAX_NARROW_GAP_EXTENT_M = 70`.
 - **Per-partition debug workspace** (`ibtool/ibtool.py`): in debug mode, `_run_partition_pipeline()` now creates a `debug/PART_{name}/` sub-folder per partition and passes it to all tool calls (`blocker`, `input_hu_filter`, `mst_clustering`, `add_single_bdg`, `edge_catch`, `erode_empty_areas`, `gap_close`, `patch_remove`). Debug layers from different partitions are now stored in separate folders instead of being mixed in a single directory.
-- **GapFix linearity filter for gap zones** (`ibtool_tools/GapFix.py`): Step 5b classifies each candidate inter-polygon gap zone via erosion (negative buffer + area-fraction threshold). Only narrow / corridor-like gaps are merged into the neighboring polygon; blocky gap zones (plazas, real open spaces) stay open. Controlled by the new parameters `erosion_width` (default `max_gap/2`) and `linearity_area_fraction` (default `0.7`); setting `linearity_area_fraction=0.0` disables the filter. Step 4 now splits MultiPolygon ring intersections into single connected components so each gap piece is classified independently. Two new debug layers when `debug_mode=True`: `step5b_linear_gaps`, `step5b_discarded_blocky_gaps` — both carry `uid_a`, `uid_b`, `linearity_index`, `total_area`, `eroded_area`.
-- **GapFix no longer closes interior holes** (`ibtool_tools/GapFix.py`): the polygonstolines+polygonize trick in Step 1 has been removed. Step 1 now only dissolves adjacent polygons via `collect`+`buffer(0)`; interior holes pass through unchanged. Hole handling is delegated to a separate pipeline step (planned).
-- **GapFix debug mode wired into pipeline** (`ibtool/ibtool.py`): `gap_fix()` now receives the global `debug_mode` flag from `_run_partition_pipeline()` (previously always defaulted to `False`).
-- **GapFix integrated into pipeline** (`ibtool/ibtool.py`): `gap_fix()` is now called after `gap_close()` and before `patch_remove()` in `_run_partition_pipeline()`; its output is passed directly into `patch_remove`.
 - **GeoPackage support** (`data_loader.py`, `ibtool.py`): File dialogs accept `.gpkg` in addition to `.shp`.
 - **Checksum-based validation skip** (`ibtool.py`, `system_utils.py`): Repeated *Check* clicks with unchanged files reuse cached `ValidationResult` instead of reloading layers.
 - **Cross-session validation cache** (`config_manager.py`, `ibtool.py`): Checksums and `ValidationResult` persisted to `CONFIG.ini [VALIDATION_CACHE]`, surviving plugin restarts.
 - **"Reset Config" button** (`ibtool_dialog_base.ui`, `ibtool.py`): Deletes `CONFIG.ini`, resets all fields to factory defaults.
 - **`compute_file_checksum()`** (`system_utils.py`): MD5 file digest helper (8 kB chunks, `usedforsecurity=False`).
 - **Pre-commit security hooks**: Bandit and detect-secrets integrated; `.secrets.baseline` added.
-- **AI rules & documentation** (`ai/core/`, `ai/domain/`, `ai/tasks/`, `CLAUDE.md`): Architecture guidelines, naming conventions, testing rules, QGIS API rules, debug mode, domain knowledge (MST, GapFix, GapClose, geometry validation, feature processing), and task templates (bugfix, refactor, new feature, QGIS processing).
+- **AI rules & documentation** (`ai/core/`, `ai/domain/`, `ai/tasks/`, `CLAUDE.md`): Architecture guidelines, naming conventions, testing rules, QGIS API rules, debug mode, domain knowledge (MST, GapClose, geometry validation, feature processing), and task templates (bugfix, refactor, new feature, QGIS processing).
 
 ### Fixed
 - **ErodeEmptyAreas `_contact_fraction_filter` — three logic bugs** (`ErodeEmptyAreas.py`):
