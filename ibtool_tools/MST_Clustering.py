@@ -36,6 +36,11 @@ _BOUNDING_RECT_EXTENSION = 10_000
 # Length of the horizontal reference vector used when measuring line orientation angles.
 _REFERENCE_VECTOR_LENGTH = 100
 
+# Minimum edge length as a fraction of the longest edge per building.
+# Edges below this ratio are arc segments of circular geometry parts and are
+# excluded from the dominant-angle pool to prevent orientation bias.
+_MIN_EDGE_LENGTH_RATIO = 0.20
+
 
 def _main_angle(angle_length_pairs: list[tuple[float, float]], max_diff: float) -> float:
     """Determine the dominant angle from a list of angle-length pairs.
@@ -169,6 +174,28 @@ def _vector_angle(
             ang = 180 - ang
 
     return ang
+
+
+def _filter_short_edges(edge_rows: list[list]) -> list[list]:
+    """Return only edges whose length meets the minimum ratio threshold.
+
+    Removes arc-segment noise from circular building parts while preserving
+    straight edges of rectangular shapes. Falls back to the full list when
+    fewer than two edges would survive (e.g. degenerate single-edge polygon).
+
+    Args:
+        edge_rows: List of ``[x1, y1, x2, y2, length]`` rows for one building.
+
+    Returns:
+        Filtered list, or the original list if the filter would leave fewer
+        than two edges.
+    """
+    if not edge_rows:
+        return edge_rows
+    max_len = max(row[4] for row in edge_rows)
+    threshold = max_len * _MIN_EDGE_LENGTH_RATIO
+    filtered = [row for row in edge_rows if row[4] >= threshold]
+    return filtered if len(filtered) >= 2 else edge_rows
 
 
 def calc_bounding_rect(
@@ -412,6 +439,7 @@ def mst_clustering(
         current_fid = fid_orig
     hu_line_array.append([current_fid, sublist])
     dict_hu = dict(list(hu_line_array))
+    dict_hu = {fid: _filter_short_edges(rows) for fid, rows in dict_hu.items()}
 
     # Preserve original feature IDs as attributes before spatial join
     hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QMetaType.Int)])
@@ -529,7 +557,7 @@ def mst_clustering(
 
             rect, area_rect = calc_bounding_rect(members_coords, empty_polygon_layer, "list", crs)
             sum_area = sum(dict_fid_area[fid] for fid in members_group)
-            ratio = sum_area / area_rect * 100
+            ratio = sum_area / area_rect * 100 if area_rect else 0
 
             if ratio > overlap_ratio:
                 dict_group_all_members[group_id] = members_group
@@ -554,7 +582,7 @@ def mst_clustering(
             coords1.extend(coords2)
 
             rect, area_rect = calc_bounding_rect(coords1, empty_polygon_layer, "list", crs)
-            ratio = (area1 + area2) / area_rect * 100
+            ratio = (area1 + area2) / area_rect * 100 if area_rect else 0
 
             if ratio > overlap_ratio:
                 dict_member_group[orig_fid1] = group_number
