@@ -1,4 +1,4 @@
-# IBTool
+# IBTool 3
 
 [![CI](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/ci.yml/badge.svg)](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/ci.yml)
 [![QGIS Plugin CI](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml/badge.svg)](https://github.com/K3lT10N/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml)
