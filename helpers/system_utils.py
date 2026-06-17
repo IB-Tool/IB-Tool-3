@@ -31,7 +31,7 @@ def compute_file_checksum(path: str, chunk_size: int = 8192) -> str:
         Hex-encoded MD5 digest, or ``""`` on any I/O error.
     """
     try:
-        h = hashlib.md5(usedforsecurity=False)  # nosec B324 — checksum only, not crypto
+        h = hashlib.md5(usedforsecurity=False)  # nosec B303, B324 — checksum only, not crypto
         with open(path, 'rb') as fh:
             for chunk in iter(lambda: fh.read(chunk_size), b''):
                 h.update(chunk)
