@@ -1677,3 +1677,15 @@ class TestOpenDirectory:
             mock_sys.platform = "linux"
             _open_directory("/tmp/result")
         mock_popen.assert_called_once_with(["xdg-open", "/tmp/result"])
+
+    @pytest.mark.unit
+    def test_non_xdg_platform_emits_message_on_missing_xdg_open(self):
+        """On a POSIX platform without xdg-open, _open_directory must emit a user message."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.subprocess.Popen", side_effect=FileNotFoundError), \
+             patch("ibtool.ibtool.ibtool.msg") as mock_msg:
+            mock_sys.platform = "linux"
+            _open_directory("/fake/output/dir")
+        mock_msg.assert_called_once()
+        assert "xdg-open" in mock_msg.call_args[0][0]

@@ -86,7 +86,10 @@ def _open_directory(path: str) -> None:
     elif sys.platform == "darwin":
         subprocess.Popen(["open", path])  # nosec B603, B607
     else:
-        subprocess.Popen(["xdg-open", path])  # nosec B603, B607
+        try:
+            subprocess.Popen(["xdg-open", path])  # nosec B603, B607
+        except FileNotFoundError:
+            msg("Cannot open folder: xdg-open not found on this system.")
 
 
 class IBTool:  # pylint: disable=too-many-instance-attributes
