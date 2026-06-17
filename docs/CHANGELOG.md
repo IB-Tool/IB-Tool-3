@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+---
+
+## 0.2.0 — 2026-06-17
+
 ### Removed
 - **GapFix** (`ibtool_tools/GapFix.py`, `test/test_gap_fix.py`, `ai/domain/gap-fix.md`): module removed from the pipeline and codebase. The buffer-ring intersection approach for inter-polygon gap repair is no longer called; `gap_close()` followed by `patch_remove()` covers the relevant cases.
 
@@ -66,6 +70,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Tests
 - New tests for `_update_phase`, `_load_input_layers`, `_run_partition_pipeline`, `compute_file_checksum`, `_delete_config`, checksum caching, and validation skip logic.
 - Security annotations (`nosec B108`, `pragma: allowlist secret`) for false positives.
+
+### Added
+- **Dependency guard** (`__init__.py`): Plugin detects missing `scipy`/`networkx` at load
+  time and shows a persistent `QgsMessageBar` error with the exact `pip install` command
+  instead of a cryptic Python traceback.
+- **Cross-platform folder open** (`ibtool/ibtool.py`): `_open_directory()` replaces
+  `os.startfile()` — uses `open` on macOS and `xdg-open` on Linux.
+- **Quickstart guide** (`docs/quickstart.md`): Step-by-step installation and first-run
+  guide for non-developer users.
+
+### Changed
+- **Version** (`metadata.txt`): bumped from `0.1.6` to `0.2.0`.
+- **Experimental flag** (`metadata.txt`): `experimental=True` → `experimental=False`.
+
+### Removed
+- **`ProcessingThread` stub** (`ibtool/ibtool.py`): Dead code removed;
+  `cancel_processing` updated to a no-op with an informational message.
 
 ---
 
