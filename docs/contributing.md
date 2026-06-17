@@ -89,7 +89,7 @@ docker run --rm -it qgis-plugin-test /bin/bash
 | `python3-scipy` | Delaunay triangulation, spatial distance | Runtime |
 | `python3-networkx` | MST graph algorithms | Runtime |
 
-All runtime packages are also bundled with QGIS 3.40+ and are only listed here to ensure they are available in the Docker test environment where QGIS is not the system package manager.
+numpy and PyQt5 are bundled with QGIS 3.40+. scipy and networkx may not be present depending on the QGIS installation and platform, so they are installed explicitly via apt. When running the plugin outside Docker: `pip install scipy networkx`.
 
 ---
 
