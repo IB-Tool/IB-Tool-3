@@ -1653,7 +1653,7 @@ class TestOpenDirectory:
         """On win32, _open_directory must call os.startfile with the given path."""
         from ibtool.ibtool.ibtool import _open_directory
         with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
-             patch("ibtool.ibtool.ibtool.os.startfile") as mock_sf:
+             patch("ibtool.ibtool.ibtool.os.startfile", create=True) as mock_sf:
             mock_sys.platform = "win32"
             _open_directory("/output/result")
         mock_sf.assert_called_once_with("/output/result")
