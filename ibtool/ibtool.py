@@ -1139,8 +1139,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
             })['OUTPUT']
 
-        sel_hu_layer = select_and_save_by_location(layers['layer_hu'], sel_part_layer)
-        anz_hu = sel_hu_layer.featureCount()
+        hu_layer = select_and_save_by_location(layers['layer_hu'], sel_part_layer)
+        anz_hu = hu_layer.featureCount()
 
         if anz_hu < 10:
             logger.log(
@@ -1161,9 +1161,15 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         logger.log(f"SelStrassen Count = {anz_strassen}", 'SUCCESS')
 
         min_overlap_mst = calc_footprint_density(
-            sel_hu_layer, sel_strassen_layer, 100,
+            hu_layer, sel_strassen_layer, 100,
             global_footprint_density, 'local', params['min_bdg_count'])
         logger.log(f"Local building coverage = {min_overlap_mst}", 'SUCCESS')
+
+        sel_hu_layer = processing.run("native:splitwithlines",
+                       {'INPUT': hu_layer,
+                        'LINES': sel_strassen_layer,
+                        'OUTPUT': 'memory:'
+                        })['OUTPUT']
 
         self._update_phase(2, 6, "Calculate Blocks", 10)
         blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
