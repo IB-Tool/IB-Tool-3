@@ -17,6 +17,8 @@ License: GNU General Public License v2 or later
 
 import json
 import os
+import subprocess
+import sys
 
 from qgis.PyQt.QtCore import (
     QCoreApplication,
@@ -71,6 +73,20 @@ from ibtool.ibtool_tools.ErodeEmptyAreas import erode_empty_areas
 from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
 # Logger class (singleton handled internally; no early file init on import)
 logger = MainLogger
+
+
+def _open_directory(path: str) -> None:
+    """Open a directory in the system file explorer, cross-platform.
+
+    Args:
+        path: Absolute path to the directory to open.
+    """
+    if sys.platform == "win32":
+        os.startfile(path)  # nosec B606 — path validated by caller
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", path])  # nosec B603, B607
+    else:
+        subprocess.Popen(["xdg-open", path])  # nosec B603, B607
 
 
 class IBTool:  # pylint: disable=too-many-instance-attributes
@@ -590,7 +606,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Open the output directory in the file explorer."""
         folder = self._last_output_folder or os.path.dirname(self._last_output_path)
         if folder and os.path.isdir(folder):
-            os.startfile(folder)  # nosec B606 Ã¢â‚¬â€ path validated by os.path.isdir above
+            _open_directory(folder)
         else:
             msg("Output directory not found.")
 

@@ -1639,3 +1639,41 @@ class TestRunPartitionPipeline:
         assert 3 in called_phases, "_update_phase must be called for phase 3 (Filter)"
         assert 4 in called_phases, "_update_phase must be called for phase 4 (MST)"
         assert 5 in called_phases, "_update_phase must be called for phase 5 (Clustering)"
+
+
+# ---------------------------------------------------------------------------
+# TestOpenDirectory — unit tests for _open_directory
+# ---------------------------------------------------------------------------
+
+class TestOpenDirectory:
+    """Unit tests for the module-level _open_directory helper."""
+
+    @pytest.mark.unit
+    def test_win32_calls_os_startfile(self):
+        """On win32, _open_directory must call os.startfile with the given path."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.os.startfile") as mock_sf:
+            mock_sys.platform = "win32"
+            _open_directory("/tmp/result")
+        mock_sf.assert_called_once_with("/tmp/result")
+
+    @pytest.mark.unit
+    def test_darwin_calls_open(self):
+        """On macOS, _open_directory must call subprocess.Popen(['open', path])."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.subprocess.Popen") as mock_popen:
+            mock_sys.platform = "darwin"
+            _open_directory("/tmp/result")
+        mock_popen.assert_called_once_with(["open", "/tmp/result"])
+
+    @pytest.mark.unit
+    def test_linux_calls_xdg_open(self):
+        """On Linux, _open_directory must call subprocess.Popen(['xdg-open', path])."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.subprocess.Popen") as mock_popen:
+            mock_sys.platform = "linux"
+            _open_directory("/tmp/result")
+        mock_popen.assert_called_once_with(["xdg-open", "/tmp/result"])
