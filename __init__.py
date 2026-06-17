@@ -41,13 +41,56 @@ if 'ibtool' not in _sys.modules:
     _sys.modules['ibtool'] = _mod
 
 
+# ---------------------------------------------------------------------------
+# Dependency check — runs at import time, before any heavy tool imports.
+# ---------------------------------------------------------------------------
+_MISSING_PACKAGES: list[str] = []
+for _pkg in ("scipy", "networkx"):
+    try:
+        __import__(_pkg)
+    except ImportError:
+        _MISSING_PACKAGES.append(_pkg)
+
+
+class _MissingDepsPlugin:
+    """Minimal plugin stub shown when required packages are absent.
+
+    Displays a clear, actionable error in the QGIS message bar instead of
+    a cryptic Python traceback from a failed deep import.
+    """
+
+    def __init__(self, iface, missing: list) -> None:
+        self._iface = iface
+        self._missing = missing
+
+    def initGui(self) -> None:  # pylint: disable=invalid-name
+        """Push a persistent Critical message bar entry listing the missing packages."""
+        from qgis.core import Qgis
+        pkg = ", ".join(self._missing)
+        cmd = " ".join(self._missing)
+        self._iface.messageBar().pushMessage(
+            "IBTool — Missing dependencies",
+            f"Required packages not found: {pkg}. "
+            f"Fix with: pip install {cmd} — then restart QGIS.",
+            level=Qgis.Critical,
+            duration=0,
+        )
+
+    def unload(self) -> None:
+        pass
+
+
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
     """Load IBTool class from file IBTool.
 
+    Returns _MissingDepsPlugin when scipy or networkx are absent so the user
+    sees a clear install prompt instead of a Python traceback.
+
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
-    #
+    if _MISSING_PACKAGES:
+        return _MissingDepsPlugin(iface, _MISSING_PACKAGES)
     from .ibtool.ibtool import IBTool
     return IBTool(iface)
