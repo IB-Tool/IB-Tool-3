@@ -81,8 +81,8 @@ For a first test run, leave all values at their defaults.
 Key parameters if you want to tune them:
 | Parameter | Default | Effect |
 |---|---|---|
-| Max gap distance | 15 m | Maximum width of a gap that is bridged |
-| Min patch size | 1 ha | Minimum area of a kept settlement patch |
+| Max gap size | 4,900 m² | Maximum area of a gap at the settlement edge that is bridged |
+| Min patch size | 10,000 m² | Minimum area of a kept settlement patch |
 | Min buildings per patch | 20 | Minimum building count per kept patch |
 
 Full parameter descriptions: [parameterization.md](parameterization.md).
