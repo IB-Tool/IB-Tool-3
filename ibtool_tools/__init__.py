@@ -14,6 +14,7 @@ from .AddSingleBuilding import add_single_bdg
 from .EdgeCatch import edge_catch
 from .HoleClose import hole_close  # noqa: F401
 from .GapClose import gap_close
+from .ErodeEmptyAreas import erode_empty_areas
 from .PatchRemove import patch_remove
 
 # Exportierte Symbole für den einfachen Zugriff
@@ -25,6 +26,7 @@ __all__ = [
     "mst_clustering",
     "add_single_bdg",
     "edge_catch",
+    "erode_empty_areas",
     "gap_close",
     "patch_remove",
 ]
