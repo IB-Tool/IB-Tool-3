@@ -44,7 +44,7 @@ if 'ibtool' not in _sys.modules:
 # ---------------------------------------------------------------------------
 # Dependency check — runs at import time, before any heavy tool imports.
 # ---------------------------------------------------------------------------
-_MISSING_PACKAGES: list[str] = []
+_MISSING_PACKAGES = []  # list[str]
 for _pkg in ("scipy", "networkx"):
     try:
         __import__(_pkg)

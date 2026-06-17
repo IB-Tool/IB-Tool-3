@@ -110,6 +110,8 @@ class TestMissingDepsPlugin:
             plugin.initGui()
 
         mock_iface.messageBar.return_value.pushMessage.assert_called_once()
+        call_kwargs = mock_iface.messageBar.return_value.pushMessage.call_args.kwargs
+        assert call_kwargs.get("level") == 2
 
     @pytest.mark.unit
     def test_initGui_message_names_all_missing_packages(self):
