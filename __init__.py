@@ -50,6 +50,7 @@ for _pkg in ("scipy", "networkx"):
         __import__(_pkg)
     except ImportError:
         _MISSING_PACKAGES.append(_pkg)
+del _pkg
 
 
 class _MissingDepsPlugin:
