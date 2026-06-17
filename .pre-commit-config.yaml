@@ -1,10 +1,18 @@
 repos:
   - repo: local
     hooks:
+      - id: flake8
+        name: flake8 (style)
+        entry: python -m flake8
+        args: [.]
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: bandit
         name: bandit (security scan)
         entry: python -m bandit
-        args: [-r, ibtool/, --severity-level, medium, -q]
+        args: [-r, helpers/, ibtool_tools/, ibtool/, __init__.py, -ll]
         language: system
         pass_filenames: false
         always_run: true
