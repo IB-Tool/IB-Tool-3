@@ -1655,8 +1655,8 @@ class TestOpenDirectory:
         with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
              patch("ibtool.ibtool.ibtool.os.startfile") as mock_sf:
             mock_sys.platform = "win32"
-            _open_directory("/tmp/result")
-        mock_sf.assert_called_once_with("/tmp/result")
+            _open_directory("/output/result")
+        mock_sf.assert_called_once_with("/output/result")
 
     @pytest.mark.unit
     def test_darwin_calls_open(self):
@@ -1665,8 +1665,8 @@ class TestOpenDirectory:
         with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
              patch("ibtool.ibtool.ibtool.subprocess.Popen") as mock_popen:
             mock_sys.platform = "darwin"
-            _open_directory("/tmp/result")
-        mock_popen.assert_called_once_with(["open", "/tmp/result"])
+            _open_directory("/output/result")
+        mock_popen.assert_called_once_with(["open", "/output/result"])
 
     @pytest.mark.unit
     def test_linux_calls_xdg_open(self):
@@ -1675,8 +1675,8 @@ class TestOpenDirectory:
         with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
              patch("ibtool.ibtool.ibtool.subprocess.Popen") as mock_popen:
             mock_sys.platform = "linux"
-            _open_directory("/tmp/result")
-        mock_popen.assert_called_once_with(["xdg-open", "/tmp/result"])
+            _open_directory("/output/result")
+        mock_popen.assert_called_once_with(["xdg-open", "/output/result"])
 
     @pytest.mark.unit
     def test_non_xdg_platform_emits_message_on_missing_xdg_open(self):
