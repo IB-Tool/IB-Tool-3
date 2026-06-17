@@ -9,8 +9,6 @@ the ``start_processing()`` method that drives the full settlement-delineation
 pipeline partition by partition.
 
 Classes:
-    ProcessingThread: QThread subclass (currently unused stub processing runs
-        synchronously on the main thread via ``start_processing()``).
     IBTool: Main QGIS plugin class registered via ``classFactory()``.
 
 Copyright: (C) 2026 by Oliver Harig
@@ -23,9 +21,7 @@ import os
 from qgis.PyQt.QtCore import (
     QCoreApplication,
     QSettings,
-    QThread,
     QTranslator,
-    pyqtSignal
 )
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
@@ -75,25 +71,6 @@ from ibtool.ibtool_tools.ErodeEmptyAreas import erode_empty_areas
 from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
 # Logger class (singleton handled internally; no early file init on import)
 logger = MainLogger
-
-
-class ProcessingThread(QThread):  # pylint: disable=too-few-public-methods
-    """Thread for background processing"""
-    progress_update = pyqtSignal(int)
-    log_message = pyqtSignal(str)
-    phase_update = pyqtSignal(int, int, str)   # phase, total, name
-    finished_ok = pyqtSignal(str)              # output_path
-    finished_error = pyqtSignal(str)           # error_message
-
-    def run(self):
-        """Main processing logic"""
-        try:
-            for i in range(101):  # Progress from 0 to 100
-                self.msleep(50)  # Simulated processing (50 ms delay)
-                self.progress_update.emit(i)  # Update progress
-                self.log_message.emit(f"Progress: {i}%")  # Send message
-        except RuntimeError as e:
-            self.log_message.emit(f"Error: {str(e)}")
 
 
 class IBTool:  # pylint: disable=too-many-instance-attributes
@@ -146,11 +123,6 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.ProgressBar.setValue(0)  # Set progress to 0
         self.dlg.MessageBox.clear()  # Clear the message window
 
-        # Thread for background processing
-        self.thread = ProcessingThread()
-        self.thread.progress_update.connect(self.update_progress)
-        self.thread.log_message.connect(self.update_messages)
-
         # Last successful output paths (used by result action buttons)
         self._last_output_path = ""
         self._last_output_folder = ""
@@ -173,10 +145,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.MessageBox.appendPlainText(message)
 
     def cancel_processing(self):
-        """Cancel processing"""
-        if self.thread.isRunning():
-            self.thread.terminate()  # Terminate thread
-            self.update_messages("Processing canceled.")
+        """Cancel processing (no-op — processing runs synchronously on the main thread)."""
+        self.update_messages("Processing cannot be cancelled mid-run.")
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):  # pylint: disable=invalid-name

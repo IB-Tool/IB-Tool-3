@@ -1,25 +1,18 @@
 """
 Tests for ibtool/ibtool/ibtool.py.
 
-The module exposes two components under test:
-
-  ProcessingThread(QThread)
-    - Background thread with progress_update and log_message signals.
+The module exposes the following component under test:
 
   IBTool(iface)
     - Main plugin class; constructor requires a QGIS iface stub and calls
       QSettings to detect the locale.
 
 Unit tests cover (no Processing or real iface operations):
-  - ProcessingThread: instantiation does not crash
-  - ProcessingThread: isRunning() is False directly after construction
-  - ProcessingThread: progress_update signal exists
-  - ProcessingThread: log_message signal exists
   - IBTool.tr: returns a non-empty string for any string input
   - IBTool._collect_params: returns a dict containing all 11 expected keys
   - IBTool.update_progress: sets dlg.ProgressBar to the given value
   - IBTool.update_messages: appends text to dlg.MessageBox
-  - IBTool.cancel_processing: does not crash when the thread is idle
+  - IBTool.cancel_processing: does not crash
   - IBTool.load_filter_file: does not crash when file path does not exist
   - IBTool.load_filter_file: populates txtPositive / txtNegative from a valid file
   - IBTool.load_filter_file: empty file / comments-only edge cases
@@ -47,7 +40,7 @@ from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 
-from ibtool.ibtool.ibtool import IBTool, ProcessingThread  # noqa: E402
+from ibtool.ibtool.ibtool import IBTool  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -59,61 +52,6 @@ def _make_tool() -> IBTool:
     with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs:
         mock_qs.return_value.value.return_value = "de_DE"
         return IBTool(_IFACE)
-
-
-# ---------------------------------------------------------------------------
-# TestProcessingThread
-# ---------------------------------------------------------------------------
-
-class TestProcessingThread:
-    """Unit tests for the ProcessingThread QThread subclass."""
-
-    @pytest.mark.unit
-    def test_can_be_instantiated(self):
-        """ProcessingThread() must construct without raising."""
-        thread = ProcessingThread()
-
-        assert thread is not None
-
-    @pytest.mark.unit
-    def test_not_running_after_init(self):
-        """isRunning() must be False directly after construction."""
-        thread = ProcessingThread()
-
-        assert not thread.isRunning(), \
-            "Thread must not be running immediately after instantiation"
-
-    @pytest.mark.unit
-    def test_has_progress_update_signal(self):
-        """ProcessingThread must expose a progress_update signal."""
-        thread = ProcessingThread()
-
-        assert hasattr(thread, "progress_update"), \
-            "ProcessingThread must have a progress_update signal"
-
-    @pytest.mark.unit
-    def test_has_log_message_signal(self):
-        """ProcessingThread must expose a log_message signal."""
-        thread = ProcessingThread()
-
-        assert hasattr(thread, "log_message"), \
-            "ProcessingThread must have a log_message signal"
-
-    @pytest.mark.unit
-    def test_signal_can_be_connected(self):
-        """progress_update and log_message signals must accept slot connections."""
-        thread = ProcessingThread()
-        received = []
-
-        thread.progress_update.connect(lambda v: received.append(("progress", v)))
-        thread.log_message.connect(lambda m: received.append(("msg", m)))
-
-        # Emit manually â€” does not require the thread to actually run
-        thread.progress_update.emit(50)
-        thread.log_message.emit("hello")
-
-        assert ("progress", 50) in received
-        assert ("msg", "hello") in received
 
 
 # ---------------------------------------------------------------------------
@@ -220,12 +158,8 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
     # --- cancel_processing ---
 
     @pytest.mark.unit
-    @pytest.mark.edge_case
-    def test_cancel_processing_when_idle_does_not_crash(self):
-        """cancel_processing must not raise when the processing thread is idle."""
-        assert not self.tool.thread.isRunning(), \
-            "Precondition: thread must not be running at test start"
-
+    def test_cancel_processing_does_not_crash(self):
+        """cancel_processing must not raise."""
         self.tool.cancel_processing()  # Must not raise
 
     # --- load_filter_file ---
