@@ -1,25 +1,18 @@
 """
 Tests for ibtool/ibtool/ibtool.py.
 
-The module exposes two components under test:
-
-  ProcessingThread(QThread)
-    - Background thread with progress_update and log_message signals.
+The module exposes the following component under test:
 
   IBTool(iface)
     - Main plugin class; constructor requires a QGIS iface stub and calls
       QSettings to detect the locale.
 
 Unit tests cover (no Processing or real iface operations):
-  - ProcessingThread: instantiation does not crash
-  - ProcessingThread: isRunning() is False directly after construction
-  - ProcessingThread: progress_update signal exists
-  - ProcessingThread: log_message signal exists
   - IBTool.tr: returns a non-empty string for any string input
   - IBTool._collect_params: returns a dict containing all 11 expected keys
   - IBTool.update_progress: sets dlg.ProgressBar to the given value
   - IBTool.update_messages: appends text to dlg.MessageBox
-  - IBTool.cancel_processing: does not crash when the thread is idle
+  - IBTool.cancel_processing: does not crash
   - IBTool.load_filter_file: does not crash when file path does not exist
   - IBTool.load_filter_file: populates txtPositive / txtNegative from a valid file
   - IBTool.load_filter_file: empty file / comments-only edge cases
@@ -47,7 +40,7 @@ from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 
-from ibtool.ibtool.ibtool import IBTool, ProcessingThread  # noqa: E402
+from ibtool.ibtool.ibtool import IBTool  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -59,61 +52,6 @@ def _make_tool() -> IBTool:
     with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs:
         mock_qs.return_value.value.return_value = "de_DE"
         return IBTool(_IFACE)
-
-
-# ---------------------------------------------------------------------------
-# TestProcessingThread
-# ---------------------------------------------------------------------------
-
-class TestProcessingThread:
-    """Unit tests for the ProcessingThread QThread subclass."""
-
-    @pytest.mark.unit
-    def test_can_be_instantiated(self):
-        """ProcessingThread() must construct without raising."""
-        thread = ProcessingThread()
-
-        assert thread is not None
-
-    @pytest.mark.unit
-    def test_not_running_after_init(self):
-        """isRunning() must be False directly after construction."""
-        thread = ProcessingThread()
-
-        assert not thread.isRunning(), \
-            "Thread must not be running immediately after instantiation"
-
-    @pytest.mark.unit
-    def test_has_progress_update_signal(self):
-        """ProcessingThread must expose a progress_update signal."""
-        thread = ProcessingThread()
-
-        assert hasattr(thread, "progress_update"), \
-            "ProcessingThread must have a progress_update signal"
-
-    @pytest.mark.unit
-    def test_has_log_message_signal(self):
-        """ProcessingThread must expose a log_message signal."""
-        thread = ProcessingThread()
-
-        assert hasattr(thread, "log_message"), \
-            "ProcessingThread must have a log_message signal"
-
-    @pytest.mark.unit
-    def test_signal_can_be_connected(self):
-        """progress_update and log_message signals must accept slot connections."""
-        thread = ProcessingThread()
-        received = []
-
-        thread.progress_update.connect(lambda v: received.append(("progress", v)))
-        thread.log_message.connect(lambda m: received.append(("msg", m)))
-
-        # Emit manually â€” does not require the thread to actually run
-        thread.progress_update.emit(50)
-        thread.log_message.emit("hello")
-
-        assert ("progress", 50) in received
-        assert ("msg", "hello") in received
 
 
 # ---------------------------------------------------------------------------
@@ -220,13 +158,11 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
     # --- cancel_processing ---
 
     @pytest.mark.unit
-    @pytest.mark.edge_case
-    def test_cancel_processing_when_idle_does_not_crash(self):
-        """cancel_processing must not raise when the processing thread is idle."""
-        assert not self.tool.thread.isRunning(), \
-            "Precondition: thread must not be running at test start"
-
-        self.tool.cancel_processing()  # Must not raise
+    def test_cancel_processing_does_not_crash(self):
+        """cancel_processing must not raise and must emit an informational message."""
+        self.tool.dlg.MessageBox.clear()
+        self.tool.cancel_processing()
+        assert "cannot be cancelled" in self.tool.dlg.MessageBox.toPlainText()
 
     # --- load_filter_file ---
 
@@ -1703,3 +1639,53 @@ class TestRunPartitionPipeline:
         assert 3 in called_phases, "_update_phase must be called for phase 3 (Filter)"
         assert 4 in called_phases, "_update_phase must be called for phase 4 (MST)"
         assert 5 in called_phases, "_update_phase must be called for phase 5 (Clustering)"
+
+
+# ---------------------------------------------------------------------------
+# TestOpenDirectory — unit tests for _open_directory
+# ---------------------------------------------------------------------------
+
+class TestOpenDirectory:
+    """Unit tests for the module-level _open_directory helper."""
+
+    @pytest.mark.unit
+    def test_win32_calls_os_startfile(self):
+        """On win32, _open_directory must call os.startfile with the given path."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.os.startfile", create=True) as mock_sf:
+            mock_sys.platform = "win32"
+            _open_directory("/output/result")
+        mock_sf.assert_called_once_with("/output/result")
+
+    @pytest.mark.unit
+    def test_darwin_calls_open(self):
+        """On macOS, _open_directory must call subprocess.Popen(['open', path])."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.subprocess.Popen") as mock_popen:
+            mock_sys.platform = "darwin"
+            _open_directory("/output/result")
+        mock_popen.assert_called_once_with(["open", "/output/result"])
+
+    @pytest.mark.unit
+    def test_linux_calls_xdg_open(self):
+        """On Linux, _open_directory must call subprocess.Popen(['xdg-open', path])."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.subprocess.Popen") as mock_popen:
+            mock_sys.platform = "linux"
+            _open_directory("/output/result")
+        mock_popen.assert_called_once_with(["xdg-open", "/output/result"])
+
+    @pytest.mark.unit
+    def test_non_xdg_platform_emits_message_on_missing_xdg_open(self):
+        """On a POSIX platform without xdg-open, _open_directory must emit a user message."""
+        from ibtool.ibtool.ibtool import _open_directory
+        with patch("ibtool.ibtool.ibtool.sys") as mock_sys, \
+             patch("ibtool.ibtool.ibtool.subprocess.Popen", side_effect=FileNotFoundError), \
+             patch("ibtool.ibtool.ibtool.msg") as mock_msg:
+            mock_sys.platform = "linux"
+            _open_directory("/fake/output/dir")
+        mock_msg.assert_called_once()
+        assert "xdg-open" in mock_msg.call_args[0][0]
