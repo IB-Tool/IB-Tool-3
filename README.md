@@ -51,7 +51,7 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
 - **Debug mode:**
   - Checkbox in the dialog enables per-module GeoPackage snapshots written to `workspace/debug/<Module>/`.
   - Files are numbered sequentially (`001_after_positive_filter.gpkg`, …) and sort chronologically in any GIS.
-  - All major processing modules supported: `Blocker`, `AddSingleBuilding`, `EdgeCatch`, `GapClose`, `ImportFilter`, `MST_Clustering`, `PatchRemove`.
+  - All major processing modules supported: `Blocker`, `ImportFilter`, `MST_Clustering`, `AddSingleBuilding`, `EdgeCatch`, `ErodeEmptyAreas`, `GapClose`, `PatchRemove`.
 
 - **QGIS integration:**
   - Processes `.shp` and `.gpkg` inputs; writes results as GeoPackages.
@@ -66,7 +66,14 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
 
 ### Runtime
 
-All Python dependencies used by the plugin (`numpy`, `scipy`, `networkx`, `PyQt5`) are bundled with QGIS 3.40+ and do not require separate installation.
+| Package | Bundled with QGIS 3.40+ | Notes |
+|---------|------------------------|-------|
+| `numpy` | Yes | |
+| `PyQt5` | Yes | |
+| `scipy` | Not guaranteed | Install manually if the plugin fails to load: `pip install scipy` |
+| `networkx` | Not guaranteed | Install manually if the plugin fails to load: `pip install networkx` |
+
+If `scipy` or `networkx` are missing, QGIS will show an import error when the plugin loads. See [Troubleshooting](#troubleshooting).
 
 ### Development & Testing
 
@@ -167,8 +174,9 @@ The plugin processes each partition through a fixed sequence of steps:
 5. **MST_Clustering** — groups buildings into oriented MBRs, validated by local BCR threshold
 6. **AddSingleBuilding** — adds bounding rectangles for large isolated buildings (> 300 m²)
 7. **EdgeCatch** — snaps boundaries to road network (nearest road within 25 m)
-8. **GapClose** — closes enclosed holes above area threshold; bridges narrow gaps at the fringe
-9. **PatchRemove** — removes splinter areas below size and building-count thresholds
+8. **ErodeEmptyAreas** — removes building-free voids (≥ 500 m²) enclosed within the settlement polygon
+9. **GapClose** — closes enclosed holes above area threshold; bridges narrow gaps at the fringe
+10. **PatchRemove** — removes splinter areas below size and building-count thresholds
 
 For the full algorithmic description including pseudocode, parameter references, and accuracy results, see **[docs/how-it-works.md](docs/how-it-works.md)**.
 
@@ -219,7 +227,7 @@ If you use IBTool in research, please cite:
 - **Plugin not visible in QGIS after installation?** Check that the plugin folder is named `ibtool` (lowercase, no hyphens). ZIP installation may create a folder like `IB-Tool-3` or `IB-Tool-3.0.1.5` — rename it to `ibtool` and restart QGIS. See [Installation](#installation) for details.
 - Use the **Check** button to validate input data before processing. Error messages contain specific hints for fixing issues.
 - Make sure all input data uses the same **CRS** (coordinate reference system).
-- Verify that all dependencies (e.g. libraries) are correctly installed.
+- If the plugin fails to load with an import error, `scipy` or `networkx` may be missing from your QGIS Python environment. Install them manually: `pip install scipy networkx`. See [Requirements → Runtime](#runtime) for details.
 - Consult the log messages in the plugin's message window to identify errors.
 - Enable **Debug Mode** in the dialog to write step-by-step GeoPackage snapshots to `workspace/debug/`. Load these files into QGIS and sort them by name to trace the pipeline visually. Error snapshots are marked with an `_err` suffix.
 - If a partition produces unexpected output, check the debug files for the relevant module (e.g. `ImportFilter/003_after_density_buffer.gpkg` to inspect the residential zone polygon).
