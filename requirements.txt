@@ -1,7 +1,13 @@
 # Runtime dependencies for the IBTool QGIS plugin.
 #
-# numpy, scipy, networkx, and PyQt5 are all bundled with QGIS 3.40+ and
-# do not need to be installed separately by users.
+# numpy is bundled with QGIS 3.40+ and does not need to be installed separately.
+# scipy and networkx may or may not be bundled depending on the QGIS installation
+# and platform. If the plugin fails to load, install them manually:
 #
-# This file is intentionally empty for runtime use.
-# For development and testing, see requirements-dev.txt.
+#   pip install scipy networkx
+#
+# For development and testing outside QGIS, see requirements-dev.txt.
+
+numpy>=1.20
+scipy>=1.7
+networkx>=2.6
