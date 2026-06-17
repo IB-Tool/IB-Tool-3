@@ -127,7 +127,7 @@ The easiest way to install IBTool is to download the ready-to-use ZIP file from 
 
 1. **Download** the repository as a ZIP or clone it:
    ```bash
-   git clone https://github.com/K3lT10N/IB-Tool-3.git
+   git clone https://github.com/IB-Tool/IB-Tool-3.git
    ```
 2. **Copy to the QGIS plugins folder:**
    - Windows: `C:\Users\<username>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
