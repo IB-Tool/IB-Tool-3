@@ -159,8 +159,10 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
 
     @pytest.mark.unit
     def test_cancel_processing_does_not_crash(self):
-        """cancel_processing must not raise."""
-        self.tool.cancel_processing()  # Must not raise
+        """cancel_processing must not raise and must emit an informational message."""
+        self.tool.dlg.MessageBox.clear()
+        self.tool.cancel_processing()
+        assert "cannot be cancelled" in self.tool.dlg.MessageBox.toPlainText()
 
     # --- load_filter_file ---
 

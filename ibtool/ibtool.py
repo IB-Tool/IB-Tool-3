@@ -1220,9 +1220,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         completion the result is saved to the configured output GeoPackage
         and the result-action buttons are shown.
 
-        Processing runs synchronously on the main thread (not in
-        ``ProcessingThread``). ``QApplication.processEvents()`` is called
-        after each phase-progress update to keep the UI responsive.
+        Processing runs synchronously on the main thread.
+        ``QApplication.processEvents()`` is called after each phase-progress
+        update to keep the UI responsive.
         """
         # Navigate to the processing page and reset UX state
         self.dlg.set_step(3)
