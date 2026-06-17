@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 # pylint: disable=too-many-lines
 """Main plugin class and processing orchestrator for IBTool.
 
@@ -146,7 +146,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._last_output_path = ""
         self._last_output_folder = ""
 
-        # Checksum cache: field_name Ã¢â€ â€™ MD5 hex of file at last path-check
+        # Checksum cache: field_name → MD5 hex of file at last path-check
         self._file_checksums: dict = {}
         # Checksum snapshot at the time of the last completed validation run
         self._validated_checksums: dict = {}
@@ -257,7 +257,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 action)
             self.iface.removeToolBarIcon(action)
 
-        # Logger schlieÃƒÅ¸en
+        # Logger schließen
         logger.close_logger()
 
     def setup_logging_in_plugin(self):
@@ -308,7 +308,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
             self.dlg.SaveConfigButton.clicked.connect(self._save_config_from_ui)
             self.dlg.DeleteConfigButton.clicked.connect(self._delete_config)
-            # Start button disabled by default Ã¢â‚¬â€ requires successful check
+            # Start button disabled by default — requires successful check
             self.dlg.set_start_button_ready(False)
             # Any validation-relevant UI change invalidates the cached result.
             for path_widget in [
@@ -398,7 +398,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         # Automatische Aktualisierung der Textfelder bei Start
         file_path = self.dlg.FilterPath.text()  # Pfad aus dem QLineEdit abrufen
-        if file_path and os.path.exists(file_path):  # PrÃƒÂ¼fen, ob Pfad existiert
+        if file_path and os.path.exists(file_path):  # Prüfen, ob Pfad existiert
             self.load_filter_file(file_path)
 
         logger.set_message_box(self.dlg.MessageBox)
@@ -557,7 +557,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
     def _check_path_field(self, field_name: str, path: str) -> None:
         """Quick path-existence check triggered by textChanged.
 
-        Does not load any QGIS layer Ã¢â‚¬â€ pure filesystem check.
+        Does not load any QGIS layer — pure filesystem check.
         For input file fields the MD5 checksum of the file is stored in
         ``self._file_checksums`` so that :meth:`run_validation` can skip
         re-validation when files have not changed.
@@ -689,7 +689,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if not cfg.ui.auto_load_last_used:
             return
 
-        # Pfad-Felder befÃƒÂ¼llen
+        # Pfad-Felder befüllen
         self.config_manager.apply_to_ui_elements({
             'HuPath': self.dlg.HuPath,
             'RnPath': self.dlg.RnPath,
@@ -718,7 +718,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if cfg.processing.part_list:
             self.dlg.partlistBox.setText(cfg.processing.part_list)
 
-        # Settlement-Analyse-Parameter (QSpinBox Ã¢â‚¬â€ nur wenn > 0)
+        # Settlement-Analyse-Parameter (QSpinBox — nur wenn > 0)
         proc = cfg.processing
         if proc.min_building_count > 0:
             self.dlg.MinBdgCountBox.setValue(int(proc.min_building_count))
@@ -842,9 +842,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """
         reply = QMessageBox.question(
             self.dlg,
-            "Konfiguration zurÃƒÂ¼cksetzen",
-            "CONFIG.ini lÃƒÂ¶schen und alle Felder zurÃƒÂ¼cksetzen?\n"
-            "Diese Aktion kann nicht rÃƒÂ¼ckgÃƒÂ¤ngig gemacht werden.",
+            "Konfiguration zurücksetzen",
+            "CONFIG.ini löschen und alle Felder zurücksetzen?\n"
+            "Diese Aktion kann nicht rückgängig gemacht werden.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -857,7 +857,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             try:
                 os.remove(cfg_path)
             except OSError as e:
-                logger.log(f"Fehler beim LÃƒÂ¶schen der CONFIG.ini: {e}", level="CRITICAL")
+                logger.log(f"Fehler beim Löschen der CONFIG.ini: {e}", level="CRITICAL")
                 return
 
         # Re-init manager with empty defaults
@@ -875,6 +875,21 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.txtPositive.clear()
         self.dlg.txtNegative.clear()
 
+        # Reset parameter spinboxes and line edits to UI defaults
+        self.dlg.MinOverlapBlocksBox.setValue(18)
+        self.dlg.GlobalFootprintDensityBox.setValue(0)
+        self.dlg.MinAreaBox.setValue(57)
+        self.dlg.MinBdgCountBox.setValue(20)
+        self.dlg.MinPatchSizeBox.setValue(10000)
+        self.dlg.MaxHoleSizeBox.setValue(10000)
+        self.dlg.MaxGapSizeBox.setValue(4900)
+        self.dlg.partstartBox.setText("-1")
+        self.dlg.partendBox.setText("-1")
+        self.dlg.partlistBox.setText("#")
+        self.dlg.DebugModeBox.setChecked(False)
+        self.dlg.PartLogBox.setChecked(True)
+        self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25832"))
+
         # Reset checksum and validation caches
         self._file_checksums.clear()
         self._validated_checksums.clear()
@@ -884,7 +899,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Disable Start button (re-check required)
         self.dlg.set_start_button_ready(False)
 
-        logger.log("Konfiguration zurÃƒÂ¼ckgesetzt Ã¢â‚¬â€ CONFIG.ini gelÃƒÂ¶scht.", level="INFO")
+        logger.log("Konfiguration zurückgesetzt — CONFIG.ini gelöscht.", level="INFO")
 
     def _collect_params(self) -> dict:
         """Collect all UI parameter values as raw strings for validation.
@@ -923,7 +938,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             return float(text)
         except ValueError:
             logger.log(
-                f"Invalid numeric value: {text!r} Ã¢â‚¬â€ using fallback {fallback}.",
+                f"Invalid numeric value: {text!r} — using fallback {fallback}.",
                 level="WARNING",
             )
             return fallback
@@ -975,7 +990,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # ------------------------------------------------------------------
         if self._can_reuse_validation_result():
             logger.log(
-                "Validierung Ã¼bersprungen - Eingaben und Parameter unverÃ¤ndert.",
+                "Validierung übersprungen - Eingaben und Parameter unverändert.",
                 level="INFO",
             )
             self._display_validation_result(self._last_validation_result)
