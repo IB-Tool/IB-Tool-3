@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.2.0 — 2026-06-17
 
-### Removed
-- **GapFix** (`ibtool_tools/GapFix.py`, `test/test_gap_fix.py`, `ai/domain/gap-fix.md`): module removed from the pipeline and codebase. The buffer-ring intersection approach for inter-polygon gap repair is no longer called; `gap_close()` followed by `patch_remove()` covers the relevant cases.
-
 ### Added
+- **Dependency guard** (`__init__.py`): Plugin detects missing `scipy`/`networkx` at load
+  time and shows a persistent `QgsMessageBar` error with the exact `pip install` command
+  instead of a cryptic Python traceback.
+- **Cross-platform folder open** (`ibtool/ibtool.py`): `_open_directory()` replaces
+  `os.startfile()` — uses `open` on macOS and `xdg-open` on Linux.
+- **Quickstart guide** (`docs/quickstart.md`): Step-by-step installation and first-run
+  guide for non-developer users.
 - **GapClose Filter 2c — narrow large gaps** (`ibtool_tools/GapClose.py`): large gaps (area ≥ `max_gap_size`) not captured by the 90%-overlap filter are now additionally tested by tessellation: each candidate is densified, tessellated into triangles, and the longest triangle edge per feature is recorded. Gaps where the longest edge is shorter than `MAX_NARROW_GAP_EXTENT_M` (70 m) are considered compact/narrow and are absorbed into the settlement. New constant `MAX_NARROW_GAP_EXTENT_M = 70`.
 - **Per-partition debug workspace** (`ibtool/ibtool.py`): in debug mode, `_run_partition_pipeline()` now creates a `debug/PART_{name}/` sub-folder per partition and passes it to all tool calls (`blocker`, `input_hu_filter`, `mst_clustering`, `add_single_bdg`, `edge_catch`, `erode_empty_areas`, `gap_close`, `patch_remove`). Debug layers from different partitions are now stored in separate folders instead of being mixed in a single directory.
 - **GeoPackage support** (`data_loader.py`, `ibtool.py`): File dialogs accept `.gpkg` in addition to `.shp`.
@@ -27,14 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pre-commit security hooks**: Bandit and detect-secrets integrated; `.secrets.baseline` added.
 - **AI rules & documentation** (`ai/core/`, `ai/domain/`, `ai/tasks/`, `CLAUDE.md`): Architecture guidelines, naming conventions, testing rules, QGIS API rules, debug mode, domain knowledge (MST, GapClose, geometry validation, feature processing), and task templates (bugfix, refactor, new feature, QGIS processing).
 
-### Fixed
-- **ErodeEmptyAreas `_contact_fraction_filter` — three logic bugs** (`ErodeEmptyAreas.py`):
-  - *Interior ring contamination*: `polygonstolines` on a polygon with holes yields lines for all rings (exterior AND interior). If void contact was measured against interior ring lines (edges of existing holes), voids inside those holes showed artificially high contact and were never removed. Fixed by running `native:deleteholes(MIN_AREA=0)` on the settlement before `polygonstolines`, plus a `native:difference` against the voids to exclude their own outlines from the reference boundary.
-  - *fid_copy timing*: `fid_copy` was assigned to the void LINE layer (after `polygonstolines`). After splitting into segments and dissolving overlaps, `@id` no longer matched the original void features. Fixed by assigning `fid_copy` via `native:fieldcalculator` on the void POLYGON layer before any line conversion.
-  - *Wrong return value when no contact exists*: when no void boundary segments touched the settlement outer boundary, the function returned ALL voids (the full void layer) instead of none, causing erroneous mass removal of interior voids. Fixed by returning an empty polygon layer when `overlapping.featureCount() == 0`.
-- **ErodeEmptyAreas "Konnte Objekt nicht schreiben" crash** (`ErodeEmptyAreas.py`): Root cause: `native:collect` in QGIS 3.40 fails when a `Polygon`-declared layer contains `MultiPolygon` features — it creates a `GeometryCollection` output that QGIS cannot write to a `MultiPolygon` sink. This affects both `fixed_input` (where `fixgeometries` can split polygons to multi-part) and `buf_layer` (where buffering multi-part buildings yields `MultiPolygon` geometries). Fixed by replacing Steps 0b and 3 with `QgsGeometry.combine()` / `QgsGeometry.unaryUnion()` (GEOS calls at the Python level, no feature-sink write path). Step 0b dissolves `fixed_input` to a clean single polygon before any difference operation; Step 3 builds `buffer_union` the same way.
-
 ### Changed
+- **Version** (`metadata.txt`): bumped from `0.1.6` to `0.2.0`.
+- **Experimental flag** (`metadata.txt`): `experimental=True` → `experimental=False`.
 - **Pipeline reorder — ErodeEmptyAreas moved to Step 8** (`ibtool/ibtool.py`): `erode_empty_areas()` now runs immediately after `edge_catch()` on the raw `blocks_merge` output, before `gap_close()`. Previously it was the final step after `patch_remove()`. The new order ensures that large building-free voids are removed before gap detection, so GapClose does not attempt to bridge voids that should be excluded. `patch_remove()` receives the GapClose output (as before); `erode_empty_areas()` now receives `blocks_merge` as input.
 - **ErodeEmptyAreas pipeline position** (`ErodeEmptyAreas.py`): `_DEBUG_TOOL_NAME` changed from `"09_ErodeEmptyAreas"` to `"06_ErodeEmptyAreas"` to reflect the new earlier call position in the per-partition debug folder sorting.
 - **ErodeEmptyAreas `BOUNDARY_CONTACT_THRESHOLD_PCT`** (`ErodeEmptyAreas.py`): threshold reduced from `30.0` to `20.0`. Only voids with less than 20 % of their perimeter touching the settlement outer boundary are removed; voids with 20 % or more contact (including interior voids with 0 % contact) are kept. The lower threshold avoids over-removal of voids at the settlement fringe.
@@ -58,35 +57,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`.pylintrc`**: Adjusted ignored paths, increased line length, refined disabled checks.
 
 ### Removed
+- **`ProcessingThread` stub** (`ibtool/ibtool.py`): Dead code removed;
+  `cancel_processing` updated to a no-op with an informational message.
+- **GapFix** (`ibtool_tools/GapFix.py`, `test/test_gap_fix.py`, `ai/domain/gap-fix.md`): module removed from the pipeline and codebase. The buffer-ring intersection approach for inter-polygon gap repair is no longer called; `gap_close()` followed by `patch_remove()` covers the relevant cases.
 - `IB-Tool2.py` (obsolete predecessor).
 - `initialize_environment` function and its tests.
 - Old dialog-related files, resources, and obsolete data files.
 - `docs/test-plan.md` (superseded by `test-strategy.md`).
 
 ### Fixed
+- **ErodeEmptyAreas `_contact_fraction_filter` — three logic bugs** (`ErodeEmptyAreas.py`):
+  - *Interior ring contamination*: `polygonstolines` on a polygon with holes yields lines for all rings (exterior AND interior). If void contact was measured against interior ring lines (edges of existing holes), voids inside those holes showed artificially high contact and were never removed. Fixed by running `native:deleteholes(MIN_AREA=0)` on the settlement before `polygonstolines`, plus a `native:difference` against the voids to exclude their own outlines from the reference boundary.
+  - *fid_copy timing*: `fid_copy` was assigned to the void LINE layer (after `polygonstolines`). After splitting into segments and dissolving overlaps, `@id` no longer matched the original void features. Fixed by assigning `fid_copy` via `native:fieldcalculator` on the void POLYGON layer before any line conversion.
+  - *Wrong return value when no contact exists*: when no void boundary segments touched the settlement outer boundary, the function returned ALL voids (the full void layer) instead of none, causing erroneous mass removal of interior voids. Fixed by returning an empty polygon layer when `overlapping.featureCount() == 0`.
+- **ErodeEmptyAreas "Konnte Objekt nicht schreiben" crash** (`ErodeEmptyAreas.py`): Root cause: `native:collect` in QGIS 3.40 fails when a `Polygon`-declared layer contains `MultiPolygon` features — it creates a `GeometryCollection` output that QGIS cannot write to a `MultiPolygon` sink. This affects both `fixed_input` (where `fixgeometries` can split polygons to multi-part) and `buf_layer` (where buffering multi-part buildings yields `MultiPolygon` geometries). Fixed by replacing Steps 0b and 3 with `QgsGeometry.combine()` / `QgsGeometry.unaryUnion()` (GEOS calls at the Python level, no feature-sink write path). Step 0b dissolves `fixed_input` to a clean single polygon before any difference operation; Step 3 builds `buffer_union` the same way.
 - **GeoPackage FID conflict** (`helpers/system_utils.py`): Added `FID=gpkg_fid` layer option to `save_temp_layer_to_gpkg()` to prevent `UNIQUE constraint` failures when a source layer carries a duplicate `fid` attribute field (e.g. inherited from `native:intersection`). (Fixes #122)
 - **Case-insensitive field check in `shp_area2()`** (`helpers/geometry_utils.py`): OGR/GeoPackage treats field names case-insensitively; a pre-existing `area` field was not detected when checking for `Area`, leading to a duplicate-field error. Now uses a case-folded lookup and reuses the existing field's casing for writes. (Fixes #123)
 
 ### Tests
 - New tests for `_update_phase`, `_load_input_layers`, `_run_partition_pipeline`, `compute_file_checksum`, `_delete_config`, checksum caching, and validation skip logic.
 - Security annotations (`nosec B108`, `pragma: allowlist secret`) for false positives.
-
-### Added
-- **Dependency guard** (`__init__.py`): Plugin detects missing `scipy`/`networkx` at load
-  time and shows a persistent `QgsMessageBar` error with the exact `pip install` command
-  instead of a cryptic Python traceback.
-- **Cross-platform folder open** (`ibtool/ibtool.py`): `_open_directory()` replaces
-  `os.startfile()` — uses `open` on macOS and `xdg-open` on Linux.
-- **Quickstart guide** (`docs/quickstart.md`): Step-by-step installation and first-run
-  guide for non-developer users.
-
-### Changed
-- **Version** (`metadata.txt`): bumped from `0.1.6` to `0.2.0`.
-- **Experimental flag** (`metadata.txt`): `experimental=True` → `experimental=False`.
-
-### Removed
-- **`ProcessingThread` stub** (`ibtool/ibtool.py`): Dead code removed;
-  `cancel_processing` updated to a no-op with an informational message.
 
 ---
 
