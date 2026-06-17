@@ -31,6 +31,7 @@ ibtool/                    # Plugin root (QGIS package)
 │   ├── HoleClose.py     # Hole closing
 │   ├── EdgeCatch.py     # Edge detection
 │   ├── AddSingleBuilding.py # Single building processing
+│   ├── ErodeEmptyAreas.py # Building-free void removal
 │   └── PatchRemove.py   # Patch removal
 ├── ibtool/              # Nested package for main plugin class
 │   ├── ibtool.py        # Main plugin class
@@ -82,7 +83,9 @@ make pylint
 ## Prerequisites
 
 - QGIS 3.40–3.50, Python 3.11+
-- Runtime dependencies (all bundled with QGIS 3.40+): numpy, scipy, networkx, PyQt5
+- Runtime dependencies: numpy, scipy, networkx, PyQt5
+  - numpy and PyQt5 are bundled with QGIS 3.40+
+  - scipy and networkx may not be present depending on the QGIS installation and platform — install manually if needed (`pip install scipy networkx`)
 - Dev/test dependencies (not bundled): pytest, pytest-cov (see requirements-dev.txt)
 
 ## Important Notes
