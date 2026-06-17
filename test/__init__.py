@@ -37,12 +37,15 @@ def safe_cleanup():
             qgis_app = None
 
 def setUpModule():
-    """Set up QGIS application for all tests"""
+    """Set up QGIS application for all tests (no-op when QGIS is unavailable)."""
     global qgis_app
     if qgis_app is None:
-        # Initialize QGIS application
-        from qgis.core import QgsApplication
-        
+        try:
+            from qgis.core import QgsApplication
+        except (ImportError, Exception) as e:
+            print(f"⚠️ QGIS not available — skipping QGIS setup ({e})")
+            return
+
         # GUI=True is required for Processing algorithm execution
         qgis_app = QgsApplication([], True)
         qgis_app.setPrefixPath(QGIS_PREFIX_PATH, True)
