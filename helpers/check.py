@@ -637,12 +637,12 @@ class InputValidator:
             List of raw lines from the file, or None if it could not be read.
         """
         if not filter_path or not filter_path.strip():
-            result.add_error("Filter file: No file path specified.")
+            result.add_error(_tr("Filter file: No file path specified."))
             return None
 
         if not os.path.exists(filter_path):
             result.add_error(
-                f"Filter file: File does not exist: {filter_path}"
+                _tr("Filter file: File does not exist: {path}").format(path=filter_path)
             )
             return None
 
@@ -651,8 +651,8 @@ class InputValidator:
                 return f.readlines()
         except Exception as e:  # pylint: disable=broad-exception-caught
             result.add_error(
-                f"Filter file: File cannot be read: {e}. "
-                f"Hint: File must be UTF-8 encoded and readable."
+                _tr("Filter file: File cannot be read: {error}. "
+                    "Hint: File must be UTF-8 encoded and readable.").format(error=e)
             )
             return None
 
@@ -713,31 +713,29 @@ class InputValidator:
 
         if pos_line is None:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_POSITIVE}' missing. "
-                f"Hint: Add the line '{self.FILTER_SECTION_POSITIVE}' "
-                f"to the file."
+                _tr("Filter file: Section '{section}' missing. "
+                    "Hint: Add the line '{section}' to the file.").format(
+                    section=self.FILTER_SECTION_POSITIVE)
             )
         if neg_line is None:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_NEGATIVE}' missing. "
-                f"Hint: Add the line '{self.FILTER_SECTION_NEGATIVE}' "
-                f"to the file."
+                _tr("Filter file: Section '{section}' missing. "
+                    "Hint: Add the line '{section}' to the file.").format(
+                    section=self.FILTER_SECTION_NEGATIVE)
             )
         if pos_line is not None and neg_line is not None and pos_line > neg_line:
             result.add_error(
-                f"Filter file: '{self.FILTER_SECTION_POSITIVE}' "
-                f"(line {pos_line}) must appear before "
-                f"'{self.FILTER_SECTION_NEGATIVE}' "
-                f"(line {neg_line})."
+                _tr("Filter file: '{pos}' (line {pos_line}) must appear before "
+                    "'{neg}' (line {neg_line}).").format(
+                    pos=self.FILTER_SECTION_POSITIVE, pos_line=pos_line,
+                    neg=self.FILTER_SECTION_NEGATIVE, neg_line=neg_line)
             )
         if orphan_lines:
             samples = [f"line {n}: {t[:30]}" for n, t in orphan_lines[:3]]
             result.add_warning(
-                f"Filter file: {len(orphan_lines)} lines appear before "
-                f"the first section header and will be ignored. "
-                f"Examples: {'; '.join(samples)}."
+                _tr("Filter file: {count} lines appear before the first section header "
+                    "and will be ignored. Examples: {examples}.").format(
+                    count=len(orphan_lines), examples='; '.join(samples))
             )
 
     def _validate_filter_entries(
@@ -756,17 +754,15 @@ class InputValidator:
 
         if pos_line is not None and len(entries_positive) == 0:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_POSITIVE}' contains no "
-                f"entries. Hint: Add at least one "
-                f"function code."
+                _tr("Filter file: Section '{section}' contains no entries. "
+                    "Hint: Add at least one function code.").format(
+                    section=self.FILTER_SECTION_POSITIVE)
             )
         if neg_line is not None and len(entries_negative) == 0:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_NEGATIVE}' contains no "
-                f"entries. Hint: Add at least one "
-                f"function code."
+                _tr("Filter file: Section '{section}' contains no entries. "
+                    "Hint: Add at least one function code.").format(
+                    section=self.FILTER_SECTION_NEGATIVE)
             )
 
         invalid_entries = []
@@ -778,11 +774,10 @@ class InputValidator:
 
         if invalid_entries:
             result.add_warning(
-                f"Filter file: Entries do not match the "
-                f"ATKIS format (NNNNN_NNNN). Examples: "
-                f"{'; '.join(invalid_entries)}. "
-                f"Hint: Only the first 10 characters are used "
-                f"for filter matching."
+                _tr("Filter file: Entries do not match the ATKIS format (NNNNN_NNNN). "
+                    "Examples: {examples}. "
+                    "Hint: Only the first 10 characters are used for filter matching.").format(
+                    examples='; '.join(invalid_entries))
             )
 
     def _check_output_paths(
@@ -791,25 +786,23 @@ class InputValidator:
     ) -> None:
         """Validate output path format and workspace-path presence."""
         if not output_path or not output_path.strip():
-            result.add_error("Output file: No path specified.")
+            result.add_error(_tr("Output file: No path specified."))
         else:
             if not output_path.lower().endswith(".gpkg"):
                 result.add_error(
-                    f"Output file: GeoPackage (.gpkg) required, "
-                    f"but got: {output_path}. "
-                    f"Hint: Choose a .gpkg output file."
+                    _tr("Output file: GeoPackage (.gpkg) required, but got: {path}. "
+                        "Hint: Choose a .gpkg output file.").format(path=output_path)
                 )
             output_dir = os.path.dirname(output_path)
             if not output_dir:
                 result.add_error(
-                    f"Output file: Path must include a directory: "
-                    f"{output_path}. "
-                    f"Hint: Choose a full output path such as "
-                    f"C:/data/result.gpkg."
+                    _tr("Output file: Path must include a directory: {path}. "
+                        "Hint: Choose a full output path such as "
+                        "C:/data/result.gpkg.").format(path=output_path)
                 )
 
         if not workspace_path or not workspace_path.strip():
-            result.add_error("Workspace directory: No path specified.")
+            result.add_error(_tr("Workspace directory: No path specified."))
 
     # ------------------------------------------------------------------
     # Parameter validation
@@ -836,22 +829,14 @@ class InputValidator:
             params: Dict with raw string values from UI widgets.
             result: Validation result to append errors to.
         """
-        # (key, label, type, min, max)
         numeric_checks = [
-            ("min_overlap_blocks", "Min. Overlap Blocks (%)",
-             float, 0, 100),
-            ("global_footprint_density", "Global Footprint Density (%)",
-             float, 0, 100),
-            ("min_area", "Min. Building Area (sqm)",
-             float, 10, 500),
-            ("min_bdg_count", "Min. Building Count",
-             int, 1, 100),
-            ("min_patch_size", "Min. Patch Size (sqm)",
-             float, 100, 100000),
-            ("max_hole_size", "Max. Hole Size (sqm)",
-             float, 0, 100000),
-            ("max_gap_size", "Max. Gap Size (sqm)",
-             float, 0, 100000),
+            ("min_overlap_blocks", _tr("Min. Overlap Blocks (%)"), float, 0, 100),
+            ("global_footprint_density", _tr("Global Footprint Density (%)"), float, 0, 100),
+            ("min_area", _tr("Min. Building Area (sqm)"), float, 10, 500),
+            ("min_bdg_count", _tr("Min. Building Count"), int, 1, 100),
+            ("min_patch_size", _tr("Min. Patch Size (sqm)"), float, 100, 100000),
+            ("max_hole_size", _tr("Max. Hole Size (sqm)"), float, 0, 100000),
+            ("max_gap_size", _tr("Max. Gap Size (sqm)"), float, 0, 100000),
         ]
 
         for key, label, num_type, min_val, max_val in numeric_checks:
@@ -862,29 +847,31 @@ class InputValidator:
             raw_str = str(raw).strip()
             if not raw_str:
                 result.add_error(
-                    f"Parameter '{label}': No value specified."
+                    _tr("Parameter '{label}': No value specified.").format(label=label)
                 )
                 continue
 
             try:
                 value = num_type(raw_str)
             except (ValueError, TypeError):
-                expected = "integer" if num_type == int else "number"
+                kind = _tr("integer") if num_type == int else _tr("number")
                 result.add_error(
-                    f"Parameter '{label}': '{raw_str}' is not a "
-                    f"valid {expected}."
+                    _tr("Parameter '{label}': '{value}' is not a valid {kind}.").format(
+                        label=label, value=raw_str, kind=kind)
                 )
                 continue
 
             if min_val is not None and value < min_val:
                 result.add_error(
-                    f"Parameter '{label}': Value {value} is less "
-                    f"than the minimum ({min_val})."
+                    _tr("Parameter '{label}': Value {value} is less than the "
+                        "minimum ({min_val}).").format(
+                        label=label, value=value, min_val=min_val)
                 )
             if max_val is not None and value > max_val:
                 result.add_error(
-                    f"Parameter '{label}': Value {value} is greater "
-                    f"than the maximum ({max_val})."
+                    _tr("Parameter '{label}': Value {value} is greater than the "
+                        "maximum ({max_val}).").format(
+                        label=label, value=value, max_val=max_val)
                 )
 
     def _check_spatial_reference_param(
@@ -903,16 +890,14 @@ class InputValidator:
         crs = QgsCoordinateReferenceSystem(sr_text)
         if not crs.isValid():
             result.add_error(
-                f"Parameter 'CRS': '{sr_text}' is not "
-                f"a valid CRS. "
-                f"Hint: Use e.g. EPSG:25832."
+                _tr("Parameter 'CRS': '{crs}' is not a valid CRS. "
+                    "Hint: Use e.g. EPSG:25832.").format(crs=sr_text)
             )
         elif crs.isGeographic():
             result.add_warning(
-                f"Parameter 'CRS': '{sr_text}' is "
-                f"a geographic CRS (degrees). "
-                f"Hint: A projected CRS (metres) such as "
-                f"EPSG:25832 is recommended."
+                _tr("Parameter 'CRS': '{crs}' is a geographic CRS (degrees). "
+                    "Hint: A projected CRS (metres) such as EPSG:25832 "
+                    "is recommended.").format(crs=sr_text)
             )
 
     def _check_partition_range_params(
@@ -935,26 +920,22 @@ class InputValidator:
             if start_val != -1 and end_val != -1:
                 if start_val < 0:
                     result.add_error(
-                        f"Parameter 'Partition Start': "
-                        f"Value {start_val} is invalid. "
-                        f"Hint: -1 (all) or >= 0."
+                        _tr("Parameter 'Partition Start': Value {value} is invalid. "
+                            "Hint: -1 (all) or >= 0.").format(value=start_val)
                     )
                 if end_val < 0:
                     result.add_error(
-                        f"Parameter 'Partition End': "
-                        f"Value {end_val} is invalid. "
-                        f"Hint: -1 (all) or >= 0."
+                        _tr("Parameter 'Partition End': Value {value} is invalid. "
+                            "Hint: -1 (all) or >= 0.").format(value=end_val)
                     )
                 if 0 <= end_val <= start_val:
                     result.add_error(
-                        f"Parameter: Partition Start ({start_val}) >= "
-                        f"Partition End ({end_val}). "
-                        f"Hint: Start must be less than "
-                        f"End."
+                        _tr("Parameter: Partition Start ({start}) >= Partition End ({end}). "
+                            "Hint: Start must be less than End.").format(
+                            start=start_val, end=end_val)
                     )
         except ValueError:
             result.add_error(
-                f"Parameter 'Partition Start/End': "
-                f"'{part_start}'/'{part_end}' are not "
-                f"valid integers."
+                _tr("Parameter 'Partition Start/End': '{start}'/'{end}' are not "
+                    "valid integers.").format(start=part_start, end=part_end)
             )
