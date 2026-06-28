@@ -1453,7 +1453,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             logger.log("Processing completed successfully.", level="CRITICAL")
         except ProcessingCancelledError:
+            self.dlg.phaseLabel.setText("Verarbeitung abgebrochen.")
             self.update_messages("Verarbeitung abgebrochen.")
             logger.log("Verarbeitung durch Nutzer abgebrochen.", level="WARNING")
         finally:
             self._is_processing = False
+            self._cancel_requested = False
