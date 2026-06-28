@@ -394,9 +394,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Building footprints (HU): Polygon geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with polygon geometry."
+                _tr("Building footprints (HU): Polygon geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with polygon geometry.").format(geom_type=geom_type)
             )
 
         # Required field: fkt or funktion
@@ -409,10 +408,10 @@ class InputValidator:
 
         if not fkt_field:
             result.add_error(
-                f"Building footprints (HU): Field 'fkt', 'gfkzshh' or 'funktion' missing. "
-                f"Available fields: {', '.join(field_names[:15])}. "
-                f"Hint: Add a field 'fkt', 'gfkzshh' or 'funktion' containing "
-                f"building function codes."
+                _tr("Building footprints (HU): Field 'fkt', 'gfkzshh' or 'funktion' missing. "
+                    "Available fields: {fields}. "
+                    "Hint: Add a field 'fkt', 'gfkzshh' or 'funktion' containing "
+                    "building function codes.").format(fields=', '.join(field_names[:15]))
             )
             return
 
@@ -434,20 +433,18 @@ class InputValidator:
 
         if null_count > 0:
             result.add_warning(
-                f"Building footprints (HU): {null_count} features with "
-                f"empty/NULL value in field '{fkt_field}'. "
-                f"Hint: All features require a "
-                f"building function code."
+                _tr("Building footprints (HU): {null_count} features with "
+                    "empty/NULL value in field '{field}'. "
+                    "Hint: All features require a building function code.").format(
+                    null_count=null_count, field=fkt_field)
             )
 
         if invalid_format:
             result.add_warning(
-                f"Building footprints (HU): Values in field '{fkt_field}' "
-                f"do not match the ATKIS format (NNNNN_NNNN, "
-                f"e.g. 31001_1000). Examples: "
-                f"{', '.join(invalid_format)}. "
-                f"Hint: Only the first 10 characters are used "
-                f"for filter matching."
+                _tr("Building footprints (HU): Values in field '{field}' do not match "
+                    "the ATKIS format (NNNNN_NNNN, e.g. 31001_1000). Examples: {examples}. "
+                    "Hint: Only the first 10 characters are used for filter matching.").format(
+                    field=fkt_field, examples=', '.join(invalid_format))
             )
 
     def _check_rn_layer(
@@ -457,9 +454,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.LineGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Road network (RN): Line geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with line geometry."
+                _tr("Road network (RN): Line geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with line geometry.").format(geom_type=geom_type)
             )
 
     def _check_aux_layer(
@@ -469,9 +465,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.LineGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Auxiliary layer (Aux): Line geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with line geometry."
+                _tr("Auxiliary layer (Aux): Line geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with line geometry.").format(geom_type=geom_type)
             )
 
     def _check_part_layer(
@@ -481,9 +476,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Partitioning (Part): Polygon geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with polygon geometry."
+                _tr("Partitioning (Part): Polygon geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with polygon geometry.").format(geom_type=geom_type)
             )
 
         field_names = [f.name() for f in layer.fields()]
@@ -491,11 +485,12 @@ class InputValidator:
         # Required field: NAME
         if self.PART_REQUIRED_FIELD not in field_names:
             result.add_error(
-                f"Partitioning (Part): Field "
-                f"'{self.PART_REQUIRED_FIELD}' missing. "
-                f"Available fields: {', '.join(field_names[:15])}. "
-                f"Hint: Add a text field 'NAME' with partition names "
-                f"(e.g. PART_123)."
+                _tr("Partitioning (Part): Field '{field}' missing. "
+                    "Available fields: {fields}. "
+                    "Hint: Add a text field 'NAME' with partition names "
+                    "(e.g. PART_123).").format(
+                    field=self.PART_REQUIRED_FIELD,
+                    fields=', '.join(field_names[:15]))
             )
             return
 
@@ -516,19 +511,17 @@ class InputValidator:
 
         if null_count > 0:
             result.add_error(
-                f"Partitioning (Part): {null_count} features with "
-                f"empty/NULL value in field 'NAME'. "
-                f"Hint: All partitions require a name "
-                f"in the format PART_<number>."
+                _tr("Partitioning (Part): {null_count} features with empty/NULL value "
+                    "in field 'NAME'. Hint: All partitions require a name in the format "
+                    "PART_<number>.").format(null_count=null_count)
             )
 
         if non_matching:
             result.add_error(
-                f"Partitioning (Part): NAME values do not "
-                f"match the format PART_<number>. "
-                f"Examples: {', '.join(non_matching)}. "
-                f"Hint: NAME values must exactly follow the pattern "
-                f"PART_123 (e.g. PART_36, PART_433)."
+                _tr("Partitioning (Part): NAME values do not match the format "
+                    "PART_<number>. Examples: {examples}. Hint: NAME values must exactly "
+                    "follow the pattern PART_123 (e.g. PART_36, PART_433).").format(
+                    examples=', '.join(non_matching))
             )
 
     # ------------------------------------------------------------------
@@ -561,11 +554,11 @@ class InputValidator:
 
         if multiline_count > 0:
             result.add_error(
-                f"{layer_name}: {multiline_count} features contain "
-                f"multiple line strings (MultiLineString with >1 part). "
-                f"Each feature may only contain one line string. "
-                f"Hint: Explode multipart features "
-                f"(native:multiparttosingleparts)."
+                _tr("{layer}: {count} features contain multiple line strings "
+                    "(MultiLineString with >1 part). Each feature may only contain one "
+                    "line string. Hint: Explode multipart features "
+                    "(native:multiparttosingleparts).").format(
+                    layer=_tr(layer_name), count=multiline_count)
             )
 
     def _check_part_hu_ratio(
@@ -582,12 +575,12 @@ class InputValidator:
         ratio = hu_count / part_count
         if ratio > self.MAX_PART_TO_HU_RATIO:
             result.add_warning(
-                f"Part:HU ratio = 1:{ratio:.0f} "
-                f"(threshold: 1:{self.MAX_PART_TO_HU_RATIO}). "
-                f"Part has {part_count} features, HU has "
-                f"{hu_count} features. "
-                f"Hint: Use a finer partitioning to reduce "
-                f"processing time per partition."
+                _tr("Part:HU ratio = 1:{ratio} (threshold: 1:{threshold}). "
+                    "Part has {part_count} features, HU has {hu_count} features. "
+                    "Hint: Use a finer partitioning to reduce processing time "
+                    "per partition.").format(
+                    ratio=f"{ratio:.0f}", threshold=self.MAX_PART_TO_HU_RATIO,
+                    part_count=part_count, hu_count=hu_count)
             )
 
     # ------------------------------------------------------------------
