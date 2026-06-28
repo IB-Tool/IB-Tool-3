@@ -994,7 +994,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # ------------------------------------------------------------------
         if self._can_reuse_validation_result():
             logger.log(
-                "Validierung übersprungen - Eingaben und Parameter unverändert.",
+                self.tr("Validation skipped — inputs and parameters unchanged."),
                 level="INFO",
             )
             self._display_validation_result(self._last_validation_result)
@@ -1031,14 +1031,14 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         if result.is_valid and not result.warnings:
             logger.log(
-                "=== VALIDATION SUCCESSFUL === "
-                "All input data checks passed.",
+                self.tr("=== VALIDATION SUCCESSFUL === All input data checks passed."),
                 level="INFO"
             )
         else:
             if result.errors:
                 logger.log(
-                    f"=== VALIDATION ERRORS ({len(result.errors)}) ===",
+                    self.tr("=== VALIDATION ERRORS ({count}) ===").format(
+                        count=len(result.errors)),
                     level="CRITICAL"
                 )
                 for i, error in enumerate(result.errors, 1):
@@ -1046,7 +1046,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             if result.warnings:
                 logger.log(
-                    f"=== WARNINGS ({len(result.warnings)}) ===",
+                    self.tr("=== WARNINGS ({count}) ===").format(
+                        count=len(result.warnings)),
                     level="WARNING"
                 )
                 for i, warning in enumerate(result.warnings, 1):
@@ -1054,14 +1055,14 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             if result.is_valid:
                 logger.log(
-                    "Validation passed (with warnings). "
-                    "Processing can be started.",
+                    self.tr("Validation passed (with warnings). "
+                            "Processing can be started."),
                     level="INFO"
                 )
             else:
                 logger.log(
-                    "Validation failed. "
-                    "Please fix errors above before starting.",
+                    self.tr("Validation failed. "
+                            "Please fix errors above before starting."),
                     level="CRITICAL"
                 )
 

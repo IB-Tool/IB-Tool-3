@@ -371,6 +371,30 @@ Diese Aktion kann nicht rückgängig gemacht werden.</translation>
         <source>Save Output</source>
         <translation>Ausgabe speichern</translation>
     </message>
+    <message>
+        <source>Validation skipped — inputs and parameters unchanged.</source>
+        <translation>Validierung übersprungen — Eingaben und Parameter unverändert.</translation>
+    </message>
+    <message>
+        <source>=== VALIDATION SUCCESSFUL === All input data checks passed.</source>
+        <translation>=== VALIDIERUNG ERFOLGREICH === Alle Eingabedaten wurden geprüft.</translation>
+    </message>
+    <message>
+        <source>=== VALIDATION ERRORS ({count}) ===</source>
+        <translation>=== VALIDIERUNGSFEHLER ({count}) ===</translation>
+    </message>
+    <message>
+        <source>=== WARNINGS ({count}) ===</source>
+        <translation>=== WARNUNGEN ({count}) ===</translation>
+    </message>
+    <message>
+        <source>Validation passed (with warnings). Processing can be started.</source>
+        <translation>Validierung bestanden (mit Warnungen). Verarbeitung kann gestartet werden.</translation>
+    </message>
+    <message>
+        <source>Validation failed. Please fix errors above before starting.</source>
+        <translation>Validierung fehlgeschlagen. Bitte Fehler oben korrigieren.</translation>
+    </message>
 </context>
 
 <!-- ================================================================
