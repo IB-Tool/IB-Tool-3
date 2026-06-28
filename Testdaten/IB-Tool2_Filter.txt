@@ -6,6 +6,7 @@
 31001_1121, WohnVerw
 31001_1122, WohnBuero
 31001_1123, WohnGesch
+31001_2000, GebäudefürWirtschaftoderGewerbe
 31001_2052, Einkaufszentrum
 31001_2010, Handel und Dienstleistungen
 31001_2050, Geschäftsgebäude
@@ -14,11 +15,9 @@
 31001_3000, öffentliche Zwecke
 31001_3017, Kreisverwaltung
 31001_3018, Bezirksregierung
-
 #Filter negative (AX_Gebaedefunktionen: Kennung, Wert, Bezeichner) jeweils ohne Leerzeichen eingeben
 31001_1310, Freizeit
 31001_2600, Entsorgung
-31001_2720, GebLandForst
 31001_2720, GebLandForst
 31001_2721, Scheune
 31001_2723, Schuppen
@@ -37,8 +36,3 @@
 31001_2523, Umfomer
 31001_1312, Wochenendhaus
 #End
-
-
-
-
-
