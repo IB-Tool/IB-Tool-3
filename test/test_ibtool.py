@@ -158,11 +158,39 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
     # --- cancel_processing ---
 
     @pytest.mark.unit
-    def test_cancel_processing_does_not_crash(self):
-        """cancel_processing must not raise and must emit an informational message."""
-        self.tool.dlg.MessageBox.clear()
-        self.tool.cancel_processing()
-        assert "cannot be cancelled" in self.tool.dlg.MessageBox.toPlainText()
+    def test_cancel_processing_when_idle_closes_dialog(self):
+        """cancel_processing when not processing must close the dialog."""
+        tool = _make_tool()
+        tool._is_processing = False
+        tool.dlg.close = MagicMock()
+
+        tool.cancel_processing()
+
+        tool.dlg.close.assert_called_once()
+
+    @pytest.mark.unit
+    def test_cancel_processing_when_running_sets_flag(self):
+        """cancel_processing when processing must set _cancel_requested and show message."""
+        tool = _make_tool()
+        tool._is_processing = True
+        tool._cancel_requested = False
+        tool.dlg.MessageBox.clear()
+
+        tool.cancel_processing()
+
+        assert tool._cancel_requested is True
+        assert "Abbruch" in tool.dlg.MessageBox.toPlainText()
+
+    @pytest.mark.unit
+    def test_cancel_processing_when_running_does_not_close_dialog(self):
+        """cancel_processing when processing must not close the dialog."""
+        tool = _make_tool()
+        tool._is_processing = True
+        tool.dlg.close = MagicMock()
+
+        tool.cancel_processing()
+
+        tool.dlg.close.assert_not_called()
 
     @pytest.mark.unit
     def test_initial_is_processing_false(self):

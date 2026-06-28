@@ -172,8 +172,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.MessageBox.appendPlainText(message)
 
     def cancel_processing(self):
-        """Cancel processing (no-op — processing runs synchronously on the main thread)."""
-        self.update_messages("Processing cannot be cancelled mid-run.")
+        """Close the dialog when idle; request abort between phases when processing."""
+        if not self._is_processing:
+            self.dlg.close()
+        else:
+            self._cancel_requested = True
+            self.update_messages("Abbruch wird nach dem aktuellen Schritt durchgeführt...")
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):  # pylint: disable=invalid-name
