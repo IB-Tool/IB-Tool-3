@@ -110,10 +110,10 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Initialize config manager (plugin root is one level above ibtool/ibtool/)
         plugin_root = os.path.dirname(self.plugin_dir)
         self.config_manager = ConfigManager(plugin_root)
-        # Initialize locale
+        # Initialize locale — .qm files live in plugin root i18n/, not nested package
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
-            self.plugin_dir,
+            plugin_root,
             'i18n',
             f'IBTool_{locale}.qm')
 
