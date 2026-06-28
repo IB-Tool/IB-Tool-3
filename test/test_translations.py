@@ -52,11 +52,10 @@ class TestSafeTranslations:
 
         QCoreApplication.installTranslator(translator)
 
-        source_message = 'Good morning'
-        expected_translation = 'Guten Morgen'
-        # Use the context name from the .ts file
+        source_message = 'Cancel'
+        expected_translation = 'Abbrechen'
         real_message = QCoreApplication.translate(
-            "@default", 
+            "IBToolDialogBase",
             source_message
         )
         assert expected_translation == real_message
