@@ -17,6 +17,12 @@ from qgis.core import (
     QgsProcessing,
 )
 from qgis import processing
+from qgis.PyQt.QtCore import QCoreApplication
+
+
+def _tr(text: str) -> str:
+    """Translate a string using QGIS translation system."""
+    return QCoreApplication.translate('InputValidator', text)
 
 
 @dataclass
@@ -56,11 +62,11 @@ class InputValidator:
             (and is a directory when is_dir=True).
         """
         if not path or not path.strip():
-            return False, "No path specified"
+            return False, _tr("No path specified")
         if not os.path.exists(path):
-            return False, "File or directory does not exist"
+            return False, _tr("File or directory does not exist")
         if is_dir and not os.path.isdir(path):
-            return False, "Not a directory"
+            return False, _tr("Not a directory")
         return True, ""
 
     # Required fields per layer type
