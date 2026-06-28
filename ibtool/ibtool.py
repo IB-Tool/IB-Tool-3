@@ -92,6 +92,10 @@ def _open_directory(path: str) -> None:
             msg("Cannot open folder: xdg-open not found on this system.")
 
 
+class ProcessingCancelledError(Exception):
+    """Raised inside start_processing() when the user requests cancellation."""
+
+
 class IBTool:  # pylint: disable=too-many-instance-attributes
     """QGIS Plugin Implementation."""
 
@@ -145,6 +149,10 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Last successful output paths (used by result action buttons)
         self._last_output_path = ""
         self._last_output_folder = ""
+
+        # Processing state flags for cancel support
+        self._is_processing: bool = False
+        self._cancel_requested: bool = False
 
         # Checksum cache: field_name → MD5 hex of file at last path-check
         self._file_checksums: dict = {}
