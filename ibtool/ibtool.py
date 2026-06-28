@@ -1080,6 +1080,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Update the phase progress indicator and flush pending UI events."""
         self.dlg.set_phase_progress(phase, total, name, percent)
         QApplication.processEvents()
+        if self._cancel_requested:
+            raise ProcessingCancelledError()
 
     def _load_input_layers(self, input_hu, input_rn, input_aux, input_part,  # pylint: disable=too-many-arguments
                            workspace_path, spatial_reference):

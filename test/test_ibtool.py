@@ -1362,6 +1362,26 @@ class TestUpdatePhase:
         with patch.object(self.tool.dlg, "set_phase_progress"):
             self.tool._update_phase(2, 6, "", 20)  # Must not raise
 
+    @pytest.mark.unit
+    def test_raises_processing_cancelled_error_when_cancel_requested(self):
+        """Must raise ProcessingCancelledError after processEvents if _cancel_requested is True."""
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+
+        self.tool._cancel_requested = True
+        try:
+            with patch.object(self.tool.dlg, "set_phase_progress"):
+                with pytest.raises(ProcessingCancelledError):
+                    self.tool._update_phase(3, 6, "Calculate MST", 40)
+        finally:
+            self.tool._cancel_requested = False  # reset for other tests
+
+    @pytest.mark.unit
+    def test_does_not_raise_when_cancel_not_requested(self):
+        """Must not raise when _cancel_requested is False."""
+        self.tool._cancel_requested = False
+        with patch.object(self.tool.dlg, "set_phase_progress"):
+            self.tool._update_phase(3, 6, "Calculate MST", 40)  # must not raise
+
 
 # ---------------------------------------------------------------------------
 # TestLoadInputLayers
