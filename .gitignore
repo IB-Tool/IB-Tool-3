@@ -45,6 +45,8 @@ htmlcov/
 
 # === QGIS Plugin generierte Dateien ===
 *.qm
+# Allow the compiled German translation binary to be committed
+!i18n/IBTool_de.qm
 CONFIG.ini
 
 # === Projektspezifische Ausschluesse ===
