@@ -10,6 +10,8 @@
 
 Add a complete German translation for the IBTool QGIS plugin using the standard Qt Linguist workflow already scaffolded in the repo. When a user's QGIS locale is set to German (`de`), all UI labels, buttons, file-dialog titles, status messages, and validation messages appear in German. English remains the source language in code.
 
+**English is always the fallback.** No `IBTool_en.ts` file is needed or created. When the locale is not `de` (or any other locale for which a `.qm` file exists), Qt does not load any translator and simply displays the English source strings unchanged. German is purely additive — the English behaviour is untouched.
+
 ---
 
 ## Scope
