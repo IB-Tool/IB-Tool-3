@@ -39,8 +39,10 @@ from qgis.PyQt.QtCore import Qt, QCoreApplication
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ibtool_dialog_base.ui'))
 
+
 def _step_labels():
-    tr = lambda s: QCoreApplication.translate('IBToolDialog', s)
+    def tr(s):
+        return QCoreApplication.translate('IBToolDialog', s)
     return [
         tr("① Input"),
         tr("② Parameters"),
@@ -50,8 +52,10 @@ def _step_labels():
 
 
 def _step_short():
-    tr = lambda s: QCoreApplication.translate('IBToolDialog', s)
+    def tr(s):
+        return QCoreApplication.translate('IBToolDialog', s)
     return [tr("Input"), tr("Parameters"), tr("Validation"), tr("Processing")]
+
 
 # objectNames of all path fields that have a *PathStatus label
 _PATH_FIELD_NAMES = [
