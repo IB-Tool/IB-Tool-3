@@ -115,7 +115,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         locale_path = os.path.join(
             plugin_root,
             'i18n',
-            f'IBTool_{locale}.qm')
+            f'{locale}.qm')
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()

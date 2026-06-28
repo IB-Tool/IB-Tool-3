@@ -33,29 +33,19 @@ from qgis.PyQt.QtWidgets import (
     QSplitter,
 )
 from qgis.PyQt.QtGui import QColor
-from qgis.PyQt.QtCore import Qt, QCoreApplication
+from qgis.PyQt.QtCore import Qt
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ibtool_dialog_base.ui'))
 
-
-def _step_labels():
-    def tr(s):
-        return QCoreApplication.translate('IBToolDialog', s)
-    return [
-        tr("① Input"),
-        tr("② Parameters"),
-        tr("③ Validation"),
-        tr("④ Processing"),
-    ]
-
-
-def _step_short():
-    def tr(s):
-        return QCoreApplication.translate('IBToolDialog', s)
-    return [tr("Input"), tr("Parameters"), tr("Validation"), tr("Processing")]
-
+_STEP_LABELS = [
+    "① Eingabe",
+    "② Parameter",
+    "③ Validierung",
+    "④ Verarbeitung",
+]
+_STEP_SHORT = ["Eingabe", "Parameter", "Validierung", "Verarbeitung"]
 
 # objectNames of all path fields that have a *PathStatus label
 _PATH_FIELD_NAMES = [
@@ -86,22 +76,19 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
         """
         self.stackedWidget.setCurrentIndex(index)
 
-        labels = _step_labels()
-        short = _step_short()
-
         for i in range(4):
             btn = getattr(self, f'stepBtn{i}')
             if i == index:
-                btn.setText(labels[i])
+                btn.setText(_STEP_LABELS[i])
                 btn.setStyleSheet(
                     "QToolButton { font-weight: bold; color: #1565C0; "
                     "text-decoration: underline; }"
                 )
             elif i < index:
-                btn.setText(f"✓ {short[i]}")
+                btn.setText(f"✓ {_STEP_SHORT[i]}")
                 btn.setStyleSheet("QToolButton { color: #757575; }")
             else:
-                btn.setText(labels[i])
+                btn.setText(_STEP_LABELS[i])
                 btn.setStyleSheet("QToolButton { color: inherit; font-weight: normal; "
                                   "text-decoration: none; }")
 
@@ -154,9 +141,7 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
         self.validationChecklist.clear()
 
         if not errors and not warnings:
-            item = QListWidgetItem(
-                QCoreApplication.translate('IBToolDialog', "✅  All checks passed")
-            )
+            item = QListWidgetItem("✅  All checks passed")
             item.setForeground(QColor("#2E7D32"))
             self.validationChecklist.addItem(item)
             return
@@ -255,7 +240,7 @@ class FilterPreviewDialog(QDialog):
             parent: Optional parent widget.
         """
         super().__init__(parent)
-        self.setWindowTitle(QCoreApplication.translate('IBToolDialog', "Filter entries"))
+        self.setWindowTitle("Filter entries")
         self.setMinimumSize(700, 450)
         self._build_ui(positive_text, negative_text)
 
@@ -268,9 +253,7 @@ class FilterPreviewDialog(QDialog):
         # Positive pane
         pos_widget = QtWidgets.QWidget()
         pos_layout = QVBoxLayout(pos_widget)
-        pos_label = QLabel(
-            "<b>" + QCoreApplication.translate('IBToolDialog', "Positive filter") + "</b>"
-        )
+        pos_label = QLabel("<b>Positive filter</b>")
         pos_edit = QPlainTextEdit(positive_text)
         pos_edit.setReadOnly(True)
         pos_layout.addWidget(pos_label)
@@ -280,9 +263,7 @@ class FilterPreviewDialog(QDialog):
         # Negative pane
         neg_widget = QtWidgets.QWidget()
         neg_layout = QVBoxLayout(neg_widget)
-        neg_label = QLabel(
-            "<b>" + QCoreApplication.translate('IBToolDialog', "Negative filter") + "</b>"
-        )
+        neg_label = QLabel("<b>Negative filter</b>")
         neg_edit = QPlainTextEdit(negative_text)
         neg_edit.setReadOnly(True)
         neg_layout.addWidget(neg_label)
