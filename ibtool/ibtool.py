@@ -113,9 +113,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
-            self.plugin_dir,
+            plugin_root,
             'i18n',
-            f'IBTool_{locale}.qm')
+            f'{locale}.qm')
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()

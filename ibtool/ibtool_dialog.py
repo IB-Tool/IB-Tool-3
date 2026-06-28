@@ -40,12 +40,12 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ibtool_dialog_base.ui'))
 
 _STEP_LABELS = [
-    "① Input",
-    "② Parameters",
-    "③ Validation",
-    "④ Processing",
+    "① Eingabe",
+    "② Parameter",
+    "③ Validierung",
+    "④ Verarbeitung",
 ]
-_STEP_SHORT = ["Input", "Parameters", "Validation", "Processing"]
+_STEP_SHORT = ["Eingabe", "Parameter", "Validierung", "Verarbeitung"]
 
 # objectNames of all path fields that have a *PathStatus label
 _PATH_FIELD_NAMES = [
