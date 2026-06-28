@@ -243,3 +243,64 @@ pylint $(git ls-files '*.py')
 | [`docs/error-handling.md`](error-handling.md) | Logging system, error categories, debug mode |
 | [`docs/plugin-architecture.md`](plugin-architecture.md) | Plugin structure and package layout |
 | [`ai/core/testing-rules.md`](../ai/core/testing-rules.md) | Tactical rules: geometry checks, test structure, framework conventions |
+
+---
+
+## Updating Translations
+
+The German translation file is `i18n/IBTool_de.ts`. It must be kept in sync whenever
+user-facing strings change in `ibtool/ibtool.py`, `ibtool/ibtool_dialog.py`,
+`ibtool/helpers/check.py`, or `ibtool/ibtool_dialog_base.ui`.
+
+### When you change a string
+
+1. Find the matching `<source>` element in `i18n/IBTool_de.ts`.
+2. Update (or add) its `<translation>` element with the German text.
+3. Recompile (see below).
+
+### When you add a new string
+
+1. Wrap it in `self.tr()` / `QCoreApplication.translate('<ContextName>', ...)` / `_tr()` in the source.
+2. Add a new `<message>` block to the correct `<context>` in `IBTool_de.ts`:
+
+```xml
+<message>
+    <source>Your new English string</source>
+    <translation>Ihre neue deutsche Zeichenkette</translation>
+</message>
+```
+
+Context names:
+- `IBToolDialogBase` — strings from `ibtool_dialog_base.ui`
+- `IBTool` — strings in `ibtool.py` (via `self.tr()`)
+- `IBToolDialog` — strings in `ibtool_dialog.py`
+- `InputValidator` — strings in `helpers/check.py` (via `_tr()`)
+
+### Compile after editing
+
+```bash
+# Linux / macOS
+lrelease i18n/IBTool_de.ts -qm i18n/IBTool_de.qm
+
+# Windows (QGIS bundled lrelease)
+"C:\Program Files\QGIS 3.x\bin\lrelease.exe" i18n/IBTool_de.ts -qm i18n/IBTool_de.qm
+```
+
+Reload the plugin in QGIS to pick up the new `.qm`.
+
+### Extract new strings automatically (optional)
+
+```bash
+pylupdate5 ibtool/ibtool.py ibtool/ibtool_dialog.py \
+  ibtool/helpers/check.py ibtool/ibtool_dialog_base.ui \
+  -ts i18n/IBTool_de.ts
+```
+
+This adds new `<source>` entries without overwriting existing `<translation>` values.
+Fill in the `<translation>` tags manually, then recompile.
+
+### Adding a new language
+
+Copy `i18n/IBTool_de.ts` to `i18n/IBTool_<locale>.ts` (e.g. `IBTool_fr.ts`),
+fill in the `<translation>` elements, and compile with `lrelease`.
+No Python changes needed — QGIS picks up the locale automatically.
