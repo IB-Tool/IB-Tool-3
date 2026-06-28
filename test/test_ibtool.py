@@ -158,11 +158,39 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
     # --- cancel_processing ---
 
     @pytest.mark.unit
-    def test_cancel_processing_does_not_crash(self):
-        """cancel_processing must not raise and must emit an informational message."""
-        self.tool.dlg.MessageBox.clear()
-        self.tool.cancel_processing()
-        assert "nicht abgebrochen" in self.tool.dlg.MessageBox.toPlainText()
+    def test_cancel_processing_when_idle_closes_dialog(self):
+        """cancel_processing when not processing must close the dialog."""
+        tool = _make_tool()
+        tool._is_processing = False
+        tool.dlg.close = MagicMock()
+
+        tool.cancel_processing()
+
+        tool.dlg.close.assert_called_once()
+
+    @pytest.mark.unit
+    def test_cancel_processing_when_running_sets_flag(self):
+        """cancel_processing when processing must set _cancel_requested and show message."""
+        tool = _make_tool()
+        tool._is_processing = True
+        tool._cancel_requested = False
+        tool.dlg.MessageBox.clear()
+
+        tool.cancel_processing()
+
+        assert tool._cancel_requested is True
+        assert "Abbruch" in tool.dlg.MessageBox.toPlainText()
+
+    @pytest.mark.unit
+    def test_cancel_processing_when_running_does_not_close_dialog(self):
+        """cancel_processing when processing must not close the dialog."""
+        tool = _make_tool()
+        tool._is_processing = True
+        tool.dlg.close = MagicMock()
+
+        tool.cancel_processing()
+
+        tool.dlg.close.assert_not_called()
 
     @pytest.mark.unit
     def test_initial_is_processing_false(self):
@@ -666,8 +694,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDIERUNG ERFOLGREICH" in m for m in logged_msgs), \
-            "Expected 'VALIDIERUNG ERFOLGREICH' in logged messages"
+        assert any("VALIDATION SUCCESSFUL" in m for m in logged_msgs), \
+            "Expected 'VALIDATION SUCCESSFUL' in logged messages"
 
     @pytest.mark.unit
     def test_errors_are_logged_with_validierungsfehler_header(self):
@@ -682,8 +710,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDIERUNGSFEHLER" in m for m in logged_msgs), \
-            "Expected 'VALIDIERUNGSFEHLER' in logged messages"
+        assert any("VALIDATION ERRORS" in m for m in logged_msgs), \
+            "Expected 'VALIDATION ERRORS' in logged messages"
 
     @pytest.mark.unit
     def test_each_error_is_logged_individually(self):
@@ -714,8 +742,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("WARNUNGEN" in m for m in logged_msgs), \
-            "Expected 'WARNUNGEN' in logged messages"
+        assert any("WARNINGS" in m for m in logged_msgs), \
+            "Expected 'WARNINGS' in logged messages"
 
     @pytest.mark.unit
     def test_invalid_result_logs_fehlgeschlagen(self):
@@ -730,8 +758,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("fehlgeschlagen" in m for m in logged_msgs), \
-            "Expected 'fehlgeschlagen' in logged messages for invalid result"
+        assert any("failed" in m for m in logged_msgs), \
+            "Expected 'failed' in logged messages for invalid result"
 
     @pytest.mark.unit
     def test_valid_with_warnings_logs_bestanden_mit_warnungen(self):
@@ -746,8 +774,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("bestanden" in m for m in logged_msgs), \
-            "Expected 'bestanden' in logged messages for valid result with warnings"
+        assert any("passed" in m for m in logged_msgs), \
+            "Expected 'passed' in logged messages for valid result with warnings"
 
 
 # ---------------------------------------------------------------------------
