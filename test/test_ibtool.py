@@ -162,7 +162,7 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
         """cancel_processing must not raise and must emit an informational message."""
         self.tool.dlg.MessageBox.clear()
         self.tool.cancel_processing()
-        assert "cannot be cancelled" in self.tool.dlg.MessageBox.toPlainText()
+        assert "nicht abgebrochen" in self.tool.dlg.MessageBox.toPlainText()
 
     # --- load_filter_file ---
 
@@ -654,8 +654,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDATION SUCCESSFUL" in m for m in logged_msgs), \
-            "Expected 'VALIDATION SUCCESSFUL' in logged messages"
+        assert any("VALIDIERUNG ERFOLGREICH" in m for m in logged_msgs), \
+            "Expected 'VALIDIERUNG ERFOLGREICH' in logged messages"
 
     @pytest.mark.unit
     def test_errors_are_logged_with_validierungsfehler_header(self):
@@ -670,8 +670,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("VALIDATION ERRORS" in m for m in logged_msgs), \
-            "Expected 'VALIDATION ERRORS' in logged messages"
+        assert any("VALIDIERUNGSFEHLER" in m for m in logged_msgs), \
+            "Expected 'VALIDIERUNGSFEHLER' in logged messages"
 
     @pytest.mark.unit
     def test_each_error_is_logged_individually(self):
@@ -702,8 +702,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("WARNINGS" in m for m in logged_msgs), \
-            "Expected 'WARNINGS' in logged messages"
+        assert any("WARNUNGEN" in m for m in logged_msgs), \
+            "Expected 'WARNUNGEN' in logged messages"
 
     @pytest.mark.unit
     def test_invalid_result_logs_fehlgeschlagen(self):
@@ -718,8 +718,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("failed" in m for m in logged_msgs), \
-            "Expected 'failed' in logged messages for invalid result"
+        assert any("fehlgeschlagen" in m for m in logged_msgs), \
+            "Expected 'fehlgeschlagen' in logged messages for invalid result"
 
     @pytest.mark.unit
     def test_valid_with_warnings_logs_bestanden_mit_warnungen(self):
@@ -734,8 +734,8 @@ class TestDisplayValidationResult:
             tool._display_validation_result(result)
 
         logged_msgs = [call[0][0] for call in mock_logger.log.call_args_list]
-        assert any("passed" in m for m in logged_msgs), \
-            "Expected 'passed' in logged messages for valid result with warnings"
+        assert any("bestanden" in m for m in logged_msgs), \
+            "Expected 'bestanden' in logged messages for valid result with warnings"
 
 
 # ---------------------------------------------------------------------------

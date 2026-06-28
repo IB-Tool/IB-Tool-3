@@ -17,6 +17,12 @@ from qgis.core import (
     QgsProcessing,
 )
 from qgis import processing
+from qgis.PyQt.QtCore import QCoreApplication
+
+
+def _tr(text: str) -> str:
+    """Translate a string using QGIS translation system."""
+    return QCoreApplication.translate('InputValidator', text)
 
 
 @dataclass
@@ -56,11 +62,11 @@ class InputValidator:
             (and is a directory when is_dir=True).
         """
         if not path or not path.strip():
-            return False, "No path specified"
+            return False, _tr("No path specified")
         if not os.path.exists(path):
-            return False, "File or directory does not exist"
+            return False, _tr("File or directory does not exist")
         if is_dir and not os.path.isdir(path):
-            return False, "Not a directory"
+            return False, _tr("Not a directory")
         return True, ""
 
     # Required fields per layer type
@@ -127,13 +133,16 @@ class InputValidator:
         for name, path in layer_paths.items():
             # Check path is specified
             if not path or not path.strip():
-                result.add_error(f"{name}: No file path specified.")
+                result.add_error(
+                    _tr("{layer}: No file path specified.").format(layer=_tr(name))
+                )
                 continue
 
             # Check file exists
             if not os.path.exists(path):
                 result.add_error(
-                    f"{name}: File does not exist: {path}"
+                    _tr("{layer}: File does not exist: {path}").format(
+                        layer=_tr(name), path=path)
                 )
                 continue
 
@@ -141,7 +150,8 @@ class InputValidator:
             layer = QgsVectorLayer(path, name, "ogr")
             if not layer.isValid():
                 result.add_error(
-                    f"{name}: File cannot be loaded as a valid layer: {path}"
+                    _tr("{layer}: File cannot be loaded as a valid layer: {path}").format(
+                        layer=_tr(name), path=path)
                 )
                 continue
 
@@ -217,9 +227,9 @@ class InputValidator:
         if layer_crs.authid() != expected_crs.authid():
             actual = layer_crs.authid() or "undefined/unknown"
             result.add_error(
-                f"{layer_name}: CRS mismatch. "
-                f"Expected: {expected_crs.authid()}, found: {actual}. "
-                f"Hint: Reproject the layer to {expected_crs.authid()}."
+                _tr("{layer}: CRS mismatch. Expected: {expected}, found: {actual}. "
+                    "Hint: Reproject the layer to {expected}.").format(
+                    layer=_tr(layer_name), expected=expected_crs.authid(), actual=actual)
             )
 
     def _check_feature_counts(
@@ -240,14 +250,14 @@ class InputValidator:
             count = layer.featureCount()
             if count == 0:
                 result.add_error(
-                    f"{name}: Layer is empty (0 features). "
-                    f"Hint: Populate the layer with data."
+                    _tr("{layer}: Layer is empty (0 features). "
+                        "Hint: Populate the layer with data.").format(layer=_tr(name))
                 )
             elif count < min_count:
                 result.add_error(
-                    f"{name}: Too few features ({count}), "
-                    f"at least {min_count} required. "
-                    f"Hint: Check the dataset for completeness."
+                    _tr("{layer}: Too few features ({count}), at least {min_count} required. "
+                        "Hint: Check the dataset for completeness.").format(
+                        layer=_tr(name), count=count, min_count=min_count)
                 )
 
     # ------------------------------------------------------------------
@@ -286,14 +296,16 @@ class InputValidator:
 
         if null_count > 0:
             result.add_error(
-                f"{layer_name}: {null_count} features with NULL geometry. "
-                f"Hint: Remove features without geometry."
+                _tr("{layer}: {null_count} features with NULL geometry. "
+                    "Hint: Remove features without geometry.").format(
+                    layer=_tr(layer_name), null_count=null_count)
             )
 
         if empty_count > 0:
             result.add_error(
-                f"{layer_name}: {empty_count} features with empty geometry. "
-                f"Hint: Remove features with empty geometry."
+                _tr("{layer}: {empty_count} features with empty geometry. "
+                    "Hint: Remove features with empty geometry.").format(
+                    layer=_tr(layer_name), empty_count=empty_count)
             )
 
         if invalid_count > 0:
@@ -301,10 +313,9 @@ class InputValidator:
             if invalid_reasons:
                 details = " Examples: " + "; ".join(invalid_reasons) + "."
             result.add_warning(
-                f"{layer_name}: {invalid_count} invalid geometries "
-                f"(isGeosValid=False).{details} "
-                f"Hint: Fix geometries "
-                f"(native:fixgeometries)."
+                _tr("{layer}: {invalid_count} invalid geometries (isGeosValid=False)."
+                    "{details} Hint: Fix geometries (native:fixgeometries).").format(
+                    layer=_tr(layer_name), invalid_count=invalid_count, details=details)
             )
 
     def _check_validity_processing(  # pylint: disable=too-many-locals,too-many-branches
@@ -360,16 +371,15 @@ class InputValidator:
                 details = " Error types: " + "; ".join(error_messages) + "."
 
             result.add_warning(
-                f"{layer_name}: 'qgis:checkvalidity' found "
-                f"{invalid_count} invalid features.{details} "
-                f"Hint: Fix geometries "
-                f"(native:fixgeometries)."
+                _tr("{layer}: 'qgis:checkvalidity' found {invalid_count} invalid features."
+                    "{details} Hint: Fix geometries (native:fixgeometries).").format(
+                    layer=_tr(layer_name), invalid_count=invalid_count, details=details)
             )
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             result.add_warning(
-                f"{layer_name}: 'qgis:checkvalidity' could not "
-                f"be executed: {e}"
+                _tr("{layer}: 'qgis:checkvalidity' could not be executed: {error}").format(
+                    layer=_tr(layer_name), error=e)
             )
 
     # ------------------------------------------------------------------
@@ -384,9 +394,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Building footprints (HU): Polygon geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with polygon geometry."
+                _tr("Building footprints (HU): Polygon geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with polygon geometry.").format(geom_type=geom_type)
             )
 
         # Required field: fkt or funktion
@@ -399,10 +408,10 @@ class InputValidator:
 
         if not fkt_field:
             result.add_error(
-                f"Building footprints (HU): Field 'fkt', 'gfkzshh' or 'funktion' missing. "
-                f"Available fields: {', '.join(field_names[:15])}. "
-                f"Hint: Add a field 'fkt', 'gfkzshh' or 'funktion' containing "
-                f"building function codes."
+                _tr("Building footprints (HU): Field 'fkt', 'gfkzshh' or 'funktion' missing. "
+                    "Available fields: {fields}. "
+                    "Hint: Add a field 'fkt', 'gfkzshh' or 'funktion' containing "
+                    "building function codes.").format(fields=', '.join(field_names[:15]))
             )
             return
 
@@ -424,20 +433,18 @@ class InputValidator:
 
         if null_count > 0:
             result.add_warning(
-                f"Building footprints (HU): {null_count} features with "
-                f"empty/NULL value in field '{fkt_field}'. "
-                f"Hint: All features require a "
-                f"building function code."
+                _tr("Building footprints (HU): {null_count} features with "
+                    "empty/NULL value in field '{field}'. "
+                    "Hint: All features require a building function code.").format(
+                    null_count=null_count, field=fkt_field)
             )
 
         if invalid_format:
             result.add_warning(
-                f"Building footprints (HU): Values in field '{fkt_field}' "
-                f"do not match the ATKIS format (NNNNN_NNNN, "
-                f"e.g. 31001_1000). Examples: "
-                f"{', '.join(invalid_format)}. "
-                f"Hint: Only the first 10 characters are used "
-                f"for filter matching."
+                _tr("Building footprints (HU): Values in field '{field}' do not match "
+                    "the ATKIS format (NNNNN_NNNN, e.g. 31001_1000). Examples: {examples}. "
+                    "Hint: Only the first 10 characters are used for filter matching.").format(
+                    field=fkt_field, examples=', '.join(invalid_format))
             )
 
     def _check_rn_layer(
@@ -447,9 +454,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.LineGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Road network (RN): Line geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with line geometry."
+                _tr("Road network (RN): Line geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with line geometry.").format(geom_type=geom_type)
             )
 
     def _check_aux_layer(
@@ -459,9 +465,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.LineGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Auxiliary layer (Aux): Line geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with line geometry."
+                _tr("Auxiliary layer (Aux): Line geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with line geometry.").format(geom_type=geom_type)
             )
 
     def _check_part_layer(
@@ -471,9 +476,8 @@ class InputValidator:
         if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
-                f"Partitioning (Part): Polygon geometry required, "
-                f"but {geom_type} found. "
-                f"Hint: Use a layer with polygon geometry."
+                _tr("Partitioning (Part): Polygon geometry required, but {geom_type} found. "
+                    "Hint: Use a layer with polygon geometry.").format(geom_type=geom_type)
             )
 
         field_names = [f.name() for f in layer.fields()]
@@ -481,11 +485,12 @@ class InputValidator:
         # Required field: NAME
         if self.PART_REQUIRED_FIELD not in field_names:
             result.add_error(
-                f"Partitioning (Part): Field "
-                f"'{self.PART_REQUIRED_FIELD}' missing. "
-                f"Available fields: {', '.join(field_names[:15])}. "
-                f"Hint: Add a text field 'NAME' with partition names "
-                f"(e.g. PART_123)."
+                _tr("Partitioning (Part): Field '{field}' missing. "
+                    "Available fields: {fields}. "
+                    "Hint: Add a text field 'NAME' with partition names "
+                    "(e.g. PART_123).").format(
+                    field=self.PART_REQUIRED_FIELD,
+                    fields=', '.join(field_names[:15]))
             )
             return
 
@@ -506,19 +511,17 @@ class InputValidator:
 
         if null_count > 0:
             result.add_error(
-                f"Partitioning (Part): {null_count} features with "
-                f"empty/NULL value in field 'NAME'. "
-                f"Hint: All partitions require a name "
-                f"in the format PART_<number>."
+                _tr("Partitioning (Part): {null_count} features with empty/NULL value "
+                    "in field 'NAME'. Hint: All partitions require a name in the format "
+                    "PART_<number>.").format(null_count=null_count)
             )
 
         if non_matching:
             result.add_error(
-                f"Partitioning (Part): NAME values do not "
-                f"match the format PART_<number>. "
-                f"Examples: {', '.join(non_matching)}. "
-                f"Hint: NAME values must exactly follow the pattern "
-                f"PART_123 (e.g. PART_36, PART_433)."
+                _tr("Partitioning (Part): NAME values do not match the format "
+                    "PART_<number>. Examples: {examples}. Hint: NAME values must exactly "
+                    "follow the pattern PART_123 (e.g. PART_36, PART_433).").format(
+                    examples=', '.join(non_matching))
             )
 
     # ------------------------------------------------------------------
@@ -551,11 +554,11 @@ class InputValidator:
 
         if multiline_count > 0:
             result.add_error(
-                f"{layer_name}: {multiline_count} features contain "
-                f"multiple line strings (MultiLineString with >1 part). "
-                f"Each feature may only contain one line string. "
-                f"Hint: Explode multipart features "
-                f"(native:multiparttosingleparts)."
+                _tr("{layer}: {count} features contain multiple line strings "
+                    "(MultiLineString with >1 part). Each feature may only contain one "
+                    "line string. Hint: Explode multipart features "
+                    "(native:multiparttosingleparts).").format(
+                    layer=_tr(layer_name), count=multiline_count)
             )
 
     def _check_part_hu_ratio(
@@ -572,12 +575,12 @@ class InputValidator:
         ratio = hu_count / part_count
         if ratio > self.MAX_PART_TO_HU_RATIO:
             result.add_warning(
-                f"Part:HU ratio = 1:{ratio:.0f} "
-                f"(threshold: 1:{self.MAX_PART_TO_HU_RATIO}). "
-                f"Part has {part_count} features, HU has "
-                f"{hu_count} features. "
-                f"Hint: Use a finer partitioning to reduce "
-                f"processing time per partition."
+                _tr("Part:HU ratio = 1:{ratio} (threshold: 1:{threshold}). "
+                    "Part has {part_count} features, HU has {hu_count} features. "
+                    "Hint: Use a finer partitioning to reduce processing time "
+                    "per partition.").format(
+                    ratio=f"{ratio:.0f}", threshold=self.MAX_PART_TO_HU_RATIO,
+                    part_count=part_count, hu_count=hu_count)
             )
 
     # ------------------------------------------------------------------
@@ -634,12 +637,12 @@ class InputValidator:
             List of raw lines from the file, or None if it could not be read.
         """
         if not filter_path or not filter_path.strip():
-            result.add_error("Filter file: No file path specified.")
+            result.add_error(_tr("Filter file: No file path specified."))
             return None
 
         if not os.path.exists(filter_path):
             result.add_error(
-                f"Filter file: File does not exist: {filter_path}"
+                _tr("Filter file: File does not exist: {path}").format(path=filter_path)
             )
             return None
 
@@ -648,8 +651,8 @@ class InputValidator:
                 return f.readlines()
         except Exception as e:  # pylint: disable=broad-exception-caught
             result.add_error(
-                f"Filter file: File cannot be read: {e}. "
-                f"Hint: File must be UTF-8 encoded and readable."
+                _tr("Filter file: File cannot be read: {error}. "
+                    "Hint: File must be UTF-8 encoded and readable.").format(error=e)
             )
             return None
 
@@ -710,31 +713,29 @@ class InputValidator:
 
         if pos_line is None:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_POSITIVE}' missing. "
-                f"Hint: Add the line '{self.FILTER_SECTION_POSITIVE}' "
-                f"to the file."
+                _tr("Filter file: Section '{section}' missing. "
+                    "Hint: Add the line '{section}' to the file.").format(
+                    section=self.FILTER_SECTION_POSITIVE)
             )
         if neg_line is None:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_NEGATIVE}' missing. "
-                f"Hint: Add the line '{self.FILTER_SECTION_NEGATIVE}' "
-                f"to the file."
+                _tr("Filter file: Section '{section}' missing. "
+                    "Hint: Add the line '{section}' to the file.").format(
+                    section=self.FILTER_SECTION_NEGATIVE)
             )
         if pos_line is not None and neg_line is not None and pos_line > neg_line:
             result.add_error(
-                f"Filter file: '{self.FILTER_SECTION_POSITIVE}' "
-                f"(line {pos_line}) must appear before "
-                f"'{self.FILTER_SECTION_NEGATIVE}' "
-                f"(line {neg_line})."
+                _tr("Filter file: '{pos}' (line {pos_line}) must appear before "
+                    "'{neg}' (line {neg_line}).").format(
+                    pos=self.FILTER_SECTION_POSITIVE, pos_line=pos_line,
+                    neg=self.FILTER_SECTION_NEGATIVE, neg_line=neg_line)
             )
         if orphan_lines:
             samples = [f"line {n}: {t[:30]}" for n, t in orphan_lines[:3]]
             result.add_warning(
-                f"Filter file: {len(orphan_lines)} lines appear before "
-                f"the first section header and will be ignored. "
-                f"Examples: {'; '.join(samples)}."
+                _tr("Filter file: {count} lines appear before the first section header "
+                    "and will be ignored. Examples: {examples}.").format(
+                    count=len(orphan_lines), examples='; '.join(samples))
             )
 
     def _validate_filter_entries(
@@ -753,17 +754,15 @@ class InputValidator:
 
         if pos_line is not None and len(entries_positive) == 0:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_POSITIVE}' contains no "
-                f"entries. Hint: Add at least one "
-                f"function code."
+                _tr("Filter file: Section '{section}' contains no entries. "
+                    "Hint: Add at least one function code.").format(
+                    section=self.FILTER_SECTION_POSITIVE)
             )
         if neg_line is not None and len(entries_negative) == 0:
             result.add_error(
-                f"Filter file: Section "
-                f"'{self.FILTER_SECTION_NEGATIVE}' contains no "
-                f"entries. Hint: Add at least one "
-                f"function code."
+                _tr("Filter file: Section '{section}' contains no entries. "
+                    "Hint: Add at least one function code.").format(
+                    section=self.FILTER_SECTION_NEGATIVE)
             )
 
         invalid_entries = []
@@ -775,11 +774,10 @@ class InputValidator:
 
         if invalid_entries:
             result.add_warning(
-                f"Filter file: Entries do not match the "
-                f"ATKIS format (NNNNN_NNNN). Examples: "
-                f"{'; '.join(invalid_entries)}. "
-                f"Hint: Only the first 10 characters are used "
-                f"for filter matching."
+                _tr("Filter file: Entries do not match the ATKIS format (NNNNN_NNNN). "
+                    "Examples: {examples}. "
+                    "Hint: Only the first 10 characters are used for filter matching.").format(
+                    examples='; '.join(invalid_entries))
             )
 
     def _check_output_paths(
@@ -788,25 +786,23 @@ class InputValidator:
     ) -> None:
         """Validate output path format and workspace-path presence."""
         if not output_path or not output_path.strip():
-            result.add_error("Output file: No path specified.")
+            result.add_error(_tr("Output file: No path specified."))
         else:
             if not output_path.lower().endswith(".gpkg"):
                 result.add_error(
-                    f"Output file: GeoPackage (.gpkg) required, "
-                    f"but got: {output_path}. "
-                    f"Hint: Choose a .gpkg output file."
+                    _tr("Output file: GeoPackage (.gpkg) required, but got: {path}. "
+                        "Hint: Choose a .gpkg output file.").format(path=output_path)
                 )
             output_dir = os.path.dirname(output_path)
             if not output_dir:
                 result.add_error(
-                    f"Output file: Path must include a directory: "
-                    f"{output_path}. "
-                    f"Hint: Choose a full output path such as "
-                    f"C:/data/result.gpkg."
+                    _tr("Output file: Path must include a directory: {path}. "
+                        "Hint: Choose a full output path such as "
+                        "C:/data/result.gpkg.").format(path=output_path)
                 )
 
         if not workspace_path or not workspace_path.strip():
-            result.add_error("Workspace directory: No path specified.")
+            result.add_error(_tr("Workspace directory: No path specified."))
 
     # ------------------------------------------------------------------
     # Parameter validation
@@ -833,22 +829,14 @@ class InputValidator:
             params: Dict with raw string values from UI widgets.
             result: Validation result to append errors to.
         """
-        # (key, label, type, min, max)
         numeric_checks = [
-            ("min_overlap_blocks", "Min. Overlap Blocks (%)",
-             float, 0, 100),
-            ("global_footprint_density", "Global Footprint Density (%)",
-             float, 0, 100),
-            ("min_area", "Min. Building Area (sqm)",
-             float, 10, 500),
-            ("min_bdg_count", "Min. Building Count",
-             int, 1, 100),
-            ("min_patch_size", "Min. Patch Size (sqm)",
-             float, 100, 100000),
-            ("max_hole_size", "Max. Hole Size (sqm)",
-             float, 0, 100000),
-            ("max_gap_size", "Max. Gap Size (sqm)",
-             float, 0, 100000),
+            ("min_overlap_blocks", _tr("Min. Overlap Blocks (%)"), float, 0, 100),
+            ("global_footprint_density", _tr("Global Footprint Density (%)"), float, 0, 100),
+            ("min_area", _tr("Min. Building Area (sqm)"), float, 10, 500),
+            ("min_bdg_count", _tr("Min. Building Count"), int, 1, 100),
+            ("min_patch_size", _tr("Min. Patch Size (sqm)"), float, 100, 100000),
+            ("max_hole_size", _tr("Max. Hole Size (sqm)"), float, 0, 100000),
+            ("max_gap_size", _tr("Max. Gap Size (sqm)"), float, 0, 100000),
         ]
 
         for key, label, num_type, min_val, max_val in numeric_checks:
@@ -859,29 +847,31 @@ class InputValidator:
             raw_str = str(raw).strip()
             if not raw_str:
                 result.add_error(
-                    f"Parameter '{label}': No value specified."
+                    _tr("Parameter '{label}': No value specified.").format(label=label)
                 )
                 continue
 
             try:
                 value = num_type(raw_str)
             except (ValueError, TypeError):
-                expected = "integer" if num_type == int else "number"
+                kind = _tr("integer") if num_type == int else _tr("number")
                 result.add_error(
-                    f"Parameter '{label}': '{raw_str}' is not a "
-                    f"valid {expected}."
+                    _tr("Parameter '{label}': '{value}' is not a valid {kind}.").format(
+                        label=label, value=raw_str, kind=kind)
                 )
                 continue
 
             if min_val is not None and value < min_val:
                 result.add_error(
-                    f"Parameter '{label}': Value {value} is less "
-                    f"than the minimum ({min_val})."
+                    _tr("Parameter '{label}': Value {value} is less than the "
+                        "minimum ({min_val}).").format(
+                        label=label, value=value, min_val=min_val)
                 )
             if max_val is not None and value > max_val:
                 result.add_error(
-                    f"Parameter '{label}': Value {value} is greater "
-                    f"than the maximum ({max_val})."
+                    _tr("Parameter '{label}': Value {value} is greater than the "
+                        "maximum ({max_val}).").format(
+                        label=label, value=value, max_val=max_val)
                 )
 
     def _check_spatial_reference_param(
@@ -900,16 +890,14 @@ class InputValidator:
         crs = QgsCoordinateReferenceSystem(sr_text)
         if not crs.isValid():
             result.add_error(
-                f"Parameter 'CRS': '{sr_text}' is not "
-                f"a valid CRS. "
-                f"Hint: Use e.g. EPSG:25832."
+                _tr("Parameter 'CRS': '{crs}' is not a valid CRS. "
+                    "Hint: Use e.g. EPSG:25832.").format(crs=sr_text)
             )
         elif crs.isGeographic():
             result.add_warning(
-                f"Parameter 'CRS': '{sr_text}' is "
-                f"a geographic CRS (degrees). "
-                f"Hint: A projected CRS (metres) such as "
-                f"EPSG:25832 is recommended."
+                _tr("Parameter 'CRS': '{crs}' is a geographic CRS (degrees). "
+                    "Hint: A projected CRS (metres) such as EPSG:25832 "
+                    "is recommended.").format(crs=sr_text)
             )
 
     def _check_partition_range_params(
@@ -932,26 +920,22 @@ class InputValidator:
             if start_val != -1 and end_val != -1:
                 if start_val < 0:
                     result.add_error(
-                        f"Parameter 'Partition Start': "
-                        f"Value {start_val} is invalid. "
-                        f"Hint: -1 (all) or >= 0."
+                        _tr("Parameter 'Partition Start': Value {value} is invalid. "
+                            "Hint: -1 (all) or >= 0.").format(value=start_val)
                     )
                 if end_val < 0:
                     result.add_error(
-                        f"Parameter 'Partition End': "
-                        f"Value {end_val} is invalid. "
-                        f"Hint: -1 (all) or >= 0."
+                        _tr("Parameter 'Partition End': Value {value} is invalid. "
+                            "Hint: -1 (all) or >= 0.").format(value=end_val)
                     )
                 if 0 <= end_val <= start_val:
                     result.add_error(
-                        f"Parameter: Partition Start ({start_val}) >= "
-                        f"Partition End ({end_val}). "
-                        f"Hint: Start must be less than "
-                        f"End."
+                        _tr("Parameter: Partition Start ({start}) >= Partition End ({end}). "
+                            "Hint: Start must be less than End.").format(
+                            start=start_val, end=end_val)
                     )
         except ValueError:
             result.add_error(
-                f"Parameter 'Partition Start/End': "
-                f"'{part_start}'/'{part_end}' are not "
-                f"valid integers."
+                _tr("Parameter 'Partition Start/End': '{start}'/'{end}' are not "
+                    "valid integers.").format(start=part_start, end=part_end)
             )

@@ -558,7 +558,7 @@ class TestIBToolDialogValidationChecklist:
         """Empty errors and warnings show a single 'All checks passed' item."""
         self.dialog.populate_validation_checklist([], [])
         assert self.dialog.validationChecklist.count() == 1
-        assert "passed" in self.dialog.validationChecklist.item(0).text()
+        assert "bestanden" in self.dialog.validationChecklist.item(0).text()
 
     @pytest.mark.unit
     def test_errors_are_added_to_list(self):
@@ -765,7 +765,7 @@ class TestFilterPreviewDialog:
         """FilterPreviewDialog has the window title 'Filter entries'."""
         from ibtool.ibtool.ibtool_dialog import FilterPreviewDialog
         dlg = FilterPreviewDialog("", "")
-        assert dlg.windowTitle() == "Filter entries"
+        assert dlg.windowTitle() == "Filtereinträge"
         dlg.close()
 
     @pytest.mark.unit
