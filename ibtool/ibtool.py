@@ -1272,180 +1272,188 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         ``QApplication.processEvents()`` is called after each phase-progress
         update to keep the UI responsive.
         """
-        # Navigate to the processing page and reset UX state
-        self.dlg.set_step(3)
-        self.dlg.hide_result_actions()
-        self.dlg.phaseLabel.setText("Starting processing...")
-        self.dlg.ProgressBar.setValue(0)
-        QApplication.processEvents()
+        self._cancel_requested = False
+        self._is_processing = True
+        try:
+            # Navigate to the processing page and reset UX state
+            self.dlg.set_step(3)
+            self.dlg.hide_result_actions()
+            self.dlg.phaseLabel.setText("Starting processing...")
+            self.dlg.ProgressBar.setValue(0)
+            QApplication.processEvents()
 
-        # Ensure logger uses the level selected in the GUI
-        selected_level = self.dlg.LogLevelBox.currentText()
-        if selected_level:
-            try:
-                logger.set_log_level(selected_level)
-            except ValueError as e:
-                msg(str(e))
+            # Ensure logger uses the level selected in the GUI
+            selected_level = self.dlg.LogLevelBox.currentText()
+            if selected_level:
+                try:
+                    logger.set_log_level(selected_level)
+                except ValueError as e:
+                    msg(str(e))
 
-        log_dir = self.dlg.LogDirPath.text()
-        if log_dir:
-            logger.set_log_dir(log_dir)
+            log_dir = self.dlg.LogDirPath.text()
+            if log_dir:
+                logger.set_log_dir(log_dir)
 
-        workspace = os.getcwd()
-        os.chdir(workspace)
+            workspace = os.getcwd()
+            os.chdir(workspace)
 
-        _p = self._parse_numeric_params()
-        part_list_input = self.dlg.partlistBox.text()
-        del_part_log = self.dlg.PartLogBox.isChecked()
-        msg(f"del_part_log={del_part_log}")
-        debug_mode = self.dlg.DebugModeBox.isChecked()
-        spatial_reference = self.dlg.SpatialReferenceBox.crs()
-        logger.log(f"spatial_reference: {spatial_reference.authid()}", 'INFO')
+            _p = self._parse_numeric_params()
+            part_list_input = self.dlg.partlistBox.text()
+            del_part_log = self.dlg.PartLogBox.isChecked()
+            msg(f"del_part_log={del_part_log}")
+            debug_mode = self.dlg.DebugModeBox.isChecked()
+            spatial_reference = self.dlg.SpatialReferenceBox.crs()
+            logger.log(f"spatial_reference: {spatial_reference.authid()}", 'INFO')
 
-        if part_list_input[0] != "#":
-            part_list_input = list(part_list_input.split(","))
+            if part_list_input[0] != "#":
+                part_list_input = list(part_list_input.split(","))
 
-        workspace_path = self.dlg.WorkspacePath.text() + "/"
-        msg(f"workspace_path={workspace_path}")
-        manage_directory(workspace_path, del_part_log)
+            workspace_path = self.dlg.WorkspacePath.text() + "/"
+            msg(f"workspace_path={workspace_path}")
+            manage_directory(workspace_path, del_part_log)
 
-        part_log_path = workspace_path + 'IB_Tool_Results/IB_Tool2_Log.txt'
-        part_log_fin = workspace_path + 'IB_Tool_Results/IB_Tool2_Log_Fin.txt'
+            part_log_path = workspace_path + 'IB_Tool_Results/IB_Tool2_Log.txt'
+            part_log_fin = workspace_path + 'IB_Tool_Results/IB_Tool2_Log_Fin.txt'
 
-        input_hu = self.dlg.HuPath.text()
-        input_rn = self.dlg.RnPath.text()
-        input_aux = self.dlg.AuxPath.text()
-        input_part = self.dlg.PartPath.text()
-        output_file = self.dlg.OutputPath.text()
-        _p['input_filter'] = self.dlg.FilterPath.text()
+            input_hu = self.dlg.HuPath.text()
+            input_rn = self.dlg.RnPath.text()
+            input_aux = self.dlg.AuxPath.text()
+            input_part = self.dlg.PartPath.text()
+            output_file = self.dlg.OutputPath.text()
+            _p['input_filter'] = self.dlg.FilterPath.text()
 
-        # Input validation
-        validator = InputValidator()
-        validation_result = validator.validate_all(
-            hu_path=input_hu,
-            rn_path=input_rn,
-            part_path=input_part,
-            aux_path=input_aux,
-            filter_path=_p['input_filter'],
-            output_path=output_file,
-            workspace_path=self.dlg.WorkspacePath.text(),
-            spatial_reference=spatial_reference,
-            params=self._collect_params(),
-        )
-        self._display_validation_result(validation_result)
-        if not validation_result.is_valid:
-            logger.log("Verarbeitung abgebrochen wegen Validierungsfehlern.",
-                       level="CRITICAL")
-            return
+            # Input validation
+            validator = InputValidator()
+            validation_result = validator.validate_all(
+                hu_path=input_hu,
+                rn_path=input_rn,
+                part_path=input_part,
+                aux_path=input_aux,
+                filter_path=_p['input_filter'],
+                output_path=output_file,
+                workspace_path=self.dlg.WorkspacePath.text(),
+                spatial_reference=spatial_reference,
+                params=self._collect_params(),
+            )
+            self._display_validation_result(validation_result)
+            if not validation_result.is_valid:
+                logger.log("Verarbeitung abgebrochen wegen Validierungsfehlern.",
+                           level="CRITICAL")
+                return
 
-        # Phase 1: Load Data
-        self._update_phase(1, 6, "Load Data", 0)
-        layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
-            input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
+            # Phase 1: Load Data
+            self._update_phase(1, 6, "Load Data", 0)
+            layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
+                input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
 
-        merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
-        if not del_part_log and os.path.isfile(merge_temp_file):
-            merge_layer = QgsVectorLayer(merge_temp_file, 'global_merge_layer', 'ogr')
-            if not merge_layer.isValid():
-                logger.log("Intermediate merge file invalid, starting fresh", 'WARNING')
+            merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
+            if not del_part_log and os.path.isfile(merge_temp_file):
+                merge_layer = QgsVectorLayer(merge_temp_file, 'global_merge_layer', 'ogr')
+                if not merge_layer.isValid():
+                    logger.log("Intermediate merge file invalid, starting fresh", 'WARNING')
+                    merge_layer = create_empty_layer("global_merge_layer", "Polygon",
+                                                     spatial_reference.authid())
+                else:
+                    logger.log("Loaded intermediate merge layer for resume", 'INFO')
+            else:
                 merge_layer = create_empty_layer("global_merge_layer", "Polygon",
                                                  spatial_reference.authid())
-            else:
-                logger.log("Loaded intermediate merge layer for resume", 'INFO')
-        else:
-            merge_layer = create_empty_layer("global_merge_layer", "Polygon",
-                                             spatial_reference.authid())
-        merge = merge_layer  # guard against empty part_list
+            merge = merge_layer  # guard against empty part_list
 
-        part_list = create_partitions_list(
-            layer_part, part_list_input, _p['part_start'], _p['part_end'])
-        logger.log(f"Part list: {part_list}", 'SUCCESS')
+            part_list = create_partitions_list(
+                layer_part, part_list_input, _p['part_start'], _p['part_end'])
+            logger.log(f"Part list: {part_list}", 'SUCCESS')
 
-        global_footprint_density = _p['global_footprint_density']
-        if global_footprint_density == 0:
-            global_footprint_density = calc_footprint_density(
-                layer_hu, layer_rn, 100, 0, 'global', _p['min_bdg_count'], layer_part)
-        logger.log(
-            f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
+            global_footprint_density = _p['global_footprint_density']
+            if global_footprint_density == 0:
+                global_footprint_density = calc_footprint_density(
+                    layer_hu, layer_rn, 100, 0, 'global', _p['min_bdg_count'], layer_part)
+            logger.log(
+                f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
 
-        if del_part_log:
-            if os.path.isfile(part_log_path):
-                os.remove(part_log_path)
-            with open(part_log_fin, 'w', encoding='utf-8') as part_log:
-                part_log.write("")
+            if del_part_log:
+                if os.path.isfile(part_log_path):
+                    os.remove(part_log_path)
+                with open(part_log_fin, 'w', encoding='utf-8') as part_log:
+                    part_log.write("")
 
-        if not os.path.isfile(part_log_path):
-            with open(part_log_path, 'w', encoding='utf-8') as part_log:
-                part_log.write("")
+            if not os.path.isfile(part_log_path):
+                with open(part_log_path, 'w', encoding='utf-8') as part_log:
+                    part_log.write("")
 
-        if not os.path.isfile(part_log_fin):
-            with open(part_log_fin, 'w', encoding='utf-8') as f:
-                f.write("")
+            if not os.path.isfile(part_log_fin):
+                with open(part_log_fin, 'w', encoding='utf-8') as f:
+                    f.write("")
 
-        finished_parts = set()
-        with open(part_log_fin, 'r', encoding='utf-8') as f:
-            finished_parts = {row.strip() for row in f if row.strip()}
+            finished_parts = set()
+            with open(part_log_fin, 'r', encoding='utf-8') as f:
+                finished_parts = {row.strip() for row in f if row.strip()}
 
-        anz_hu_gesamt = layer_hu.featureCount()
-        anz_hu_sum = 0
-        layers = {
-            'layer_part': layer_part,
-            'layer_hu': layer_hu,
-            'layer_rn': layer_rn,
-            'aux_layers_line': aux_layers_line,
-        }
+            anz_hu_gesamt = layer_hu.featureCount()
+            anz_hu_sum = 0
+            layers = {
+                'layer_part': layer_part,
+                'layer_hu': layer_hu,
+                'layer_rn': layer_rn,
+                'aux_layers_line': aux_layers_line,
+            }
 
-        for a, i in enumerate(part_list, start=1):
-            logger.log(f"Check if {i} is in Partlist.", 'SUCCESS')
-            if i in finished_parts:
-                logger.log(f"{i} already completed, skipping.", 'SUCCESS')
-                continue
-            with open(part_log_path, 'a', encoding='utf-8') as part_log:
-                part_log.write("\n" + i)
+            for a, i in enumerate(part_list, start=1):
+                logger.log(f"Check if {i} is in Partlist.", 'SUCCESS')
+                if i in finished_parts:
+                    logger.log(f"{i} already completed, skipping.", 'SUCCESS')
+                    continue
+                with open(part_log_path, 'a', encoding='utf-8') as part_log:
+                    part_log.write("\n" + i)
 
-            result, anz_hu = self._run_partition_pipeline(
-                i, a, len(part_list), layers, spatial_reference,
-                workspace_path, debug_mode, global_footprint_density, _p)
+                result, anz_hu = self._run_partition_pipeline(
+                    i, a, len(part_list), layers, spatial_reference,
+                    workspace_path, debug_mode, global_footprint_density, _p)
 
-            if result is None:
+                if result is None:
+                    with open(part_log_fin, 'a', encoding='utf-8') as part_log:
+                        part_log.write("\n" + i)
+                    continue
+
+                anz_hu_sum += anz_hu
+                self.dlg.ProgressBar.setValue(int(anz_hu_sum / anz_hu_gesamt * 100))
+
+                merge = processing.run("native:mergevectorlayers", {
+                    'LAYERS': [result, merge_layer],
+                    'CRS': spatial_reference,
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                })['OUTPUT']
+                merge_layer = merge
+
+                save_temp_layer_to_gpkg(
+                    merge_layer, 'IB_Tool_merge_temp', workspace_path + 'IB_Tool_Results/')
+
                 with open(part_log_fin, 'a', encoding='utf-8') as part_log:
                     part_log.write("\n" + i)
-                continue
+                finished_parts.add(i)
 
-            anz_hu_sum += anz_hu
-            self.dlg.ProgressBar.setValue(int(anz_hu_sum / anz_hu_gesamt * 100))
+            if not merge.isValid():
+                logger.log("Failed to load final merge layer", "CRITICAL")
+                return
 
-            merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [result, merge_layer],
-                'CRS': spatial_reference,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
-            merge_layer = merge
+            # Phase 6: Save Output
+            self._update_phase(6, 6, "Save Output", 95)
+            output_folder, file_with_extension = os.path.split(output_file)
+            output_filename, _ = os.path.splitext(file_with_extension)
+            msg(output_folder)
+            msg(output_filename)
 
-            save_temp_layer_to_gpkg(
-                merge_layer, 'IB_Tool_merge_temp', workspace_path + 'IB_Tool_Results/')
+            save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
 
-            with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                part_log.write("\n" + i)
-            finished_parts.add(i)
+            self.dlg.ProgressBar.setValue(100)
+            self.dlg.phaseLabel.setText("Processing complete")
+            self._last_output_path = output_file
+            self._last_output_folder = output_folder
+            self.dlg.show_result_actions()
 
-        if not merge.isValid():
-            logger.log("Failed to load final merge layer", "CRITICAL")
-            return
-
-        # Phase 6: Save Output
-        self._update_phase(6, 6, "Save Output", 95)
-        output_folder, file_with_extension = os.path.split(output_file)
-        output_filename, _ = os.path.splitext(file_with_extension)
-        msg(output_folder)
-        msg(output_filename)
-
-        save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
-
-        self.dlg.ProgressBar.setValue(100)
-        self.dlg.phaseLabel.setText("Processing complete")
-        self._last_output_path = output_file
-        self._last_output_folder = output_folder
-        self.dlg.show_result_actions()
-
-        logger.log("Processing completed successfully.", level="CRITICAL")
+            logger.log("Processing completed successfully.", level="CRITICAL")
+        except ProcessingCancelledError:
+            self.update_messages("Verarbeitung abgebrochen.")
+            logger.log("Verarbeitung durch Nutzer abgebrochen.", level="WARNING")
+        finally:
+            self._is_processing = False
