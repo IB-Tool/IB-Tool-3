@@ -164,6 +164,18 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
         self.tool.cancel_processing()
         assert "cannot be cancelled" in self.tool.dlg.MessageBox.toPlainText()
 
+    @pytest.mark.unit
+    def test_initial_is_processing_false(self):
+        """_is_processing must be False after construction."""
+        tool = _make_tool()
+        assert tool._is_processing is False
+
+    @pytest.mark.unit
+    def test_initial_cancel_requested_false(self):
+        """_cancel_requested must be False after construction."""
+        tool = _make_tool()
+        assert tool._cancel_requested is False
+
     # --- load_filter_file ---
 
     @pytest.mark.unit
