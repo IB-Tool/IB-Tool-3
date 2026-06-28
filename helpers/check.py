@@ -133,13 +133,16 @@ class InputValidator:
         for name, path in layer_paths.items():
             # Check path is specified
             if not path or not path.strip():
-                result.add_error(f"{name}: No file path specified.")
+                result.add_error(
+                    _tr("{layer}: No file path specified.").format(layer=_tr(name))
+                )
                 continue
 
             # Check file exists
             if not os.path.exists(path):
                 result.add_error(
-                    f"{name}: File does not exist: {path}"
+                    _tr("{layer}: File does not exist: {path}").format(
+                        layer=_tr(name), path=path)
                 )
                 continue
 
@@ -147,7 +150,8 @@ class InputValidator:
             layer = QgsVectorLayer(path, name, "ogr")
             if not layer.isValid():
                 result.add_error(
-                    f"{name}: File cannot be loaded as a valid layer: {path}"
+                    _tr("{layer}: File cannot be loaded as a valid layer: {path}").format(
+                        layer=_tr(name), path=path)
                 )
                 continue
 
@@ -223,9 +227,9 @@ class InputValidator:
         if layer_crs.authid() != expected_crs.authid():
             actual = layer_crs.authid() or "undefined/unknown"
             result.add_error(
-                f"{layer_name}: CRS mismatch. "
-                f"Expected: {expected_crs.authid()}, found: {actual}. "
-                f"Hint: Reproject the layer to {expected_crs.authid()}."
+                _tr("{layer}: CRS mismatch. Expected: {expected}, found: {actual}. "
+                    "Hint: Reproject the layer to {expected}.").format(
+                    layer=_tr(layer_name), expected=expected_crs.authid(), actual=actual)
             )
 
     def _check_feature_counts(
@@ -246,14 +250,14 @@ class InputValidator:
             count = layer.featureCount()
             if count == 0:
                 result.add_error(
-                    f"{name}: Layer is empty (0 features). "
-                    f"Hint: Populate the layer with data."
+                    _tr("{layer}: Layer is empty (0 features). "
+                        "Hint: Populate the layer with data.").format(layer=_tr(name))
                 )
             elif count < min_count:
                 result.add_error(
-                    f"{name}: Too few features ({count}), "
-                    f"at least {min_count} required. "
-                    f"Hint: Check the dataset for completeness."
+                    _tr("{layer}: Too few features ({count}), at least {min_count} required. "
+                        "Hint: Check the dataset for completeness.").format(
+                        layer=_tr(name), count=count, min_count=min_count)
                 )
 
     # ------------------------------------------------------------------
@@ -292,14 +296,16 @@ class InputValidator:
 
         if null_count > 0:
             result.add_error(
-                f"{layer_name}: {null_count} features with NULL geometry. "
-                f"Hint: Remove features without geometry."
+                _tr("{layer}: {null_count} features with NULL geometry. "
+                    "Hint: Remove features without geometry.").format(
+                    layer=_tr(layer_name), null_count=null_count)
             )
 
         if empty_count > 0:
             result.add_error(
-                f"{layer_name}: {empty_count} features with empty geometry. "
-                f"Hint: Remove features with empty geometry."
+                _tr("{layer}: {empty_count} features with empty geometry. "
+                    "Hint: Remove features with empty geometry.").format(
+                    layer=_tr(layer_name), empty_count=empty_count)
             )
 
         if invalid_count > 0:
@@ -307,10 +313,9 @@ class InputValidator:
             if invalid_reasons:
                 details = " Examples: " + "; ".join(invalid_reasons) + "."
             result.add_warning(
-                f"{layer_name}: {invalid_count} invalid geometries "
-                f"(isGeosValid=False).{details} "
-                f"Hint: Fix geometries "
-                f"(native:fixgeometries)."
+                _tr("{layer}: {invalid_count} invalid geometries (isGeosValid=False)."
+                    "{details} Hint: Fix geometries (native:fixgeometries).").format(
+                    layer=_tr(layer_name), invalid_count=invalid_count, details=details)
             )
 
     def _check_validity_processing(  # pylint: disable=too-many-locals,too-many-branches
@@ -366,16 +371,15 @@ class InputValidator:
                 details = " Error types: " + "; ".join(error_messages) + "."
 
             result.add_warning(
-                f"{layer_name}: 'qgis:checkvalidity' found "
-                f"{invalid_count} invalid features.{details} "
-                f"Hint: Fix geometries "
-                f"(native:fixgeometries)."
+                _tr("{layer}: 'qgis:checkvalidity' found {invalid_count} invalid features."
+                    "{details} Hint: Fix geometries (native:fixgeometries).").format(
+                    layer=_tr(layer_name), invalid_count=invalid_count, details=details)
             )
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             result.add_warning(
-                f"{layer_name}: 'qgis:checkvalidity' could not "
-                f"be executed: {e}"
+                _tr("{layer}: 'qgis:checkvalidity' could not be executed: {error}").format(
+                    layer=_tr(layer_name), error=e)
             )
 
     # ------------------------------------------------------------------
