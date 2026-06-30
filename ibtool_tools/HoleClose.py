@@ -1,11 +1,35 @@
+# -*- coding: utf-8 -*-
+"""Close interior holes in settlement polygon layers up to a maximum hole area.
+
+Dissolves the input, converts to boundary lines, polygonizes, identifies inner
+holes, filters by area, and merges small holes back into the dissolved polygon.
+
+Public API
+----------
+hole_close(input_layer, max_hole_size)
+"""
 from qgis.core import QgsProcessing, QgsVectorLayer
 from qgis import processing
 
 from ..helpers.geometry_utils import shp_area2, get_hole_polygons
 
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "HoleClose"
+
+# ---------------------------------------------------------------------------
+# Module-level constants
+# ---------------------------------------------------------------------------
+
 # QGIS extractbyattribute operator: area <= threshold (less than or equal)
 _OPERATOR_LESS_THAN_OR_EQUAL: int = 5
+"""QGIS extractbyattribute operator code for ``<= threshold`` comparisons."""
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def hole_close(input_layer: QgsVectorLayer, max_hole_size: float) -> QgsVectorLayer:
     """Close holes inside a polygon layer up to a maximum hole area.

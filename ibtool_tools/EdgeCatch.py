@@ -1,11 +1,17 @@
-"""EdgeCatch — snaps grouped building polygons to the road network.
+# -*- coding: utf-8 -*-
+"""Snap grouped building polygons to the road network.
 
 For each building group, orthogonal projection lines are drawn from the building
-outline to the adjacent road segments.  The combined line geometry is polygonized
+outline to the adjacent road segments. The combined line geometry is polygonized
 and the result is clipped to the relevant city block, producing road-aligned
 settlement boundaries.
 
 Private helpers and algorithm constants live in helpers/edge_catch_utils.py.
+
+Public API
+----------
+edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_path,
+           debug_mode)
 """
 from qgis.core import QgsProcessing
 from qgis import processing
@@ -18,9 +24,18 @@ from ..helpers.edge_catch_utils import (
     process_single_feature,
     ROAD_SEGMENT_LENGTH,
     ROAD_BUFFER_DISTANCE,
-    DEBUG_TOOL_NAME,
 )
 
+
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "05_EdgeCatch"
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_path,
                debug_mode=False):
@@ -93,6 +108,6 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
         polygons_merge = grouped_bdgs
 
     if debug_mode and workspace_path:
-        save_debug_layer(polygons_merge, DEBUG_TOOL_NAME, "polygons_merged", workspace_path)
+        save_debug_layer(polygons_merge, _DEBUG_TOOL_NAME, "polygons_merged", workspace_path)
 
     return polygons_merge

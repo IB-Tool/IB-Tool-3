@@ -1,4 +1,14 @@
-"""AddSingleBuilding: Filter large isolated buildings and convert them to bounding rectangles."""
+# -*- coding: utf-8 -*-
+"""Add single large isolated buildings to the settlement cluster layer.
+
+Identifies buildings whose centroid lies outside existing cluster polygons
+and whose area exceeds a configurable threshold, then converts each such
+building to its oriented bounding rectangle.
+
+Public API
+----------
+add_single_bdg(input_hu, rect_merge, crs, workspace_path, threshold, debug_mode)
+"""
 
 from qgis.core import (
     QgsVectorLayer,
@@ -35,6 +45,10 @@ _BOUNDING_TYPE_RECTANGLE = 1
 # Default minimum area (m²) for a building to be considered "large"
 DEFAULT_AREA_THRESHOLD = 300
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def add_single_bdg(
     input_hu: QgsVectorLayer,
