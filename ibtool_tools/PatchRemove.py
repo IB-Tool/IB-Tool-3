@@ -1,3 +1,17 @@
+# -*- coding: utf-8 -*-
+"""Remove settlement patches that are too small or contain too few buildings.
+
+Converts multipart input to singlepart, counts intersecting buildings per
+patch, and filters out patches below configurable size and building-count
+thresholds. Dense blocks identified by identify_dense_blocks are always
+retained regardless of patch size.
+
+Public API
+----------
+patch_remove(input_poly, input_bdg, crs, workspace_path, min_patch_size,
+             min_bdg_count, footprint_area_sum, footprint_density_threshold,
+             debug_mode)
+"""
 from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsField,
@@ -18,16 +32,36 @@ from ..helpers.debug_utils import save_debug_layer
 # ---------------------------------------------------------------------------
 _DEBUG_TOOL_NAME = "08_PatchRemove"
 
+# ---------------------------------------------------------------------------
+# Module-level constants
+# ---------------------------------------------------------------------------
+
+DEFAULT_MIN_PATCH_SIZE = 10_000
+"""Minimum patch area (m²) below which a settlement polygon is discarded."""
+
+DEFAULT_MIN_BDG_COUNT = 20
+"""Minimum number of buildings a patch must contain to be retained."""
+
+DEFAULT_FOOTPRINT_AREA_SUM = 6_000
+"""Minimum total footprint area (m²) for a dense block to be retained unconditionally."""
+
+DEFAULT_FOOTPRINT_DENSITY_THRESHOLD = 18
+"""Footprint density threshold (%) passed to identify_dense_blocks."""
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def patch_remove(
     input_poly: QgsVectorLayer,
     input_bdg: QgsVectorLayer,
     crs: QgsCoordinateReferenceSystem,
     workspace_path: str,
-    min_patch_size: int = 10000,
-    min_bdg_count: int = 20,
-    footprint_area_sum: int = 6000,
-    footprint_density_threshold: int = 18,
+    min_patch_size: int = DEFAULT_MIN_PATCH_SIZE,
+    min_bdg_count: int = DEFAULT_MIN_BDG_COUNT,
+    footprint_area_sum: int = DEFAULT_FOOTPRINT_AREA_SUM,
+    footprint_density_threshold: int = DEFAULT_FOOTPRINT_DENSITY_THRESHOLD,
     debug_mode: bool = False,
 ) -> QgsVectorLayer:
     """Remove settlement patches that are too small or contain too few buildings.

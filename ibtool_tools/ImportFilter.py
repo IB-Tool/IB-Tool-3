@@ -1,4 +1,16 @@
-"""Import filter for building footprints based on ATKIS function codes and density analysis."""
+# -*- coding: utf-8 -*-
+"""Import filter for building footprints based on ATKIS function codes and density analysis.
+
+Reads a filter definition file to build positive and negative QGIS selection
+expressions, then applies a multi-step filter pipeline (function type, kernel
+density, minimum area) to the input building layer.
+
+Public API
+----------
+import_filter(filename, hu_layer)
+input_hu_filter(hu_layer, filter_file, min_area, cell_size, neighborhood_radius,
+                debug_mode, workspace_path)
+"""
 
 from __future__ import annotations
 
@@ -29,6 +41,10 @@ _BUFFER_CELL_DIVISOR = 1.5
 _MIN_BUILDING_AREA = 35
 
 
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
 def _create_filter_string(filter_list: list[str], fieldname: str) -> str:
     """Build a QGIS expression string that matches features by LIKE comparisons.
 
@@ -46,6 +62,10 @@ def _create_filter_string(filter_list: list[str], fieldname: str) -> str:
     parts = [f"{fieldname} LIKE {value}" for value in filter_list]
     return " OR ".join(parts)
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def import_filter(
     filename: str, hu_layer: QgsVectorLayer

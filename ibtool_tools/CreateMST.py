@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
-"""
-CreateMST - Refactored Version
+"""Minimum Spanning Tree (MST) calculation orchestrator.
 
-Refactored MST calculation with improved structure, testability, and maintainability.
-This replaces the original CreateMST.py with a clean, modular architecture.
+Coordinates Delaunay triangulation, street-based edge filtering, and MST
+calculation to produce a line layer connecting building centroids via the
+minimum spanning tree of the triangulated graph.
+
+Public API
+----------
+CreateMST                              — orchestrator class
+calculate_mst(input_bdg, streets_orig, spatial_reference)
 """
 
 from typing import Optional
@@ -17,6 +22,15 @@ from .mst import (
 )
 from ..helpers.logger import Logger
 
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "CreateMST"
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 class CreateMST:
     """
