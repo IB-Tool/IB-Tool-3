@@ -38,7 +38,7 @@ Windows the OSGeo4W Shell sets the correct environment automatically.
 
 ## 2. Installation
 
-1. Download the release ZIP (`IB-Tool_0.2.0.zip`).
+1. Download the release ZIP (`IB-Tool_0.2.1.zip`).
 2. Open QGIS → **Plugins** → **Manage and Install Plugins…**
 3. Click **Install from ZIP**.
 4. Select the downloaded ZIP and click **Install Plugin**.
@@ -62,6 +62,23 @@ IBTool requires five inputs. All layers must share the **same projected CRS**
 
 Full field specifications and filter file format: [input-data.md](input-data.md).
 
+### Sample Data
+
+The repository ships a ready-to-use sample dataset in the `Testdaten/` folder
+(project root) so you can try a first run without preparing your own data:
+
+| File | Role |
+|---|---|
+| `A_HU.shp` | Building footprints (HU) |
+| `A_RN.shp` | Road network (RN) |
+| `A_PART.shp` | Partitions |
+| `A_AUX.shp` | Auxiliary network (Aux) |
+| `IB-Tool2_Filter.txt` | Filter file |
+| `UGB.shp` | Reference/expected settlement boundary result, for comparison only — not a plugin input |
+
+See `Testdaten/LICENSE.txt` for data licensing (GeoBasis-DE/LGB for `A_AUX`,
+`A_HU`, `A_RN`; MIT for `UGB` and `A_PART`).
+
 ---
 
 ## 4. First Run
@@ -69,11 +86,26 @@ Full field specifications and filter file format: [input-data.md](input-data.md)
 ### Step 1 — Input
 Open the plugin. Fill in all path fields using the **…** buttons:
 - Building footprints, Road network, Partitions, Auxiliary network
-- Output file (`.gpkg` — will be created or overwritten)
+  (use the files from `Testdaten/` for a first trial run, see [Sample Data](#sample-data))
+- Output file — must point to a **GeoPackage that already exists as an empty
+  file** (see [Creating the output file](#creating-the-output-file) below)
 - Workspace folder (holds intermediate files and debug layers)
 - Filter file (`.txt`)
 
 Path fields turn green as each file is found.
+
+#### Creating the output file
+
+Before starting a run, create an **empty GeoPackage** for the Output file
+field: in the QGIS Browser panel, right-click **GeoPackage** → **New
+GeoPackage File…**, choose a location, and give it an **individual,
+descriptive name** (e.g. `result_2026-07-01.gpkg`). Select that empty file in
+the Output file field — the plugin writes the result into it (overwriting its
+contents) when processing finishes.
+
+Avoid a generic name such as `output.gpkg`, especially when testing with the
+shared sample data, so that repeated runs or parallel test sessions don't
+silently overwrite each other's results.
 
 ### Step 2 — Parameters
 For a first test run, leave all values at their defaults.
@@ -130,8 +162,10 @@ Read the validation checklist in Step 3. Common causes:
   `debug/PART_*/` let you trace exactly where the pipeline diverges.
 
 ### Output file already exists
-Delete the existing file first, or choose a different output path.
-The plugin does not overwrite an existing GeoPackage.
+The plugin overwrites the contents of the GeoPackage selected as the Output
+file. If you want to keep a previous result, copy it elsewhere first or
+create a new, individually named empty GeoPackage for the new run — see
+[Creating the output file](#creating-the-output-file).
 
 ### Windows paths with spaces
 Use the **…** file-dialog buttons instead of typing paths manually.

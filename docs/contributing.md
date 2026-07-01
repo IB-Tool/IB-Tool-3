@@ -109,7 +109,10 @@ Steps:
 | Validate release ZIP | `ci/qgis_plugin_validate.py --zip dist/*.zip` | ZIP structure and manifest |
 | Upload artifact | `actions/upload-artifact@v4` | `dist/*.zip` retained for 30 days |
 
-The `detect-secrets` scan excludes `Testdaten/` and `README.md`.
+`Testdaten/` contains sample GIS data for manual QA and demo runs (see
+[quickstart.md → Sample Data](quickstart.md#sample-data)); it is not consumed
+by the automated pytest suite. The `detect-secrets` scan excludes
+`Testdaten/` and `README.md`.
 
 #### Running checks locally
 

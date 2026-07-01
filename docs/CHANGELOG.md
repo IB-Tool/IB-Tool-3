@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.2.1 — 2026-07-01
+
+### Added
+- **German UI localization (i18n)**: all user-facing strings in `ibtool.py`, `ibtool_dialog.py`, and `check.py` are now wrapped in `self.tr()` / a `_tr()` helper; a complete German translation ships as `i18n/IBTool_de.qm`.
+- **Cancel button**: processing can now be aborted mid-run via `cancel_processing()`, backed by a new `ProcessingCancelledError` and cancellation state flags, with idle-close and running-abort handling and live `phaseLabel` updates.
+
+### Changed
+- **`ibtool_tools` module alignment** (Fixes #125): all processing tool modules refactored to follow the same structure as `GapClose.py`.
+- **CI/tooling hardening**: added flake8 to pre-commit, adjusted Bandit rule paths/comments, added a `detect-secrets` configuration template.
+- **Test updates**: adjusted tests for the `/tmp` → `/output` result directory change and for cross-platform `os.startfile` mocking.
+
+### Fixed
+- Corrected UTF-8 encoding issues in comments and log messages; added a regression test guarding against broken UTF-8 patterns.
+- Added fallback handling for missing QGIS in the test setup module.
+- Updated the README repository URL in the clone command.
+
+### Removed
+- Deleted unused UGB test dataset files from `Testdaten/`.
+
+### Docs
+- Added a sample dataset and clarified output file creation steps.
+
 ## 0.2.0 — 2026-06-17
 
 ### Added

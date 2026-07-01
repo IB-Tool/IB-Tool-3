@@ -16,7 +16,6 @@ Run from the repository root.
 from __future__ import annotations
 
 import configparser
-import os
 import zipfile
 from pathlib import Path
 
@@ -39,10 +38,13 @@ EXCLUDED_DIRS = {
     "dist",
     "venv",
     ".venv",
+    "env",
+    ".eggs",
     "logs",
     "scripts",
     "help",
     "build",
+    "htmlcov",
 }
 
 EXCLUDED_FILES = {
@@ -61,15 +63,34 @@ EXCLUDED_FILES = {
     ".secrets.baseline",
     ".flake8",
     ".bandit",
+    "CONFIG.ini",
+    ".DS_Store",
+    "Thumbs.db",
+    "Desktop.ini",
+    "nul",
 }
+
+EXCLUDED_FILE_PATTERNS = (
+    "- Kopie",
+    "_kopie",
+    "_original_backup",
+)
+
+EXCLUDED_FILE_PREFIXES = (
+    "debug_",
+)
 
 EXCLUDED_EXTENSIONS = {
     ".pyc",
     ".pyo",
+    ".pyd",
     ".iml",
     ".iws",
     ".ipr",
     ".egg-info",
+    ".egg",
+    ".so",
+    ".log",
 }
 
 
@@ -89,6 +110,14 @@ def is_excluded(rel: Path) -> bool:
 
     # Excluded by exact filename
     if filename in EXCLUDED_FILES:
+        return True
+
+    # Excluded by filename prefix (e.g. debug_*.py)
+    if filename.startswith(EXCLUDED_FILE_PREFIXES):
+        return True
+
+    # Excluded by filename substring (e.g. backup/copy files)
+    if any(pattern in filename for pattern in EXCLUDED_FILE_PATTERNS):
         return True
 
     # Excluded by extension

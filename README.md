@@ -165,6 +165,8 @@ The easiest way to install IBTool is to download the ready-to-use ZIP file from 
 
 Five inputs are required: building footprints (HU), road network (RN), partitioning layer (Part), auxiliary layer (Aux), and a filter file. All layers must share the same CRS.
 
+A ready-to-use sample dataset is included in the `Testdaten/` folder — see **[docs/quickstart.md → Sample Data](docs/quickstart.md#sample-data)**.
+
 For full layer specifications, field requirements, filter file format, and the complete validation check table, see **[docs/input-data.md](docs/input-data.md)**.
 
 ---
