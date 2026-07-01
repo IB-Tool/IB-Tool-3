@@ -7,7 +7,7 @@ name=IB-Tool
 qgisMinimumVersion=3.40
 pythonMinimumVersion=3.11
 description=QGIS plugin for settlement delineation based on building footprints. Provides automated geospatial processing tools for clustering, density calculations, and minimum spanning tree (MST) analysis.
-version=0.2.0
+version=0.2.1
 author=Oliver Harig
 email=ottmar.hittzfeld@web.de
 
@@ -21,7 +21,7 @@ license=GPL-2.0-or-later
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=0.2.0 - Dependency guard: missing scipy/networkx shows a clear pip install prompt instead of a traceback. Cross-platform folder-open (Linux/Mac/Windows). Complete UI overhaul: 4-step stepper, per-field validation, phase progress, result actions. Full helpers refactoring (docstrings, type hints, snake_case). All processing tools support debug mode. GeoPackage inputs. Checksum-based validation cache. 35 test modules.
+changelog=0.2.1 - Complete German UI localization (i18n) with translatable strings throughout the dialog, plugin, and validation messages. New cancel button to abort processing mid-run. All ibtool_tools modules refactored to align with GapClose.py structure. CI/tooling hardening (flake8, Bandit, detect-secrets). Sample dataset and documentation clarifications.
 
 
 # Tags are comma separated with spaces allowed
