@@ -1,28 +1,18 @@
 # -*- coding: utf-8 -*-
 """Remove building-free voids from settlement polygons.
 
-For each settlement polygon, building footprints within the boundary are
-selected and buffered by ``clamp(sqrt(building_area), MIN_BUFFER_M, MAX_BUFFER_M)``
-metres. Areas inside the settlement that lie outside all building buffers are
-treated as building-free voids. Only voids where less than
+For each settlement polygon, building footprints are buffered by
+``clamp(sqrt(building_area), MIN_BUFFER_M, MAX_BUFFER_M)`` metres. Areas
+inside the settlement that lie outside all building buffers are treated as
+building-free voids. Only voids where less than
 ``BOUNDARY_CONTACT_THRESHOLD_PCT`` percent of their boundary coincides with
-the settlement's outer boundary are removed. Interior voids with high or zero
-outer-boundary contact are left intact.
+the settlement outer boundary are removed; voids with equal or higher contact
+are kept.
 
-Constants:
-    _DEBUG_TOOL_NAME: Folder-name prefix for debug layer output, reflecting
-        the call order in the main processing pipeline (``"06_ErodeEmptyAreas"``).
-    MIN_BUFFER_M: Minimum per-building buffer distance in metres (10.0).
-    MAX_BUFFER_M: Maximum per-building buffer distance in metres (100.0).
-    MIN_EMPTY_AREA_M2: Minimum area (m2) of a building-free void to consider (500.0).
-    TOPOLOGY_GRID_SIZE: Grid size for difference operations (0.001).
-    BOUNDARY_CONTACT_THRESHOLD_PCT: Maximum fraction (%) of a void's boundary
-        that may touch the settlement outer boundary for the void to be removed
-        (20.0). Voids at or above this threshold are kept.
-    _BOUNDARY_SEGMENT_M: Segment length (m) used when splitting void boundaries
-        for the contact-fraction measurement (10.0).
-    _BOUNDARY_SNAP_M: Buffer distance (m) around the settlement boundary used
-        to catch near-touching void segments (0.5).
+Public API
+----------
+erode_empty_areas(input_layer, buildings_layer, min_empty_area, min_buffer_m,
+                  max_buffer_m, contact_threshold_pct, workspace_path, debug_mode)
 """
 
 import math

@@ -92,6 +92,10 @@ def _open_directory(path: str) -> None:
             msg("Cannot open folder: xdg-open not found on this system.")
 
 
+class ProcessingCancelledError(Exception):
+    """Raised inside start_processing() when the user requests cancellation."""
+
+
 class IBTool:  # pylint: disable=too-many-instance-attributes
     """QGIS Plugin Implementation."""
 
@@ -110,12 +114,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Initialize config manager (plugin root is one level above ibtool/ibtool/)
         plugin_root = os.path.dirname(self.plugin_dir)
         self.config_manager = ConfigManager(plugin_root)
-        # Initialize locale — .qm files live in plugin root i18n/, not nested package
+        # Initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
             plugin_root,
             'i18n',
-            f'IBTool_{locale}.qm')
+            f'{locale}.qm')
 
         if os.path.exists(locale_path):
             self.translator = QTranslator()
@@ -146,6 +150,10 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._last_output_path = ""
         self._last_output_folder = ""
 
+        # Processing state flags for cancel support
+        self._is_processing: bool = False
+        self._cancel_requested: bool = False
+
         # Checksum cache: field_name → MD5 hex of file at last path-check
         self._file_checksums: dict = {}
         # Checksum snapshot at the time of the last completed validation run
@@ -164,8 +172,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.MessageBox.appendPlainText(message)
 
     def cancel_processing(self):
-        """Cancel processing (no-op — processing runs synchronously on the main thread)."""
-        self.update_messages(self.tr("Processing cannot be cancelled mid-run."))
+        """Close the dialog when idle; request abort between phases when processing."""
+        if not self._is_processing:
+            self.dlg.close()
+        else:
+            self._cancel_requested = True
+            self.update_messages("Abbruch wird nach dem aktuellen Schritt durchgeführt...")
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):  # pylint: disable=invalid-name
@@ -412,10 +424,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the HU file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,  # Dialog is part of the GUI
-            self.tr("Select building footprints file"),
+            "Select building footprints file",
             "",
-            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;"
-                    "GeoPackage (*.gpkg);;All Files (*)")
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.HuPath.setText(file_path)  # Display the path in QLineEdit
@@ -424,10 +435,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the RN file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,
-            self.tr("Select road network file"),
+            "Select road network file",
             "",
-            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;"
-                    "GeoPackage (*.gpkg);;All Files (*)")
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.RnPath.setText(file_path)  # Display the path in QLineEdit
@@ -436,10 +446,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the PART file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,
-            self.tr("Select partitions file"),
+            "Select partitions file",
             "",
-            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;"
-                    "GeoPackage (*.gpkg);;All Files (*)")
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.PartPath.setText(
@@ -449,10 +458,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the AUX file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,
-            self.tr("Select auxiliary data file"),
+            "Select auxiliary data file",
             "",
-            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;"
-                    "GeoPackage (*.gpkg);;All Files (*)")
+            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.AuxPath.setText(file_path)
@@ -462,9 +470,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
            (GeoPackage)."""
         file_path, _ = QFileDialog.getSaveFileName(
             self.dlg,
-            self.tr("Select output file"),
+            "Select output file",
             "",
-            self.tr("GeoPackage (*.gpkg);;All Files (*)")
+            "GeoPackage (*.gpkg);;All Files (*)"
         )
         if file_path:
             self.dlg.OutputPath.setText(file_path)
@@ -473,7 +481,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a dialog to select a workspace folder."""
         folder_path = QFileDialog.getExistingDirectory(
             self.dlg,
-            self.tr("Select workspace folder"),
+            "Select workspace folder",
             ""
         )
         if folder_path:
@@ -484,9 +492,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         and processes it."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,  # Dialog is part of the GUI
-            self.tr("Select filter config file"),
+            "Select filter config file",
             "",
-            self.tr("Text files (*.txt);;All Files (*)")
+            "Text files (*.txt);;All Files (*)"
         )
         if file_path:
             self.dlg.FilterPath.setText(file_path)
@@ -496,7 +504,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Open a directory dialog to select the log output directory."""
         folder_path = QFileDialog.getExistingDirectory(
             self.dlg,
-            self.tr("Select log directory"),
+            "Select log directory",
             ""
         )
         if folder_path:
@@ -601,9 +609,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
     def _load_result_to_qgis(self):
         """Load the last output GeoPackage as a layer in QGIS."""
         if not self._last_output_path or not os.path.exists(self._last_output_path):
-            msg(self.tr("Output file not found."))
+            msg("Output file not found.")
             return
-        layer = QgsVectorLayer(self._last_output_path, self.tr("IB-Tool result"), "ogr")
+        layer = QgsVectorLayer(self._last_output_path, "IB-Tool result", "ogr")
         if layer.isValid():
             QgsProject.instance().addMapLayer(layer)
         else:
@@ -615,19 +623,19 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if folder and os.path.isdir(folder):
             _open_directory(folder)
         else:
-            msg(self.tr("Output directory not found."))
+            msg("Output directory not found.")
 
     def _export_log(self):
         """Save the current log content to a text file."""
         text = self.dlg.MessageBox.toPlainText()
         if not text:
-            msg(self.tr("No log content to export."))
+            msg("No log content to export.")
             return
         file_path, _ = QFileDialog.getSaveFileName(
             self.dlg,
-            self.tr("Export log"),
+            "Export log",
             self._last_output_folder or "",
-            self.tr("Text files (*.txt);;All Files (*)")
+            "Text files (*.txt);;All Files (*)"
         )
         if file_path:
             try:
@@ -779,7 +787,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self._last_validation_result = None
             self._validated_context = {}
 
-        logger.log(self.tr("Configuration loaded from CONFIG.ini."), level="INFO")
+        logger.log("Konfiguration aus CONFIG.ini geladen.", level="INFO")
 
     def _save_config_from_ui(self) -> None:
         """Persist the current UI state to CONFIG.ini."""
@@ -835,7 +843,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.config_manager.update_config(validation_cache=validation_cache)
 
         self.config_manager.save_config()
-        logger.log(self.tr("Configuration saved to CONFIG.ini."), level="INFO")
+        logger.log("Konfiguration in CONFIG.ini gespeichert.", level="INFO")
 
     def _delete_config(self) -> None:
         """Delete CONFIG.ini and reset all UI fields to factory defaults.
@@ -846,9 +854,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """
         reply = QMessageBox.question(
             self.dlg,
-            self.tr("Reset Configuration"),
-            self.tr("Delete CONFIG.ini and reset all fields to defaults?\n"
-                    "This action cannot be undone."),
+            "Konfiguration zurücksetzen",
+            "CONFIG.ini löschen und alle Felder zurücksetzen?\n"
+            "Diese Aktion kann nicht rückgängig gemacht werden.",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -861,7 +869,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             try:
                 os.remove(cfg_path)
             except OSError as e:
-                logger.log(f"Error deleting CONFIG.ini: {e}", level="CRITICAL")
+                logger.log(f"Fehler beim Löschen der CONFIG.ini: {e}", level="CRITICAL")
                 return
 
         # Re-init manager with empty defaults
@@ -903,7 +911,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Disable Start button (re-check required)
         self.dlg.set_start_button_ready(False)
 
-        logger.log(self.tr("Configuration reset — CONFIG.ini deleted."), level="INFO")
+        logger.log("Konfiguration zurückgesetzt — CONFIG.ini gelöscht.", level="INFO")
 
     def _collect_params(self) -> dict:
         """Collect all UI parameter values as raw strings for validation.
@@ -994,7 +1002,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # ------------------------------------------------------------------
         if self._can_reuse_validation_result():
             logger.log(
-                self.tr("Validation skipped — inputs and parameters unchanged."),
+                "Validierung übersprungen - Eingaben und Parameter unverändert.",
                 level="INFO",
             )
             self._display_validation_result(self._last_validation_result)
@@ -1031,14 +1039,14 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         if result.is_valid and not result.warnings:
             logger.log(
-                self.tr("=== VALIDATION SUCCESSFUL === All input data checks passed."),
+                "=== VALIDATION SUCCESSFUL === "
+                "All input data checks passed.",
                 level="INFO"
             )
         else:
             if result.errors:
                 logger.log(
-                    self.tr("=== VALIDATION ERRORS ({count}) ===").format(
-                        count=len(result.errors)),
+                    f"=== VALIDATION ERRORS ({len(result.errors)}) ===",
                     level="CRITICAL"
                 )
                 for i, error in enumerate(result.errors, 1):
@@ -1046,8 +1054,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             if result.warnings:
                 logger.log(
-                    self.tr("=== WARNINGS ({count}) ===").format(
-                        count=len(result.warnings)),
+                    f"=== WARNINGS ({len(result.warnings)}) ===",
                     level="WARNING"
                 )
                 for i, warning in enumerate(result.warnings, 1):
@@ -1055,14 +1062,14 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             if result.is_valid:
                 logger.log(
-                    self.tr("Validation passed (with warnings). "
-                            "Processing can be started."),
+                    "Validation passed (with warnings). "
+                    "Processing can be started.",
                     level="INFO"
                 )
             else:
                 logger.log(
-                    self.tr("Validation failed. "
-                            "Please fix errors above before starting."),
+                    "Validation failed. "
+                    "Please fix errors above before starting.",
                     level="CRITICAL"
                 )
 
@@ -1073,6 +1080,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Update the phase progress indicator and flush pending UI events."""
         self.dlg.set_phase_progress(phase, total, name, percent)
         QApplication.processEvents()
+        if self._cancel_requested:
+            raise ProcessingCancelledError()
 
     def _load_input_layers(self, input_hu, input_rn, input_aux, input_part,  # pylint: disable=too-many-arguments
                            workspace_path, spatial_reference):
@@ -1180,18 +1189,18 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                                        'OUTPUT': 'memory:'
                                        })['OUTPUT']
 
-        self._update_phase(2, 6, self.tr("Calculate Blocks"), 10)
+        self._update_phase(2, 6, "Calculate Blocks", 10)
         blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
                          debug_mode=debug_mode, workspace_path=part_workspace)
 
-        self._update_phase(3, 6, self.tr("Apply Filter"), 20)
+        self._update_phase(3, 6, "Apply Filter", 20)
         hu_filter = input_hu_filter(
             sel_hu_layer, params['input_filter'], params['min_area'], 50, 200,
             debug_mode=debug_mode, workspace_path=part_workspace)
         blocks_dense = identify_dense_blocks(hu_filter, blocks, params['min_overlap_blocks'])
         hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
 
-        self._update_phase(4, 6, self.tr("Calculate MST"), 40)
+        self._update_phase(4, 6, "Calculate MST", 40)
         mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
 
         if mst_layer is None:
@@ -1199,7 +1208,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
             return None, anz_hu
 
-        self._update_phase(5, 6, self.tr("Clustering"), 60)
+        self._update_phase(5, 6, "Clustering", 60)
         hu_cluster_output = mst_clustering(
             hu_filter_sel, mst_layer, spatial_reference,
             min_overlap_mst, debug_mode=debug_mode, workspace_path=part_workspace)
@@ -1235,7 +1244,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             spatial_reference, gap_dist=30,
             debug_mode=debug_mode, workspace_path=part_workspace)
 
-        self._update_phase(6, 6, self.tr("Erode Empty Areas"), 90)
+        self._update_phase(6, 6, "Erode Empty Areas", 90)
         patch_removed = patch_remove(
             gaps_closed, sel_hu_layer, spatial_reference, part_workspace,
             min_patch_size=params['min_patch_size'],
@@ -1263,180 +1272,190 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         ``QApplication.processEvents()`` is called after each phase-progress
         update to keep the UI responsive.
         """
-        # Navigate to the processing page and reset UX state
-        self.dlg.set_step(3)
-        self.dlg.hide_result_actions()
-        self.dlg.phaseLabel.setText(self.tr("Starting processing..."))
-        self.dlg.ProgressBar.setValue(0)
-        QApplication.processEvents()
+        self._cancel_requested = False
+        self._is_processing = True
+        try:
+            # Navigate to the processing page and reset UX state
+            self.dlg.set_step(3)
+            self.dlg.hide_result_actions()
+            self.dlg.phaseLabel.setText("Starting processing...")
+            self.dlg.ProgressBar.setValue(0)
+            QApplication.processEvents()
 
-        # Ensure logger uses the level selected in the GUI
-        selected_level = self.dlg.LogLevelBox.currentText()
-        if selected_level:
-            try:
-                logger.set_log_level(selected_level)
-            except ValueError as e:
-                msg(str(e))
+            # Ensure logger uses the level selected in the GUI
+            selected_level = self.dlg.LogLevelBox.currentText()
+            if selected_level:
+                try:
+                    logger.set_log_level(selected_level)
+                except ValueError as e:
+                    msg(str(e))
 
-        log_dir = self.dlg.LogDirPath.text()
-        if log_dir:
-            logger.set_log_dir(log_dir)
+            log_dir = self.dlg.LogDirPath.text()
+            if log_dir:
+                logger.set_log_dir(log_dir)
 
-        workspace = os.getcwd()
-        os.chdir(workspace)
+            workspace = os.getcwd()
+            os.chdir(workspace)
 
-        _p = self._parse_numeric_params()
-        part_list_input = self.dlg.partlistBox.text()
-        del_part_log = self.dlg.PartLogBox.isChecked()
-        msg(f"del_part_log={del_part_log}")
-        debug_mode = self.dlg.DebugModeBox.isChecked()
-        spatial_reference = self.dlg.SpatialReferenceBox.crs()
-        logger.log(f"spatial_reference: {spatial_reference.authid()}", 'INFO')
+            _p = self._parse_numeric_params()
+            part_list_input = self.dlg.partlistBox.text()
+            del_part_log = self.dlg.PartLogBox.isChecked()
+            msg(f"del_part_log={del_part_log}")
+            debug_mode = self.dlg.DebugModeBox.isChecked()
+            spatial_reference = self.dlg.SpatialReferenceBox.crs()
+            logger.log(f"spatial_reference: {spatial_reference.authid()}", 'INFO')
 
-        if part_list_input[0] != "#":
-            part_list_input = list(part_list_input.split(","))
+            if part_list_input[0] != "#":
+                part_list_input = list(part_list_input.split(","))
 
-        workspace_path = self.dlg.WorkspacePath.text() + "/"
-        msg(f"workspace_path={workspace_path}")
-        manage_directory(workspace_path, del_part_log)
+            workspace_path = self.dlg.WorkspacePath.text() + "/"
+            msg(f"workspace_path={workspace_path}")
+            manage_directory(workspace_path, del_part_log)
 
-        part_log_path = workspace_path + 'IB_Tool_Results/IB_Tool2_Log.txt'
-        part_log_fin = workspace_path + 'IB_Tool_Results/IB_Tool2_Log_Fin.txt'
+            part_log_path = workspace_path + 'IB_Tool_Results/IB_Tool2_Log.txt'
+            part_log_fin = workspace_path + 'IB_Tool_Results/IB_Tool2_Log_Fin.txt'
 
-        input_hu = self.dlg.HuPath.text()
-        input_rn = self.dlg.RnPath.text()
-        input_aux = self.dlg.AuxPath.text()
-        input_part = self.dlg.PartPath.text()
-        output_file = self.dlg.OutputPath.text()
-        _p['input_filter'] = self.dlg.FilterPath.text()
+            input_hu = self.dlg.HuPath.text()
+            input_rn = self.dlg.RnPath.text()
+            input_aux = self.dlg.AuxPath.text()
+            input_part = self.dlg.PartPath.text()
+            output_file = self.dlg.OutputPath.text()
+            _p['input_filter'] = self.dlg.FilterPath.text()
 
-        # Input validation
-        validator = InputValidator()
-        validation_result = validator.validate_all(
-            hu_path=input_hu,
-            rn_path=input_rn,
-            part_path=input_part,
-            aux_path=input_aux,
-            filter_path=_p['input_filter'],
-            output_path=output_file,
-            workspace_path=self.dlg.WorkspacePath.text(),
-            spatial_reference=spatial_reference,
-            params=self._collect_params(),
-        )
-        self._display_validation_result(validation_result)
-        if not validation_result.is_valid:
-            logger.log(self.tr("Processing aborted due to validation errors."),
-                       level="CRITICAL")
-            return
+            # Input validation
+            validator = InputValidator()
+            validation_result = validator.validate_all(
+                hu_path=input_hu,
+                rn_path=input_rn,
+                part_path=input_part,
+                aux_path=input_aux,
+                filter_path=_p['input_filter'],
+                output_path=output_file,
+                workspace_path=self.dlg.WorkspacePath.text(),
+                spatial_reference=spatial_reference,
+                params=self._collect_params(),
+            )
+            self._display_validation_result(validation_result)
+            if not validation_result.is_valid:
+                logger.log("Verarbeitung abgebrochen wegen Validierungsfehlern.",
+                           level="CRITICAL")
+                return
 
-        # Phase 1: Load Data
-        self._update_phase(1, 6, self.tr("Load Data"), 0)
-        layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
-            input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
+            # Phase 1: Load Data
+            self._update_phase(1, 6, "Load Data", 0)
+            layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
+                input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
 
-        merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
-        if not del_part_log and os.path.isfile(merge_temp_file):
-            merge_layer = QgsVectorLayer(merge_temp_file, 'global_merge_layer', 'ogr')
-            if not merge_layer.isValid():
-                logger.log("Intermediate merge file invalid, starting fresh", 'WARNING')
+            merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
+            if not del_part_log and os.path.isfile(merge_temp_file):
+                merge_layer = QgsVectorLayer(merge_temp_file, 'global_merge_layer', 'ogr')
+                if not merge_layer.isValid():
+                    logger.log("Intermediate merge file invalid, starting fresh", 'WARNING')
+                    merge_layer = create_empty_layer("global_merge_layer", "Polygon",
+                                                     spatial_reference.authid())
+                else:
+                    logger.log("Loaded intermediate merge layer for resume", 'INFO')
+            else:
                 merge_layer = create_empty_layer("global_merge_layer", "Polygon",
                                                  spatial_reference.authid())
-            else:
-                logger.log("Loaded intermediate merge layer for resume", 'INFO')
-        else:
-            merge_layer = create_empty_layer("global_merge_layer", "Polygon",
-                                             spatial_reference.authid())
-        merge = merge_layer  # guard against empty part_list
+            merge = merge_layer  # guard against empty part_list
 
-        part_list = create_partitions_list(
-            layer_part, part_list_input, _p['part_start'], _p['part_end'])
-        logger.log(f"Part list: {part_list}", 'SUCCESS')
+            part_list = create_partitions_list(
+                layer_part, part_list_input, _p['part_start'], _p['part_end'])
+            logger.log(f"Part list: {part_list}", 'SUCCESS')
 
-        global_footprint_density = _p['global_footprint_density']
-        if global_footprint_density == 0:
-            global_footprint_density = calc_footprint_density(
-                layer_hu, layer_rn, 100, 0, 'global', _p['min_bdg_count'], layer_part)
-        logger.log(
-            f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
+            global_footprint_density = _p['global_footprint_density']
+            if global_footprint_density == 0:
+                global_footprint_density = calc_footprint_density(
+                    layer_hu, layer_rn, 100, 0, 'global', _p['min_bdg_count'], layer_part)
+            logger.log(
+                f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
 
-        if del_part_log:
-            if os.path.isfile(part_log_path):
-                os.remove(part_log_path)
-            with open(part_log_fin, 'w', encoding='utf-8') as part_log:
-                part_log.write("")
+            if del_part_log:
+                if os.path.isfile(part_log_path):
+                    os.remove(part_log_path)
+                with open(part_log_fin, 'w', encoding='utf-8') as part_log:
+                    part_log.write("")
 
-        if not os.path.isfile(part_log_path):
-            with open(part_log_path, 'w', encoding='utf-8') as part_log:
-                part_log.write("")
+            if not os.path.isfile(part_log_path):
+                with open(part_log_path, 'w', encoding='utf-8') as part_log:
+                    part_log.write("")
 
-        if not os.path.isfile(part_log_fin):
-            with open(part_log_fin, 'w', encoding='utf-8') as f:
-                f.write("")
+            if not os.path.isfile(part_log_fin):
+                with open(part_log_fin, 'w', encoding='utf-8') as f:
+                    f.write("")
 
-        finished_parts = set()
-        with open(part_log_fin, 'r', encoding='utf-8') as f:
-            finished_parts = {row.strip() for row in f if row.strip()}
+            finished_parts = set()
+            with open(part_log_fin, 'r', encoding='utf-8') as f:
+                finished_parts = {row.strip() for row in f if row.strip()}
 
-        anz_hu_gesamt = layer_hu.featureCount()
-        anz_hu_sum = 0
-        layers = {
-            'layer_part': layer_part,
-            'layer_hu': layer_hu,
-            'layer_rn': layer_rn,
-            'aux_layers_line': aux_layers_line,
-        }
+            anz_hu_gesamt = layer_hu.featureCount()
+            anz_hu_sum = 0
+            layers = {
+                'layer_part': layer_part,
+                'layer_hu': layer_hu,
+                'layer_rn': layer_rn,
+                'aux_layers_line': aux_layers_line,
+            }
 
-        for a, i in enumerate(part_list, start=1):
-            logger.log(f"Check if {i} is in Partlist.", 'SUCCESS')
-            if i in finished_parts:
-                logger.log(f"{i} already completed, skipping.", 'SUCCESS')
-                continue
-            with open(part_log_path, 'a', encoding='utf-8') as part_log:
-                part_log.write("\n" + i)
+            for a, i in enumerate(part_list, start=1):
+                logger.log(f"Check if {i} is in Partlist.", 'SUCCESS')
+                if i in finished_parts:
+                    logger.log(f"{i} already completed, skipping.", 'SUCCESS')
+                    continue
+                with open(part_log_path, 'a', encoding='utf-8') as part_log:
+                    part_log.write("\n" + i)
 
-            result, anz_hu = self._run_partition_pipeline(
-                i, a, len(part_list), layers, spatial_reference,
-                workspace_path, debug_mode, global_footprint_density, _p)
+                result, anz_hu = self._run_partition_pipeline(
+                    i, a, len(part_list), layers, spatial_reference,
+                    workspace_path, debug_mode, global_footprint_density, _p)
 
-            if result is None:
+                if result is None:
+                    with open(part_log_fin, 'a', encoding='utf-8') as part_log:
+                        part_log.write("\n" + i)
+                    continue
+
+                anz_hu_sum += anz_hu
+                self.dlg.ProgressBar.setValue(int(anz_hu_sum / anz_hu_gesamt * 100))
+
+                merge = processing.run("native:mergevectorlayers", {
+                    'LAYERS': [result, merge_layer],
+                    'CRS': spatial_reference,
+                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+                })['OUTPUT']
+                merge_layer = merge
+
+                save_temp_layer_to_gpkg(
+                    merge_layer, 'IB_Tool_merge_temp', workspace_path + 'IB_Tool_Results/')
+
                 with open(part_log_fin, 'a', encoding='utf-8') as part_log:
                     part_log.write("\n" + i)
-                continue
+                finished_parts.add(i)
 
-            anz_hu_sum += anz_hu
-            self.dlg.ProgressBar.setValue(int(anz_hu_sum / anz_hu_gesamt * 100))
+            if not merge.isValid():
+                logger.log("Failed to load final merge layer", "CRITICAL")
+                return
 
-            merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [result, merge_layer],
-                'CRS': spatial_reference,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
-            merge_layer = merge
+            # Phase 6: Save Output
+            self._update_phase(6, 6, "Save Output", 95)
+            output_folder, file_with_extension = os.path.split(output_file)
+            output_filename, _ = os.path.splitext(file_with_extension)
+            msg(output_folder)
+            msg(output_filename)
 
-            save_temp_layer_to_gpkg(
-                merge_layer, 'IB_Tool_merge_temp', workspace_path + 'IB_Tool_Results/')
+            save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
 
-            with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                part_log.write("\n" + i)
-            finished_parts.add(i)
+            self.dlg.ProgressBar.setValue(100)
+            self.dlg.phaseLabel.setText("Processing complete")
+            self._last_output_path = output_file
+            self._last_output_folder = output_folder
+            self.dlg.show_result_actions()
 
-        if not merge.isValid():
-            logger.log("Failed to load final merge layer", "CRITICAL")
-            return
-
-        # Phase 6: Save Output
-        self._update_phase(6, 6, self.tr("Save Output"), 95)
-        output_folder, file_with_extension = os.path.split(output_file)
-        output_filename, _ = os.path.splitext(file_with_extension)
-        msg(output_folder)
-        msg(output_filename)
-
-        save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
-
-        self.dlg.ProgressBar.setValue(100)
-        self.dlg.phaseLabel.setText(self.tr("Processing complete"))
-        self._last_output_path = output_file
-        self._last_output_folder = output_folder
-        self.dlg.show_result_actions()
-
-        logger.log("Processing completed successfully.", level="CRITICAL")
+            logger.log("Processing completed successfully.", level="CRITICAL")
+        except ProcessingCancelledError:
+            self.dlg.phaseLabel.setText("Verarbeitung abgebrochen.")
+            self.update_messages("Verarbeitung abgebrochen.")
+            logger.log("Verarbeitung durch Nutzer abgebrochen.", level="WARNING")
+        finally:
+            self._is_processing = False
+            self._cancel_requested = False

@@ -66,4 +66,5 @@ dist/
 
 # Claude Code (lokale Einstellungen, nicht committen)
 /.claude/settings.local.json
+/.claude/settings.json
 

@@ -1,3 +1,17 @@
+# -*- coding: utf-8 -*-
+"""Building footprint density calculations for city blocks.
+
+Provides tools to compute the overlap ratio of building footprints within
+city blocks, identify dense settlement blocks, and derive a global footprint
+density threshold for the processing pipeline.
+
+Public API
+----------
+calc_footprint_density(InputBdg, InputStrNetwork, Buffer, GlobalThreshold, Ext,
+                       MinBdgCount, Partition)
+footprint_density(HU_Input, Bloecke, footprint_density_threshold)
+identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold)
+"""
 from qgis.core import (
     QgsVectorLayer,
     QgsExpression,
@@ -28,6 +42,134 @@ except ImportError:
         def log(message, level="INFO"):
             print(f"[{level}] {message}")
 
+# ---------------------------------------------------------------------------
+# Debug folder name — prefix reflects call order in the main pipeline
+# ---------------------------------------------------------------------------
+_DEBUG_TOOL_NAME = "FootprintDensity"
+
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
+    """Select city blocks that intersect buildings and contain enough of them.
+
+    Polygonizes the street network, selects blocks that intersect the buffered
+    building outline (excluding boundary-touching blocks), and returns only
+    blocks that contain at least ``min_bdg_count`` buildings.
+
+    Args:
+        InputStrNetwork: Road network polyline layer (QgsVectorLayer).
+        InputBdg: Building footprint polygon layer (QgsVectorLayer).
+        Buffer: Buffer distance (m) around buildings to define the settlement extent.
+        min_bdg_count: Minimum number of buildings a block must contain to be kept.
+
+    Returns:
+        QgsVectorLayer of filtered city blocks with a building-count join field.
+    """
+    # Convert the street network to polygons
+    InputStrNetwork_Poly = processing.run("native:polygonize", {
+        'INPUT': InputStrNetwork,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+    })['OUTPUT']
+
+    # Create a spatial index for the polygonized street network
+    processing.run("native:createspatialindex", {
+        'INPUT': InputStrNetwork_Poly
+    })
+
+    # Buffer buildings and dissolve them
+    InputBdg_Buff = processing.run("native:buffer", {
+        'INPUT': InputBdg,
+        'DISTANCE': Buffer,
+        'SEGMENTS': 5,
+        'END_CAP_STYLE': 0,  # Round
+        'JOIN_STYLE': 0,  # Round
+        'MITER_LIMIT': 2,
+        'DISSOLVE': True,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+    })['OUTPUT']
+
+    # Create a spatial index for the polygonized street network
+    processing.run("native:createspatialindex", {
+        'INPUT': InputBdg_Buff
+    })
+
+    InputBdg_Buff_Line = processing.run("native:polygonstolines", {
+        'INPUT': InputBdg_Buff,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+    })['OUTPUT']
+
+    # Erste Auswahl basierend auf räumlicher Beziehung
+    processing.run("native:selectbylocation", {
+        'INPUT': InputStrNetwork_Poly,
+        'PREDICATE': [0],  # Überschneidet
+        'INTERSECT': InputBdg_Buff_Line,
+        'METHOD': 0  # Neue Auswahl erstellen
+    })
+
+    # IDs der ausgewählten Features holen
+    selected_ids = InputStrNetwork_Poly.selectedFeatureIds()
+
+    # Invertierung: Wähle alle Features, die nicht in der aktuellen Auswahl sind
+    all_ids = [f.id() for f in InputStrNetwork_Poly.getFeatures()]
+    inverted_ids = [fid for fid in all_ids if fid not in selected_ids]
+
+    # Auswahl mit invertierten IDs setzen
+    InputStrNetwork_Poly.selectByIds(inverted_ids)
+
+    InputStrNetwork_Poly_Sel = processing.run(
+        "native:saveselectedfeatures",
+        {'INPUT': InputStrNetwork_Poly,
+         'OUTPUT': 'TEMPORARY_OUTPUT'
+         })['OUTPUT']
+
+    # Zweite Auswahl basierend auf der invertierten Auswahl
+    BlocksInside = processing.run("native:selectbylocation", {
+        'INPUT': InputStrNetwork_Poly_Sel,
+        'PREDICATE': [0],  # Überschneidet
+        'INTERSECT': InputBdg,
+        'METHOD': 2  # Auswahl verfeinern (auf bestehender Auswahl aufbauen)
+    })['OUTPUT']
+
+    # Spatial join between building buffer and street polygons
+    Blocks_join = processing.run("native:joinbylocationsummary", {
+        'INPUT': BlocksInside,
+        'JOIN': InputBdg,
+        'PREDICATE': [0],  # Intersects
+        'JOIN_FIELDS': [],
+        'SUMMARIES': [0],
+        'DISCARD_NONMATCHING': False,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+    })['OUTPUT']
+
+    # Dynamically find the count field created by the join
+    count_field = None
+    for field in Blocks_join.fields():
+        if field.name().endswith('_count'):
+            count_field = field.name()
+            break
+
+    if not count_field:
+        msg("ERROR: Could not find count field in joined layer", 'CRITICAL')
+        raise ValueError("Count field not found after spatial join")
+
+    # Filter blocks with enough buildings
+    Blocks_filtered = processing.run("native:extractbyattribute", {
+        'INPUT': Blocks_join,
+        'FIELD': count_field,
+        'OPERATOR': 2,  # Greater than
+        'VALUE': min_bdg_count,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+    })['OUTPUT']
+
+    return Blocks_filtered
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshold=18, Ext='local',
                            MinBdgCount=20, Partition=None):
@@ -44,107 +186,6 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
     :param Partition: Partition layer for 'global' extent
     :return: Global overlap value in percent
     """
-
-    def select_block(InputStrNetwork, InputBdg, Buffer):
-
-        # Convert the street network to polygons
-        InputStrNetwork_Poly = processing.run("native:polygonize", {
-            'INPUT': InputStrNetwork,
-            'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
-
-        # Create a spatial index for the polygonized street network
-        processing.run("native:createspatialindex", {
-            'INPUT': InputStrNetwork_Poly
-        })
-
-        # Buffer buildings and dissolve them
-        InputBdg_Buff = processing.run("native:buffer", {
-            'INPUT': InputBdg,
-            'DISTANCE': Buffer,
-            'SEGMENTS': 5,
-            'END_CAP_STYLE': 0,  # Round
-            'JOIN_STYLE': 0,  # Round
-            'MITER_LIMIT': 2,
-            'DISSOLVE': True,
-            'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
-
-        # Create a spatial index for the polygonized street network
-        processing.run("native:createspatialindex", {
-            'INPUT': InputBdg_Buff
-        })
-
-        InputBdg_Buff_Line = processing.run("native:polygonstolines", {
-            'INPUT': InputBdg_Buff,
-            'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
-
-        # Erste Auswahl basierend auf räumlicher Beziehung
-        processing.run("native:selectbylocation", {
-            'INPUT': InputStrNetwork_Poly,
-            'PREDICATE': [0],  # Überschneidet
-            'INTERSECT': InputBdg_Buff_Line,
-            'METHOD': 0  # Neue Auswahl erstellen
-        })
-
-        # IDs der ausgewählten Features holen
-        selected_ids = InputStrNetwork_Poly.selectedFeatureIds()
-
-        # Invertierung: Wähle alle Features, die nicht in der aktuellen Auswahl sind
-        all_ids = [f.id() for f in InputStrNetwork_Poly.getFeatures()]
-        inverted_ids = [fid for fid in all_ids if fid not in selected_ids]
-
-        # Auswahl mit invertierten IDs setzen
-        InputStrNetwork_Poly.selectByIds(inverted_ids)
-
-        InputStrNetwork_Poly_Sel = processing.run(
-            "native:saveselectedfeatures",
-            {'INPUT': InputStrNetwork_Poly,
-             'OUTPUT': 'TEMPORARY_OUTPUT'
-             })['OUTPUT']
-
-        # Zweite Auswahl basierend auf der invertierten Auswahl
-        BlocksInside = processing.run("native:selectbylocation", {
-            'INPUT': InputStrNetwork_Poly_Sel,
-            'PREDICATE': [0],  # Überschneidet
-            'INTERSECT': InputBdg,
-            'METHOD': 2  # Auswahl verfeinern (auf bestehender Auswahl aufbauen)
-        })['OUTPUT']
-
-        # Spatial join between building buffer and street polygons
-        Blocks_join = processing.run("native:joinbylocationsummary", {
-            'INPUT': BlocksInside,
-            'JOIN': InputBdg,
-            'PREDICATE': [0],  # Intersects
-            'JOIN_FIELDS': [],
-            'SUMMARIES': [0],
-            'DISCARD_NONMATCHING': False,
-            'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
-
-        # Dynamically find the count field created by the join
-        count_field = None
-        for field in Blocks_join.fields():
-            if field.name().endswith('_count'):
-                count_field = field.name()
-                break
-
-        if not count_field:
-            msg("ERROR: Could not find count field in joined layer", 'CRITICAL')
-            raise ValueError("Count field not found after spatial join")
-
-        # Filter blocks with enough buildings
-        Blocks_filtered = processing.run("native:extractbyattribute", {
-            'INPUT': Blocks_join,
-            'FIELD': count_field,
-            'OPERATOR': 2,  # Greater than
-            'VALUE': MinBdgCount,
-            'OUTPUT': 'TEMPORARY_OUTPUT'
-        })['OUTPUT']
-
-        return Blocks_filtered
-
     if Ext == 'global':
         Logger.log("Start calc footprint global", 'SUCCESS')
         if not Partition:
@@ -175,7 +216,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             })['OUTPUT']
 
-            Inner_BlocksPart = select_block(SelStrassen, SelHU, Buffer)
+            Inner_BlocksPart = _select_block(SelStrassen, SelHU, Buffer, MinBdgCount)
 
             if Merge_Dummy:
                 Merge_Dummy = processing.run("native:mergevectorlayers", {
@@ -188,7 +229,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
         Inner_Blocks = Merge_Dummy
 
     else:  # Local extent
-        Inner_Blocks = select_block(InputStrNetwork, InputBdg, Buffer)
+        Inner_Blocks = _select_block(InputStrNetwork, InputBdg, Buffer, MinBdgCount)
 
     # Calculate block names — use BLOCK_ID to avoid case-collision with the
     # buildings layer's 'name' field during intersection (QGIS expressions

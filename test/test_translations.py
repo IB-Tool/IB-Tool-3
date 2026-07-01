@@ -39,9 +39,9 @@ class TestSafeTranslations:
         """Test that translations work."""
         parent_path = os.path.join(__file__, os.path.pardir, os.path.pardir)
         dir_path = os.path.abspath(parent_path)
-        file_path = os.path.join(dir_path, 'i18n', 'IBTool_de.qm')
+        file_path = os.path.join(dir_path, 'i18n', 'de.qm')
         translator = QTranslator()
-
+        
         # Check that the translation file exists on disk
         if not os.path.exists(file_path):
             pytest.fail(f"Translation file not found: {file_path}")
@@ -52,10 +52,10 @@ class TestSafeTranslations:
 
         QCoreApplication.installTranslator(translator)
 
-        source_message = 'Filter entries'
-        expected_translation = 'Filtereinträge'
+        source_message = 'Cancel'
+        expected_translation = 'Abbrechen'
         real_message = QCoreApplication.translate(
-            "IBToolDialog",
+            "IBToolDialogBase",
             source_message
         )
         assert expected_translation == real_message

@@ -1,3 +1,16 @@
+# -*- coding: utf-8 -*-
+"""MST-based clustering of building footprints into oriented bounding rectangles.
+
+Iterates over MST edges sorted by weight and merges pairs of building polygons
+into clusters when the ratio of their combined footprint area to the oriented
+bounding rectangle area exceeds a configurable overlap ratio. Each resulting
+cluster is represented as an oriented bounding rectangle.
+
+Public API
+----------
+calc_bounding_rect(hu_polyline, hu_layer, mode, crs)
+mst_clustering(hu_layer, mst_layer, crs, overlap_ratio, debug_mode, workspace_path)
+"""
 
 from operator import itemgetter
 import math
@@ -41,6 +54,10 @@ _REFERENCE_VECTOR_LENGTH = 100
 # excluded from the dominant-angle pool to prevent orientation bias.
 _MIN_EDGE_LENGTH_RATIO = 0.20
 
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
 
 def _main_angle(angle_length_pairs: list[tuple[float, float]], max_diff: float) -> float:
     """Determine the dominant angle from a list of angle-length pairs.
@@ -197,6 +214,10 @@ def _filter_short_edges(edge_rows: list[list]) -> list[list]:
     filtered = [row for row in edge_rows if row[4] >= threshold]
     return filtered if len(filtered) >= 2 else edge_rows
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def calc_bounding_rect(
     hu_polyline: list[tuple[float, float]] | object,

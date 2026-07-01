@@ -1,4 +1,14 @@
-"""Blocker: Create city block polygons from a road network and partition boundary."""
+# -*- coding: utf-8 -*-
+"""Create city block polygons from a road network and partition boundary.
+
+Polygonizes the merged road network and partition outline, removes blocks
+that contain no building footprints, and annotates each remaining block
+with a unique NAME attribute.
+
+Public API
+----------
+blocker(road_network, hu_input, partition, debug_mode, workspace_path)
+"""
 
 from qgis.core import (
     QgsField,
@@ -21,6 +31,10 @@ _DEBUG_TOOL_NAME = "01_Blocker"
 _PREDICATE_CONTAINS = 0    # keep blocks that contain at least one building
 _SELECTION_METHOD_NEW = 0  # replace any previous selection with a fresh one
 
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
 
 def _build_block_polygons(road_network, partition, debug_mode=False, workspace_path=None):
     """Polygonize the merged road network and partition outline.
@@ -133,6 +147,10 @@ def _assign_block_names(blocks_layer):
         blocks_layer.updateFeature(feature)
     blocks_layer.commitChanges()
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def blocker(road_network, hu_input, partition, debug_mode=False, workspace_path=None):
     """Create city blocks from a road network and partition boundary.
