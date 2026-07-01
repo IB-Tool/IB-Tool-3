@@ -141,7 +141,7 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
         self.validationChecklist.clear()
 
         if not errors and not warnings:
-            item = QListWidgetItem("✅  All checks passed")
+            item = QListWidgetItem("✅  Alle Prüfungen bestanden")
             item.setForeground(QColor("#2E7D32"))
             self.validationChecklist.addItem(item)
             return
@@ -240,7 +240,7 @@ class FilterPreviewDialog(QDialog):
             parent: Optional parent widget.
         """
         super().__init__(parent)
-        self.setWindowTitle("Filter entries")
+        self.setWindowTitle("Filtereinträge")
         self.setMinimumSize(700, 450)
         self._build_ui(positive_text, negative_text)
 
@@ -253,7 +253,7 @@ class FilterPreviewDialog(QDialog):
         # Positive pane
         pos_widget = QtWidgets.QWidget()
         pos_layout = QVBoxLayout(pos_widget)
-        pos_label = QLabel("<b>Positive filter</b>")
+        pos_label = QLabel("<b>Positivfilter</b>")
         pos_edit = QPlainTextEdit(positive_text)
         pos_edit.setReadOnly(True)
         pos_layout.addWidget(pos_label)
@@ -263,7 +263,7 @@ class FilterPreviewDialog(QDialog):
         # Negative pane
         neg_widget = QtWidgets.QWidget()
         neg_layout = QVBoxLayout(neg_widget)
-        neg_label = QLabel("<b>Negative filter</b>")
+        neg_label = QLabel("<b>Negativfilter</b>")
         neg_edit = QPlainTextEdit(negative_text)
         neg_edit.setReadOnly(True)
         neg_layout.addWidget(neg_label)
