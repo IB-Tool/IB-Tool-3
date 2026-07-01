@@ -16,7 +16,6 @@ Run from the repository root.
 from __future__ import annotations
 
 import configparser
-import os
 import zipfile
 from pathlib import Path
 
