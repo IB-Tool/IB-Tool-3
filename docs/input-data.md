@@ -14,6 +14,10 @@ This document specifies the five input datasets required by IBTool: geometry typ
 | **Aux** — Auxiliary Layer | Additional line barriers merged with the road network |
 | **Filter File** | `.txt` file defining positive and negative ATKIS function-code filters |
 
+A ready-to-use sample dataset satisfying all five requirements is provided in
+the `Testdaten/` folder at the project root — see
+[quickstart.md → Sample Data](quickstart.md#sample-data).
+
 ---
 
 ## General Rules
@@ -99,7 +103,7 @@ Controls which buildings are included or excluded. Format:
 
 | Property | Requirement |
 |----------|-------------|
-| Output file | Full path for the result GeoPackage (`.gpkg`). The output directory is created automatically if needed. |
+| Output file | Full path to an **empty GeoPackage (`.gpkg`) that must be created before starting the run**, with an individual, descriptive name (e.g. `result_2026-07-01.gpkg`). Its contents are overwritten by the processing result. See [quickstart.md → Creating the output file](quickstart.md#creating-the-output-file). |
 | Working directory | Path for intermediate files. The directory is created automatically during processing if needed. |
 
 ---
