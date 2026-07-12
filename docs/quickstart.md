@@ -16,7 +16,10 @@ delineation run.
 
 **numpy** and **PyQt5** are bundled with QGIS 3.40+ — no action needed.
 
-**scipy** and **networkx** are *not* bundled with QGIS. Install them once:
+**scipy** and **networkx** are not always bundled with QGIS — some
+installations (e.g. the standalone QGIS installer with an optional full
+Python stack) already include them, in which case no action is needed. If
+IBTool reports them missing, install them once:
 
 ```bash
 # Windows — open the OSGeo4W Shell:
@@ -25,6 +28,13 @@ pip install scipy networkx
 # Linux / macOS — open a terminal where QGIS's Python is active:
 pip install scipy networkx
 ```
+
+**Finding the OSGeo4W Shell on Windows:** Start Menu → **OSGeo4W** →
+**OSGeo4W Shell**, or **Start Menu** → **QGIS <version>** → **OSGeo4W
+Shell** (the exact folder name depends on the installer used). If it
+doesn't appear in the Start Menu, look for `OSGeo4W.bat` in the QGIS
+installation directory (typically `C:\OSGeo4W\` or
+`C:\Program Files\QGIS <version>\`).
 
 Then restart QGIS. If the packages are still missing after installation,
 check that you ran `pip` against QGIS's Python (not a system Python). On
@@ -38,7 +48,7 @@ Windows the OSGeo4W Shell sets the correct environment automatically.
 
 ## 2. Installation
 
-1. Download the release ZIP (`IB-Tool_0.2.1.zip`).
+1. Download the release ZIP (`IB-Tool-3.0.2.1.zip`).
 2. Open QGIS → **Plugins** → **Manage and Install Plugins…**
 3. Click **Install from ZIP**.
 4. Select the downloaded ZIP and click **Install Plugin**.
@@ -50,7 +60,8 @@ Windows the OSGeo4W Shell sets the correct environment automatically.
 ## 3. Input Data
 
 IBTool requires five inputs. All layers must share the **same projected CRS**
-(default: ETRS89 / UTM zone 32N, EPSG:25832).
+(plugin default: ETRS89 / UTM zone 33N, EPSG:25833 — matches the sample
+dataset below, see [Sample Data](#sample-data)).
 
 | Input | Format | Min features | Key requirement |
 |---|---|---|---|
@@ -74,10 +85,13 @@ The repository ships a ready-to-use sample dataset in the `Testdaten/` folder
 | `A_PART.shp` | Partitions |
 | `A_AUX.shp` | Auxiliary network (Aux) |
 | `IB-Tool2_Filter.txt` | Filter file |
-| `UGB.shp` | Reference/expected settlement boundary result, for comparison only — not a plugin input |
+
+All shapefiles in `Testdaten/` use **ETRS89 / UTM zone 33N (EPSG:25833)**,
+which matches the plugin's default CRS — no CRS change is needed in the
+plugin UI when running with the sample data.
 
 See `Testdaten/LICENSE.txt` for data licensing (GeoBasis-DE/LGB for `A_AUX`,
-`A_HU`, `A_RN`; MIT for `UGB` and `A_PART`).
+`A_HU`, `A_RN`; MIT for `A_PART`).
 
 ---
 

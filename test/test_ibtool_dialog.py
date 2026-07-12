@@ -12,8 +12,11 @@ These tests verify:
   - Buttons outside tabs (Start, Cancel, CheckButton, SaveConfigButton)
 """
 
+import os
+
 import pytest
 
+from qgis.PyQt.QtCore import QCoreApplication, QTranslator
 from qgis.PyQt.QtWidgets import (
     QDialog,
     QPushButton,
@@ -476,6 +479,62 @@ class TestIBToolDialogSetStep:
         for i in range(1, 4):
             btn = getattr(self.dialog, f"stepBtn{i}")
             assert "1565C0" not in btn.styleSheet()
+
+
+# ---------------------------------------------------------------------------
+# TestIBToolDialogSetStepTranslation — step labels follow the QGIS locale
+# ---------------------------------------------------------------------------
+
+class TestIBToolDialogSetStepTranslation:
+    """set_step() must localise step labels instead of hardcoding German.
+
+    Regression test: _STEP_LABELS / _STEP_SHORT used to be hardcoded German
+    literals, so the step tabs stayed German even when QGIS ran with an
+    English locale (no translator installed).
+    """
+
+    def setup_method(self, method):
+        self.dialog = IBToolDialog(None)
+
+    def teardown_method(self, method):
+        self.dialog.close()
+        self.dialog = None
+        for translator in list(getattr(self, "_translators", [])):
+            QCoreApplication.removeTranslator(translator)
+
+    @pytest.mark.unit
+    def test_set_step_shows_english_by_default(self):
+        """With no translator installed, step labels are the English source text."""
+        self.dialog.set_step(0)
+        assert self.dialog.stepBtn0.text() == "① Input"
+        assert self.dialog.stepBtn1.text() == "② Parameters"
+        assert self.dialog.stepBtn2.text() == "③ Validation"
+        assert self.dialog.stepBtn3.text() == "④ Processing"
+
+    @pytest.mark.unit
+    def test_set_step_completed_checkmark_uses_english_short_label(self):
+        """The '✓ <short label>' prefix also uses the English source text by default."""
+        self.dialog.set_step(2)
+        assert self.dialog.stepBtn0.text() == "✓ Input"
+        assert self.dialog.stepBtn1.text() == "✓ Parameters"
+
+    @pytest.mark.unit
+    def test_set_step_shows_german_when_german_translator_installed(self):
+        """Installing the German translator localises the step labels."""
+        parent_path = os.path.join(__file__, os.path.pardir, os.path.pardir)
+        file_path = os.path.abspath(
+            os.path.join(parent_path, 'i18n', 'IBTool_de.qm'))
+        translator = QTranslator()
+        assert translator.load(file_path), \
+            f"Failed to load translation file: {file_path}"
+        QCoreApplication.installTranslator(translator)
+        self._translators = [translator]
+
+        self.dialog.set_step(0)
+        assert self.dialog.stepBtn0.text() == "① Eingabe"
+        assert self.dialog.stepBtn1.text() == "② Parameter"
+        assert self.dialog.stepBtn2.text() == "③ Validierung"
+        assert self.dialog.stepBtn3.text() == "④ Verarbeitung"
 
 
 # ---------------------------------------------------------------------------

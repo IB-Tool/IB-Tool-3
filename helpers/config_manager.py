@@ -327,7 +327,7 @@ min_building_count = 5
 density_threshold = 0.3
 min_cluster_size = 3
 max_distance = 200.0
-crs_epsg = 25832
+crs_epsg = 25833
 output_format = gpkg
 
 [OUTPUT]

@@ -66,7 +66,7 @@ min_cluster_size       = 3         # Minimum buildings per cluster
 max_distance           = 200.0     # Maximum distance between cluster members (meters)
 
 # Coordinate system and output
-crs_epsg               = 25832     # EPSG code → written as EPSG:25832 into dialog
+crs_epsg               = 25833     # EPSG code → written as EPSG:25833 into dialog
 output_format          = gpkg      # Persisted in config; current UI workflow writes GeoPackage output
 
 # Settlement analysis parameters (UI tab: Parameters)

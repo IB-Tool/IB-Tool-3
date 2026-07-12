@@ -403,7 +403,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.dlg.set_step(0)
 
             # Set default CRS (overridden later by _apply_config_to_ui if config exists)
-            self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25832"))
+            self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25833"))
 
         # Config aus CONFIG.ini in UI laden
         self._apply_config_to_ui()
@@ -824,7 +824,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 'part_start': int(self.dlg.partstartBox.text() or -1),
                 'part_end': int(self.dlg.partendBox.text() or -1),
                 'part_list': self.dlg.partlistBox.text(),
-                'crs_epsg': int(self.dlg.SpatialReferenceBox.crs().authid().split(":")[-1].strip() or 25832),
+                'crs_epsg': int(self.dlg.SpatialReferenceBox.crs().authid().split(":")[-1].strip() or 25833),
                 'debug_mode': self.dlg.DebugModeBox.isChecked(),
                 'delete_part_log': self.dlg.PartLogBox.isChecked(),
             },
@@ -900,7 +900,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.partlistBox.setText("#")
         self.dlg.DebugModeBox.setChecked(False)
         self.dlg.PartLogBox.setChecked(True)
-        self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25832"))
+        self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25833"))
 
         # Reset checksum and validation caches
         self._file_checksums.clear()

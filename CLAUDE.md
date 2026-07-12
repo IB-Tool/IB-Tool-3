@@ -104,6 +104,7 @@ For task-specific rules and deeper context, consult these files:
 ### `docs/` — Project Documentation
 | File | Content |
 |------|---------|
+| [quickstart.md](docs/quickstart.md) | End-to-end quickstart: install, sample data, first run, troubleshooting |
 | [plugin-architecture.md](docs/plugin-architecture.md) | Plugin structure, entry points, UI/logic separation, package layout, import strategy |
 | [how-it-works.md](docs/how-it-works.md) | Full processing pipeline, step-by-step explanation with pseudocode, output |
 | [error-handling.md](docs/error-handling.md) | Logging system, error categories, safe_processing_run, debug mode |
