@@ -21,6 +21,30 @@ the `Testdaten/` folder at the project root — see
 
 ---
 
+## UI Language
+
+This document refers to input fields by their English source label and stable abbreviation
+(HU, RN, Part, Aux). The plugin's source language is English; QGIS automatically loads a German
+translation (`i18n/IBTool_de.qm`) when the user's QGIS locale is set to German — this is controlled
+by QGIS's own locale setting, not a plugin option. The abbreviations stay unchanged in both
+languages, so they are the most reliable way to match a field mentioned here to the dialog.
+
+| Doc reference | English UI label | German UI label (locale=`de`) |
+|----------------|-------------------|--------------------------------|
+| HU | Building Footprints * | Gebäudegrundrisse * |
+| RN | Road Network * | Straßennetz * |
+| Part | Partitions * | Partitionen * |
+| Aux | Auxiliary Data | Hilfsdaten |
+| Filter File | Filter TXT (optional) | Filter TXT (optional) |
+| Output file | Output File * | Ausgabedatei * |
+| Working directory | Workspace * | Arbeitsverzeichnis * |
+| CRS field | Spatial Reference | Koordinatenreferenzsystem |
+
+If this table ever falls out of sync with the plugin, `i18n/IBTool_de.ts` is the authoritative
+source for all translated strings.
+
+---
+
 ## General Rules
 
 - All layers must use the same **Coordinate Reference System (CRS)**. The CRS is set in the plugin interface (default: `EPSG:25833`).
