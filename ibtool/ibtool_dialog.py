@@ -33,19 +33,23 @@ from qgis.PyQt.QtWidgets import (
     QSplitter,
 )
 from qgis.PyQt.QtGui import QColor
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import Qt, QCoreApplication
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ibtool_dialog_base.ui'))
 
-_STEP_LABELS = [
-    "① Eingabe",
-    "② Parameter",
-    "③ Validierung",
-    "④ Verarbeitung",
-]
-_STEP_SHORT = ["Eingabe", "Parameter", "Validierung", "Verarbeitung"]
+
+def _step_labels():
+    """English source strings for the step tabs, translated at display time."""
+    tr = lambda s: QCoreApplication.translate('IBToolDialog', s)
+    return [tr("① Input"), tr("② Parameters"), tr("③ Validation"), tr("④ Processing")]
+
+
+def _step_short():
+    """Short English source strings used for the '✓ <label>' completed prefix."""
+    tr = lambda s: QCoreApplication.translate('IBToolDialog', s)
+    return [tr("Input"), tr("Parameters"), tr("Validation"), tr("Processing")]
 
 # objectNames of all path fields that have a *PathStatus label
 _PATH_FIELD_NAMES = [
@@ -76,19 +80,22 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
         """
         self.stackedWidget.setCurrentIndex(index)
 
+        step_labels = _step_labels()
+        step_short = _step_short()
+
         for i in range(4):
             btn = getattr(self, f'stepBtn{i}')
             if i == index:
-                btn.setText(_STEP_LABELS[i])
+                btn.setText(step_labels[i])
                 btn.setStyleSheet(
                     "QToolButton { font-weight: bold; color: #1565C0; "
                     "text-decoration: underline; }"
                 )
             elif i < index:
-                btn.setText(f"✓ {_STEP_SHORT[i]}")
+                btn.setText(f"✓ {step_short[i]}")
                 btn.setStyleSheet("QToolButton { color: #757575; }")
             else:
-                btn.setText(_STEP_LABELS[i])
+                btn.setText(step_labels[i])
                 btn.setStyleSheet("QToolButton { color: inherit; font-weight: normal; "
                                   "text-decoration: none; }")
 
