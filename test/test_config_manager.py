@@ -80,7 +80,7 @@ class TestConfigDataclasses:
         assert cfg.density_threshold == 0.3
         assert cfg.min_cluster_size == 3
         assert cfg.max_distance == 200.0
-        assert cfg.crs_epsg == 25832
+        assert cfg.crs_epsg == 25833
         assert cfg.output_format == "gpkg"
 
     @pytest.mark.unit
@@ -758,7 +758,7 @@ class TestGetProcessingParameters:
             mgr = _make_manager(tmpdir)
             params = mgr.get_processing_parameters()
             assert params["road_length_threshold"] == 50.0
-            assert params["crs_epsg"] == 25832
+            assert params["crs_epsg"] == 25833
             assert params["output_format"] == "gpkg"
 
 

@@ -16,13 +16,14 @@ This document specifies the five input datasets required by IBTool: geometry typ
 
 A ready-to-use sample dataset satisfying all five requirements is provided in
 the `Testdaten/` folder at the project root — see
-[quickstart.md → Sample Data](quickstart.md#sample-data).
+[quickstart.md → Sample Data](quickstart.md#sample-data). Its CRS is
+**ETRS89 / UTM zone 33N (EPSG:25833)**, which matches the plugin's default CRS.
 
 ---
 
 ## General Rules
 
-- All layers must use the same **Coordinate Reference System (CRS)**. The CRS is set in the plugin interface (e.g. `EPSG:25832`).
+- All layers must use the same **Coordinate Reference System (CRS)**. The CRS is set in the plugin interface (default: `EPSG:25833`).
 - All layers must be loadable as valid QGIS vector layers (`.shp` or `.gpkg`).
 - No layer may be empty (0 features).
 - Line layers (RN, Aux) must not contain **multipart geometries**. Dissolve with `native:multiparttosingleparts` if needed.

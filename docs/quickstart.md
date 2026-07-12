@@ -50,7 +50,8 @@ Windows the OSGeo4W Shell sets the correct environment automatically.
 ## 3. Input Data
 
 IBTool requires five inputs. All layers must share the **same projected CRS**
-(default: ETRS89 / UTM zone 32N, EPSG:25832).
+(plugin default: ETRS89 / UTM zone 33N, EPSG:25833 — matches the sample
+dataset below, see [Sample Data](#sample-data)).
 
 | Input | Format | Min features | Key requirement |
 |---|---|---|---|
@@ -74,10 +75,13 @@ The repository ships a ready-to-use sample dataset in the `Testdaten/` folder
 | `A_PART.shp` | Partitions |
 | `A_AUX.shp` | Auxiliary network (Aux) |
 | `IB-Tool2_Filter.txt` | Filter file |
-| `UGB.shp` | Reference/expected settlement boundary result, for comparison only — not a plugin input |
+
+All shapefiles in `Testdaten/` use **ETRS89 / UTM zone 33N (EPSG:25833)**,
+which matches the plugin's default CRS — no CRS change is needed in the
+plugin UI when running with the sample data.
 
 See `Testdaten/LICENSE.txt` for data licensing (GeoBasis-DE/LGB for `A_AUX`,
-`A_HU`, `A_RN`; MIT for `UGB` and `A_PART`).
+`A_HU`, `A_RN`; MIT for `A_PART`).
 
 ---
 

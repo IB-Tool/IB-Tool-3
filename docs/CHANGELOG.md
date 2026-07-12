@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- **Default CRS switched to EPSG:25833** (ETRS89 / UTM zone 33N) so it matches the `Testdaten/` sample dataset, previously EPSG:25832 (UTM zone 32N). Affects `DEFAULT_CRS_EPSG` in `helpers/qgis_defaults.py`, the dialog's initial/reset CRS in `ibtool.py`, and the `crs_epsg` default in `helpers/config_manager.py` / `docs/CONFIG.ini.example`.
+
+### Docs
+- Documented the CRS of the `Testdaten/` sample dataset (ETRS89 / UTM zone 33N, EPSG:25833) in `docs/input-data.md` and `docs/quickstart.md`.
+- Removed the stale `UGB.shp` reference from the `docs/quickstart.md` sample-data table (the file was already deleted from `Testdaten/`, see 0.2.1 below).
+
 ## 0.2.1 — 2026-07-01
 
 ### Added
