@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Docs
 - Documented the CRS of the `Testdaten/` sample dataset (ETRS89 / UTM zone 33N, EPSG:25833) in `docs/input-data.md` and `docs/quickstart.md`.
 - Removed the stale `UGB.shp` reference from the `docs/quickstart.md` sample-data table (the file was already deleted from `Testdaten/`, see 0.2.1 below).
+- Fixed the outdated release ZIP naming example in `docs/quickstart.md` (`IB-Tool_0.2.1.zip` → `IB-Tool-3.0.2.1.zip`, matching `scripts/create_release_zip.py`'s `{plugin_folder}.{version}.zip` convention) and added `docs/quickstart.md` to the `CLAUDE.md` documentation index, where it was missing.
 
 ## 0.2.1 — 2026-07-01
 
