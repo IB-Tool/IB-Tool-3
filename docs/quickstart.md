@@ -16,7 +16,10 @@ delineation run.
 
 **numpy** and **PyQt5** are bundled with QGIS 3.40+ — no action needed.
 
-**scipy** and **networkx** are *not* bundled with QGIS. Install them once:
+**scipy** and **networkx** are not always bundled with QGIS — some
+installations (e.g. the standalone QGIS installer with an optional full
+Python stack) already include them, in which case no action is needed. If
+IBTool reports them missing, install them once:
 
 ```bash
 # Windows — open the OSGeo4W Shell:
@@ -25,6 +28,13 @@ pip install scipy networkx
 # Linux / macOS — open a terminal where QGIS's Python is active:
 pip install scipy networkx
 ```
+
+**Finding the OSGeo4W Shell on Windows:** Start Menu → **OSGeo4W** →
+**OSGeo4W Shell**, or **Start Menu** → **QGIS <version>** → **OSGeo4W
+Shell** (the exact folder name depends on the installer used). If it
+doesn't appear in the Start Menu, look for `OSGeo4W.bat` in the QGIS
+installation directory (typically `C:\OSGeo4W\` or
+`C:\Program Files\QGIS <version>\`).
 
 Then restart QGIS. If the packages are still missing after installation,
 check that you ran `pip` against QGIS's Python (not a system Python). On
