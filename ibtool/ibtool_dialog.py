@@ -40,16 +40,19 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'ibtool_dialog_base.ui'))
 
 
+def _tr(s):
+    return QCoreApplication.translate('IBToolDialog', s)
+
+
 def _step_labels():
     """English source strings for the step tabs, translated at display time."""
-    tr = lambda s: QCoreApplication.translate('IBToolDialog', s)
-    return [tr("① Input"), tr("② Parameters"), tr("③ Validation"), tr("④ Processing")]
+    return [_tr("① Input"), _tr("② Parameters"), _tr("③ Validation"), _tr("④ Processing")]
 
 
 def _step_short():
     """Short English source strings used for the '✓ <label>' completed prefix."""
-    tr = lambda s: QCoreApplication.translate('IBToolDialog', s)
-    return [tr("Input"), tr("Parameters"), tr("Validation"), tr("Processing")]
+    return [_tr("Input"), _tr("Parameters"), _tr("Validation"), _tr("Processing")]
+
 
 # objectNames of all path fields that have a *PathStatus label
 _PATH_FIELD_NAMES = [
