@@ -24,6 +24,7 @@ import pytest
 # ---------------------------------------------------------------------------
 _SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "create_release_zip.py"
 _spec = importlib.util.spec_from_file_location("create_release_zip", _SCRIPT)
+assert _spec is not None and _spec.loader is not None, f"could not load spec for {_SCRIPT}"
 _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
