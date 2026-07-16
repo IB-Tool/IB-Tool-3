@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## 0.2.2 — 2026-07-16
+
 ### Fixed
 - **Release ZIP missing `helpers/debug_utils.py`**: `scripts/create_release_zip.py` excluded any file with a `debug_` filename prefix, intended for stray dev scripts, but it also matched the production module `helpers/debug_utils.py` (imported by 8 processing tools), causing `ModuleNotFoundError: No module named 'ibtool.helpers.debug_utils'` on install. Removed the `EXCLUDED_FILE_PREFIXES` rule — no other file in the repo matched it.
 - **Release ZIP filename no longer includes the version number**: `scripts/create_release_zip.py` now always produces `dist/IB-Tool-3.zip` instead of `dist/IB-Tool-3.<version>.zip`. The version lives solely in `metadata.txt`; the download link, filename, and internal `IB-Tool-3/` folder name are now constant across every release, so the install steps never change and users never need to rename anything.
