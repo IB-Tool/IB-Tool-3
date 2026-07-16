@@ -9,14 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- **Release ZIP missing `helpers/debug_utils.py`**: `scripts/create_release_zip.py` excluded any file with a `debug_` filename prefix, intended for stray dev scripts, but it also matched the production module `helpers/debug_utils.py` (imported by 8 processing tools), causing `ModuleNotFoundError: No module named 'ibtool.helpers.debug_utils'` on install. Removed the `EXCLUDED_FILE_PREFIXES` rule — no other file in the repo matched it.
+- **Release ZIP filename no longer includes the version number**: `scripts/create_release_zip.py` now always produces `dist/IB-Tool-3.zip` instead of `dist/IB-Tool-3.<version>.zip`. The version lives solely in `metadata.txt`; the download link, filename, and internal `IB-Tool-3/` folder name are now constant across every release, so the install steps never change and users never need to rename anything.
+
 ### Changed
 - **Default CRS switched to EPSG:25833** (ETRS89 / UTM zone 33N) so it matches the `Testdaten/` sample dataset, previously EPSG:25832 (UTM zone 32N). Affects `DEFAULT_CRS_EPSG` in `helpers/qgis_defaults.py`, the dialog's initial/reset CRS in `ibtool.py`, and the `crs_epsg` default in `helpers/config_manager.py` / `docs/CONFIG.ini.example`.
 
 ### Docs
 - Documented the CRS of the `Testdaten/` sample dataset (ETRS89 / UTM zone 33N, EPSG:25833) in `docs/input-data.md` and `docs/quickstart.md`.
 - Removed the stale `UGB.shp` reference from the `docs/quickstart.md` sample-data table (the file was already deleted from `Testdaten/`, see 0.2.1 below).
-- Fixed the outdated release ZIP naming example in `docs/quickstart.md` (`IB-Tool_0.2.1.zip` → `IB-Tool-3.0.2.1.zip`, matching `scripts/create_release_zip.py`'s `{plugin_folder}.{version}.zip` convention) and added `docs/quickstart.md` to the `CLAUDE.md` documentation index, where it was missing.
+- Fixed the outdated release ZIP naming example in `docs/quickstart.md` (`IB-Tool_0.2.1.zip` → `IB-Tool-3.zip`) and added `docs/quickstart.md` to the `CLAUDE.md` documentation index, where it was missing.
 - Added instructions to `docs/quickstart.md` for locating the OSGeo4W Shell on Windows, and clarified that scipy/networkx are not always missing (some QGIS installs already bundle them).
+- Documented the manual "Publishing a Release" process in `docs/contributing.md` and `ai/core/release-conventions.md`: the CI workflow no longer builds/uploads the release ZIP (removed in #134), so it must be built via `scripts/create_release_zip.py` and attached to the GitHub Release by hand — never distribute GitHub's auto-generated "Source code (zip)", which embeds the tag in the folder name and breaks the plugin's import. Also fixed the README's Releases link and CI badges, which pointed to a stale GitHub org (`K3lT10N` → `IB-Tool`).
 
 ## 0.2.1 — 2026-07-01
 

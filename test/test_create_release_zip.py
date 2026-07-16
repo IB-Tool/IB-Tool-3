@@ -166,6 +166,14 @@ class TestIsExcluded:
         rel = Path("ibtool") / "ibtool_dialog_base.ui"
         assert not is_excluded(rel)
 
+    @pytest.mark.unit
+    def test_debug_utils_module_is_not_excluded(self):
+        """helpers/debug_utils.py is a production module (imported by Blocker,
+        GapClose, MST_Clustering, etc.) and must ship in the release ZIP —
+        it must not be swept up by a 'debug_' prefix exclusion rule."""
+        rel = Path("helpers") / "debug_utils.py"
+        assert not is_excluded(rel)
+
 
 # ===========================================================================
 # TestReadVersion

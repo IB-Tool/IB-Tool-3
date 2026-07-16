@@ -48,7 +48,7 @@ Windows the OSGeo4W Shell sets the correct environment automatically.
 
 ## 2. Installation
 
-1. Download the release ZIP (`IB-Tool-3.0.2.1.zip`).
+1. Download the release ZIP (`IB-Tool-3.zip`) from [GitHub Releases](https://github.com/IB-Tool/IB-Tool-3/releases) — not the "Source code (zip)" link.
 2. Open QGIS → **Plugins** → **Manage and Install Plugins…**
 3. Click **Install from ZIP**.
 4. Select the downloaded ZIP and click **Install Plugin**.
