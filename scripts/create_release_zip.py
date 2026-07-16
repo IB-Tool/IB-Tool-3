@@ -5,11 +5,14 @@ Usage:
     python scripts/create_release_zip.py
 
 Output:
-    dist/IB-Tool-3.<version>.zip
+    dist/IB-Tool-3.zip
 
-The script reads the version from metadata.txt, collects all productive plugin
-files (applying the exclusion list), and packages them under the folder name
-IB-Tool-3/ inside the ZIP.
+The script reads the version from metadata.txt (for the printed summary only —
+the version is not part of the ZIP filename or the internal folder name),
+collects all productive plugin files (applying the exclusion list), and
+packages them under the constant folder name IB-Tool-3/ inside the ZIP. The
+ZIP filename never changes between versions, so the download link and install
+steps stay identical release to release.
 
 Run from the repository root.
 """
@@ -169,7 +172,7 @@ def main() -> None:
     plugin_folder = repo_root.name  # IB-Tool-3
 
     version = read_version(repo_root)
-    zip_name = f"{plugin_folder}.{version}.zip"
+    zip_name = f"{plugin_folder}.zip"
     zip_path = repo_root / "dist" / zip_name
 
     print(f"Plugin:  {plugin_folder}")

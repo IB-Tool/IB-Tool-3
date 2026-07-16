@@ -11,7 +11,7 @@ The project uses two GitHub Actions workflows:
 | Workflow | File | Trigger | Purpose |
 |----------|------|---------|---------|
 | **CI** | `.github/workflows/ci.yml` | push to `master`/`main`, PRs | Docker-based tests + Codecov coverage |
-| **QGIS Plugin CI** | `.github/workflows/qgis-plugin-ci.yml` | push to `master`/`main`, PRs | Lint, security scan, ZIP build + validation |
+| **QGIS Plugin CI** | `.github/workflows/qgis-plugin-ci.yml` | push to `master`/`main`, PRs | Structure/metadata validation, lint, security scan |
 
 ---
 
@@ -105,14 +105,15 @@ Steps:
 | Style linting | `flake8` | PEP 8 compliance |
 | Security scanning | `bandit -r . -ll` | Common Python security issues |
 | Secret detection | `detect-secrets` | Accidentally committed credentials |
-| Build release ZIP | `scripts/create_release_zip.py` | Produces `dist/*.zip` |
-| Validate release ZIP | `ci/qgis_plugin_validate.py --zip dist/*.zip` | ZIP structure and manifest |
-| Upload artifact | `actions/upload-artifact@v4` | `dist/*.zip` retained for 30 days |
 
 `Testdaten/` contains sample GIS data for manual QA and demo runs (see
 [quickstart.md → Sample Data](quickstart.md#sample-data)); it is not consumed
 by the automated pytest suite. The `detect-secrets` scan excludes
 `Testdaten/` and `README.md`.
+
+> **Note:** This workflow does **not** build or publish the release ZIP.
+> Building `dist/*.zip` and attaching it to a GitHub Release is a manual
+> step — see [Publishing a Release](#publishing-a-release) below.
 
 #### Running checks locally
 
@@ -140,15 +141,49 @@ python ci/qgis_plugin_validate.py --zip dist/*.zip
 
 ---
 
+### Publishing a Release
+
+The release ZIP is **not** built or attached automatically — this must be done
+by hand for every release, including pre-releases (`-alpha`, `-beta`):
+
+1. Bump `version` in `metadata.txt` and add a changelog entry (see
+   [release-conventions.md](../ai/core/release-conventions.md)).
+2. Build and validate the ZIP locally:
+   ```bash
+   python scripts/create_release_zip.py
+   python ci/qgis_plugin_validate.py --zip dist/*.zip
+   ```
+   This produces `dist/IB-Tool-3.zip`. Both the ZIP filename and its
+   internal folder name (`IB-Tool-3/`) are **constant across versions** —
+   only `metadata.txt` inside the ZIP carries the version string. Users
+   never need to rename anything after installing.
+3. Create the GitHub Release from the tag, then **manually upload
+   `dist/IB-Tool-3.zip` as a release asset**.
+4. Link `dist/IB-Tool-3.zip` (not "Source code (zip)") as the download in
+   any release notes or announcement.
+
+> **Never distribute GitHub's auto-generated "Source code (zip)"/"Source
+> code (tar.gz)" links.** GitHub names that archive `<repo>-<tag>.zip` and
+> its internal top-level folder matches that same name — e.g. tag
+> `v0.2.1-beta` produces a folder named `IB-Tool-3-0.2.1-beta`. Python's
+> `importlib.import_module` treats dots in a module name as package
+> separators, so QGIS fails to load a folder name containing a version
+> number (`ModuleNotFoundError: No module named 'IB-Tool-3-0'`). Only
+> `dist/IB-Tool-3.zip`, built via `scripts/create_release_zip.py`, has the
+> required constant `IB-Tool-3/` folder name.
+
+---
+
 ### Customising the CI Pipeline
 
 To modify the CI pipeline, edit:
 
 - `.github/workflows/ci.yml` — test workflow
-- `.github/workflows/qgis-plugin-ci.yml` — lint/validate/release workflow
+- `.github/workflows/qgis-plugin-ci.yml` — lint/validate workflow
 - `Dockerfile` — Docker environment and dependencies
 - `ci/qgis_plugin_validate.py` — plugin structure validation rules
-- `scripts/create_release_zip.py` — release ZIP builder
+- `scripts/create_release_zip.py` — release ZIP builder (run manually, see
+  [Publishing a Release](#publishing-a-release))
 - `test/` — test files and test data
 
 ### Debugging CI Failures
