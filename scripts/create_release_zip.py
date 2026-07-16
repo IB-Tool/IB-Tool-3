@@ -76,10 +76,6 @@ EXCLUDED_FILE_PATTERNS = (
     "_original_backup",
 )
 
-EXCLUDED_FILE_PREFIXES = (
-    "debug_",
-)
-
 EXCLUDED_EXTENSIONS = {
     ".pyc",
     ".pyo",
@@ -110,10 +106,6 @@ def is_excluded(rel: Path) -> bool:
 
     # Excluded by exact filename
     if filename in EXCLUDED_FILES:
-        return True
-
-    # Excluded by filename prefix (e.g. debug_*.py)
-    if filename.startswith(EXCLUDED_FILE_PREFIXES):
         return True
 
     # Excluded by filename substring (e.g. backup/copy files)
