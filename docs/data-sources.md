@@ -29,9 +29,9 @@ Currently documented: Brandenburg, Sachsen, Sachsen-Anhalt, Berlin.
 | Property | Value |
 |---|---|
 | Portal | GeoMIS.Sachsen / Downloadbereich Basis-DLM |
-| URL | [geomis.sachsen.de](https://geomis.sachsen.de/geomis-client/?lang=de#/), download: [geodaten.sachsen.de → Downloadbereich Basis-DLM](https://www.geodaten.sachsen.de/downloadbereich-basis-dlm-4168.html) |
+| URL | [geomis.sachsen.de](https://geomis.sachsen.de/geomis-client/?lang=de#/), download: [geodaten.sachsen.de → Downloadbereich Basis-DLM](https://www.geodaten.sachsen.de/downloadbereich-basis-dlm-4168.html), buildings: [geodaten.sachsen.de → Downloadbereich Hausumringe](https://www.geodaten.sachsen.de/downloadbereich-hausumringe-4174.html) |
 | Download format | Shapefile |
-| Required datasets / layers | Complete Basis-DLM dataset for Saxony — a single download contains all data needed (no separate layer selection). |
+| Required datasets / layers | Complete Basis-DLM dataset for Saxony — a single download contains all data needed for RN/Aux (no separate layer selection). For the building dataset, download **Hausumringe** (building outlines) separately. |
 | Notes | No registration required. The complete-state download is a large file (over 1 GB) — expect a longer download time. |
 
 ---
