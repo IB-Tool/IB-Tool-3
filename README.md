@@ -174,6 +174,8 @@ A ready-to-use sample dataset is included in the `Testdaten/` folder — see **[
 
 For full layer specifications, field requirements, filter file format, and the complete validation check table, see **[docs/input-data.md](docs/input-data.md)**.
 
+Don't have HU/RN/Aux data yet? See **[docs/data-preparation.md](docs/data-preparation.md)** for a tutorial on producing them from official ATKIS raw data.
+
 ---
 
 ## How It Works

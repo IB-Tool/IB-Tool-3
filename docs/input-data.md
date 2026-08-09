@@ -167,4 +167,6 @@ The **Check** button in the dialog runs all checks before processing. Critical e
 |------|---------|
 | [`docs/how-it-works.md`](how-it-works.md) | Full algorithmic pipeline — how input layers are used in each step |
 | [`docs/parameterization.md`](parameterization.md) | Processing parameters, defaults, and sensitivity notes |
+| [`docs/data-preparation.md`](data-preparation.md) | Tutorial: producing HU/RN/Aux from ATKIS raw data |
+| [`docs/data-sources.md`](data-sources.md) | Per-state ATKIS portal, format, and dataset reference |
 | [`helpers/check.py`](../helpers/check.py) | `InputValidator` class implementing all validation checks |
