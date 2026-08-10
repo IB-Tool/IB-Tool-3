@@ -19,6 +19,15 @@ the `Testdaten/` folder at the project root — see
 [quickstart.md → Sample Data](quickstart.md#sample-data). Its CRS is
 **ETRS89 / UTM zone 33N (EPSG:25833)**, which matches the plugin's default CRS.
 
+Two companion plugins can generate parts of this input data automatically
+instead of preparing it by hand:
+
+- **[data_wizard](https://github.com/IB-Tool/data_wizard)** — turns raw ATKIS
+  Basis-DLM data into `HU`, `RN`, and `Aux` GeoPackages (see its own
+  [documentation](https://github.com/IB-Tool/data_wizard/blob/master/docs/README.md)).
+- **[ibtoolpartion](https://github.com/IB-Tool/ibtoolpartion)** — generates
+  the `Part` layer from `HU` via KDE and Voronoi tessellation.
+
 ---
 
 ## UI Language
@@ -85,6 +94,10 @@ Road segments shorter than 50 m (dead ends) are filtered automatically during MS
 | Part:HU ratio | Should not exceed 1:10,000. Too few partitions leads to very long per-partition runtimes. |
 
 The partitioning defines independent processing units. In the plugin interface a subset can be specified by partition name list or start/end range.
+
+This layer can be generated automatically from HU with the companion plugin
+**[ibtoolpartion](https://github.com/IB-Tool/ibtoolpartion)** (KDE + Voronoi
+tessellation), instead of preparing it by hand.
 
 ### Aux — Auxiliary Layer
 

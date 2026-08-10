@@ -65,6 +65,20 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
 
 ---
 
+## Related Plugins
+
+IBTool is the main plugin; two companion QGIS plugins prepare its input data
+automatically instead of requiring manual work in QGIS:
+
+| Plugin | Produces | Docs |
+|---|---|---|
+| **[data_wizard](https://github.com/IB-Tool/data_wizard)** | `HU`, `RN`, `Aux` GeoPackages from raw ATKIS Basis-DLM data | [docs/README.md](https://github.com/IB-Tool/data_wizard/blob/master/docs/README.md) |
+| **[ibtoolpartion](https://github.com/IB-Tool/ibtoolpartion)** | `Part` (partition) polygons from `HU` via KDE + Voronoi tessellation | [README.md](https://github.com/IB-Tool/ibtoolpartion/blob/master/README.md) |
+
+See [docs/input-data.md](docs/input-data.md) for how each input layer relates to these plugins, and [docs/contributing.md](docs/contributing.md) for the CI/test/release conventions shared across all three repositories.
+
+---
+
 ## Requirements
 
 - **QGIS**: Version 3.40–3.50
@@ -99,12 +113,7 @@ This installs `pytest` and `pytest-cov`. The test suite itself runs inside Docke
 
 The easiest way to install IBTool is to download the ready-to-use ZIP file from the [GitHub Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and install it directly inside QGIS:
 
-1. Go to the [Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and download the `IB-Tool-3.zip` asset attached to the release (the filename is always the same — the version is inside `metadata.txt`, not the filename).
-   > **Do not** download the "Source code (zip)" link — that is GitHub's
-   > auto-generated archive, named after the release tag (e.g.
-   > `IB-Tool-3-0.2.1-beta.zip`), and QGIS **fails to load it**
-   > (`ModuleNotFoundError: No module named 'IB-Tool-3-0'`) because the
-   > version number ends up baked into the folder/module name.
+1. Go to the [Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and download the latest `IB-Tool-3.<version>.zip`.
 2. Open QGIS.
 3. In the menu bar, click **Plugins → Manage and Install Plugins…**
 4. Switch to the **Install from ZIP** tab.
