@@ -26,7 +26,10 @@ of building footprints
 
 #Add iso code for any locales you want to support here (space separated)
 # default is no locales
-LOCALES = de
+# NOTE: scripts/compile-strings.sh and update-strings.sh build the path as
+# i18n/$(LOCALE).ts, so this must be the .ts file's basename, not just the
+# ISO code (the plugin's translator loads i18n/IBTool_<locale>.qm).
+LOCALES = IBTool_de
 # LOCALES = af
 
 # If locales are enabled, set the name of the lrelease binary on your system. If

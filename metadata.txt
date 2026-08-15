@@ -11,10 +11,10 @@ version=0.2.2
 author=Oliver Harig
 email=ottmar.hittzfeld@web.de
 
-about=IBTool is a QGIS plugin for settlement delineation based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis, implementing complex algorithms for clustering, density calculations, and minimum spanning tree (MST) analysis. Features include automated building footprint filtering, road network analysis, partition-based processing, footprint density calculation, gap and hole closing, and comprehensive input data validation. For more information see the project repository: https://github.com/K3lT10N/IB-Tool-3
+about=IBTool is a QGIS plugin for settlement delineation based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis, implementing complex algorithms for clustering, density calculations, and minimum spanning tree (MST) analysis. Features include automated building footprint filtering, road network analysis, partition-based processing, footprint density calculation, gap and hole closing, and comprehensive input data validation. For more information see the project repository: https://github.com/IB-Tool/IB-Tool-3
 
-tracker=https://github.com/K3lT10N/IB-Tool-3/issues
-repository=https://github.com/K3lT10N/IB-Tool-3
+tracker=https://github.com/IB-Tool/IB-Tool-3/issues
+repository=https://github.com/IB-Tool/IB-Tool-3
 license=GPL-2.0-or-later
 # End of mandatory metadata
 
@@ -27,7 +27,7 @@ changelog=0.2.2 - Fixed the release ZIP silently excluding helpers/debug_utils.p
 # Tags are comma separated with spaces allowed
 tags=python, settlement, building footprints, urban planning, clustering, MST, density, geodata, vector
 
-homepage=https://github.com/K3lT10N/IB-Tool-3
+homepage=https://github.com/IB-Tool/IB-Tool-3
 category=Vector
 icon=icon.png
 # experimental flag

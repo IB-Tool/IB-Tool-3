@@ -86,6 +86,8 @@ Road segments shorter than 50 m (dead ends) are filtered automatically during MS
 
 The partitioning defines independent processing units. In the plugin interface a subset can be specified by partition name list or start/end range.
 
+If you have no partitioning layer, the companion plugin **[IB-Tool (Partitioning)](https://github.com/IB-Tool/ibtoolpartion)** derives one from building footprints and writes exactly the `PART_<number>` format described above.
+
 ### Aux — Auxiliary Layer
 
 | Property | Requirement |
