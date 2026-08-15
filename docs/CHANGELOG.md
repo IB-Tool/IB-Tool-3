@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- **German translation never loaded at runtime**: `IBTool.__init__()` built the translator path as `i18n/{locale}.qm` (e.g. `i18n/de.qm`), but the actively maintained translation file is `i18n/IBTool_de.qm` (see 0.2.1 below). The stale `i18n/de.qm`/`de.ts` duplicates happened to satisfy the old path and masked the mismatch; removing them in 0.2.2's Makefile cleanup exposed it as a CI failure in `test_translations.py`. Fixed the path to `i18n/IBTool_{locale}.qm`, matching `docs/contributing.md` and the plugin's actual shipped translation file. Also fixed a related test-isolation gap in `test/test_ibtool.py::_make_tool()`, which forces the `de_DE` locale and — now that the path is correct — was leaking an installed `QTranslator` onto the process-wide `QCoreApplication` and polluting unrelated dialog tests.
+
 ## 0.2.2 — 2026-07-16
 
 ### Fixed
