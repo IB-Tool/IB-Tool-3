@@ -36,6 +36,8 @@ Unit tests cover (no Processing or real iface operations):
 import pytest
 from unittest.mock import patch, MagicMock
 
+from qgis.PyQt.QtCore import QCoreApplication
+
 from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
@@ -48,10 +50,21 @@ from ibtool.ibtool.ibtool import IBTool  # noqa: E402
 # ---------------------------------------------------------------------------
 
 def _make_tool() -> IBTool:
-    """Instantiate IBTool with QSettings patched to return a safe locale."""
+    """Instantiate IBTool with QSettings patched to return a safe locale.
+
+    The forced "de_DE" locale makes the constructor load and install the
+    real i18n/IBTool_de.qm translator on the process-wide QCoreApplication.
+    That installation must not leak into other test modules (e.g. dialog
+    tests asserting the untranslated English defaults), so it is removed
+    again immediately after construction.
+    """
     with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs:
         mock_qs.return_value.value.return_value = "de_DE"
-        return IBTool(_IFACE)
+        tool = IBTool(_IFACE)
+    translator = getattr(tool, "translator", None)
+    if translator is not None:
+        QCoreApplication.removeTranslator(translator)
+    return tool
 
 
 # ---------------------------------------------------------------------------
