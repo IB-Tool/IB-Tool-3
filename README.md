@@ -183,7 +183,20 @@ A ready-to-use sample dataset is included in the `Testdaten/` folder — see **[
 
 For full layer specifications, field requirements, filter file format, and the complete validation check table, see **[docs/input-data.md](docs/input-data.md)**.
 
-Don't have HU/RN/Aux data yet? See **[docs/data-preparation.md](docs/data-preparation.md)** for a tutorial on producing them from official ATKIS raw data.
+Don't have HU/RN/Aux data yet? Two companion plugins produce IBTool's inputs for you — see below. To build them by hand instead, **[docs/data-preparation.md](docs/data-preparation.md)** documents the manual workflow.
+
+---
+
+## Companion Plugins
+
+Two separate QGIS plugins generate IBTool's input layers. Both install alongside IBTool and appear in the same **Plugins → IB-Tool** menu.
+
+| Plugin | Produces | Use it when |
+|--------|----------|-------------|
+| **[Data Wizard](https://github.com/IB-Tool/data_wizard)** | `HU.gpkg`, `RN.gpkg`, `AUX_L.gpkg` | You have raw ATKIS Basis-DLM shapefiles and need the HU/RN/Aux inputs. Handles CRS, optional study-area clipping, and layer mapping in one step — this automates [docs/data-preparation.md](docs/data-preparation.md). |
+| **[IB-Tool (Partitioning)](https://github.com/IB-Tool/ibtoolpartion)** | `PART_<id>` polygon layer | You have building footprints but no partitioning layer. Derives settlement units via kernel density estimation and Voronoi tessellation. |
+
+Neither is required: any data meeting the specification in [docs/input-data.md](docs/input-data.md) works, regardless of how it was produced.
 
 ---
 

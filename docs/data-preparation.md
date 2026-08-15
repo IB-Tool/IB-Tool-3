@@ -4,8 +4,8 @@ This tutorial explains how to turn downloaded ATKIS raw data into the
 **HU** (Building Footprints), **RN** (Road Network), and **Aux**
 (Auxiliary Layer) inputs required by IBTool. It does not cover:
 
-- The **Part** (Partitioning) layer — produced by a separate, dedicated
-  tool.
+- The **Part** (Partitioning) layer — produced by the companion plugin
+  **[IB-Tool (Partitioning)](https://github.com/IB-Tool/ibtoolpartion)**.
 - The **Filter File** — a separately maintained, largely static file (see
   [input-data.md → Filter File](input-data.md#filter-file) for its format).
 
@@ -15,9 +15,14 @@ minimum feature counts) that the layers produced here must satisfy, see
 dataset names for a specific German state, see
 [data-sources.md](data-sources.md).
 
-> This tutorial documents the current manual workflow. It is also intended
-> as the basis for a future dedicated tool that automates these steps —
-> that tool is a separate, later project.
+> **You probably do not need to do this by hand.** The companion plugin
+> **[Data Wizard](https://github.com/IB-Tool/data_wizard)** automates the
+> whole workflow below — CRS handling, study-area clipping, and the
+> mapping into `HU.gpkg` / `RN.gpkg` / `AUX_L.gpkg`.
+>
+> This tutorial remains the reference for what Data Wizard does under the
+> hood: read it to understand or verify the plugin's output, to work with
+> data it cannot handle, or to do the conversion in another tool.
 
 ## Workflow Overview
 
