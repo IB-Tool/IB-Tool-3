@@ -8,7 +8,9 @@ This document is the reference for all IB-Tool 3 processing parameters: what eac
 
 ## Introduction
 
-IB-Tool 3 performs the **automated delineation of settlement boundaries (Innenbereiche)** based on geometric and topographic object data. It was developed as part of the dissertation by **Oliver Harig (2024)** and aims to produce **uniform, data-driven, and reproducible settlement boundaries** that approximate the legally defined inner development area under § 34 BauGB.
+IB-Tool 3 performs the **automated delineation of the Innenbereich (§ 34 BauGB)** — the coherently built-up part of a municipality — based on geometric and topographic object data. The aim is a **uniform, data-driven, and reproducible** approximation of that legally defined area; see [terminology.md](terminology.md) for the definition, for the relationship to the term *Urban Growth Boundary* used in the international publication, and for which source covers which part of the method.
+
+The parameter values documented here follow the dissertation **Harig (2024)**.
 
 The methodology combines:
 
@@ -172,6 +174,10 @@ The configurable **parameters** control different stages of this process and gov
 ---
 
 ## References
+
+The full reference list, with the role of each source, is in
+[terminology.md → References](terminology.md#references--which-source-covers-what).
+The parameter values on this page are taken from:
 
 - Harig, O. (2024): *Automatisierte Abgrenzung von Innenbereichen einschließlich Ergebnisevaluierung – Grundlage für ein Siedlungsflächenmonitoring.* TU Dresden, Faculty of Environmental Sciences.
   - Chapter 4.4 — Methodology
