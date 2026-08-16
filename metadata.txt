@@ -6,12 +6,12 @@
 name=IB-Tool 3
 qgisMinimumVersion=3.40
 pythonMinimumVersion=3.11
-description=QGIS plugin for settlement delineation based on building footprints. Provides automated geospatial processing tools for clustering, density calculations, and minimum spanning tree (MST) analysis.
+description=QGIS plugin for the automated delineation of the Innenbereich (the coherently built-up area under Sec. 34 BauGB, internationally: urban growth boundary) from building footprints. Provides automated geospatial processing tools for clustering, density calculations, and minimum spanning tree (MST) analysis.
 version=0.2.2
 author=Oliver Harig
 email=ottmar.hittzfeld@web.de
 
-about=IB-Tool 3 is a QGIS plugin for settlement delineation based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis, implementing complex algorithms for clustering, density calculations, and minimum spanning tree (MST) analysis. Features include automated building footprint filtering, road network analysis, partition-based processing, footprint density calculation, gap and hole closing, and comprehensive input data validation. For more information see the project repository: https://github.com/IB-Tool/IB-Tool-3
+about=IB-Tool 3 is a QGIS plugin for the automated delineation of the Innenbereich - the coherently built-up part of a municipality as defined in Sec. 34 BauGB, described as an urban growth boundary in the international publication of the method - based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis, implementing complex algorithms for clustering, density calculations, and minimum spanning tree (MST) analysis. Features include automated building footprint filtering, road network analysis, partition-based processing, footprint density calculation, gap and hole closing, and comprehensive input data validation. For more information see the project repository: https://github.com/IB-Tool/IB-Tool-3
 
 tracker=https://github.com/IB-Tool/IB-Tool-3/issues
 repository=https://github.com/IB-Tool/IB-Tool-3

@@ -32,6 +32,21 @@ These abbreviations are established and may be used without further explanation:
 
 All other terms must be spelled out.
 
+## Domain Terminology (documentation and user-facing strings)
+
+The object IB-Tool 3 delineates has one name in running text: **Innenbereich**,
+with "(§ 34 BauGB)" on first mention per document.
+
+| Term | Use it |
+|------|--------|
+| `Innenbereich` | Always, in running text, docs, UI strings and commit messages |
+| `Urban Growth Boundary` / `UGB` | **Only** when referring to Harig et al. (2021) or international literature — and state there that it denotes the same delineation |
+| `settlement boundary`, `settlement delineation` | Not as defined terms; acceptable only as a generic paraphrase |
+
+The single source for the definition and for which publication covers which part
+of the method is [`docs/terminology.md`](../../docs/terminology.md). Do not
+restate the definition or duplicate the reference list elsewhere — link to it.
+
 ## Layer Names
 
 - Unique and descriptive: `"dissolved_buildings"`, not `"temp1"`

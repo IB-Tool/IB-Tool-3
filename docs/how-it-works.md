@@ -5,15 +5,18 @@ The method is described in detail in:
 
 > Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. **Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study.** *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
 
-> **Images**: Screenshots belong in `docs/images/`. Each placeholder below shows the expected filename.
+The parameterisation of the method and its grounding in § 34 BauGB are covered by
+Harig (2024). For the relationship between the terms *Innenbereich* and *Urban
+Growth Boundary* and for which publication covers which part of the method, see
+[terminology.md](terminology.md).
 
 ---
 
 ## Concept
 
-IB-Tool 3 delineates **Urban Growth Boundaries (UGBs)** — the settled inner zones of municipalities — from building footprint data. The goal is to replace manually drawn boundaries with an automated, reproducible, and homogeneous delineation that operates at a very fine-grained level: the boundary follows individual buildings rather than administrative units.
+IB-Tool 3 delineates the **Innenbereich** (§ 34 BauGB) — the coherently built-up part of a municipality — from building footprint data. The international publication of the method (Harig et al. 2021) describes the same delineation as an *Urban Growth Boundary (UGB)*; see [terminology.md](terminology.md) for how the two terms relate. The goal is to replace manually drawn boundaries with an automated, reproducible, and homogeneous delineation that operates at a very fine-grained level: the boundary follows individual buildings rather than administrative units.
 
-The core idea is morphological: buildings that form a continuous, dense development belong to the same settlement. The road network acts as a barrier — it divides the study area into blocks, and only blocks that are densely enough built up are included in the UGB. Buildings within these blocks are then grouped by proximity using a Minimum Spanning Tree (MST), and the resulting groups are refined by snapping to road edges and closing gaps.
+The core idea is morphological: buildings that form a continuous, dense development belong to the same settlement. The road network acts as a barrier — it divides the study area into blocks, and only blocks that are densely enough built up are included in the Innenbereich. Buildings within these blocks are then grouped by proximity using a Minimum Spanning Tree (MST), and the resulting groups are refined by snapping to road edges and closing gaps.
 
 Because large topographic datasets can contain millions of objects, the study area is first divided into **partitions** that keep settlement bodies intact. Each partition is processed independently, and the results are merged at the end.
 
@@ -99,14 +102,11 @@ OUTPUT: block polygons (street blocks + city blocks)
 
 Blocks at the edge of the settlement are typically very large (they transition into open space) and are treated separately in the density calculation.
 
-![Block polygons from road network](images/02_blocker_output.png)
-*Block polygons (blue outlines) derived from the road and auxiliary network.*
-
 ---
 
 ### Step 2 — ImportFilter: Three-Stage Building Filter
 
-`ImportFilter.py` removes buildings that are not relevant to UGB delineation. According to BauGB § 35, certain building functions are permitted *outside* the UGB (e.g. sewage treatment plants, wind turbines, livestock facilities, allotments). The filter applies three sequential stages:
+`ImportFilter.py` removes buildings that are not relevant to Innenbereich delineation. According to BauGB § 35, certain building functions are permitted *outside* the Innenbereich (e.g. sewage treatment plants, wind turbines, livestock facilities, allotments). The filter applies three sequential stages:
 
 #### Stage 1 — Negative filter (function code)
 
@@ -138,7 +138,7 @@ OUTPUT: cleaned building layer (negative-filter buildings inside settlements ret
 
 #### Stage 3 — Minimum size filter
 
-Small buildings and annexes not relevant for UGB delineation are removed:
+Small buildings and annexes not relevant for Innenbereich delineation are removed:
 
 ```
 Detached buildings:          remove if area < 56.8 m²
@@ -147,14 +147,11 @@ Non-detached / annexes:      remove if area < 35.0 m²
 
 These thresholds were determined empirically (Hecht 2014).
 
-![Building filter stages](images/03_import_filter.png)
-*Red: removed by negative filter. Blue: retained by positive filter. Density buffer shown as hatched area.*
-
 ---
 
 ### Step 3 — FootprintDensity: Building Coverage Ratio
 
-`FootprintDensity.py` calculates the **building coverage ratio (BCR)** — the ratio of the sum of building footprint areas to the reference area — and identifies which blocks are densely enough built up to be classified as fully within the UGB.
+`FootprintDensity.py` calculates the **building coverage ratio (BCR)** — the ratio of the sum of building footprint areas to the reference area — and identifies which blocks are densely enough built up to be classified as fully within the Innenbereich.
 
 #### Local BCR threshold calculation
 
@@ -175,23 +172,17 @@ FALLBACK: if no local threshold can be determined
           → use global_threshold (calculated from entire study area)
 ```
 
-![Reference area for BCR calculation](images/04_bcr_reference.png)
-*Dark blocks: used for BCR calculation (inside 100 m buffer, ≥ 20 buildings). Light blocks: too large or too sparse, excluded.*
-
 #### Dense block identification
 
 ```
 FOR each city block:
     IF BCR(block) > 18%:
-        classify as DENSE  →  directly assigned to UGB
+        classify as DENSE  →  directly assigned to Innenbereich
     ELSE:
         pass to MST aggregation (Steps 4–5)
 ```
 
-The 18% threshold was derived empirically using expert delineations from Brandenburg: blocks meeting this criterion are inside the UGB with 95% probability (Harig et al. 2021).
-
-![Dense vs. sparse blocks](images/05_dense_blocks.png)
-*Dense blocks (dark fill, BCR > 18%) vs. sparse blocks passed to MST aggregation.*
+The 18% threshold was derived empirically using expert delineations from Brandenburg: blocks meeting this criterion are inside the Innenbereich with 95% probability (Harig et al. 2021).
 
 ---
 
@@ -231,14 +222,11 @@ OUTPUT: forest of smaller subtrees (one per settlement cluster candidate)
 
 Road segments ≤ 50 m (dead ends, short access roads) are excluded from this check — only significant road barriers are used as cutting criteria.
 
-![MST edges connecting buildings](images/06_mst_result.png)
-*MST edges (green). Edges crossing roads longer than 50 m have been removed, separating the graph into individual subtrees.*
-
 ---
 
 ### Step 5 — MST_Clustering: Aggregation into Minimum Bounding Rectangles
 
-`MST_Clustering.py` groups the buildings along the MST subtrees into settlement polygons. The geometry type is an **edge-weighted Minimum Bounding Rectangle (MBR)** — oriented along the dominant building edges, not area-minimising — because UGBs in Germany typically end directly behind the last building and follow cadastral (predominantly rectangular) parcel shapes.
+`MST_Clustering.py` groups the buildings along the MST subtrees into settlement polygons. The geometry type is an **edge-weighted Minimum Bounding Rectangle (MBR)** — oriented along the dominant building edges, not area-minimising — because the Innenbereich in Germany typically ends directly behind the last building and follows cadastral (predominantly rectangular) parcel shapes.
 
 #### Algorithm 1 — Minimum Bounding Rectangle (MBR)
 
@@ -288,14 +276,11 @@ OUTPUT: list of MBR polygons (one per building cluster)
 
 The BCR check at each step ensures that only groups dense enough to form a coherent settlement unit are accepted. Adding a distant building that pushes the BCR below the threshold leaves the group unchanged.
 
-![MBR clusters from MST aggregation](images/07_mst_clusters.png)
-*Edge-weighted MBR polygons (left) vs. area-minimising rectangles (right). The edge-weighted variant better follows the street alignment.*
-
 ---
 
 ### Step 6 — AddSingleBuilding: Isolated Large Buildings
 
-`AddSingleBuilding.py` handles buildings that are relevant to the UGB but were not captured by the MST aggregation — primarily large isolated buildings (footprint > 300 m²) outside existing cluster polygons (commercial buildings, public buildings, large agricultural buildings within the settlement).
+`AddSingleBuilding.py` handles buildings that are relevant to the Innenbereich but were not captured by the MST aggregation — primarily large isolated buildings (footprint > 300 m²) outside existing cluster polygons (commercial buildings, public buildings, large agricultural buildings within the settlement).
 
 ```
 INPUT: filtered buildings (HU_filter), MST cluster polygons
@@ -314,7 +299,7 @@ The result is merged with the cluster polygons from Step 5 before refinement.
 
 ### Step 7 — EdgeCatch: Snapping to Road Network
 
-`EdgeCatch.py` snaps the MBR polygons to the neighbouring road network. Without this step, cluster boundaries may stop just inside or outside the road, creating thin slivers. The UGB in Germany is generally defined as ending directly at or just behind the last building, often coinciding with the road edge.
+`EdgeCatch.py` snaps the MBR polygons to the neighbouring road network. Without this step, cluster boundaries may stop just inside or outside the road, creating thin slivers. The Innenbereich in Germany is generally defined as ending directly at or just behind the last building, often coinciding with the road edge.
 
 #### Sub-step 7a — Pre-filter road segments
 
@@ -346,9 +331,6 @@ INPUT: MBR polygon (rectangle), road_segs_near_buildings
 7. Dissolve rectangle + remaining polygons → single-part polygon
 OUTPUT: snapped settlement polygon
 ```
-
-![EdgeCatch snapping](images/08_edge_catch.png)
-*Before (left) and after (right) EdgeCatch — boundaries aligned with road edges.*
 
 ---
 
@@ -432,10 +414,7 @@ INPUT: dissolved settlement polygons
        tessellate into triangles; ADD gap if all triangles are narrow
 ```
 
-The 70 m threshold for the compact-gap filter is based on German planning guidance (Bukies et al. 2009): an undeveloped strip of 50–60 m is generally considered inside the UGB; even 90 m does not necessarily interrupt the built-up area.
-
-![GapClose result](images/09_gap_close.png)
-*Left: holes and gaps between polygons. Right: after GapClose — holes removed or closed, gaps bridged.*
+The 70 m threshold for the compact-gap filter is based on German planning guidance (Bukies et al. 2009): an undeveloped strip of 50–60 m is generally considered inside the Innenbereich; even 90 m does not necessarily interrupt the built-up area.
 
 ---
 
@@ -443,7 +422,7 @@ The 70 m threshold for the compact-gap filter is based on German planning guidan
 
 `PatchRemove.py` removes result polygons that are too small or contain too few buildings to represent a meaningful settlement unit.
 
-According to planning guidance (Bukies et al. 2009; Long et al. 2015), typically 20–25 residential buildings are needed for an independent UGB, and areas below 1 ha should not be treated as separate settlements:
+According to planning guidance (Bukies et al. 2009; Long et al. 2015), typically 20–25 residential buildings are needed for an independent Innenbereich, and areas below 1 ha should not be treated as separate settlements:
 
 ```
 INPUT: settlement polygons, all buildings (sel_hu_layer)
@@ -458,17 +437,11 @@ Default thresholds: `min_patch_size = 10,000 m²` (1 ha), `min_bdg_count = 20`.
 
 After patch removal, the gap-closing step is applied once more across the entire partition result to close any narrow gaps that opened between the remaining polygons.
 
-![Splinter areas removed](images/10_patch_remove.png)
-*Small isolated result polygons (red outlines) removed from the output.*
-
 ---
 
 ### Merge and Output
 
 After all partitions are processed, the per-partition results are merged into a single layer. The final layer is saved as a GeoPackage at the configured output path.
-
-![Final settlement delineation result](images/11_final_result.png)
-*Final UGB polygons (light grey) overlaid on building footprints.*
 
 ---
 
@@ -476,7 +449,7 @@ For the full parameter reference including defaults, sensitivity notes, and acad
 
 ---
 
-## Accuracy (from the paper)
+## Accuracy (Harig et al. 2021)
 
 The method was validated against expert delineations (EDs) in three German study areas:
 
@@ -492,7 +465,7 @@ The method performs best for compact settlements. Dispersed rural settlements wi
 
 ## Output
 
-The result is a **GeoPackage** (`.gpkg`) containing one polygon layer with the delineated UGB boundaries. Each polygon represents one settlement body.
+The result is a **GeoPackage** (`.gpkg`) containing one polygon layer with the delineated Innenbereich boundaries. Each polygon represents one settlement body.
 
 The workspace folder additionally contains:
 - Intermediate GeoPackages per partition (for inspection)
