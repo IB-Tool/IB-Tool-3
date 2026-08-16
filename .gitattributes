@@ -1,0 +1,32 @@
+# Zeilenenden repo-weit normalisieren: git speichert LF, die Arbeitskopie darf
+# plattformueblich sein. Ohne diese Datei meldete git unter Windows den halben
+# Baum als geaendert - ein reiner CRLF/LF-Unterschied ohne Inhaltsaenderung.
+* text=auto
+
+# Dateien, die im Linux-Container ausgefuehrt werden, brauchen LF auch in der
+# Arbeitskopie: CRLF laesst bash mit "\r: command not found" scheitern.
+Dockerfile      text eol=lf
+*.sh            text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+
+# Windows-Skripte umgekehrt.
+*.bat           text eol=crlf
+*.ps1           text eol=crlf
+
+# Binaerdateien nie konvertieren. `text=auto` erkennt die meisten davon
+# ohnehin, die Liste macht es fuer die Geodatenformate explizit.
+*.png           binary
+*.jpg           binary
+*.ico           binary
+*.qm            binary
+*.zip           binary
+*.gpkg          binary
+*.shp           binary
+*.shx           binary
+*.dbf           binary
+*.qix           binary
+*.tif           binary
+
+# Nicht als binaer markieren: *.asc (ESRI-ASCII-Grid), *.prj, *.cpg und *.qml
+# sind Textformate und werden von `text=auto` korrekt behandelt.
