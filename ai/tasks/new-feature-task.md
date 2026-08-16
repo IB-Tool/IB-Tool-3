@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Template for implementing new functionality in the IBTool project. Goal: clean integration without affecting existing functionality.
+Template for implementing new functionality in the IB-Tool 3 project. Goal: clean integration without affecting existing functionality.
 
 ## Scope
 

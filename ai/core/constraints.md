@@ -1,6 +1,6 @@
 # Constraints
 
-Binding rules for all code changes in the IBTool project.
+Binding rules for all code changes in the IB-Tool 3 project.
 
 For release-specific constraints (metadata.txt, LICENSE, ZIP packaging, CI),
 see [release-conventions.md](release-conventions.md).

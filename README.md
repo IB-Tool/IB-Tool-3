@@ -1,4 +1,4 @@
-# IBTool 3
+# IB-Tool 3
 
 [![CI](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/ci.yml/badge.svg)](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/ci.yml)
 [![QGIS Plugin CI](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml/badge.svg)](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml)
@@ -12,13 +12,13 @@
 
 ## Quick Start
 
-New to IBTool? → **[docs/quickstart.md](docs/quickstart.md)** — installation, input requirements, and a step-by-step first run.
+New to IB-Tool 3? → **[docs/quickstart.md](docs/quickstart.md)** — installation, input requirements, and a step-by-step first run.
 
 ---
 
 ## Description
 
-**IBTool** is a QGIS plugin for the automatic delineation of **Urban Growth Boundaries (UGBs)** based on building footprints and topographic data. It is mostly based on the method described in:
+**IB-Tool 3** is a QGIS plugin for the automatic delineation of **Urban Growth Boundaries (UGBs)** based on building footprints and topographic data. It is mostly based on the method described in:
 
 > Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. **Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study.** *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
 
@@ -65,17 +65,24 @@ The plugin delineates settlement boundaries at a fine-grained level — the boun
 
 ---
 
-## Related Plugins
+## Related Projects
 
-IBTool is the main plugin; two companion QGIS plugins prepare its input data
-automatically instead of requiring manual work in QGIS:
+**IB-Tool** is the family name. IB-Tool 3 is its third generation and the QGIS
+implementation; the original runs on ArcGIS. Two companion QGIS plugins prepare
+IB-Tool 3's input data automatically instead of requiring manual work in QGIS.
 
-| Plugin | Produces | Docs |
-|---|---|---|
-| **[data_wizard](https://github.com/IB-Tool/data_wizard)** | `HU`, `RN`, `Aux` GeoPackages from raw ATKIS Basis-DLM data | [docs/README.md](https://github.com/IB-Tool/data_wizard/blob/master/docs/README.md) |
-| **[ibtoolpartion](https://github.com/IB-Tool/ibtoolpartion)** | `Part` (partition) polygons from `HU` via KDE + Voronoi tessellation | [README.md](https://github.com/IB-Tool/ibtoolpartion/blob/master/README.md) |
+| Project | Role | Use it when | Docs |
+|---|---|---|---|
+| **[Data Wizard](https://github.com/IB-Tool/data_wizard)** | Produces the `HU`, `RN` and `Aux` GeoPackages from raw ATKIS Basis-DLM data — handles CRS, optional study-area clipping and layer mapping in one step. | You have raw ATKIS shapefiles. Automates [docs/data-preparation.md](docs/data-preparation.md). | [docs/README.md](https://github.com/IB-Tool/data_wizard/blob/master/docs/README.md) |
+| **[IB-Tool (Partitioning)](https://github.com/IB-Tool/Partitioning)** | Produces the `Part` polygons (`PART_<id>`) from `HU` via kernel density estimation and Voronoi tessellation. | You have building footprints but no partitioning layer. | [README.md](https://github.com/IB-Tool/Partitioning/blob/master/README.md) |
+| **[ib-tool](https://github.com/IB-Tool/ib-tool)** | The original ArcPy toolset implementing the same delineation method (Harig et al. 2021). | You work in ArcGIS. Requires ArcGIS Advanced with a Spatial Analyst license. | [README.md](https://github.com/IB-Tool/ib-tool) |
 
-See [docs/input-data.md](docs/input-data.md) for how each input layer relates to these plugins, and [docs/contributing.md](docs/contributing.md) for the CI/test/release conventions shared across all three repositories.
+Both QGIS companions install alongside IB-Tool 3 and appear in the same
+**Plugins → IB-Tool** menu. Neither is required: any data meeting the
+specification in [docs/input-data.md](docs/input-data.md) works, regardless of
+how it was produced.
+
+See [docs/input-data.md](docs/input-data.md) for how each input layer relates to these plugins, and [docs/contributing.md](docs/contributing.md) for the CI/test/release conventions shared across the three QGIS repositories.
 
 ---
 
@@ -111,7 +118,7 @@ This installs `pytest` and `pytest-cov`. The test suite itself runs inside Docke
 
 ### Option 1 — Install from ZIP (recommended)
 
-The easiest way to install IBTool is to download the ready-to-use ZIP file from the [GitHub Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and install it directly inside QGIS:
+The easiest way to install IB-Tool 3 is to download the ready-to-use ZIP file from the [GitHub Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and install it directly inside QGIS:
 
 1. Go to the [Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and download the latest `IB-Tool-3.<version>.zip`.
 2. Open QGIS.
@@ -153,13 +160,13 @@ The easiest way to install IBTool is to download the ready-to-use ZIP file from 
    IB-Tool-3  →  ibtool
    ```
 4. **Configure the QGIS path (optional):**
-   - IBTool detects QGIS automatically via the `QGIS_PREFIX_PATH` environment variable or common install locations.
+   - IB-Tool 3 detects QGIS automatically via the `QGIS_PREFIX_PATH` environment variable or common install locations.
    - If QGIS is installed in a non-standard location, set `QGIS_PREFIX_PATH` manually, e.g.:
      ```bash
      export QGIS_PREFIX_PATH=/opt/qgis
      ```
 5. **Activate the plugin:**
-   - Start QGIS and enable IBTool in **Plugins → Manage and Install Plugins**.
+   - Start QGIS and enable IB-Tool 3 in **Plugins → Manage and Install Plugins**.
 
 ---
 
@@ -183,20 +190,7 @@ A ready-to-use sample dataset is included in the `Testdaten/` folder — see **[
 
 For full layer specifications, field requirements, filter file format, and the complete validation check table, see **[docs/input-data.md](docs/input-data.md)**.
 
-Don't have HU/RN/Aux data yet? Two companion plugins produce IBTool's inputs for you — see below. To build them by hand instead, **[docs/data-preparation.md](docs/data-preparation.md)** documents the manual workflow.
-
----
-
-## Companion Plugins
-
-Two separate QGIS plugins generate IBTool's input layers. Both install alongside IBTool and appear in the same **Plugins → IB-Tool** menu.
-
-| Plugin | Produces | Use it when |
-|--------|----------|-------------|
-| **[Data Wizard](https://github.com/IB-Tool/data_wizard)** | `HU.gpkg`, `RN.gpkg`, `AUX_L.gpkg` | You have raw ATKIS Basis-DLM shapefiles and need the HU/RN/Aux inputs. Handles CRS, optional study-area clipping, and layer mapping in one step — this automates [docs/data-preparation.md](docs/data-preparation.md). |
-| **[IB-Tool (Partitioning)](https://github.com/IB-Tool/ibtoolpartion)** | `PART_<id>` polygon layer | You have building footprints but no partitioning layer. Derives settlement units via kernel density estimation and Voronoi tessellation. |
-
-Neither is required: any data meeting the specification in [docs/input-data.md](docs/input-data.md) works, regardless of how it was produced.
+Don't have HU/RN/Aux data yet? The companion plugins under **[Related Projects](#related-projects)** produce IB-Tool 3's inputs for you. To build them by hand instead, **[docs/data-preparation.md](docs/data-preparation.md)** documents the manual workflow.
 
 ---
 
@@ -229,7 +223,7 @@ For the full development setup, CI/CD pipeline details, Docker environment, test
 
 ## Logging
 
-IBTool writes log messages to the plugin dialog, to a timestamped log file in `logs/`, and to the QGIS message bar for critical errors. Four levels are supported: `CRITICAL`, `WARNING`, `INFO`, and `SUCCESS`. The active log level and log directory are configurable in the dialog.
+IB-Tool 3 writes log messages to the plugin dialog, to a timestamped log file in `logs/`, and to the QGIS message bar for critical errors. Four levels are supported: `CRITICAL`, `WARNING`, `INFO`, and `SUCCESS`. The active log level and log directory are configurable in the dialog.
 
 For the full logging reference including level definitions, output destinations, and the debug mode, see **[docs/error-handling.md](docs/error-handling.md)**.
 
@@ -249,13 +243,13 @@ This plugin is licensed under the **GNU General Public License v2.0**. You are f
 
 ## Publication
 
-If you use IBTool in research, please cite:
+If you use IB-Tool 3 in research, please cite:
 
 > Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study. *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
 
 > Eichhorn, S.; Harig, O.; …; Hecht, R. Assessing the suitability of settlement delineations for monitoring infilling: A web- and GIS-based expert evaluation approach. *Environ. Plan. B Urban Anal. City Sci.* **2025**, *52*(7). https://doi.org/10.1177/23998083241308407
 >
-> Evaluates whether automated settlement delineations — such as those generated by IBTool — are suitable for monitoring urban infill development. Using a structured web- and GIS-based expert survey, the study assesses the methodological quality and practical applicability of delineation approaches for infill analysis in urban planning contexts.
+> Evaluates whether automated settlement delineations — such as those generated by IB-Tool 3 — are suitable for monitoring urban infill development. Using a structured web- and GIS-based expert survey, the study assesses the methodological quality and practical applicability of delineation approaches for infill analysis in urban planning contexts.
 
 ---
 

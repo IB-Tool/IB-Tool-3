@@ -1,6 +1,6 @@
 # Plugin Architecture
 
-IBTool follows the standard QGIS plugin pattern with a clear separation between UI components and processing logic. This document covers the code structure, entry points, package layout, and import strategy. For CI/CD and development setup, see [docs/contributing.md](contributing.md). For input layer specifications, see [docs/input-data.md](input-data.md).
+IB-Tool 3 follows the standard QGIS plugin pattern with a clear separation between UI components and processing logic. This document covers the code structure, entry points, package layout, and import strategy. For CI/CD and development setup, see [docs/contributing.md](contributing.md). For input layer specifications, see [docs/input-data.md](input-data.md).
 
 ---
 

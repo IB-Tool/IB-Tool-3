@@ -4,7 +4,7 @@ Reference for downloading ATKIS Basis-DLM raw data per German state. The
 object-art schema (ATKIS/AAA catalog) is nationally standardized — only
 the download portal, file format, and dataset/layer naming differ between
 states. The shared mapping rules from raw ATKIS object classes into
-IBTool's HU/RN/Aux layers are documented once, in
+IB-Tool 3's HU/RN/Aux layers are documented once, in
 [data-preparation.md → Mapping & Merging](data-preparation.md#5-mapping--merging-into-hu--rn--aux) —
 not repeated per state here.
 

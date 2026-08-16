@@ -2,13 +2,13 @@
 
 *Based on Harig 2024, TU Dresden — Automated Delineation of Inner Development Areas Including Result Evaluation.*
 
-This document is the reference for all IBTool processing parameters: what each one controls, its mathematical background, and practical guidance for tuning. For the algorithmic context of each parameter within the processing pipeline, see [docs/how-it-works.md](how-it-works.md).
+This document is the reference for all IB-Tool 3 processing parameters: what each one controls, its mathematical background, and practical guidance for tuning. For the algorithmic context of each parameter within the processing pipeline, see [docs/how-it-works.md](how-it-works.md).
 
 ---
 
 ## Introduction
 
-IBTool performs the **automated delineation of settlement boundaries (Innenbereiche)** based on geometric and topographic object data. It was developed as part of the dissertation by **Oliver Harig (2024)** and aims to produce **uniform, data-driven, and reproducible settlement boundaries** that approximate the legally defined inner development area under § 34 BauGB.
+IB-Tool 3 performs the **automated delineation of settlement boundaries (Innenbereiche)** based on geometric and topographic object data. It was developed as part of the dissertation by **Oliver Harig (2024)** and aims to produce **uniform, data-driven, and reproducible settlement boundaries** that approximate the legally defined inner development area under § 34 BauGB.
 
 The methodology combines:
 
