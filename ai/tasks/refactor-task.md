@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Template for structural improvements in the IBTool project. Goal: better code structure without changing business logic.
+Template for structural improvements in the IB-Tool 3 project. Goal: better code structure without changing business logic.
 
 ## Scope
 

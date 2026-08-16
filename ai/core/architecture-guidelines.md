@@ -1,6 +1,6 @@
 # Architecture Guidelines
 
-Guidelines for architectural decisions in the IBTool project.
+Guidelines for architectural decisions in the IB-Tool 3 project.
 
 ## Parameter Management
 

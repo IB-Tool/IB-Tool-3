@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Template for bug fixes in the IBTool project. Goal: minimal, targeted changes to resolve the reported issue.
+Template for bug fixes in the IB-Tool 3 project. Goal: minimal, targeted changes to resolve the reported issue.
 
 ## Scope
 

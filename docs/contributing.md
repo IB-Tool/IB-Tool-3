@@ -1,11 +1,11 @@
 # Contributing & Development
 
-This document covers the development setup, CI/CD pipeline, test structure, and code quality tooling for IBTool.
+This document covers the development setup, CI/CD pipeline, test structure, and code quality tooling for IB-Tool 3.
 
 This is the canonical reference for the CI/test/release conventions shared
 across all three IB-Tool plugins. The companion plugins
 [data_wizard](https://github.com/IB-Tool/data_wizard/blob/master/docs/contributing.md)
-and [ibtoolpartion](https://github.com/IB-Tool/ibtoolpartion/blob/master/docs/contributing.md)
+and [IB-Tool (Partitioning)](https://github.com/IB-Tool/Partitioning/blob/master/docs/contributing.md)
 follow the same structure and only document what differs for them
 (e.g. lighter Docker images, since neither depends on `numpy`/`scipy`/`networkx`).
 

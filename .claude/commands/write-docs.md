@@ -2,7 +2,7 @@
 description: Use this skill when the user asks to write, create, or improve documentation or docstrings for a module, function, or class — for example "dokumentiere GapFix", "write docs for the blocker", "add docstrings to X", "Doku ergänzen", "fehlende Docstrings hinzufügen". Invoke automatically whenever a documentation task is identified for this QGIS plugin project.
 ---
 
-# /write-docs — Write Documentation for an IBTool Module
+# /write-docs — Write Documentation for an IB-Tool 3 Module
 
 Write documentation for the module: **$ARGUMENTS**
 

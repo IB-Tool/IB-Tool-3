@@ -1,6 +1,6 @@
 # Geometry Validation
 
-Rules and checks for geometric operations in the IBTool project.
+Rules and checks for geometric operations in the IB-Tool 3 project.
 
 ## Mandatory Checks
 

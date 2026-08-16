@@ -2,7 +2,7 @@
 
 ## Overview
 
-IBTool supports an optional `CONFIG.ini` file that pre-fills all dialog fields on
+IB-Tool 3 supports an optional `CONFIG.ini` file that pre-fills all dialog fields on
 plugin start. Place the file in the plugin root directory; if it exists and
 `auto_load_last_used = True`, every field (input paths, processing parameters, CRS,
 log settings) is populated automatically before the dialog opens. The current dialog
@@ -135,7 +135,7 @@ the file for manual reference.
 
 ## Saving Settings from the Dialog
 
-Click **Config speichern** in the bottom button bar of the IBTool dialog. This writes
+Click **Config speichern** in the bottom button bar of the IB-Tool 3 dialog. This writes
 the current values of all dialog fields back to `CONFIG.ini`, creating or overwriting
 the file. The following fields are saved:
 

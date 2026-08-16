@@ -1,6 +1,6 @@
-# How IBTool Works
+# How IB-Tool 3 Works
 
-This document explains the concept, processing pipeline, and algorithms behind IBTool.
+This document explains the concept, processing pipeline, and algorithms behind IB-Tool 3.
 The method is described in detail in:
 
 > Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. **Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study.** *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
@@ -11,7 +11,7 @@ The method is described in detail in:
 
 ## Concept
 
-IBTool delineates **Urban Growth Boundaries (UGBs)** — the settled inner zones of municipalities — from building footprint data. The goal is to replace manually drawn boundaries with an automated, reproducible, and homogeneous delineation that operates at a very fine-grained level: the boundary follows individual buildings rather than administrative units.
+IB-Tool 3 delineates **Urban Growth Boundaries (UGBs)** — the settled inner zones of municipalities — from building footprint data. The goal is to replace manually drawn boundaries with an automated, reproducible, and homogeneous delineation that operates at a very fine-grained level: the boundary follows individual buildings rather than administrative units.
 
 The core idea is morphological: buildings that form a continuous, dense development belong to the same settlement. The road network acts as a barrier — it divides the study area into blocks, and only blocks that are densely enough built up are included in the UGB. Buildings within these blocks are then grouped by proximity using a Minimum Spanning Tree (MST), and the resulting groups are refined by snapping to road edges and closing gaps.
 

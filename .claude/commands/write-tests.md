@@ -2,7 +2,7 @@
 description: Use this skill when the user asks to write, create, or add tests for a module, function, or class — for example "schreib Tests für GapClose", "write tests for the blocker", "add test coverage for X", "fehlende Tests ergänzen". Invoke automatically whenever a testing task is identified for this QGIS plugin project.
 ---
 
-# /write-tests — Write Tests for an IBTool Module
+# /write-tests — Write Tests for an IB-Tool 3 Module
 
 Write pytest tests for the module: **$ARGUMENTS**
 

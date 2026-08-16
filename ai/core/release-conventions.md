@@ -1,4 +1,4 @@
-# Release Conventions — IBTool
+# Release Conventions — IB-Tool 3
 
 These rules are binding for all code changes. They are referenced from
 `CLAUDE.md` and `ai/core/constraints.md`.

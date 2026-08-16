@@ -2,7 +2,7 @@
 description: Use this skill when the user wants the project documentation (docs/ folder and README.md) to be audited and harmonized — for example "docs konsistent machen", "Doku abstimmen", "Redundanzen entfernen", "einheitlichen Stil herstellen", "sync-docs". Invoke whenever documentation consistency across the whole project is the goal.
 ---
 
-# /sync-docs — Audit and Harmonize IBTool Documentation
+# /sync-docs — Audit and Harmonize IB-Tool 3 Documentation
 
 Audit and harmonize all project documentation: **docs/**, **README.md**.
 

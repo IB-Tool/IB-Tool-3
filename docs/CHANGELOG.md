@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to IBTool will be documented in this file.
+All notable changes to IB-Tool 3 will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -288,7 +288,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **system_utils**: `manage_directory()` now also deletes the `debug` folder when `del_part_log=True`, preventing stale debug files from accumulating between runs.
 
 ### Fixed
-- **IBTool**: Final output was written from `merge` (the pre-GapFix layer) instead of `gap_fixed`, silently discarding all GapFix results; fixed by passing `gap_fixed` to `save_temp_layer_to_gpkg`.
+- **IB-Tool 3**: Final output was written from `merge` (the pre-GapFix layer) instead of `gap_fixed`, silently discarding all GapFix results; fixed by passing `gap_fixed` to `save_temp_layer_to_gpkg`.
 
 ---
 
@@ -307,7 +307,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **error-handling.md**: Updated output-path description to reflect the new `NNN_` prefix and `_err` suffix convention.
 
 ### Fixed
-- **IBTool**: `debug_mode` was never forwarded to `gap_fix()` in `ibtool.py`, so no debug files were ever created despite the checkbox being active.
+- **IB-Tool 3**: `debug_mode` was never forwarded to `gap_fix()` in `ibtool.py`, so no debug files were ever created despite the checkbox being active.
 - **GapFix**: No intermediate results were saved during a successful run; added numbered `save_debug_layer` checkpoints after each pipeline step (`fixed`, `densified`, `lines`, `faces`, `gap_fix_result`).
 
 ---
@@ -323,8 +323,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **ConfigManager**: Integrated the existing (previously unused) `ConfigManager` into `IBTool.__init__` so `CONFIG.ini` is loaded automatically on plugin startup and all UI fields are pre-filled.
-- **IBTool**: Added `_apply_config_to_ui()` method that reads `CONFIG.ini` and populates all dialog fields when `auto_load_last_used = True`.
-- **IBTool**: Added `_save_config_from_ui()` method that writes the current UI state back to `CONFIG.ini`.
+- **IB-Tool 3**: Added `_apply_config_to_ui()` method that reads `CONFIG.ini` and populates all dialog fields when `auto_load_last_used = True`.
+- **IB-Tool 3**: Added `_save_config_from_ui()` method that writes the current UI state back to `CONFIG.ini`.
 - **ibtool_dialog_base.ui**: Added `SaveConfigButton` to the bottom button bar for saving current UI settings to `CONFIG.ini`.
 - **ProcessingConfig**: Extended with six missing settlement-analysis fields (`min_overlap_blocks`, `global_footprint_density`, `min_area`, `min_patch_size`, `max_hole_size`, `max_gap_size`).
 - **docs/CONFIG.ini.example**: Documented the six new settlement-analysis parameters in the `[PROCESSING]` section.

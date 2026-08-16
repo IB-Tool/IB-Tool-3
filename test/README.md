@@ -1,6 +1,6 @@
 # Test Guidelines and Central Configuration
 
-This directory contains all automated tests for **IBTool**. To keep tests
+This directory contains all automated tests for **IB-Tool 3**. To keep tests
 focused on assertions, shared environment settings are stored in
 `test_config.ini` and applied automatically when the test package is imported.
 

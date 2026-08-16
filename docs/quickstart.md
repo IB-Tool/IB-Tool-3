@@ -1,4 +1,4 @@
-# IBTool — Quickstart Guide
+# IB-Tool 3 — Quickstart Guide
 
 This guide gets you from a fresh QGIS installation to a completed settlement
 delineation run.
@@ -19,7 +19,7 @@ delineation run.
 **scipy** and **networkx** are not always bundled with QGIS — some
 installations (e.g. the standalone QGIS installer with an optional full
 Python stack) already include them, in which case no action is needed. If
-IBTool reports them missing, install them once:
+IB-Tool 3 reports them missing, install them once:
 
 ```bash
 # Windows — open the OSGeo4W Shell:
@@ -40,7 +40,7 @@ Then restart QGIS. If the packages are still missing after installation,
 check that you ran `pip` against QGIS's Python (not a system Python). On
 Windows the OSGeo4W Shell sets the correct environment automatically.
 
-> **Tip:** If IBTool shows a red message bar immediately after loading,
+> **Tip:** If IB-Tool 3 shows a red message bar immediately after loading,
 > it means scipy or networkx are missing. The message contains the exact
 > command to fix it.
 
@@ -59,7 +59,7 @@ Windows the OSGeo4W Shell sets the correct environment automatically.
 
 ## 3. Input Data
 
-IBTool requires five inputs. All layers must share the **same projected CRS**
+IB-Tool 3 requires five inputs. All layers must share the **same projected CRS**
 (plugin default: ETRS89 / UTM zone 33N, EPSG:25833 — matches the sample
 dataset below, see [Sample Data](#sample-data)).
 

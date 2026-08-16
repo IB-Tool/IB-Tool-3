@@ -1,6 +1,6 @@
 # Input Data
 
-This document specifies the five input datasets required by IBTool: geometry types, field requirements, minimum feature counts, and the filter file format. It also lists the complete set of validation checks run by the **Check** button in the dialog.
+This document specifies the five input datasets required by IB-Tool 3: geometry types, field requirements, minimum feature counts, and the filter file format. It also lists the complete set of validation checks run by the **Check** button in the dialog.
 
 ---
 
@@ -25,7 +25,7 @@ instead of preparing it by hand:
 - **[data_wizard](https://github.com/IB-Tool/data_wizard)** — turns raw ATKIS
   Basis-DLM data into `HU`, `RN`, and `Aux` GeoPackages (see its own
   [documentation](https://github.com/IB-Tool/data_wizard/blob/master/docs/README.md)).
-- **[ibtoolpartion](https://github.com/IB-Tool/ibtoolpartion)** — generates
+- **[IB-Tool (Partitioning)](https://github.com/IB-Tool/Partitioning)** — generates
   the `Part` layer from `HU` via KDE and Voronoi tessellation.
 
 ---
@@ -96,7 +96,7 @@ Road segments shorter than 50 m (dead ends) are filtered automatically during MS
 The partitioning defines independent processing units. In the plugin interface a subset can be specified by partition name list or start/end range.
 
 This layer can be generated automatically from HU with the companion plugin
-**[ibtoolpartion](https://github.com/IB-Tool/ibtoolpartion)** (KDE + Voronoi
+**[IB-Tool (Partitioning)](https://github.com/IB-Tool/Partitioning)** (KDE + Voronoi
 tessellation), instead of preparing it by hand.
 
 ### Aux — Auxiliary Layer

@@ -2,10 +2,10 @@
 
 This tutorial explains how to turn downloaded ATKIS raw data into the
 **HU** (Building Footprints), **RN** (Road Network), and **Aux**
-(Auxiliary Layer) inputs required by IBTool. It does not cover:
+(Auxiliary Layer) inputs required by IB-Tool 3. It does not cover:
 
 - The **Part** (Partitioning) layer — produced by the companion plugin
-  **[IB-Tool (Partitioning)](https://github.com/IB-Tool/ibtoolpartion)**.
+  **[IB-Tool (Partitioning)](https://github.com/IB-Tool/Partitioning)**.
 - The **Filter File** — a separately maintained, largely static file (see
   [input-data.md → Filter File](input-data.md#filter-file) for its format).
 
@@ -62,7 +62,7 @@ Before creating anything else, check which Coordinate Reference System
 every layer created in the steps below, including the study area polygon
 in the next step, must use this same CRS.
 
-> IBTool's own default CRS is ETRS89 / UTM zone 33N (EPSG:25833), matching
+> IB-Tool 3's own default CRS is ETRS89 / UTM zone 33N (EPSG:25833), matching
 > the sample data in `Testdaten/`. This is a project default, not a hard
 > requirement — set the plugin's CRS field to whatever CRS your raw data
 > actually uses.
@@ -161,7 +161,7 @@ GeoPackage, not Shapefile, for this workflow. Use **Export → Save
 Features As…** in QGIS, format **GeoPackage**, and confirm the CRS matches
 the project CRS from Step 2.
 
-File names are freely chosen — they are selected explicitly in the IBTool
+File names are freely chosen — they are selected explicitly in the IB-Tool 3
 dialog, so no fixed naming convention is required. Keep names QGIS/Python
 compatible: avoid spaces and special characters (use plain ASCII letters,
 digits, `_`/`-`) that could cause problems when the file is referenced by
@@ -171,14 +171,14 @@ path later.
 
 ## 8. Validation
 
-Before using the exported layers in IBTool, check them against the full
+Before using the exported layers in IB-Tool 3, check them against the full
 validation checklist in
 [input-data.md → Validation Checks](input-data.md#validation-checks):
 geometry types, minimum feature counts, required fields, and CRS
 consistency across HU/RN/Part/Aux.
 
 The final, authoritative check happens inside the plugin itself: load all
-five inputs into IBTool and click **Check** (see
+five inputs into IB-Tool 3 and click **Check** (see
 [quickstart.md → Step 3 — Validation](quickstart.md#step-3--validation)).
 Errors (red ❌) must be resolved before a run can start; warnings (yellow
 ⚠️) are informational.
@@ -191,4 +191,4 @@ Errors (red ❌) must be resolved before a run can start; warnings (yellow
 |------|---------|
 | [`docs/input-data.md`](input-data.md) | Target layer specification and full validation checklist |
 | [`docs/data-sources.md`](data-sources.md) | Per-state ATKIS portal, format, and dataset names |
-| [`docs/quickstart.md`](quickstart.md) | First run in IBTool once the input layers are ready |
+| [`docs/quickstart.md`](quickstart.md) | First run in IB-Tool 3 once the input layers are ready |

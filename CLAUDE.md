@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**IBTool** is a QGIS plugin for settlement delineation based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis (clustering, density calculations, MST analysis). The plugin is prepared for publication on plugins.qgis.org.
+**IB-Tool 3** is a QGIS plugin for settlement delineation based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis (clustering, density calculations, MST analysis). The plugin is prepared for publication on plugins.qgis.org.
 
 ## Package Structure
 
