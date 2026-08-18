@@ -33,7 +33,7 @@ from qgis.PyQt.QtWidgets import (
     QSplitter,
 )
 from qgis.PyQt.QtGui import QColor
-from qgis.PyQt.QtCore import Qt, QCoreApplication
+from qgis.PyQt.QtCore import Qt, QCoreApplication, QLocale
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -70,6 +70,16 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
         self._close_callback = None
         # Set up the user interface from Designer through FORM_CLASS.
         self.setupUi(self)
+
+        # GlobalFootprintDensityBox is the only float spin box in the UI and
+        # its .text() is read directly as a number further down the line
+        # (helpers/check.py, IBTool._collect_params()). QDoubleSpinBox
+        # formats .text() using the widget's locale, which defaults to the
+        # user's system locale — e.g. German Windows uses ',' as the decimal
+        # separator, which Python's float() rejects. Force the fixed 'C'
+        # locale (dot decimal separator) so the displayed/returned text is
+        # always parseable regardless of the user's system settings.
+        self.GlobalFootprintDensityBox.setLocale(QLocale.c())
 
     # ------------------------------------------------------------------
     # Step navigation

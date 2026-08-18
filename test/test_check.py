@@ -1166,3 +1166,290 @@ class TestValidateAll:
         assert not result.is_valid
         # At least the four layer paths should produce errors
         assert len(result.errors) >= 4
+
+
+# ---------------------------------------------------------------------------
+# TestValidateAllChecksumCache — per-file skip logic
+# ---------------------------------------------------------------------------
+
+class TestValidateAllChecksumCache:
+    """Tests for the checksum-based per-file skip logic in validate_all.
+
+    `QgsVectorLayer` is patched to a stub so these tests exercise only the
+    new orchestration logic (which checks run vs. are skipped, and how the
+    returned `layer_cache` is threaded through), not the already-covered
+    individual `_check_*` methods.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.qgis_app, cls.canvas, cls.iface, cls.parent = get_qgis_app()
+
+    @staticmethod
+    def _make_paths(tmp_path):
+        """Create 5 placeholder files for the 5 checkable inputs."""
+        paths = {}
+        for field in ("HuPath", "RnPath", "PartPath", "AuxPath", "FilterPath"):
+            p = tmp_path / f"{field}.gpkg"
+            p.write_text("placeholder", encoding="utf-8")
+            paths[field] = str(p)
+        return paths
+
+    @staticmethod
+    def _make_mock_layer(crs_authid="EPSG:25833"):
+        layer = MagicMock()
+        layer.isValid.return_value = True
+        layer.crs.return_value.authid.return_value = crs_authid
+        layer.featureCount.return_value = 0
+        return layer
+
+    def _patched_layer(self, crs_authid="EPSG:25833"):
+        """Context-manager-friendly patch target for `helpers.check.QgsVectorLayer`."""
+        return patch("helpers.check.QgsVectorLayer",
+                     side_effect=lambda *a, **k: self._make_mock_layer(crs_authid))
+
+    @pytest.mark.unit
+    def test_first_call_runs_all_content_checks_and_populates_cache(self, tmp_path):
+        """With no previous_cache, every content check runs and layer_cache is filled."""
+        paths = self._make_paths(tmp_path)
+        validator = InputValidator()
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        checksums = {k: f"cs_{k}" for k in paths}
+
+        with self._patched_layer(), \
+             patch.object(validator, "_check_geometries") as mock_geom, \
+             patch.object(validator, "_check_validity_processing") as mock_valid, \
+             patch.object(validator, "_check_hu_layer") as mock_hu, \
+             patch.object(validator, "_check_rn_layer") as mock_rn, \
+             patch.object(validator, "_check_aux_layer") as mock_aux, \
+             patch.object(validator, "_check_part_layer") as mock_part, \
+             patch.object(validator, "_check_multipart_lines") as mock_multi, \
+             patch.object(validator, "_check_filter_file") as mock_filter:
+            result = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs,
+                file_checksums=checksums,
+            )
+
+        assert mock_geom.call_count == 4
+        assert mock_valid.call_count == 4
+        mock_hu.assert_called_once()
+        mock_rn.assert_called_once()
+        mock_aux.assert_called_once()
+        mock_part.assert_called_once()
+        assert mock_multi.call_count == 2  # RN + Aux only
+        mock_filter.assert_called_once()
+        assert set(result.layer_cache) == set(paths)
+        for field, checksum in checksums.items():
+            assert result.layer_cache[field]["checksum"] == checksum
+
+    @pytest.mark.unit
+    def test_unchanged_checksums_skip_all_content_checks(self, tmp_path):
+        """A second call with unchanged checksums must not re-run content checks,
+        but cheap checks (CRS, feature counts, params) run again every time."""
+        paths = self._make_paths(tmp_path)
+        validator = InputValidator()
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        checksums = {k: f"cs_{k}" for k in paths}
+
+        with self._patched_layer(), \
+             patch.object(validator, "_check_geometries") as mock_geom, \
+             patch.object(validator, "_check_validity_processing"), \
+             patch.object(validator, "_check_hu_layer") as mock_hu, \
+             patch.object(validator, "_check_rn_layer"), \
+             patch.object(validator, "_check_aux_layer"), \
+             patch.object(validator, "_check_part_layer"), \
+             patch.object(validator, "_check_multipart_lines"), \
+             patch.object(validator, "_check_filter_file") as mock_filter, \
+             patch.object(validator, "_check_crs") as mock_crs, \
+             patch.object(validator, "_check_feature_counts") as mock_counts, \
+             patch.object(validator, "_check_params") as mock_params:
+            first = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs, params={"a": 1},
+                file_checksums=checksums,
+            )
+            second = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs, params={"a": 1},
+                file_checksums=checksums,
+                previous_cache=first.layer_cache,
+            )
+
+        # Content checks ran exactly once (during the first call)
+        assert mock_geom.call_count == 4
+        mock_hu.assert_called_once()
+        mock_filter.assert_called_once()
+        # Cheap checks re-run on every call
+        assert mock_crs.call_count == 8  # 4 layers x 2 calls
+        assert mock_counts.call_count == 2
+        assert mock_params.call_count == 2
+        assert second.layer_cache == first.layer_cache
+
+    @pytest.mark.unit
+    def test_changed_checksum_only_rechecks_that_file(self, tmp_path):
+        """Only the file whose checksum changed gets its content re-checked."""
+        paths = self._make_paths(tmp_path)
+        validator = InputValidator()
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        checksums = {k: f"cs_{k}" for k in paths}
+
+        with self._patched_layer(), \
+             patch.object(validator, "_check_geometries") as mock_geom, \
+             patch.object(validator, "_check_validity_processing"), \
+             patch.object(validator, "_check_hu_layer") as mock_hu, \
+             patch.object(validator, "_check_rn_layer") as mock_rn, \
+             patch.object(validator, "_check_aux_layer") as mock_aux, \
+             patch.object(validator, "_check_part_layer") as mock_part, \
+             patch.object(validator, "_check_multipart_lines"), \
+             patch.object(validator, "_check_filter_file"):
+            first = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs, file_checksums=checksums,
+            )
+            changed = dict(checksums)
+            changed["HuPath"] = "cs_HuPath_v2"  # simulate an edited HU file
+            validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs, file_checksums=changed,
+                previous_cache=first.layer_cache,
+            )
+
+        assert mock_hu.call_count == 2   # HU re-checked both times
+        assert mock_rn.call_count == 1   # RN, Part, Aux only checked once
+        assert mock_part.call_count == 1
+        assert mock_aux.call_count == 1
+        assert mock_geom.call_count == 5  # 4 (first call) + 1 (HU on second call)
+
+    @pytest.mark.unit
+    def test_crs_change_alone_does_not_trigger_content_recheck(self, tmp_path):
+        """Fixing the target CRS re-evaluates the CRS-mismatch error without
+        re-scanning unchanged files — the exact scenario this cache exists for."""
+        paths = self._make_paths(tmp_path)
+        validator = InputValidator()
+        checksums = {k: f"cs_{k}" for k in paths}
+
+        with self._patched_layer(crs_authid="EPSG:25832"), \
+             patch.object(validator, "_check_geometries") as mock_geom, \
+             patch.object(validator, "_check_validity_processing"), \
+             patch.object(validator, "_check_hu_layer"), \
+             patch.object(validator, "_check_rn_layer"), \
+             patch.object(validator, "_check_aux_layer"), \
+             patch.object(validator, "_check_part_layer"), \
+             patch.object(validator, "_check_multipart_lines"), \
+             patch.object(validator, "_check_filter_file"):
+            wrong_crs = QgsCoordinateReferenceSystem("EPSG:25833")  # layer is 25832
+            first = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=wrong_crs, file_checksums=checksums,
+            )
+            assert any("CRS mismatch" in e for e in first.errors)
+
+            fixed_crs = QgsCoordinateReferenceSystem("EPSG:25832")  # now matches
+            second = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=fixed_crs, file_checksums=checksums,
+                previous_cache=first.layer_cache,
+            )
+
+        assert not any("CRS mismatch" in e for e in second.errors), (
+            "CRS error must be gone once the target CRS matches, even though "
+            "the files themselves were not re-scanned"
+        )
+        assert mock_geom.call_count == 4, \
+            "Content checks must not re-run just because the target CRS changed"
+
+    @pytest.mark.unit
+    def test_reused_content_errors_and_warnings_reappear_in_result(self, tmp_path):
+        """Errors/warnings from a skipped content check are still reported."""
+        paths = self._make_paths(tmp_path)
+        validator = InputValidator()
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+        checksums = {k: f"cs_{k}" for k in paths}
+
+        def _hu_side_effect(_layer, result):
+            result.add_error("HU content error")
+
+        with self._patched_layer(), \
+             patch.object(validator, "_check_geometries"), \
+             patch.object(validator, "_check_validity_processing"), \
+             patch.object(validator, "_check_hu_layer", side_effect=_hu_side_effect), \
+             patch.object(validator, "_check_rn_layer"), \
+             patch.object(validator, "_check_aux_layer"), \
+             patch.object(validator, "_check_part_layer"), \
+             patch.object(validator, "_check_multipart_lines"), \
+             patch.object(validator, "_check_filter_file"):
+            first = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs, file_checksums=checksums,
+            )
+            second = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs, file_checksums=checksums,
+                previous_cache=first.layer_cache,
+            )
+
+        assert "HU content error" in first.errors
+        assert "HU content error" in second.errors, \
+            "A reused (skipped) content check's error must still be reported"
+
+    @pytest.mark.unit
+    def test_no_checksums_never_hits_cache(self, tmp_path):
+        """Without file_checksums, every call runs full content checks (back-compat)."""
+        paths = self._make_paths(tmp_path)
+        validator = InputValidator()
+        crs = QgsCoordinateReferenceSystem("EPSG:25833")
+
+        with self._patched_layer(), \
+             patch.object(validator, "_check_geometries") as mock_geom, \
+             patch.object(validator, "_check_validity_processing"), \
+             patch.object(validator, "_check_hu_layer"), \
+             patch.object(validator, "_check_rn_layer"), \
+             patch.object(validator, "_check_aux_layer"), \
+             patch.object(validator, "_check_part_layer"), \
+             patch.object(validator, "_check_multipart_lines"), \
+             patch.object(validator, "_check_filter_file"):
+            first = validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs,
+            )
+            validator.validate_all(
+                hu_path=paths["HuPath"], rn_path=paths["RnPath"],
+                part_path=paths["PartPath"], aux_path=paths["AuxPath"],
+                filter_path=paths["FilterPath"],
+                output_path="", workspace_path="",
+                spatial_reference=crs, previous_cache=first.layer_cache,
+            )
+
+        assert mock_geom.call_count == 8  # 4 per call, no skip without checksums
+        assert first.layer_cache == {}

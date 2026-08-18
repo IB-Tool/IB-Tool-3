@@ -162,6 +162,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._validated_context: dict = {}
         # Cached ValidationResult from the last run (None = never validated)
         self._last_validation_result = None
+        # Per-file content-check cache (InputValidator.validate_all's
+        # `previous_cache`/`layer_cache`), keyed by field name. Deliberately
+        # NOT cleared by _invalidate_validation_cache: it lets run_validation
+        # skip re-scanning files that have not changed even when an
+        # unrelated setting (e.g. CRS, a parameter) forces a fresh check.
+        self._validation_layer_cache: dict = {}
 
     def update_progress(self, value):
         """Update progress bar"""
@@ -737,7 +743,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if proc.min_overlap_blocks > 0:
             self.dlg.MinOverlapBlocksBox.setValue(int(proc.min_overlap_blocks))
         if proc.global_footprint_density > 0:
-            self.dlg.GlobalFootprintDensityBox.setValue(int(proc.global_footprint_density))
+            self.dlg.GlobalFootprintDensityBox.setValue(proc.global_footprint_density)
         if proc.min_area > 0:
             self.dlg.MinAreaBox.setValue(int(proc.min_area))
         if proc.min_patch_size > 0:
@@ -907,6 +913,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._validated_checksums.clear()
         self._validated_context = {}
         self._last_validation_result = None
+        self._validation_layer_cache.clear()
 
         # Disable Start button (re-check required)
         self.dlg.set_start_button_ready(False)
@@ -1022,12 +1029,17 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             workspace_path=self.dlg.WorkspacePath.text(),
             spatial_reference=spatial_reference,
             params=self._collect_params(),
+            file_checksums=self._file_checksums,
+            previous_cache=self._validation_layer_cache,
         )
 
         # Store result and snapshot checksums for next skip-check
         self._last_validation_result = result
         self._validated_checksums = dict(self._file_checksums)
         self._validated_context = self._build_validation_context()
+        # Per-file content-check cache for files unchanged in the next run,
+        # even if this run itself was not a full-context cache hit.
+        self._validation_layer_cache = result.layer_cache
 
         self._display_validation_result(result)
         self.dlg.set_start_button_ready(result.is_valid)

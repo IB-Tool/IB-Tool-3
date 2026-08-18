@@ -984,6 +984,30 @@ class TestRunValidationSkipLogic:
 
         mock_cls.return_value.validate_all.assert_called_once()
 
+    @pytest.mark.unit
+    def test_run_validation_passes_checksums_and_cache_to_validate_all(self):
+        """run_validation forwards _file_checksums/_validation_layer_cache to
+        validate_all and stores the returned layer_cache for the next call."""
+        tool = _make_tool()
+        tool._file_checksums = {"HuPath": "cs1"}
+        old_cache = {"HuPath": {"checksum": "old", "errors": [], "warnings": []}}
+        tool._validation_layer_cache = old_cache
+        new_cache = {"HuPath": {"checksum": "cs1", "errors": [], "warnings": []}}
+
+        mock_result = MagicMock(
+            is_valid=True, errors=[], warnings=[], layer_cache=new_cache,
+        )
+        with patch("ibtool.ibtool.ibtool.InputValidator") as mock_cls, \
+             patch("ibtool.ibtool.ibtool.logger"):
+            mock_cls.return_value.validate_all.return_value = mock_result
+            tool.run_validation()
+
+        _, kwargs = mock_cls.return_value.validate_all.call_args
+        assert kwargs["file_checksums"] is tool._file_checksums
+        assert kwargs["previous_cache"] == old_cache
+        assert tool._validation_layer_cache == new_cache, \
+            "run_validation must store the returned layer_cache for the next call"
+
 
 # ---------------------------------------------------------------------------
 # TestSaveConfigChecksumPersistence
@@ -1022,6 +1046,42 @@ class TestSaveConfigChecksumPersistence:
         assert inp.get("partitions_checksum") == "ccc333"
         assert inp.get("aux_layer_checksum") == "ddd444"
         assert inp.get("filter_file_checksum") == "eee555"
+
+    @pytest.mark.unit
+    def test_processing_params_and_debug_mode_passed_to_update_config(self):
+        """_save_config_from_ui forwards every parameter box and the debug/part-log
+        checkboxes to update_config's 'processing' section."""
+        tool = _make_tool()
+        tool.dlg.MinOverlapBlocksBox.setValue(22)
+        tool.dlg.GlobalFootprintDensityBox.setValue(12.3456789012345)
+        tool.dlg.MinAreaBox.setValue(77)
+        tool.dlg.MinBdgCountBox.setValue(33)
+        tool.dlg.MinPatchSizeBox.setValue(5000)
+        tool.dlg.MaxHoleSizeBox.setValue(6000)
+        tool.dlg.MaxGapSizeBox.setValue(7000)
+        tool.dlg.DebugModeBox.setChecked(True)
+        tool.dlg.PartLogBox.setChecked(False)
+
+        captured = []
+        def capture(**kwargs):
+            captured.append(kwargs)
+
+        with patch.object(tool.config_manager, "update_config", side_effect=capture), \
+             patch.object(tool.config_manager, "save_config"):
+            tool._save_config_from_ui()
+
+        proc_call = next((c for c in captured if "processing" in c), None)
+        assert proc_call is not None, "update_config must be called with a 'processing' section"
+        proc = proc_call["processing"]
+        assert proc["min_overlap_blocks"] == 22.0
+        assert proc["global_footprint_density"] == pytest.approx(12.3456789012345, abs=1e-13)
+        assert proc["min_area"] == 77.0
+        assert proc["min_building_count"] == 33
+        assert proc["min_patch_size"] == 5000.0
+        assert proc["max_hole_size"] == 6000.0
+        assert proc["max_gap_size"] == 7000.0
+        assert proc["debug_mode"] is True
+        assert proc["delete_part_log"] is False
 
     @pytest.mark.unit
     def test_validation_cache_serialised_when_result_is_cached(self):
@@ -1183,6 +1243,67 @@ class TestApplyConfigChecksumRestore:
 
 
 # ---------------------------------------------------------------------------
+# TestConfigRoundTripParamsAndDebug
+# ---------------------------------------------------------------------------
+
+class TestConfigRoundTripParamsAndDebug:
+    """End-to-end round trip (real ConfigManager, no mocking) verifying that
+    'Save Config' persists parameters and debug settings, and a later
+    'Apply Config' (as on plugin restart) restores them into the UI."""
+
+    @pytest.mark.unit
+    def test_params_and_debug_mode_survive_save_and_reload(self, tmp_path):
+        """Save with non-default parameter/debug values, reload into a fresh
+        ConfigManager instance (simulating a plugin restart), and confirm
+        the UI shows the same values again."""
+        from helpers.config_manager import ConfigManager
+
+        tool = _make_tool()
+        tool.plugin_dir = str(tmp_path)
+        tool.config_manager = ConfigManager(str(tmp_path))
+
+        tool.dlg.MinOverlapBlocksBox.setValue(22)
+        tool.dlg.GlobalFootprintDensityBox.setValue(12.3456789012345)
+        tool.dlg.MinAreaBox.setValue(77)
+        tool.dlg.MinBdgCountBox.setValue(33)
+        tool.dlg.MinPatchSizeBox.setValue(5000)
+        tool.dlg.MaxHoleSizeBox.setValue(6000)
+        tool.dlg.MaxGapSizeBox.setValue(7000)
+        tool.dlg.DebugModeBox.setChecked(True)
+        tool.dlg.PartLogBox.setChecked(False)
+
+        with patch("ibtool.ibtool.ibtool.logger"):
+            tool._save_config_from_ui()
+
+        # Simulate a plugin restart: fresh ConfigManager re-reading CONFIG.ini,
+        # applied onto a fresh dialog.
+        tool.config_manager = ConfigManager(str(tmp_path))
+        tool.dlg.MinOverlapBlocksBox.setValue(0)
+        tool.dlg.GlobalFootprintDensityBox.setValue(0)
+        tool.dlg.MinAreaBox.setValue(1)
+        tool.dlg.MinBdgCountBox.setValue(0)
+        tool.dlg.MinPatchSizeBox.setValue(100)
+        tool.dlg.MaxHoleSizeBox.setValue(0)
+        tool.dlg.MaxGapSizeBox.setValue(0)
+        tool.dlg.DebugModeBox.setChecked(False)
+        tool.dlg.PartLogBox.setChecked(True)
+
+        with patch("ibtool.ibtool.ibtool.logger"):
+            tool._apply_config_to_ui()
+
+        assert tool.dlg.MinOverlapBlocksBox.value() == 22
+        assert tool.dlg.GlobalFootprintDensityBox.value() == pytest.approx(
+            12.3456789012345, abs=1e-13)
+        assert tool.dlg.MinAreaBox.value() == 77
+        assert tool.dlg.MinBdgCountBox.value() == 33
+        assert tool.dlg.MinPatchSizeBox.value() == 5000
+        assert tool.dlg.MaxHoleSizeBox.value() == 6000
+        assert tool.dlg.MaxGapSizeBox.value() == 7000
+        assert tool.dlg.DebugModeBox.isChecked() is True
+        assert tool.dlg.PartLogBox.isChecked() is False
+
+
+# ---------------------------------------------------------------------------
 # TestDeleteConfig
 # ---------------------------------------------------------------------------
 
@@ -1260,6 +1381,7 @@ class TestDeleteConfig:
         tool._validated_checksums = {"HuPath": "abc"}
         tool._validated_context = {"paths": {"HuPath": "dummy"}}
         tool._last_validation_result = MagicMock()
+        tool._validation_layer_cache = {"HuPath": {"checksum": "abc", "errors": [], "warnings": []}}
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
                    return_value=_QMB.Yes), \
@@ -1274,6 +1396,8 @@ class TestDeleteConfig:
             "_validated_context must be empty after reset"
         assert tool._last_validation_result is None, \
             "_last_validation_result must be None after reset"
+        assert tool._validation_layer_cache == {}, \
+            "_validation_layer_cache must be empty after reset"
 
     @pytest.mark.unit
     def test_confirm_disables_start_button(self, tmp_path):

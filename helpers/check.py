@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 Input data validation for IBTool.
 
@@ -30,6 +31,11 @@ class ValidationResult:
     """Aggregated result of input data validation."""
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+    # Per-file cache for the next validate_all() call's skip logic (see
+    # `previous_cache` / `file_checksums` params). Keyed by UI field name
+    # (HuPath, RnPath, PartPath, AuxPath, FilterPath). Not persisted as
+    # part of the errors/warnings JSON cache in CONFIG.ini.
+    layer_cache: dict = field(default_factory=dict)
 
     @property
     def is_valid(self) -> bool:
@@ -86,7 +92,15 @@ class InputValidator:
     # Maximum ratio of Part features to HU features
     MAX_PART_TO_HU_RATIO = 10000
 
-    def validate_all(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
+    # UI field name per layer, used to key `file_checksums` / `previous_cache`
+    _FIELD_OF_LAYER_NAME = {
+        "Building footprints (HU)": "HuPath",
+        "Road network (RN)": "RnPath",
+        "Partitioning (Part)": "PartPath",
+        "Auxiliary layer (Aux)": "AuxPath",
+    }
+
+    def validate_all(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-positional-arguments,too-many-statements
         self,
         hu_path: str,
         rn_path: str,
@@ -97,6 +111,8 @@ class InputValidator:
         workspace_path: str,
         spatial_reference: QgsCoordinateReferenceSystem,
         params: dict = None,
+        file_checksums: dict = None,
+        previous_cache: dict = None,
     ) -> ValidationResult:
         """Run all validation checks and return aggregated result.
 
@@ -114,11 +130,31 @@ class InputValidator:
                 min_area, min_bdg_count, min_patch_size,
                 max_hole_size, max_gap_size, spatial_reference_text,
                 part_start, part_end, part_list.
+            file_checksums: Optional dict of current MD5 checksums keyed by
+                UI field name (HuPath, RnPath, PartPath, AuxPath,
+                FilterPath), as produced by ``compute_file_checksum()``.
+            previous_cache: Optional per-file cache dict, as returned in
+                ``ValidationResult.layer_cache`` by a prior ``validate_all()``
+                call. When a field's checksum in `file_checksums` matches
+                the checksum stored in `previous_cache` for that field, the
+                expensive per-feature content checks for that file
+                (geometry validity, ATKIS/field checks, multipart-line
+                checks) are skipped and their previous errors/warnings are
+                reused instead of re-scanning the file. This lets fixing an
+                unrelated issue (e.g. the target CRS) skip re-checking
+                files that have not changed since the last full check.
+                Cheap, always-relevant checks (CRS match, feature counts,
+                part:HU ratio, UI parameters) are always re-evaluated.
+                Pass ``None`` (default) to always run every check.
 
         Returns:
-            ValidationResult with errors and warnings.
+            ValidationResult with errors, warnings, and an updated
+            ``layer_cache`` to pass as `previous_cache` on the next call.
         """
         result = ValidationResult()
+        file_checksums = file_checksums or {}
+        previous_cache = previous_cache or {}
+        new_cache = {}
 
         # Layer paths and display names
         layer_paths = {
@@ -157,58 +193,91 @@ class InputValidator:
 
             valid_layers[name] = layer
 
-            # Check CRS
+            # Check CRS — cheap, always re-evaluated even for a cached file,
+            # so fixing the target CRS is reflected immediately.
             self._check_crs(layer, name, spatial_reference, result)
 
-        # Feature count checks (includes empty layer check)
+        # Feature count checks (includes empty layer check) — cheap, always fresh
         self._check_feature_counts(valid_layers, result)
 
-        # Geometry checks for all layers: null, empty, isGeosValid
-        for name, layer in valid_layers.items():
-            self._check_geometries(layer, name, result)
-
-        # Detailed geometry validation via qgis:checkvalidity
-        for name, layer in valid_layers.items():
-            self._check_validity_processing(layer, name, result)
-
-        # Layer-specific checks
+        # Layer content checks — geometry validity, ATKIS/field checks, and
+        # multipart-line checks. These only depend on the file's own
+        # content, so they are skipped (and the previous result reused) for
+        # any file whose checksum has not changed since the last call.
         hu_key = "Building footprints (HU)"
-        if hu_key in valid_layers:
-            self._check_hu_layer(valid_layers[hu_key], result)
-
         rn_key = "Road network (RN)"
-        if rn_key in valid_layers:
-            self._check_rn_layer(valid_layers[rn_key], result)
-
         aux_key = "Auxiliary layer (Aux)"
-        if aux_key in valid_layers:
-            self._check_aux_layer(valid_layers[aux_key], result)
-
         part_key = "Partitioning (Part)"
-        if part_key in valid_layers:
-            self._check_part_layer(valid_layers[part_key], result)
 
-        # Multipart geometry check for line layers
-        for key in [rn_key, aux_key]:
-            if key in valid_layers:
-                self._check_multipart_lines(valid_layers[key], key, result)
+        for name, layer in valid_layers.items():
+            field_key = self._FIELD_OF_LAYER_NAME[name]
+            checksum = file_checksums.get(field_key)
+            cached = previous_cache.get(field_key)
 
-        # Part-to-HU ratio check
+            if checksum and cached is not None and cached.get("checksum") == checksum:
+                result.errors.extend(cached["errors"])
+                result.warnings.extend(cached["warnings"])
+                new_cache[field_key] = cached
+                continue
+
+            content_result = ValidationResult()
+            self._check_geometries(layer, name, content_result)
+            self._check_validity_processing(layer, name, content_result)
+
+            if name == hu_key:
+                self._check_hu_layer(layer, content_result)
+            elif name == rn_key:
+                self._check_rn_layer(layer, content_result)
+                self._check_multipart_lines(layer, name, content_result)
+            elif name == aux_key:
+                self._check_aux_layer(layer, content_result)
+                self._check_multipart_lines(layer, name, content_result)
+            elif name == part_key:
+                self._check_part_layer(layer, content_result)
+
+            result.errors.extend(content_result.errors)
+            result.warnings.extend(content_result.warnings)
+            if checksum:
+                new_cache[field_key] = {
+                    "checksum": checksum,
+                    "errors": content_result.errors,
+                    "warnings": content_result.warnings,
+                }
+
+        # Part-to-HU ratio check — cheap, always fresh
         if hu_key in valid_layers and part_key in valid_layers:
             self._check_part_hu_ratio(
                 valid_layers[part_key], valid_layers[hu_key], result
             )
 
-        # Filter file
-        self._check_filter_file(filter_path, result)
+        # Filter file — cacheable like the layers above
+        filter_checksum = file_checksums.get("FilterPath")
+        filter_cached = previous_cache.get("FilterPath")
+        if (filter_checksum and filter_cached is not None
+                and filter_cached.get("checksum") == filter_checksum):
+            result.errors.extend(filter_cached["errors"])
+            result.warnings.extend(filter_cached["warnings"])
+            new_cache["FilterPath"] = filter_cached
+        else:
+            filter_result = ValidationResult()
+            self._check_filter_file(filter_path, filter_result)
+            result.errors.extend(filter_result.errors)
+            result.warnings.extend(filter_result.warnings)
+            if filter_checksum:
+                new_cache["FilterPath"] = {
+                    "checksum": filter_checksum,
+                    "errors": filter_result.errors,
+                    "warnings": filter_result.warnings,
+                }
 
-        # Output and workspace paths
+        # Output and workspace paths — cheap, always fresh
         self._check_output_paths(output_path, workspace_path, result)
 
-        # UI parameter validation
+        # UI parameter validation — cheap, always fresh
         if params:
             self._check_params(params, result)
 
+        result.layer_cache = new_cache
         return result
 
     # ------------------------------------------------------------------
