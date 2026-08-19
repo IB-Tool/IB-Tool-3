@@ -58,8 +58,6 @@ EXTRA_DIRS =
 
 COMPILED_RESOURCE_FILES = resources.py
 
-PEP8EXCLUDE=pydev,resources.py,conf.py,third_party,ui
-
 # QGISDIR points to the location where your plugin should be installed.
 # This varies by platform, relative to your HOME directory:
 #	* Linux:
@@ -235,14 +233,14 @@ pylint:
 	@echo "----------------------"
 
 
-# Run pep8 style checking
-#http://pypi.python.org/pypi/pep8
+# Run style checking with flake8, using the same config (.flake8) as CI
+# (.github/workflows/qgis-plugin-ci.yml), so a local pass here means CI's
+# "Flake8 (style)" step will pass too. Unlike the old `pep8`-based target,
+# this fails the build (no `|| true`) and does not rely on the unmaintained,
+# no-longer-installed `pep8` package.
 pep8:
 	@echo
 	@echo "-----------"
-	@echo "PEP8 issues"
+	@echo "Flake8 issues"
 	@echo "-----------"
-	@pep8 --repeat --ignore=E203,E121,E122,E123,E124,E125,E126,E127,E128 --exclude $(PEP8EXCLUDE) . || true
-	@echo "-----------"
-	@echo "Ignored in PEP8 check:"
-	@echo $(PEP8EXCLUDE)
+	flake8 .

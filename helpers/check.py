@@ -100,7 +100,8 @@ class InputValidator:
         "Auxiliary layer (Aux)": "AuxPath",
     }
 
-    def validate_all(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-positional-arguments,too-many-statements
+    # pylint: disable-next=R0913,R0914,R0912,R0917,R0915
+    def validate_all(
         self,
         hu_path: str,
         rn_path: str,
