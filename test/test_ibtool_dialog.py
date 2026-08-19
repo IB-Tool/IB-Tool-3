@@ -16,7 +16,7 @@ import os
 
 import pytest
 
-from qgis.PyQt.QtCore import QCoreApplication, QTranslator
+from qgis.PyQt.QtCore import QCoreApplication, QTranslator, QLocale
 from qgis.PyQt.QtWidgets import (
     QDialog,
     QPushButton,
@@ -26,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
     QComboBox,
     QCheckBox,
     QSpinBox,
+    QDoubleSpinBox,
     QStackedWidget,
 )
 from qgis.gui import QgsProjectionSelectionWidget
@@ -126,7 +127,6 @@ class TestIBToolDialog:
     @pytest.mark.unit
     @pytest.mark.parametrize("name", [
         "MinOverlapBlocksBox",
-        "GlobalFootprintDensityBox",
         "MinBdgCountBox",
         "MinAreaBox",
         "MinPatchSizeBox",
@@ -134,9 +134,44 @@ class TestIBToolDialog:
         "MaxGapSizeBox",
     ])
     def test_spinbox_exists_and_is_qspinbox(self, name):
-        """All 7 parameter spinboxes exist and are QSpinBox."""
+        """All 6 integer parameter spinboxes exist and are QSpinBox."""
         assert hasattr(self.dialog, name), f"Missing spinbox: {name}"
         assert isinstance(getattr(self.dialog, name), QSpinBox)
+
+    @pytest.mark.unit
+    def test_global_footprint_density_box_is_qdoublespinbox(self):
+        """GlobalFootprintDensityBox is a QDoubleSpinBox with 13 decimals.
+
+        Unlike the other parameter boxes it must accept fractional
+        percentages (e.g. for precisely reproducing externally computed
+        density values).
+        """
+        box = self.dialog.GlobalFootprintDensityBox
+        assert isinstance(box, QDoubleSpinBox)
+        assert box.decimals() == 13
+
+    @pytest.mark.unit
+    def test_global_footprint_density_box_text_uses_dot_decimal_under_german_locale(self):
+        """GlobalFootprintDensityBox.text() must use '.' even on a German system.
+
+        Regression test: IBTool._collect_params() / helpers/check.py read
+        this box via .text() and parse it with Python's float(), which
+        rejects ',' as a decimal separator. QDoubleSpinBox.text() is
+        locale-dependent unless the box's own locale is fixed to 'C' —
+        without that fix, a German system locale (',' decimal separator)
+        makes every Check click report a bogus "not a valid number" error.
+        """
+        original_default_locale = QLocale()
+        try:
+            QLocale.setDefault(QLocale(QLocale.German, QLocale.Germany))
+            dlg = IBToolDialog(None)
+            dlg.GlobalFootprintDensityBox.setValue(19.0693693015286)
+            text = dlg.GlobalFootprintDensityBox.text()
+            assert "." in text
+            assert "," not in text
+            assert float(text) == pytest.approx(19.0693693015286, abs=1e-13)
+        finally:
+            QLocale.setDefault(original_default_locale)
 
     @pytest.mark.unit
     @pytest.mark.parametrize("name", [
@@ -156,6 +191,16 @@ class TestIBToolDialog:
         test_val = min(box.maximum(), max(box.minimum(), 42))
         box.setValue(test_val)
         assert box.value() == test_val
+        box.setValue(original)
+
+    @pytest.mark.unit
+    def test_global_footprint_density_box_accepts_13_decimals(self):
+        """GlobalFootprintDensityBox stores a value with 13 decimal places."""
+        box = self.dialog.GlobalFootprintDensityBox
+        original = box.value()
+        test_val = 12.3456789012345  # more than 13 decimals, will be rounded
+        box.setValue(test_val)
+        assert box.value() == pytest.approx(12.3456789012345, abs=1e-13)
         box.setValue(original)
 
     # -----------------------------------------------------------------------
@@ -389,7 +434,7 @@ class TestIBToolDialog:
         ("LogDirPath", QLineEdit),
         # SpinBoxes
         ("MinOverlapBlocksBox", QSpinBox),
-        ("GlobalFootprintDensityBox", QSpinBox),
+        ("GlobalFootprintDensityBox", QDoubleSpinBox),
         ("MinBdgCountBox", QSpinBox),
         ("MinAreaBox", QSpinBox),
         ("MinPatchSizeBox", QSpinBox),
