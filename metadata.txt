@@ -5,13 +5,14 @@
 [general]
 name=IB-Tool 3
 qgisMinimumVersion=3.40
+qgisMaximumVersion=3.50
 pythonMinimumVersion=3.11
-description=QGIS plugin for the automated delineation of the Innenbereich (the coherently built-up area under Sec. 34 BauGB, internationally: urban growth boundary) from building footprints. Provides automated geospatial processing tools for clustering, density calculations, and minimum spanning tree (MST) analysis.
-version=0.2.2
+description=QGIS plugin for the automated delineation of the Innenbereich (the coherently built-up area under Sec. 34 BauGB, internationally known as an urban growth boundary) from building footprints.
+version=0.2.3
 author=Oliver Harig
 email=ottmar.hittzfeld@web.de
 
-about=IB-Tool 3 is a QGIS plugin for the automated delineation of the Innenbereich - the coherently built-up part of a municipality as defined in Sec. 34 BauGB, described as an urban growth boundary in the international publication of the method - based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis, implementing complex algorithms for clustering, density calculations, and minimum spanning tree (MST) analysis. Features include automated building footprint filtering, road network analysis, partition-based processing, footprint density calculation, gap and hole closing, and comprehensive input data validation. For more information see the project repository: https://github.com/IB-Tool/IB-Tool-3
+about=IB-Tool 3 is a QGIS plugin for the automated delineation of the Innenbereich - the coherently built-up part of a municipality as defined in Sec. 34 BauGB, described as an urban growth boundary in the international publication of the method - based on building footprints. It provides automated geospatial processing tools for urban planning and settlement analysis, implementing complex algorithms for clustering, density calculations, and minimum spanning tree (MST) analysis. Features include automated building footprint filtering, road network analysis, partition-based processing, footprint density calculation, gap and hole closing, and comprehensive input data validation. Input data: the building-footprint and road-network filtering is designed around German ATKIS function codes; other datasets with a compatible field/function-code scheme may work but are not officially supported. Dependencies: in addition to numpy (bundled with QGIS 3.40+), this plugin requires scipy and networkx. If QGIS reports them as missing on load, install them once into QGIS's Python environment: on Windows, open the OSGeo4W Shell and run "pip install scipy networkx"; on Linux/macOS, run the same command in a terminal where QGIS's own Python is active. Then restart QGIS. For more information see the project repository: https://github.com/IB-Tool/IB-Tool-3
 
 tracker=https://github.com/IB-Tool/IB-Tool-3/issues
 repository=https://github.com/IB-Tool/IB-Tool-3
@@ -21,7 +22,8 @@ license=GPL-2.0-or-later
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=0.2.2 - Fixed the release ZIP silently excluding helpers/debug_utils.py (caused a ModuleNotFoundError on install for all 8 tools that use it). Release ZIP filename and internal folder name are now constant (IB-Tool-3.zip) across every version. Default CRS switched to EPSG:25833 to match the sample dataset. Documented the manual release-publishing process.
+changelog=0.2.3 - Prepared for the first release on plugins.qgis.org. Release ZIP now packages under the constant folder name ibtool/ (dist/ibtool.zip) regardless of the checkout directory name, replacing exclusion-list packaging with an explicit whitelist, a build guard (forbidden extensions, executable bit, size limit, unexpected binaries), and a static import-resolution smoke test. Removed the now-unnecessary manual plugin-folder-rename instructions from the README and docs. Shortened the description and documented the scipy/networkx dependency (with OSGeo4W install instructions) and the German ATKIS input-data scope in "about". Added per-file validation-skip granularity to Check. Fixed Global Footprint Density input on non-English systems and its float precision. Fixed the German translation not loading at runtime.
+0.2.2 - Fixed the release ZIP silently excluding helpers/debug_utils.py (caused a ModuleNotFoundError on install for all 8 tools that use it). Release ZIP filename and internal folder name were made constant across every version. Default CRS switched to EPSG:25833 to match the sample dataset. Documented the manual release-publishing process.
 
 
 # Tags are comma separated with spaces allowed
