@@ -18,13 +18,14 @@ New to IB-Tool 3? → **[docs/quickstart.md](docs/quickstart.md)** — installat
 
 ## Description
 
-**IB-Tool 3** is a QGIS plugin for the automatic delineation of the **Innenbereich** (§ 34 BauGB) — the coherently built-up part of a municipality — based on building footprints and topographic data. The international publication of the method describes the same delineation as an *Urban Growth Boundary (UGB)*; see [docs/terminology.md](docs/terminology.md) for how the two terms relate and which publication covers which part of the method.
-
-The plugin is mostly based on the method described in:
+**IB-Tool 3** is a QGIS plugin for the automatic delineation of the **Innenbereich** (§ 34 BauGB) — the coherently built-up part of a municipality — based on building footprints and topographic data. The international publication of the method describes the same delineation as an *Urban Growth Boundary (UGB)*: 
 
 > Harig, O.; Hecht, R.; Burghardt, D.; Meinel, G. **Automatic Delineation of Urban Growth Boundaries Based on Topographic Data Using Germany as a Case Study.** *ISPRS Int. J. Geo-Inf.* **2021**, *10*(5), 353. https://doi.org/10.3390/ijgi10050353
 
+IB-Tool 3 is an adaption of the original [ArcGIS IB-Tool 2 Script](https://github.com/IB-Tool/ib-tool). Due to the different programming environment, the method has been adapted to QGIS and Python.
+
 The delineation is fine-grained — the boundary follows individual buildings rather than administrative units. It processes large datasets partition by partition and produces GeoPackage output ready for use in spatial analysis and planning.
+
 
 ---
 
@@ -33,7 +34,6 @@ The delineation is fine-grained — the boundary follows individual buildings ra
 - **Semantic and spatial building filtering:**
   - Three-stage filter: negative function-code filter → spatial density filter → minimum size filter.
   - Configurable positive/negative filter lists based on ATKIS building function codes (BauGB § 35).
-
 - **Block-based density analysis:**
   - Derives street blocks and city blocks from the road and auxiliary network.
   - Calculates local and global building coverage ratio (BCR) per block.
