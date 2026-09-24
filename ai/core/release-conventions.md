@@ -26,20 +26,36 @@ These rules are binding for all code changes. They are referenced from
 
 - The release ZIP is built exclusively via `scripts/create_release_zip.py`
 - `make zip` (pb_tool) is obsolete for publishing — do not use it for releases
-- The exclusion list in `scripts/create_release_zip.py` is the authoritative
-  source of truth for what constitutes productive plugin code
-- When adding new modules or directories to the plugin, review them against the
-  exclusion list:
+- The whitelist in `scripts/create_release_zip.py` (`WHITELIST_FILES`,
+  `WHITELIST_DIRS`) is the authoritative source of truth for what constitutes
+  productive plugin code
+- When adding new modules or directories to the plugin, review them against
+  the whitelist:
   - **Include**: productive Python modules, UI files, translations, icons, config
   - **Exclude**: test code, CI scripts, developer tooling, documentation, IDE files
+  - A new top-level directory must be added to `WHITELIST_DIRS` explicitly, or
+    it silently does not ship — the release guard and import smoke test in the
+    same script catch the class of bug this caused in 0.2.2 (a missing
+    `helpers/debug_utils.py`), but only for files that are *imported*
+    somewhere; a standalone missing file still needs a whitelist review
+- `run_guard()` fails the build on forbidden extensions (`.exe .dll .so
+  .dylib .sh .bat .cmd`), the executable bit, unexpected binary files (only
+  `.png`/`.qm` are allowed), and a ZIP over 25 MB
+- `run_import_smoke_test()` extracts the built ZIP and statically resolves
+  every local `from ibtool...`/relative import against the files on disk
 
 ## Plugin Folder Name
 
-- The repository root folder is `IB-Tool-3` (contains a hyphen)
-- QGIS resolves this via `importlib.import_module`; the `__init__.py` registers
-  a virtual `ibtool` package as a workaround
-- The ZIP must contain exactly one top-level folder named `IB-Tool-3`
-- Do not rename the folder or the ZIP without updating `scripts/create_release_zip.py`
+- The repository root folder is `IB-Tool-3` (contains a hyphen), but
+  `scripts/create_release_zip.py` packages the release ZIP under the
+  constant folder name `ibtool/` (`PLUGIN_FOLDER = "ibtool"`), independent of
+  the checkout directory name
+- The `__init__.py` additionally registers a virtual `ibtool` package in
+  `sys.modules` at import time, so a manual git-clone install (which keeps
+  the hyphenated checkout folder name) also resolves `from ibtool.x import y`
+  correctly without renaming
+- Do not rename the folder or the ZIP without updating
+  `scripts/create_release_zip.py`
 
 ## CI Requirements
 
@@ -66,10 +82,10 @@ python ci/qgis_plugin_validate.py --zip dist/*.zip
 - `scripts/create_release_zip.py` is **not** run by CI — building and
   attaching the release ZIP to the GitHub Release is a manual step for
   every release, including pre-releases (`-alpha`, `-beta` tags)
-- Always manually upload `dist/IB-Tool-3.zip` as the release asset; never
+- Always manually upload `dist/ibtool.zip` as the release asset; never
   link to or distribute GitHub's auto-generated "Source code (zip)"/"Source
   code (tar.gz)"
-- The ZIP filename is constant (`IB-Tool-3.zip`, no version) across every
+- The ZIP filename is constant (`ibtool.zip`, no version) across every
   release — only `metadata.txt` inside the ZIP carries the version. This
   keeps the download link and install steps identical release to release,
   so users never need to rename anything
@@ -79,4 +95,4 @@ python ci/qgis_plugin_validate.py --zip dist/*.zip
   as package separators, so QGIS fails to load it
   (`ModuleNotFoundError: No module named 'IB-Tool-3-0'`). Only the ZIP
   built by `scripts/create_release_zip.py` has the required constant
-  `IB-Tool-3/` folder name and constant filename, independent of version
+  `ibtool/` folder name and constant filename, independent of version

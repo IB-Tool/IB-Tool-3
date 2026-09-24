@@ -122,25 +122,12 @@ This installs `pytest` and `pytest-cov`. The test suite itself runs inside Docke
 
 The easiest way to install IB-Tool 3 is to download the ready-to-use ZIP file from the [GitHub Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and install it directly inside QGIS:
 
-1. Go to the [Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and download the latest `IB-Tool-3.<version>.zip`.
+1. Go to the [Releases](https://github.com/IB-Tool/IB-Tool-3/releases) page and download the latest `ibtool.zip`.
 2. Open QGIS.
 3. In the menu bar, click **Plugins → Manage and Install Plugins…**
 4. Switch to the **Install from ZIP** tab.
 5. Click the **…** button, select the downloaded ZIP file, then click **Install Plugin**.
 6. The plugin is now available under **Plugins → IB-Tool**.
-
-> **Important — Plugin folder name:**
-> QGIS creates the plugin folder from the top-level folder inside the ZIP. The release ZIP contains the folder `IB-Tool-3`, which includes hyphens and digits. QGIS requires plugin folder names to be valid Python identifiers (no hyphens, no leading digits). If the plugin does not appear in QGIS after installation, navigate to your QGIS plugins folder (see paths below) and **rename** the extracted folder to `ibtool`:
->
-> | OS | Plugins folder |
-> |----|----------------|
-> | Windows | `C:\Users\<username>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins` |
-> | Linux | `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins` |
-> | macOS | `~/Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins` |
->
-> Rename: `IB-Tool-3` → `ibtool`
->
-> Then restart QGIS and enable the plugin.
 
 ---
 
@@ -156,18 +143,7 @@ The easiest way to install IB-Tool 3 is to download the ready-to-use ZIP file fr
    - Windows: `C:\Users\<username>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
    - Linux: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
    - Note: The AppData folder may be hidden — enable "Show hidden items" in the Explorer settings.
-3. **Rename the plugin folder:**
-   QGIS requires plugin folder names to be valid Python identifiers. The repository folder `IB-Tool-3` contains hyphens and a trailing digit, which are not allowed. **Rename** the folder to `ibtool`:
-   ```
-   IB-Tool-3  →  ibtool
-   ```
-4. **Configure the QGIS path (optional):**
-   - IB-Tool 3 detects QGIS automatically via the `QGIS_PREFIX_PATH` environment variable or common install locations.
-   - If QGIS is installed in a non-standard location, set `QGIS_PREFIX_PATH` manually, e.g.:
-     ```bash
-     export QGIS_PREFIX_PATH=/opt/qgis
-     ```
-5. **Activate the plugin:**
+3. **Activate the plugin:**
    - Start QGIS and enable IB-Tool 3 in **Plugins → Manage and Install Plugins**.
 
 ---
@@ -233,7 +209,7 @@ For the full logging reference including level definitions, output destinations,
 
 ## License
 
-This plugin is licensed under the **GNU General Public License v2.0**. You are free to use, modify, and redistribute it as long as the conditions of the GPL are met.
+This plugin is licensed under the **GNU General Public License v2.0 or later (GPL-2.0-or-later)**. You are free to use, modify, and redistribute it as long as the conditions of the GPL are met.
 
 ---
 
@@ -261,8 +237,7 @@ toolset (Harig 2021, IÖR-FDZ), and the evaluation for infill monitoring
 
 ## Troubleshooting
 
-- **Plugin not visible in QGIS after installation?** Check that the plugin folder is named `ibtool` (lowercase, no hyphens). ZIP installation may create a folder like `IB-Tool-3` — rename it to `ibtool` and restart QGIS. See [Installation](#installation) for details.
-- **`ModuleNotFoundError: No module named 'IB-Tool-3-0'` (or similar) on load?** You installed GitHub's auto-generated "Source code (zip)" instead of the `IB-Tool-3.zip` release asset. Uninstall the plugin, download the correct asset from [Releases](https://github.com/IB-Tool/IB-Tool-3/releases), and reinstall. See [Installation](#installation).
+- **`ModuleNotFoundError: No module named 'IB-Tool-3-0'` (or similar) on load?** You installed GitHub's auto-generated "Source code (zip)" instead of the `ibtool.zip` release asset. Its internal folder name embeds the tag (e.g. `IB-Tool-3-0.2.1-beta`), and the dot breaks the import. Uninstall the plugin, download the correct asset from [Releases](https://github.com/IB-Tool/IB-Tool-3/releases), and reinstall. See [Installation](#installation).
 - Use the **Check** button to validate input data before processing. Error messages contain specific hints for fixing issues.
 - Make sure all input data uses the same **CRS** (coordinate reference system).
 - If the plugin fails to load with an import error, `scipy` or `networkx` may be missing from your QGIS Python environment. Install them manually: `pip install scipy networkx`. See [Requirements → Runtime](#runtime) for details.

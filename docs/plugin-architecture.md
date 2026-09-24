@@ -117,15 +117,9 @@ For the full `CONFIG.ini` reference including all sections and keys, see [docs/C
 
 ### Plugin Folder Naming
 
-QGIS loads plugins by importing the folder name as a Python module. This means the plugin folder **must be a valid Python identifier** — only lowercase letters, digits, and underscores are allowed; the name must not start with a digit and must not contain hyphens or dots.
+The GitHub repository is named `IB-Tool-3` (hyphens, for readability on GitHub), but `scripts/create_release_zip.py` always packages the release ZIP under the constant folder name `ibtool/`, independent of the checkout directory name — see [`ai/core/release-conventions.md`](../ai/core/release-conventions.md). No renaming is needed after installing from the release ZIP.
 
-The GitHub repository is named `IB-Tool-3` and the release ZIP packages the plugin under the same folder name. After extracting or cloning, the folder must be **renamed** to `ibtool` for QGIS to recognise it:
-
-```
-IB-Tool-3  →  ibtool
-```
-
-The plugin's `__init__.py` registers a virtual `ibtool` package at runtime so that absolute imports (`from ibtool.helpers…`) work regardless of the actual folder name on disk. However, QGIS itself must first be able to import the folder — and that import fails if the folder name contains hyphens or dots.
+For a manual git-clone install (see [README.md → Option 2](../README.md#option-2--manual-installation-not-recommended)), the checked-out folder keeps the repository's hyphenated name. This does not require a manual rename either: the plugin's `__init__.py` registers a virtual `ibtool` package in `sys.modules` at import time, so absolute imports (`from ibtool.helpers…`) resolve regardless of the actual folder name on disk, and QGIS's own plugin loader (`qgis.utils.findPlugins`/`loadPlugin`) discovers and imports the folder by its literal name via `__import__()`, which does not require a valid Python identifier.
 
 ---
 

@@ -160,13 +160,14 @@ by hand for every release, including pre-releases (`-alpha`, `-beta`):
    python scripts/create_release_zip.py
    python ci/qgis_plugin_validate.py --zip dist/*.zip
    ```
-   This produces `dist/IB-Tool-3.zip`. Both the ZIP filename and its
-   internal folder name (`IB-Tool-3/`) are **constant across versions** —
-   only `metadata.txt` inside the ZIP carries the version string. Users
-   never need to rename anything after installing.
+   This produces `dist/ibtool.zip`. Both the ZIP filename and its
+   internal folder name (`ibtool/`) are **constant across versions and
+   independent of the checkout directory name** — only `metadata.txt`
+   inside the ZIP carries the version string. Users never need to rename
+   anything after installing.
 3. Create the GitHub Release from the tag, then **manually upload
-   `dist/IB-Tool-3.zip` as a release asset**.
-4. Link `dist/IB-Tool-3.zip` (not "Source code (zip)") as the download in
+   `dist/ibtool.zip` as a release asset**.
+4. Link `dist/ibtool.zip` (not "Source code (zip)") as the download in
    any release notes or announcement.
 
 > **Never distribute GitHub's auto-generated "Source code (zip)"/"Source
@@ -176,8 +177,8 @@ by hand for every release, including pre-releases (`-alpha`, `-beta`):
 > `importlib.import_module` treats dots in a module name as package
 > separators, so QGIS fails to load a folder name containing a version
 > number (`ModuleNotFoundError: No module named 'IB-Tool-3-0'`). Only
-> `dist/IB-Tool-3.zip`, built via `scripts/create_release_zip.py`, has the
-> required constant `IB-Tool-3/` folder name.
+> `dist/ibtool.zip`, built via `scripts/create_release_zip.py`, has the
+> required constant `ibtool/` folder name.
 
 ---
 
