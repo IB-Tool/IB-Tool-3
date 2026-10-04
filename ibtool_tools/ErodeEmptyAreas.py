@@ -107,11 +107,16 @@ def _build_buffer_layer(sel_buildings, min_buffer_m, max_buffer_m):
     return buf_layer
 
 
-def _settlement_outer_buffer(settlement_layer, void_layer):
+def _settlement_outer_buffer(settlement_layer):
     """Build a buffered strip around the settlement's outer boundary only.
 
     Deletes interior rings before converting to lines so that inner-ring edges
     (which border existing holes) are excluded from the reference boundary.
+
+    The void outlines must NOT be part of the reference (e.g. by subtracting
+    the voids from the settlement first): that would measure each void's
+    contact with the remaining settlement instead of with the outer boundary
+    (issue #168).
 
     Returns:
         QgsVectorLayer (Polygon) — thin buffer strip around the outer boundary.
@@ -127,21 +132,9 @@ def _settlement_outer_buffer(settlement_layer, void_layer):
         'METHOD': 1,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
-    void_fixed = safe_processing_run("native:fixgeometries", {
-        'INPUT': void_layer,
-        'METHOD': 1,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    settlement_diff = safe_processing_run("native:difference", {
-        'INPUT': settlement_fixed,
-        'OVERLAY': void_fixed,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        'GRID_SIZE': TOPOLOGY_GRID_SIZE,
-    })['OUTPUT']
 
     settlement_lines = safe_processing_run("native:polygonstolines", {
-        'INPUT': settlement_diff,
+        'INPUT': settlement_fixed,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
 
@@ -169,12 +162,11 @@ def _void_split_lines(void_with_fid):
         'INPUT': void_with_fid,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
-    void_lines_single = safe_processing_run("native:multiparttosingleparts", {
-        'INPUT': void_lines,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    # length_1 is measured BEFORE splitting into single parts so that it holds
+    # the full perimeter (outer + inner rings) of a void with holes, not the
+    # length of one ring.
     void_lines_length = safe_processing_run("qgis:fieldcalculator", {
-        'INPUT': void_lines_single,
+        'INPUT': void_lines,
         'FIELD_NAME': 'length_1',
         'FIELD_TYPE': 0,
         'FIELD_LENGTH': 20,
@@ -183,8 +175,12 @@ def _void_split_lines(void_with_fid):
         'FORMULA': '$length',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
-    return safe_processing_run("native:splitlinesbylength", {
+    void_lines_single = safe_processing_run("native:multiparttosingleparts", {
         'INPUT': void_lines_length,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+    })['OUTPUT']
+    return safe_processing_run("native:splitlinesbylength", {
+        'INPUT': void_lines_single,
         'LENGTH': _BOUNDARY_SEGMENT_M,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
@@ -230,7 +226,7 @@ def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
     })['OUTPUT']
 
     # Steps 2-5: Settlement outer boundary buffer + void boundary split lines
-    settlement_buff = _settlement_outer_buffer(settlement_layer, void_layer)
+    settlement_buff = _settlement_outer_buffer(settlement_layer)
     split_lines = _void_split_lines(void_with_fid)
 
     # Step 6: Select void segments that touch the settlement outer boundary
@@ -459,14 +455,6 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
                       workspace_path=None,
                       debug_mode=False):
     """Remove building-free voids from a settlement polygon.
-
-    Selects building footprints within ``input_layer``, buffers each by
-    ``clamp(sqrt(building_area), min_buffer_m, max_buffer_m)`` metres, then
-    identifies uncovered areas (voids) inside the settlement. A void is only
-    removed if less than ``contact_threshold_pct`` percent of its boundary
-    coincides with the settlement's outer boundary -- voids at or above the
-    threshold border the settlement significantly and are left intact.
-
     The input layer's attribute schema is preserved in the output.
 
     Requires QGIS >= 3.20. Both layers must use a metric CRS (metres).

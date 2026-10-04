@@ -66,8 +66,9 @@ Input: settlement polygon (output of patch_remove)
                must not be included in the reference, or voids inside existing holes
                would incorrectly show high contact and never be removed
          3. native:polygonstolines -> settlement outer boundary line only
-         4. void boundaries: polygonstolines -> multiparttosingleparts,
-            record total perimeter as length_1 (qgis:fieldcalculator, $length)
+         4. void boundaries: polygonstolines -> record total perimeter as
+            length_1 (qgis:fieldcalculator, $length; BEFORE splitting, so inner
+            rings of a void are included) -> multiparttosingleparts
          5. native:splitlinesbylength (10 m segments) on void boundary lines
          6. buffer settlement outer boundary by 0.5 m (snap distance)
          7. extractbylocation(segments, settlement_buff, intersects) -> overlapping
@@ -195,6 +196,20 @@ be selected for removal.
 
 **Fix**: `native:deleteholes(MIN_AREA=0)` is applied to the settlement before
 `polygonstolines`, so only the true outer boundary is used as the reference.
+
+**Do not subtract the voids from the settlement before extracting the
+reference lines** (issue #168). A `difference(settlement, voids)` puts each
+void's outline into the reference: edge voids then measure their contact with
+the *remaining settlement* (about 100 % minus the outer-boundary contact) and
+interior voids measure 100 %. The filter would remove large open fringe voids
+and keep voids with a small edge opening — the opposite of the intended
+behavior. Interior voids (0 % outer contact) are intentionally kept.
+
+**Measurement granularity**: void boundaries are split into 10 m segments and
+every segment that touches the 0.5 m snap strip counts in full. Segments that
+merely end at the outer boundary (e.g. the sides of a narrow void opening onto
+the edge) are therefore counted too, which slightly overestimates small
+contacts.
 
 ### Contact filter returns polygons (Step 4b)
 
