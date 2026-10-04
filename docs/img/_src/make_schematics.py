@@ -588,8 +588,8 @@ def figure_edgecatch():
     body = []
     titles = [
         ("1", "Shortest lines corner \u2192 road", ["filtered by rules 1\u20134"]),
-        ("2", "Polygonise, keep small pieces", ["lines + road + rectangle edges;",
-                                                 "pieces < 2 \u00d7 rectangle area"]),
+        ("2", "Polygonise, keep small pieces",
+         ["lines + road + rectangle edges;", "pieces < 2 \u00d7 rectangle area"]),
         ("3", "Result", ["rectangle reaches the road"]),
     ]
     for i, (number, title, subs) in enumerate(titles):

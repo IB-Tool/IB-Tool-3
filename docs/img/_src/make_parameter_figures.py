@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_schematics import (  # noqa: E402  pylint: disable=wrong-import-position
     BUILDING, DASHED, LIGHT, MUTED, ORANGE, TEAL, WHITE,
-    area, bbox, distance_to_poly, edges, inside, line, panel_title, perimeter,
+    area, bbox, distance_to_poly, inside, line, panel_title, perimeter,
     polygon, poly_gap, rect_points, rotated_rect, along, settlement, text, write,
 )
 
@@ -169,10 +169,12 @@ def figure_hole_vs_gap():
     def ok_gap(p):
         return inside(p, notch) and distance_to_poly(p, notch) > 4 * s
 
-    body = [panel_title(hx0, 30, "1", "Hole", ["inside the settlement, fully enclosed",
-                                                f"filled if ≤ max_hole_size ({MAX_HOLE_SIZE:,} m²)"]),
-            panel_title(gx0, 30, "2", "Gap", ["at the settlement edge, partly enclosed",
-                                               f"closed if < max_gap_size and ≥ {CONTACT_PCT} % contact"])]
+    hole_subs = ["inside the settlement, fully enclosed",
+                 f"filled if ≤ max_hole_size ({MAX_HOLE_SIZE:,} m²)"]
+    gap_subs = ["at the settlement edge, partly enclosed",
+                f"closed if < max_gap_size and ≥ {CONTACT_PCT} % contact"]
+    body = [panel_title(hx0, 30, "1", "Hole", hole_subs),
+            panel_title(gx0, 30, "2", "Gap", gap_subs)]
     body.append(settlement(outer))
     body.extend(fill_houses(ok_hole, hx0, py0, hx1, py1, s, seed=14))
     body.append(polygon(hole, ORANGE, ORANGE, 1.5))

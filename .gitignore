@@ -68,3 +68,9 @@ dist/
 /.claude/settings.local.json
 /.claude/settings.json
 
+# Documentation figures: local debug run of the reference partition
+# (regenerate with IB-Tool 3 in debug mode, see the figures plan, Session 0)
+docs/img/_src/debug/
+docs/img/_src/IB_Tool_Results/
+# Layout check image written by make_figures_project.py (not used in the docs)
+docs/img/_src/figures_preview.png

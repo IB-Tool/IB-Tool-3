@@ -127,6 +127,13 @@ For each partition (e.g. `PART_36`), the following steps are executed:
 - **Street blocks**: areas completely enclosed by roads/streets and the partition outline (Conzen 1960).
 - **City blocks**: additionally include railway lines, forest edges, water bodies, and other topographical barriers as boundaries.
 
+<p align="center">
+  <img src="img/how-it-works/01_blocker.png" width="800"
+       alt="Sample partition cut into coloured blocks by roads and auxiliary lines; blocks without buildings are left white">
+</p>
+
+*Figure: Blocker on the sample data — roads and Aux lines cut the partition into blocks (here street and city blocks in one step, since RN and Aux are merged); blocks without buildings (white) are dropped. Data: © GeoBasis-DE/LGB.*
+
 Sub-steps:
 
 ```
@@ -145,6 +152,13 @@ Blocks at the edge of the settlement are typically very large (they transition i
 ### Step 2 — ImportFilter: Three-Stage Building Filter
 
 `ImportFilter.py` removes buildings that are not relevant to Innenbereich delineation. According to BauGB § 35, certain building functions are permitted *outside* the Innenbereich (e.g. sewage treatment plants, wind turbines, livestock facilities, allotments). The filter applies three sequential stages:
+
+<p align="center">
+  <img src="img/how-it-works/02_import_filter.png" width="800"
+       alt="Three map tiles: buildings coloured by positive and negative function list; the settlement core zone with removed negative-list buildings; buildings removed by the minimum size">
+</p>
+
+*Figure: ImportFilter in three stages — function codes (positive / negative list), the density-based settlement core zone (negative-list buildings outside it are removed), minimum size. Data: © GeoBasis-DE/LGB.*
 
 #### Stage 1 — Negative filter (function code)
 
@@ -191,6 +205,13 @@ These thresholds were determined empirically (Hecht 2014).
 
 `FootprintDensity.py` calculates the **building coverage ratio (BCR)** — the ratio of the sum of building footprint areas to the reference area — and identifies which blocks are densely enough built up to be classified as fully within the Innenbereich.
 
+<p align="center">
+  <img src="img/how-it-works/03_footprint_density.png" width="800"
+       alt="Blocks coloured by their building coverage ratio in five classes; all blocks of the sample lie below 18 percent">
+</p>
+
+*Figure: Building coverage ratio per block. No block of the sample partition reaches the 18 % dense-block threshold, so none is classified as dense here. Data: © GeoBasis-DE/LGB.*
+
 #### Local BCR threshold calculation
 
 To avoid distortion by the large, sparse blocks at the settlement edge, only blocks near the settlement core are used as the reference:
@@ -227,6 +248,13 @@ The 18% threshold was derived empirically using expert delineations from Branden
 ### Step 4 — CreateMST: Minimum Spanning Tree
 
 `CreateMST.py` builds a graph over the filtered buildings and computes a Minimum Spanning Tree that represents the spatial backbone of the settlement.
+
+<p align="center">
+  <img src="img/how-it-works/04_create_mst.png" width="800"
+       alt="Three map tiles: Delaunay triangulation between building centroids; the same triangulation with road-crossing edges greyed out; the minimum spanning tree in orange">
+</p>
+
+*Figure: CreateMST — Delaunay triangulation of the building centroids, edges crossing a road removed (grey), minimum spanning tree (orange). Data: © GeoBasis-DE/LGB.*
 
 #### Sub-step 4a — Delaunay triangulation
 
@@ -265,6 +293,13 @@ Road segments ≤ 50 m (dead ends, short access roads) are excluded from this ch
 ### Step 5 — MST_Clustering: Aggregation into Minimum Bounding Rectangles
 
 `MST_Clustering.py` groups the buildings along the MST subtrees into settlement polygons. The geometry type is an **edge-weighted Minimum Bounding Rectangle (MBR)** — oriented along the dominant building edges, not area-minimising — because the Innenbereich in Germany typically ends directly behind the last building and follows cadastral (predominantly rectangular) parcel shapes.
+
+<p align="center">
+  <img src="img/how-it-works/05_mst_clustering.png" width="800"
+       alt="Buildings grouped into pink oriented rectangles along the main roads of the sample village">
+</p>
+
+*Figure: MST_Clustering — building groups with their oriented rectangles on the sample data (Algorithms 1 and 2 below show how they are built). Data: © GeoBasis-DE/LGB.*
 
 #### Algorithm 1 — Minimum Bounding Rectangle (MBR)
 
@@ -354,6 +389,13 @@ The result is merged with the cluster polygons from Step 5 before refinement.
 ### Step 7 — EdgeCatch: Snapping to Road Network
 
 `EdgeCatch.py` snaps the MBR polygons to the neighbouring road network. Without this step, cluster boundaries may stop just inside or outside the road, creating thin slivers. The Innenbereich in Germany is generally defined as ending directly at or just behind the last building, often coinciding with the road edge.
+
+<p align="center">
+  <img src="img/how-it-works/07_edge_catch.png" width="800"
+       alt="Two map tiles: rectangles of the building groups, and the settlement polygon after the rectangles were extended to the roads">
+</p>
+
+*Figure: EdgeCatch — rectangles before and after snapping to the road network (the schematic below shows how). Data: © GeoBasis-DE/LGB.*
 
 #### Sub-step 7a — Pre-filter road segments
 
@@ -451,6 +493,13 @@ The buffer distance scales with `sqrt(building_area)`, giving each building a pr
 ### Step 9 — GapClose: Holes and Gap Closing
 
 `GapClose.py` corrects two classes of topological defects in the settlement polygon:
+
+<p align="center">
+  <img src="img/how-it-works/09_gap_close.png" width="800"
+       alt="Two map tiles: the settlement before GapClose, and after it with the added holes and gaps in orange">
+</p>
+
+*Figure: GapClose — the settlement before and after; orange marks all area added by hole and gap closing. Data: © GeoBasis-DE/LGB.*
 
 #### Sub-step 9a — Close holes inside settlement polygons
 
