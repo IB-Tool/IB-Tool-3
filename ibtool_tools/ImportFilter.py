@@ -40,6 +40,10 @@ _BUFFER_CELL_DIVISOR = 1.5
 # Minimum individual building area (sqm) retained in the final output layer.
 _MIN_BUILDING_AREA = 35
 
+# Minimum number of buildings in the input layer for the filter to run; smaller
+# layers are returned unfiltered. Same value as PatchRemove.DEFAULT_MIN_BDG_COUNT.
+_MIN_BUILDING_COUNT = 20
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -156,9 +160,9 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
     Args:
         hu_layer: Input building footprint polygon layer.
         filter_file: Path to the filter definition text file.
-        min_area: Minimum combined area threshold for dissolved building groups.
-            Processing is skipped when the layer has fewer features than this
-            value. Defaults to 56.8.
+        min_area: Minimum combined area (sqm) for dissolved building groups.
+            Defaults to 56.8. Processing is skipped (input returned unfiltered)
+            when the layer has no more than ``_MIN_BUILDING_COUNT`` features.
         cell_size: Cell size in meters for the kernel density raster. Defaults to 50.
         neighborhood_radius: Search radius in meters for the kernel density
             estimation. Defaults to 100.
@@ -175,7 +179,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
 
     building_count = hu_layer.featureCount()
 
-    if building_count > min_area:
+    if building_count > _MIN_BUILDING_COUNT:
 
         hu_layer = shp_area(hu_layer)
         filterpos, filterneg, _ = import_filter(filter_file, hu_layer)
