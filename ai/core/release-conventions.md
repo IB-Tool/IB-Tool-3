@@ -38,6 +38,9 @@ These rules are binding for all code changes. They are referenced from
     same script catch the class of bug this caused in 0.2.2 (a missing
     `helpers/debug_utils.py`), but only for files that are *imported*
     somewhere; a standalone missing file still needs a whitelist review
+- Runtime-generated files (`CONFIG.ini`, `logs/`, `logfile_*.txt`, `*.log`) are
+  excluded by `is_included()` at any depth and must never ship, regardless of
+  where they sit on the build machine
 - `run_guard()` fails the build on forbidden extensions (`.exe .dll .so
   .dylib .sh .bat .cmd`), the executable bit, unexpected binary files (only
   `.png`/`.qm` are allowed), and a ZIP over 25 MB

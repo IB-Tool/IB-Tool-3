@@ -89,7 +89,9 @@ def validate_plugin_dir(plugin_dir: Path) -> None:
     ok("required files present")
 
     # LICENSE filename exact check already by existence.
-    if (plugin_dir / "LICENSE").exists() or (plugin_dir / "license").exists():
+    if not (plugin_dir / "LICENSE").exists() and (
+        (plugin_dir / "license").exists() or list(plugin_dir.glob("LICENSE*"))
+    ):
         warn("found LICENSE-like files; repository expects file named exactly 'LICENSE' (no extension).")
 
     meta_path = plugin_dir / "metadata.txt"

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import ast
 import configparser
+import fnmatch
 import stat
 import subprocess  # nosec B404 — used only for `git ls-files` with fixed args, no shell
 import sys
@@ -41,7 +42,6 @@ WHITELIST_FILES = {
     "LICENSE",
     "README.md",
     "requirements.txt",
-    "resources.qrc",
 }
 
 # Top-level directories shipped wholesale (minus __pycache__/*.pyc, see below).
@@ -51,6 +51,12 @@ WHITELIST_DIRS = {
     "ibtool",
     "ibtool_tools",
 }
+
+# Files produced by *using* the plugin (user configuration, log output).
+# They must never ship, wherever they happen to sit on the build machine.
+RUNTIME_GENERATED_NAMES = {"config.ini"}
+RUNTIME_GENERATED_DIRS = {"logs"}
+_RUNTIME_LOG_PATTERNS = ("logfile_*.txt", "*.log")
 
 _COMPILED_PY_EXTENSIONS = {".pyc", ".pyo"}
 
@@ -63,9 +69,17 @@ def is_included(rel: Path) -> bool:
 
     Returns:
         True if the file is part of the whitelist and not a compiled-Python
-        byproduct.
+        byproduct or runtime-generated file.
     """
     parts = rel.parts
+
+    # Exclude runtime-generated files at any depth
+    if rel.name.lower() in RUNTIME_GENERATED_NAMES:
+        return False
+    if any(part.lower() in RUNTIME_GENERATED_DIRS for part in parts[:-1]):
+        return False
+    if any(fnmatch.fnmatch(rel.name.lower(), pat) for pat in _RUNTIME_LOG_PATTERNS):
+        return False
 
     if len(parts) == 1:
         return parts[0] in WHITELIST_FILES

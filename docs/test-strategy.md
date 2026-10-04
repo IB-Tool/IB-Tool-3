@@ -189,7 +189,6 @@ Cross-reference of every production module, its test file, approximate test coun
 | `scripts/create_release_zip.py` | `test_create_release_zip.py` | 36 | Pure-Python unit tests; no QGIS dependency |
 | (MST fixtures) | `test_fixtures_mst.py` | 0 | Helper module, not directly tested |
 | — | `test_qgis_environment.py` | 2 | Smoke: QGIS init and Processing available |
-| — | `test_resources.py` | 1 | Smoke: plugin resources compiled |
 | — | `test_translations.py` | 1 | Smoke: translation file present |
 
 ---

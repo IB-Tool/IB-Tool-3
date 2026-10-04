@@ -13,5 +13,4 @@ omit =
     */dist/*
     */venv/*
     */.venv/*
-    */resources.py
     */ui_*.py

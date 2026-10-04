@@ -38,7 +38,10 @@ Every message at or above the configured log level goes to:
    is attached, the message goes to the QGIS Log Messages panel, tab
    **Meldungen**, instead.
 2. **Log File**: `logfile_YYYY-MM-DD_HH-MM-SS.txt` in the selected log
-   directory, once a log directory has been set.
+   directory, once a log directory has been set. The default log directory is
+   `<QGIS profile>/ibtool/logs/` (Windows:
+   `%APPDATA%\QGIS\QGIS3\profiles\default\ibtool\logs\`), which survives plugin
+   updates.
 3. **QGIS Log Messages panel**: tab **IBTool**, all levels, mapped to the
    matching QGIS message level.
 

@@ -1,10 +1,10 @@
 """
-Das helpers-Modul enthält verschiedene Hilfsfunktionen für das Plugin.
+The ibtool_tools module provides the processing tools of the plugin.
 Module:
 
 """
 
-# Gezielte Importe aus Untermodulen
+# Targeted imports from submodules
 from .FootprintDensity import calc_footprint_density, identify_dense_blocks
 from .Blocker import blocker
 from .ImportFilter import input_hu_filter  # noqa: F401
@@ -17,7 +17,7 @@ from .GapClose import gap_close
 from .ErodeEmptyAreas import erode_empty_areas
 from .PatchRemove import patch_remove
 
-# Exportierte Symbole für den einfachen Zugriff
+# Exported symbols for easy access
 __all__ = [
     "calc_footprint_density",
     "blocker",

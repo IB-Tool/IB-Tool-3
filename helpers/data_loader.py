@@ -9,7 +9,7 @@ Constants:
         ``part_list`` to signal "load all partitions from the layer".
 """
 
-from PyQt5.QtWidgets import QFileDialog  # pylint: disable=no-name-in-module
+from qgis.PyQt.QtWidgets import QFileDialog  # pylint: disable=no-name-in-module
 
 # Sentinel value indicating "use all partitions from the layer" in partition list config.
 COMMENT_MARKER = '#'

@@ -110,7 +110,7 @@ class Logger:
 
         Args:
             message: The message to log. Non-string values are converted with ``str()``.
-            level: Severity â€” one of ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
+            level: Severity — one of ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
                 ``'SUCCESS'``. Defaults to ``'WARNING'``.
 
         Raises:
@@ -159,7 +159,7 @@ class Logger:
         """Map an IBTool log level string to the corresponding QGIS message level.
 
         Args:
-            level: IBTool level string â€” ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
+            level: IBTool level string — ``'INFO'``, ``'WARNING'``, ``'CRITICAL'``,
                 or ``'SUCCESS'``.
 
         Returns:

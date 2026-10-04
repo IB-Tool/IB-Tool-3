@@ -14,6 +14,7 @@ Coverage:
 import hashlib
 import os
 import pytest
+from unittest.mock import patch
 
 from .utilities import get_qgis_app
 
@@ -119,3 +120,85 @@ class TestComputeFileChecksum:
 
         assert result == "", \
             "Directory path must return '' (open() raises OSError on directories)"
+
+
+@pytest.mark.unit
+class TestUserConfigDir:
+    def test_returns_ibtool_subdir_and_creates_it(self, tmp_path):
+        from helpers.system_utils import get_user_config_dir
+        result = get_user_config_dir(str(tmp_path))
+        assert result == os.path.join(str(tmp_path), "ibtool")
+        assert os.path.isdir(result)
+
+    @pytest.mark.parametrize("bad", ["", None])
+    def test_empty_settings_dir_raises_oserror(self, bad):
+        from helpers.system_utils import get_user_config_dir
+        fake = type("QA", (), {"qgisSettingsDirPath": staticmethod(lambda: "")})
+        with patch.dict("sys.modules", {"qgis.core": type("M", (), {"QgsApplication": fake})}):
+            with pytest.raises(OSError):
+                get_user_config_dir(bad)
+
+    def test_migrates_legacy_config_once(self, tmp_path):
+        from helpers.system_utils import migrate_legacy_config
+        legacy, target = tmp_path / "legacy", tmp_path / "target"
+        legacy.mkdir()
+        target.mkdir()
+        content = "[paths]\nx=1\n"
+        (legacy / "CONFIG.ini").write_text(content, encoding="utf-8")
+
+        assert migrate_legacy_config(str(legacy), str(target)) is True
+        assert (target / "CONFIG.ini").read_text(encoding="utf-8") == content
+        assert (legacy / "CONFIG.ini").exists()
+
+    def test_does_not_overwrite_existing_target(self, tmp_path):
+        from helpers.system_utils import migrate_legacy_config
+        legacy, target = tmp_path / "legacy", tmp_path / "target"
+        legacy.mkdir()
+        target.mkdir()
+        (legacy / "CONFIG.ini").write_text("old", encoding="utf-8")
+        (target / "CONFIG.ini").write_text("new", encoding="utf-8")
+
+        assert migrate_legacy_config(str(legacy), str(target)) is False
+        assert (target / "CONFIG.ini").read_text(encoding="utf-8") == "new"
+
+    def test_no_legacy_file_is_noop(self, tmp_path):
+        from helpers.system_utils import migrate_legacy_config
+        assert migrate_legacy_config(str(tmp_path / "nope"), str(tmp_path)) is False
+
+    def test_copy_failure_returns_false(self, tmp_path):
+        from unittest.mock import patch
+        from helpers.system_utils import migrate_legacy_config
+        legacy, target = tmp_path / "legacy", tmp_path / "target"
+        legacy.mkdir()
+        target.mkdir()
+        (legacy / "CONFIG.ini").write_text("[UI]", encoding="utf-8")
+        with patch("helpers.system_utils.shutil.copy2", side_effect=OSError("denied")):
+            assert migrate_legacy_config(str(legacy), str(target)) is False
+        assert not (target / "CONFIG.ini").exists()
+
+    def test_legacy_default_log_dir_is_blanked(self, tmp_path):
+        import configparser
+        from helpers.system_utils import migrate_legacy_config
+        legacy, target = tmp_path / "legacy", tmp_path / "target"
+        legacy.mkdir()
+        target.mkdir()
+        legacy_logs = os.path.join(str(legacy), "logs")
+        (legacy / "CONFIG.ini").write_text(
+            f"[UI]\nlog_directory = {legacy_logs}\n", encoding="utf-8")
+        assert migrate_legacy_config(str(legacy), str(target)) is True
+        parser = configparser.ConfigParser()
+        parser.read(str(target / "CONFIG.ini"), encoding="utf-8")
+        assert parser.get("UI", "log_directory") == ""
+
+    def test_custom_log_dir_is_preserved(self, tmp_path):
+        import configparser
+        from helpers.system_utils import migrate_legacy_config
+        legacy, target = tmp_path / "legacy", tmp_path / "target"
+        legacy.mkdir()
+        target.mkdir()
+        (legacy / "CONFIG.ini").write_text(
+            "[UI]\nlog_directory = C:/somewhere/logs\n", encoding="utf-8")
+        assert migrate_legacy_config(str(legacy), str(target)) is True
+        parser = configparser.ConfigParser()
+        parser.read(str(target / "CONFIG.ini"), encoding="utf-8")
+        assert parser.get("UI", "log_directory") == "C:/somewhere/logs"
