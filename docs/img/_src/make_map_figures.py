@@ -137,10 +137,11 @@ FIGURES = {
             ("1  Before: rectangles",
              [B_AUX, B_RN, ("03_MST_Clustering", "after_clustering"), B_HU]),
             ("2  After: snapped to the roads",
-             [B_AUX, ("05_EdgeCatch", "polygons_merged", "snapped"), B_RN, B_HU]),
+             [B_AUX, ("03_MST_Clustering", "after_clustering"),
+              ("computed", "edgecatch_added"), B_RN, B_HU]),
         ],
         "legend": [(("03_MST_Clustering", "after_clustering"), "rectangle"),
-                   (("05_EdgeCatch", "polygons_merged", "snapped"), "settlement after EdgeCatch"),
+                   (("computed", "edgecatch_added"), "area added by EdgeCatch"),
                    (B_RN, "road"), (B_HU, "building")],
     },
     "09_gap_close.png": {
@@ -180,18 +181,29 @@ def index_layers(project):
     return index
 
 
+# Derived layers: name -> (result layer, input layer, role). The difference
+# result - input is everything the step added, independent of which of its
+# sub-steps added it.
+COMPUTED = {
+    "edgecatch_added": (("05_EdgeCatch", "polygons_merged"),
+                        ("03_MST_Clustering", "after_clustering"), "snapped"),
+    "gapclose_added": (("07_GapClose", "result"),
+                       ("06_ErodeEmptyAreas", "step0b_dissolved"), "added"),
+}
+
+
 def add_computed_layers(index, crs):
     """Layers derived from the debug data (not written by the plugin itself)."""
-    before = QgsGeometry.unaryUnion(
-        [f.geometry() for f in index[("06_ErodeEmptyAreas", "step0b_dissolved")].getFeatures()])
-    after = QgsGeometry.unaryUnion(
-        [f.geometry() for f in index[("07_GapClose", "result")].getFeatures()])
-    added = QgsVectorLayer(f"Polygon?crs={crs.authid()}", "gapclose_added", "memory")
-    feature = QgsFeature()
-    feature.setGeometry(after.difference(before))      # everything GapClose added
-    added.dataProvider().addFeatures([feature])
-    added.setRenderer(role_renderer("added", added))
-    index[("computed", "gapclose_added")] = added
+    def union(key):
+        return QgsGeometry.unaryUnion([f.geometry() for f in index[key].getFeatures()])
+
+    for name, (after_key, before_key, role) in COMPUTED.items():
+        layer = QgsVectorLayer(f"Polygon?crs={crs.authid()}", name, "memory")
+        feature = QgsFeature()
+        feature.setGeometry(union(after_key).difference(union(before_key)))
+        layer.dataProvider().addFeatures([feature])
+        layer.setRenderer(role_renderer(role, layer))
+        index[("computed", name)] = layer
 
 
 def resolve(index, ref):

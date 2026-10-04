@@ -29,32 +29,41 @@ For input layer specifications, field requirements, filter file format, and the 
 ## Processing Pipeline
 
 ```mermaid
-flowchart TD
+%%{init: {"flowchart": {"wrappingWidth": 300}}}%%
+flowchart TB
     subgraph inputs ["Input data"]
-        HU[HU<br/>buildings]
-        RN[RN<br/>road network]
-        AUX[Aux<br/>auxiliary lines]
-        PART[Part<br/>partitions]
-        FLT[Filter file]
+        direction LR
+        HU[HU buildings] ~~~ RN[RN roads] ~~~ AUX[Aux lines] ~~~ PART[Part] ~~~ FLT[Filter file]
     end
 
     subgraph global ["Global preparation"]
-        G1[Load all input layers<br/>into GeoPackages]
-        G2[Merge RN + Aux<br/>→ barrier network]
-        G3[Global footprint<br/>density threshold]
-        G1 --> G2 --> G3
+        direction LR
+        G1[Load layers into GeoPackages] --> G2[Merge RN + Aux → barriers] --> G3[Global density threshold]
     end
 
     subgraph part ["Per partition — for each PART_xxx"]
-        S1["1 Blocker"] --> S2["2 ImportFilter"] --> S3["3 FootprintDensity"]
-        S3 --> S4["4 CreateMST"] --> S5["5 MST_Clustering"] --> S6["6 AddSingleBuilding"]
-        S6 --> S7["7 EdgeCatch"] --> S8["8 ErodeEmptyAreas"] --> S9["9 GapClose"] --> S10["10 PatchRemove"]
+        direction TB
+        subgraph prep [" "]
+            direction LR
+            S1[1 Blocker] --> S2[2 ImportFilter] --> S3[3 FootprintDensity]
+        end
+        subgraph aggr [" "]
+            direction LR
+            S4[4 CreateMST] --> S5[5 MST_Clustering] --> S6[6 AddSingleBuilding]
+        end
+        subgraph refine [" "]
+            direction LR
+            S7[7 EdgeCatch] --> S8[8 ErodeEmptyAreas] --> S9[9 GapClose] --> S10[10 PatchRemove]
+        end
+        prep --> aggr --> refine
     end
 
-    inputs --> G1
-    G3 --> S1
-    S10 --> M[Merge all partition results]
-    M --> OUT[(Output GeoPackage)]
+    subgraph output ["Output"]
+        direction LR
+        M[Merge partition results] --> OUT[Output GeoPackage]
+    end
+
+    inputs --> global --> part --> output
 
     classDef prep fill:#74B0C4,stroke:#007D85,color:#212121
     classDef aggr fill:#FFBCB0,stroke:#F7561A,color:#212121
@@ -392,10 +401,10 @@ The result is merged with the cluster polygons from Step 5 before refinement.
 
 <p align="center">
   <img src="img/how-it-works/07_edge_catch.png" width="800"
-       alt="Two map tiles: rectangles of the building groups, and the settlement polygon after the rectangles were extended to the roads">
+       alt="Two map tiles: rectangles of the building groups, and the same rectangles with the areas added by EdgeCatch up to the roads in blue">
 </p>
 
-*Figure: EdgeCatch — rectangles before and after snapping to the road network (the schematic below shows how). Data: © GeoBasis-DE/LGB.*
+*Figure: EdgeCatch — rectangles (pink) and the area EdgeCatch adds to reach the roads (blue); the schematic below shows how. Data: © GeoBasis-DE/LGB.*
 
 #### Sub-step 7a — Pre-filter road segments
 
