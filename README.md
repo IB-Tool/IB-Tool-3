@@ -183,7 +183,7 @@ The plugin processes each partition through a fixed sequence of steps:
 5. **MST_Clustering** — groups buildings into oriented MBRs, validated by local BCR threshold
 6. **AddSingleBuilding** — adds bounding rectangles for large isolated buildings (> 300 m²)
 7. **EdgeCatch** — snaps boundaries to road network (nearest road within 25 m)
-8. **ErodeEmptyAreas** — removes building-free voids (≥ 500 m²) enclosed within the settlement polygon
+8. **ErodeEmptyAreas** — removes building-free protrusions (voids ≥ 500 m² that barely touch the built settlement) at the settlement fringe
 9. **GapClose** — closes enclosed holes above area threshold; bridges narrow gaps at the fringe
 10. **PatchRemove** — removes splinter areas below size and building-count thresholds
 
