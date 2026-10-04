@@ -28,6 +28,44 @@ For input layer specifications, field requirements, filter file format, and the 
 
 ## Processing Pipeline
 
+```mermaid
+flowchart TD
+    subgraph inputs ["Input data"]
+        HU[HU<br/>buildings]
+        RN[RN<br/>road network]
+        AUX[Aux<br/>auxiliary lines]
+        PART[Part<br/>partitions]
+        FLT[Filter file]
+    end
+
+    subgraph global ["Global preparation"]
+        G1[Load all input layers<br/>into GeoPackages]
+        G2[Merge RN + Aux<br/>→ barrier network]
+        G3[Global footprint<br/>density threshold]
+        G1 --> G2 --> G3
+    end
+
+    subgraph part ["Per partition — for each PART_xxx"]
+        S1["1 Blocker"] --> S2["2 ImportFilter"] --> S3["3 FootprintDensity"]
+        S3 --> S4["4 CreateMST"] --> S5["5 MST_Clustering"] --> S6["6 AddSingleBuilding"]
+        S6 --> S7["7 EdgeCatch"] --> S8["8 ErodeEmptyAreas"] --> S9["9 GapClose"] --> S10["10 PatchRemove"]
+    end
+
+    inputs --> G1
+    G3 --> S1
+    S10 --> M[Merge all partition results]
+    M --> OUT[(Output GeoPackage)]
+
+    classDef prep fill:#74B0C4,stroke:#007D85,color:#212121
+    classDef aggr fill:#FFBCB0,stroke:#F7561A,color:#212121
+    classDef refine fill:#F7561A,stroke:#B23A0E,color:#FFFFFF
+    class S1,S2,S3 prep
+    class S4,S5,S6 aggr
+    class S7,S8,S9,S10 refine
+```
+
+*Steps 1–3 prepare the data (blue), 4–6 aggregate buildings into rectangles (pink), 7–10 refine the settlement boundary (orange).*
+
 ```
 Global preparation
 │
@@ -45,7 +83,7 @@ Per-partition loop  (for each PART_xxx)
 ├──  5. MST_Clustering   →  MST-based aggregation into minimum bounding rectangles
 ├──  6. AddSingleBuilding →  bounding rect for large isolated buildings (> 300 m²)
 ├──  7. EdgeCatch        →  snap rectangles to road network
-├──  8. ErodeEmptyAreas  →  remove building-free voids (≥ 500 m²) from settlement
+├──  8. ErodeEmptyAreas  →  remove building-free protrusions (voids ≥ 500 m²) at the fringe
 ├──  9. GapClose         →  close holes (> 1 ha removed) and gaps (≤ 70 m bridged)
 └── 10. PatchRemove      →  remove splinter areas (< 1 ha, < 20 buildings)
          │
@@ -126,11 +164,11 @@ Buildings of the positive filter (residential, commercial, public buildings) def
 INPUT: positive-filter building polygons
 
 1. Convert positive-filter buildings to centroids
-2. Calculate point density raster
-     grid spacing = 100 m, neighbourhood radius = 200 m
-3. Delete points with density < 0.0003
+2. Calculate a kernel density raster of the centroids
+     cell size = 50 m, search radius = 200 m
+3. Convert raster cells to points; keep points with density value ≥ 4
      (threshold: isolated single buildings do not contribute)
-4. Buffer remaining points by 50 m
+4. Buffer the remaining points by 33.3 m (cell size / 1.5) and dissolve
      → nearly closed polygons around settlement cores
 5. Remove negative-filter buildings that lie OUTSIDE these buffer polygons
 OUTPUT: cleaned building layer (negative-filter buildings inside settlements retained)
@@ -141,8 +179,8 @@ OUTPUT: cleaned building layer (negative-filter buildings inside settlements ret
 Small buildings and annexes not relevant for Innenbereich delineation are removed:
 
 ```
-Detached buildings:          remove if area < 56.8 m²
-Non-detached / annexes:      remove if area < 35.0 m²
+Groups of touching buildings: remove if total area ≤ min_area (default 56.8 m²)
+Single buildings:             remove if area ≤ 35 m² (fixed)
 ```
 
 These thresholds were determined empirically (Hecht 2014).

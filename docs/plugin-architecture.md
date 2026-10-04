@@ -56,6 +56,18 @@ Called when the plugin is deactivated:
 | Processing Tools | `ibtool_tools/*.py` | Stateless geospatial algorithms |
 | Helpers | `helpers/*.py` | Shared utilities (logging, geometry, config) |
 
+```mermaid
+flowchart TD
+    INIT["__init__.py<br/>classFactory()"] --> IBT["IBTool<br/>ibtool/ibtool.py"]
+    IBT --> DLG["IBToolDialog<br/>ibtool/ibtool_dialog.py"]
+    DLG --> UI["ibtool_dialog_base.ui"]
+    IBT --> TOOLS["ibtool_tools/*.py<br/>processing steps"]
+    IBT --> HELP["helpers/*.py<br/>logging, loading, checks, config"]
+    TOOLS --> HELP
+```
+
+*Arrows point from the importing module to the imported one. Dependencies run one way only: `helpers/` never imports `ibtool_tools/`, and the dialog imports neither.*
+
 ---
 
 ## Processing Pipeline
