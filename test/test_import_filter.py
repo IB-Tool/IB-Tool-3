@@ -19,7 +19,8 @@ Unit tests cover (import_filter — no Processing needed):
   - empty filter sections → empty strings returned
 
 Integration tests cover (input_hu_filter):
-  - building count below min_area → returns hu_layer unchanged
+  - building count ≤ _MIN_BUILDING_COUNT → returns hu_layer unchanged
+    (independent of min_area)
   - invalid layer → raises Exception
 """
 
@@ -264,18 +265,51 @@ class TestInputHuFilter:
     @pytest.mark.integration
     @pytest.mark.edge_case
     def test_too_few_buildings_returns_input_unchanged(self, tmp_path):
-        """When building count ≤ MinAreaAllBdgs, HU_Input is returned unchanged."""
+        """When building count ≤ _MIN_BUILDING_COUNT, HU_Input is returned unchanged."""
         filter_path = _write_filter_file(tmp_path / "f.txt", ["1010"], ["9999"])
         layer = _polygon_layer_with_field("fkt", self.CRS_ID)
         _add_square(layer, 0, 0, 50)    # 1 feature only
 
-        # MinAreaAllBdgs default is 56.8; with 1 feature the condition is not met
         result = input_hu_filter(layer, filter_path, min_area=100)
 
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
-        # With 1 building ≤ 100 threshold → returns input unchanged
+        # 1 building ≤ minimum building count → returns input unchanged
         assert result.featureCount() == layer.featureCount()
+
+    def _grid_layer(self, count: int) -> QgsVectorLayer:
+        """``count`` separate 10 m × 10 m positive buildings, 5 m apart."""
+        layer = _polygon_layer_with_field("fkt", self.CRS_ID)
+        for i in range(count):
+            row, col = divmod(i, 10)
+            _add_square(layer, 400_000.0 + col * 15.0, 5_700_000.0 + row * 15.0, 10.0)
+        layer.dataProvider().changeAttributeValues(
+            {f.id(): {0: "31001_1000"} for f in layer.getFeatures()})
+        return layer
+
+    @pytest.mark.integration
+    @pytest.mark.edge_case
+    def test_guard_counts_buildings_not_area(self, tmp_path):
+        """30 buildings exceed the minimum building count, so filtering runs
+        even though 30 is below the default min_area of 56.8 m²."""
+        filter_path = _write_filter_file(tmp_path / "f.txt", ["31001_1000"], ["31001_1310"])
+        layer = self._grid_layer(30)
+
+        result = input_hu_filter(layer, filter_path)
+
+        assert result is not layer
+
+    @pytest.mark.integration
+    @pytest.mark.edge_case
+    def test_too_few_buildings_skip_filter_regardless_of_min_area(self, tmp_path):
+        """15 buildings are below the minimum building count: the input is
+        returned unfiltered, even with a min_area smaller than the count."""
+        filter_path = _write_filter_file(tmp_path / "f.txt", ["31001_1000"], ["31001_1310"])
+        layer = self._grid_layer(15)
+
+        result = input_hu_filter(layer, filter_path, min_area=5)
+
+        assert result is layer
 
     @pytest.mark.integration
     def test_invalid_layer_raises_exception(self, tmp_path):
@@ -288,7 +322,7 @@ class TestInputHuFilter:
 
     @pytest.mark.integration
     def test_main_pipeline_returns_valid_layer(self, tmp_path):
-        """Executes the full filter pipeline when building count exceeds min_area."""
+        """Executes the full filter pipeline when building count exceeds the minimum."""
         # Build a 10×10 cluster of 100 buildings (10 m × 10 m, 5 m gap).
         # 80 positive (fkt='31001_1000'), 20 negative (fkt='31001_1310').
         # Coordinates in EPSG:25833 around central Germany to avoid edge artifacts.
@@ -318,7 +352,7 @@ class TestInputHuFilter:
             layer.dataProvider().addFeatures([feat])
         layer.updateExtents()
 
-        # min_area=50 → 100 buildings > 50, so the main processing pipeline runs
+        # 100 buildings > _MIN_BUILDING_COUNT, so the main processing pipeline runs
         result = input_hu_filter(layer, filter_path, min_area=50)
 
         assert result is not None

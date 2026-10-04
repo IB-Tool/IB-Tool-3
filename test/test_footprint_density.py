@@ -261,3 +261,34 @@ class TestFootprintDensityIntegration:
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
         assert elapsed < 30, f"footprint_density took {elapsed:.1f} s (limit: 30 s)"
+
+
+class TestFootprintDensityDebugOutput:
+    """Debug checkpoints of the FootprintDensity functions."""
+
+    CRS_ID = "EPSG:25833"
+
+    @pytest.mark.integration
+    def test_identify_dense_blocks_writes_checkpoints(self, tmp_path):
+        """Blocks with OVERLAP and the dense blocks go to 02a_FootprintDensity/."""
+        blocks = _block_layer_with_name(self.CRS_ID)
+        _add_named_block(blocks, 0, 0, 100, 1)
+
+        identify_dense_blocks(_building_layer(self.CRS_ID), blocks, 0,
+                              debug_mode=True, workspace_path=str(tmp_path))
+
+        folder = tmp_path / "02a_FootprintDensity"
+        names = sorted(p.name for p in folder.glob("*.gpkg"))
+        assert names == ["001_block_overlap.gpkg", "002_dense_blocks.gpkg"]
+        overlap = QgsVectorLayer(str(folder / "001_block_overlap.gpkg"), "o", "ogr")
+        assert "OVERLAP" in [f.name() for f in overlap.fields()]
+
+    @pytest.mark.integration
+    def test_identify_dense_blocks_no_debug_output_by_default(self, tmp_path):
+        blocks = _block_layer_with_name(self.CRS_ID)
+        _add_named_block(blocks, 0, 0, 100, 1)
+
+        identify_dense_blocks(_building_layer(self.CRS_ID), blocks, 0,
+                              workspace_path=str(tmp_path))
+
+        assert not (tmp_path / "02a_FootprintDensity").exists()

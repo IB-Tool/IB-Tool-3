@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 990 368" width="990" height="368" font-family="sans-serif">
+<rect x="0" y="0" width="990" height="368" fill="#FFFFFF"/>
+<text x="15.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">1  Shortest lines corner → road</text>
+<text x="15.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">filtered by rules 1–4</text>
+<g transform="translate(97.6,215.6)">
+<polygon points="-7.5,-59.6 152.1,-79.2 161.1,-5.7 1.5,13.9" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="-24.6" y1="59.5" x2="245.8" y2="35.9" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<line x1="202.1" y1="-115.6" x2="224.0" y2="62.9" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<polygon points="1.7,12.0 33.8,7.5 30.4,-16.5 -1.7,-12.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="44.9,3.8 74.5,1.2 72.4,-23.0 42.8,-20.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="86.9,3.4 121.4,-2.7 116.7,-29.3 82.2,-23.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="131.0,-7.8 160.4,-11.4 157.8,-32.8 128.3,-29.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="6.7,-35.5 33.1,-41.1 28.6,-62.2 2.2,-56.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="62.0,-49.1 86.2,-50.8 84.9,-69.7 60.7,-68.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="108.0,-47.6 140.0,-52.7 136.2,-76.7 104.2,-71.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<line x1="-7.5" y1="-59.6" x2="2.7" y2="57.1" stroke="#3C3C3C" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 5"/>
+<text x="-10.4" y="-5.2" font-size="13" text-anchor="end" font-weight="bold" fill="#3C3C3C">43 m,</text>
+<text x="-10.4" y="11.8" font-size="13" text-anchor="end" font-weight="bold" fill="#3C3C3C">removed</text>
+<line x1="152.1" y1="-79.2" x2="205.7" y2="-85.8" stroke="#212121" stroke-width="2.5" stroke-linecap="round" />
+<text x="168.9" y="-91.5" font-size="13" text-anchor="start" font-weight="bold" fill="#212121">20 m</text>
+<line x1="161.1" y1="-5.7" x2="165.4" y2="42.9" stroke="#212121" stroke-width="2.5" stroke-linecap="round" />
+<text x="170.3" y="23.6" font-size="13" text-anchor="start" font-weight="bold" fill="#212121">18 m</text>
+<line x1="1.5" y1="13.9" x2="5.3" y2="56.9" stroke="#212121" stroke-width="2.5" stroke-linecap="round" />
+<text x="10.4" y="40.4" font-size="13" text-anchor="start" font-weight="bold" fill="#212121">16 m</text>
+</g>
+<text x="340.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">2  Polygonise, keep small pieces</text>
+<text x="340.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">lines + road + rectangle edges;</text>
+<text x="340.0" y="76.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">pieces &lt; 2 × rectangle area</text>
+<g transform="translate(422.6,215.6)">
+<polygon points="1.5,13.9 161.1,-5.7 165.4,42.9 5.3,56.9" fill="#F7561A" stroke="#F7561A" stroke-width="1.5" stroke-linejoin="round" />
+<polygon points="161.1,-5.7 152.1,-79.2 205.7,-85.8 220.9,38.0 165.4,42.9" fill="#F7561A" stroke="#F7561A" stroke-width="1.5" stroke-linejoin="round" />
+<polygon points="-7.5,-59.6 152.1,-79.2 161.1,-5.7 1.5,13.9" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="-24.6" y1="59.5" x2="245.8" y2="35.9" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<line x1="202.1" y1="-115.6" x2="224.0" y2="62.9" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<polygon points="1.7,12.0 33.8,7.5 30.4,-16.5 -1.7,-12.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="44.9,3.8 74.5,1.2 72.4,-23.0 42.8,-20.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="86.9,3.4 121.4,-2.7 116.7,-29.3 82.2,-23.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="131.0,-7.8 160.4,-11.4 157.8,-32.8 128.3,-29.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="6.7,-35.5 33.1,-41.1 28.6,-62.2 2.2,-56.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="62.0,-49.1 86.2,-50.8 84.9,-69.7 60.7,-68.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="108.0,-47.6 140.0,-52.7 136.2,-76.7 104.2,-71.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+</g>
+<text x="665.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">3  Result</text>
+<text x="665.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">rectangle reaches the road</text>
+<g transform="translate(747.6,215.6)">
+<polygon points="-7.5,-59.6 152.1,-79.2 205.7,-85.8 220.9,38.0 5.3,56.9 1.5,13.9" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="-24.6" y1="59.5" x2="245.8" y2="35.9" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<line x1="202.1" y1="-115.6" x2="224.0" y2="62.9" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<polygon points="1.7,12.0 33.8,7.5 30.4,-16.5 -1.7,-12.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="44.9,3.8 74.5,1.2 72.4,-23.0 42.8,-20.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="86.9,3.4 121.4,-2.7 116.7,-29.3 82.2,-23.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="131.0,-7.8 160.4,-11.4 157.8,-32.8 128.3,-29.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="6.7,-35.5 33.1,-41.1 28.6,-62.2 2.2,-56.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="62.0,-49.1 86.2,-50.8 84.9,-69.7 60.7,-68.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="108.0,-47.6 140.0,-52.7 136.2,-76.7 104.2,-71.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+</g>
+<text x="15.0" y="323.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">TL line removed by rule 3a: parallel to the BL line, end points ≤ 5 m apart, longer (43 m vs 16 m). Lines ≥ 70 m are removed by rule 1.</text>
+<text x="15.0" y="346.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">Before this step, roads are split into 20 m segments; only segments within 25 m of a building are used.</text>
+</svg>

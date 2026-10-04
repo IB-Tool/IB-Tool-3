@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 300" width="700" height="300" font-family="sans-serif">
+<rect x="0" y="0" width="700" height="300" fill="#FFFFFF"/>
+<text x="20.0" y="30.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">max_gap_size = 4,900 m² (default)</text>
+<text x="20.0" y="52.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">A gap at the settlement edge is closed only if it is smaller than max_gap_size.</text>
+<polygon points="30.0,112.0 128.0,112.0 128.0,210.0 30.0,210.0" fill="#E4E4E4" stroke="#616161" stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="6 4"/>
+<text x="79.0" y="232.0" font-size="14" text-anchor="middle" font-weight="normal" fill="#212121">70 m × 70 m</text>
+<text x="79.0" y="252.0" font-size="14" text-anchor="middle" font-weight="bold" fill="#212121">= 4,900 m²</text>
+<polygon points="205.0,112.0 270.0,112.0 270.0,182.0 326.0,182.0 326.0,112.0 455.0,112.0 455.0,224.0 581.0,224.0 581.0,112.0 680.0,112.0 680.0,280.0 205.0,280.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="340.4,133.0 357.5,135.4 359.4,122.0 342.3,119.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="374.2,137.7 389.7,135.0 387.6,122.8 372.1,125.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="425.0,132.6 439.1,134.3 440.4,123.8 426.2,122.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="640.9,136.4 659.6,133.6 657.8,121.6 639.1,124.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="215.1,170.0 232.6,168.3 231.5,157.9 214.0,159.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="240.8,168.1 255.8,169.8 257.0,159.0 242.0,157.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="333.2,166.4 348.6,169.1 351.0,155.9 335.5,153.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="367.4,175.4 399.7,180.3 403.4,156.0 371.1,151.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="416.4,162.6 435.4,164.7 436.5,154.6 417.5,152.5" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="602.4,168.2 616.8,170.0 618.4,157.0 604.1,155.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="628.5,170.2 647.7,166.8 645.4,153.2 626.1,156.5" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="235.1,198.2 253.8,201.0 255.6,189.0 236.9,186.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="268.8,197.6 287.9,200.7 289.5,191.0 270.4,187.9" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="302.9,202.5 318.4,204.2 319.7,191.3 304.2,189.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="330.9,206.7 366.4,210.8 369.2,187.2 333.6,183.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="386.9,203.6 403.0,205.5 404.2,195.7 388.1,193.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="600.5,199.0 618.8,196.7 617.3,184.8 599.0,187.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="635.2,200.1 652.2,202.4 654.1,188.8 637.0,186.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="213.2,234.1 231.7,235.8 232.7,225.4 214.2,223.7" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="248.2,232.3 265.6,234.4 267.0,222.9 249.6,220.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="281.3,232.4 295.8,233.9 297.2,221.1 282.7,219.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="315.1,233.8 333.2,235.9 334.5,225.3 316.3,223.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="340.9,234.4 357.2,232.3 355.8,222.0 339.6,224.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="363.1,235.2 376.1,233.2 374.5,223.1 361.5,225.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="384.1,237.8 420.6,234.2 418.4,213.3 382.0,217.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="436.7,240.6 449.9,238.8 448.1,226.0 434.9,227.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="588.0,239.2 605.8,236.3 604.0,225.8 586.3,228.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="620.9,234.1 637.3,236.1 638.6,226.2 622.1,224.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="645.1,240.6 660.7,238.3 658.9,225.6 643.3,227.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="210.9,268.6 250.4,272.9 252.9,249.9 213.4,245.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="265.8,271.6 281.7,270.2 280.7,258.7 264.8,260.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="299.8,267.1 317.9,268.7 319.0,255.9 300.9,254.3" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="366.7,266.0 384.0,268.9 385.7,258.4 368.5,255.5" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="403.9,270.8 422.0,273.1 423.4,262.0 405.3,259.7" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="437.6,271.1 454.9,268.5 453.0,255.5 435.6,258.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="467.5,270.1 482.1,272.3 483.9,260.8 469.3,258.5" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="498.0,267.5 511.7,269.7 513.2,259.9 499.5,257.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="530.0,267.2 548.6,270.3 550.7,257.9 532.1,254.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="562.5,265.5 576.8,263.2 575.1,252.9 560.8,255.3" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="581.8,270.7 594.8,272.7 596.8,259.9 583.8,257.8" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="610.1,270.2 622.6,269.0 621.5,257.1 609.0,258.3" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="653.0,272.3 666.0,270.3 664.2,258.2 651.2,260.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="270.0,112.0 326.0,112.0 326.0,182.0 270.0,182.0" fill="#F7561A" stroke="#F7561A" stroke-width="1.5" stroke-linejoin="round" />
+<line x1="270.0" y1="112.0" x2="326.0" y2="112.0" stroke="#3C3C3C" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5"/>
+<polygon points="455.0,112.0 581.0,112.0 581.0,224.0 455.0,224.0" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<line x1="455.0" y1="112.0" x2="581.0" y2="112.0" stroke="#3C3C3C" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5"/>
+<polygon points="205.0,112.0 270.0,112.0 270.0,182.0 326.0,182.0 326.0,112.0 455.0,112.0 455.0,224.0 581.0,224.0 581.0,112.0 680.0,112.0 680.0,280.0 205.0,280.0" fill="none" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<text x="298.0" y="78.0" font-size="14" text-anchor="middle" font-weight="normal" fill="#212121">2,000 m², 78 % contact</text>
+<text x="298.0" y="98.0" font-size="14" text-anchor="middle" font-weight="bold" fill="#F7561A">→ closed</text>
+<text x="518.0" y="78.0" font-size="14" text-anchor="middle" font-weight="normal" fill="#212121">7,200 m², 74 % contact</text>
+<text x="518.0" y="98.0" font-size="14" text-anchor="middle" font-weight="bold" fill="#3C3C3C">→ stays open</text>
+</svg>

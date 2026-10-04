@@ -74,11 +74,18 @@ The configurable **parameters** control different stages of this process and gov
 
 - **Type:** Float
 - **Function:** Filters out undersized building objects in `input_hu_filter()`.
-- **Definition:** Buildings with a footprint area below this threshold are removed from all subsequent calculations.
+- **Definition:** Touching buildings are dissolved into groups; groups with a combined footprint area of at most this threshold are removed from all subsequent calculations. Afterwards, single buildings of at most 35 m² (fixed) are removed as well, so small attached garages disappear while larger attached annexes stay.
 - **Goal:** Exclusion of non-settlement-relevant structures (e.g. garden sheds, carports, outbuildings).
 - **Background:** Small buildings and outbuildings do not meet the conditions required to establish a contiguous development context. They are therefore removed at the beginning of the pipeline.
 - **Recommended values:** 50–60 m², depending on the local context and regional average.
 - **Effect:** At the settlement fringe, boundaries are drawn directly along residential buildings. Outbuildings at the rear of plots are thus excluded.
+
+<p align="center">
+  <img src="img/parameterization/04_min_area.svg" width="600"
+       alt="Three plots along a street before and after the min_area filter: rear sheds, a detached workshop and a small attached garage are removed, the boundary moves to the houses">
+</p>
+
+*Figure: `min_area` — detached outbuildings (12, 42 and 8 m²) and the attached 18 m² garage are removed; the attached 42 m² annex stays because its group with the house exceeds 56.8 m². Schematic, buildings to scale.*
 
 ---
 
@@ -120,6 +127,13 @@ The configurable **parameters** control different stages of this process and gov
   - Smaller open spaces (gardens, courtyards, playgrounds, meadows, car parks) are incorporated.
   - Prevents excessive fragmentation of settlement areas.
 
+<p align="center">
+  <img src="img/parameterization/03_hole_vs_gap.svg" width="700"
+       alt="Left: an open space fully enclosed by the settlement (hole). Right: an open space at the settlement edge, open on one side (gap)">
+</p>
+
+*Figure: Hole vs. gap — a hole is fully enclosed and controlled by `max_hole_size`; a gap is open on one side and controlled by `max_gap_size` and the share of its boundary that touches the settlement. Schematic, buildings to scale.*
+
 ---
 
 ### `max_gap_size` — Maximum Gap Size
@@ -128,8 +142,15 @@ The configurable **parameters** control different stages of this process and gov
 - **Function:** Used in `gap_close()` to bridge gaps at the settlement fringe.
 - **Definition:** Specifies the area threshold below which gaps at the settlement boundary are closed.
 - **Background:** Building gaps count as inner development. Which undeveloped area can still be considered a gap is highly contested and difficult to define precisely — local conditions must always be considered. As a general rule, the looser the surrounding development, the larger a gap may be before it falls outside the inner development area.
-- **Recommended value:** 40–100 m (equivalent to 4,900 m² at 70 m radius).
-- **Effect:** The algorithm identifies areas located between existing settlement cluster polygons that border those polygons along at least 75 % of their perimeter. Only when the share of contact with settlement areas is substantially greater than that with open land is the area classified as a gap. Such areas are then incorporated into the inner development polygon (cf. Harig 2024, Chap. 4.5.4, Fig. 4.10).
+- **Recommended value:** 40–100 m gap width (the default of 4,900 m² corresponds to a 70 m × 70 m square).
+- **Effect:** The algorithm identifies areas located between existing settlement cluster polygons that border those polygons along at least 70 % of their perimeter. Only when the share of contact with settlement areas is substantially greater than that with open land is the area classified as a gap. Gaps smaller than `max_gap_size` are then incorporated into the inner development polygon; larger gaps are only closed if at least 90 % of their perimeter borders the settlement, or — for their narrow parts — if they are compact (see [how-it-works.md → Step 9](how-it-works.md#step-9--gapclose-holes-and-gap-closing)) (cf. Harig 2024, Chap. 4.5.4, Fig. 4.10).
+
+<p align="center">
+  <img src="img/parameterization/02_max_gap_size.svg" width="700"
+       alt="A 70 m by 70 m reference square next to a settlement with two gaps at its edge: a 2,000 square metre gap is closed, a 7,200 square metre gap stays open">
+</p>
+
+*Figure: `max_gap_size` — the 2,000 m² gap (78 % contact) is closed; the 7,200 m² gap exceeds 4,900 m² and has less than 90 % contact, so it stays open. Schematic, buildings to scale.*
 
 ---
 

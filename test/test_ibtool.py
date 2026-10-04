@@ -1500,6 +1500,35 @@ class TestUpdatePhase:
             self.tool._update_phase(2, 6, "", 20)  # Must not raise
 
     @pytest.mark.unit
+    def test_phase_name_is_translated(self):
+        """The phase name shown in the dialog goes through self.tr()."""
+        with patch.object(self.tool.dlg, "set_phase_progress") as mock_spp, \
+             patch.object(self.tool, "tr", side_effect=lambda s: f"DE:{s}"):
+            self.tool._update_phase(7, 9, "Close Gaps", 80)
+
+        mock_spp.assert_called_once_with(7, 9, "DE:Close Gaps", 80)
+
+    @pytest.mark.integration
+    def test_every_phase_name_has_german_translation(self):
+        """Every phase name passed to _update_phase in ibtool.py is translated
+        by the compiled i18n/IBTool_de.qm (context IBTool)."""
+        import re
+        from pathlib import Path
+        from qgis.PyQt.QtCore import QTranslator
+
+        root = Path(__file__).resolve().parent.parent
+        source = (root / "ibtool" / "ibtool.py").read_text(encoding="utf-8")
+        names = set(re.findall(r'_update_phase\(\d+, \d+, "([^"]+)"', source))
+        assert len(names) == 9, names
+
+        translator = QTranslator()
+        assert translator.load(str(root / "i18n" / "IBTool_de.qm"))
+        # QTranslator.translate() returns "" for a missing entry
+        untranslated = sorted(n for n in names if not translator.translate("IBTool", n))
+
+        assert untranslated == [], f"missing in IBTool_de.qm: {untranslated}"
+
+    @pytest.mark.unit
     def test_raises_processing_cancelled_error_when_cancel_requested(self):
         """Must raise ProcessingCancelledError after processEvents if _cancel_requested is True."""
         from ibtool.ibtool.ibtool import ProcessingCancelledError
@@ -1836,6 +1865,66 @@ class TestRunPartitionPipeline:
         assert 3 in called_phases, "_update_phase must be called for phase 3 (Filter)"
         assert 4 in called_phases, "_update_phase must be called for phase 4 (MST)"
         assert 5 in called_phases, "_update_phase must be called for phase 5 (Clustering)"
+
+    @pytest.mark.unit
+    def test_phase_label_matches_running_tool(self):
+        """Each refinement tool runs under its own phase label; phase numbers
+        ascend and stay below the total (the last phase is Save Output)."""
+        layers = self._make_layers()
+        sel_hu = MagicMock()
+        sel_hu.featureCount.return_value = 20
+        sel_roads = MagicMock()
+        sel_roads.featureCount.return_value = 8
+        generic = MagicMock()
+        events = []
+
+        def tool(name):
+            def _run(*_args, **_kwargs):
+                events.append(("tool", name))
+                return generic
+            return _run
+
+        def phase(number, total, name, _percent):
+            events.append(("phase", (number, total, name)))
+
+        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
+             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+                   side_effect=[sel_hu, sel_roads, generic, generic]), \
+             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.mst_clustering", side_effect=tool("mst_clustering")), \
+             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
+             patch("ibtool.ibtool.ibtool.erode_empty_areas", side_effect=tool("erode_empty_areas")), \
+             patch("ibtool.ibtool.ibtool.gap_close", side_effect=tool("gap_close")), \
+             patch("ibtool.ibtool.ibtool.patch_remove", side_effect=tool("patch_remove")), \
+             patch("ibtool.ibtool.ibtool.logger"), \
+             patch.object(self.tool, "_update_phase", side_effect=phase):
+            mock_proc.run.return_value = {"OUTPUT": generic}
+            self._call(layers)
+
+        running, label_of = None, {}
+        for kind, value in events:
+            if kind == "phase":
+                running = value[2]
+            else:
+                label_of[value] = running
+        assert label_of == {
+            "mst_clustering": "Clustering",
+            "erode_empty_areas": "Erode Empty Areas",
+            "gap_close": "Close Gaps",
+            "patch_remove": "Remove Patches",
+        }
+
+        phases = [value for kind, value in events if kind == "phase"]
+        numbers = [number for number, _total, _name in phases]
+        totals = {total for _number, total, _name in phases}
+        assert numbers == sorted(set(numbers)), "phase numbers must be unique and ascending"
+        assert len(totals) == 1 and max(numbers) < totals.pop(), \
+            "partition phases must stay below the total (Save Output is last)"
 
 
 # ---------------------------------------------------------------------------

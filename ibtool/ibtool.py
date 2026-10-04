@@ -1089,8 +1089,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.set_step(2)
 
     def _update_phase(self, phase: int, total: int, name: str, percent: int) -> None:
-        """Update the phase progress indicator and flush pending UI events."""
-        self.dlg.set_phase_progress(phase, total, name, percent)
+        """Update the phase progress indicator and flush pending UI events.
+
+        ``name`` is the English phase name; it is translated here (context
+        ``IBTool``), so the entries in ``i18n/IBTool_de.ts`` are maintained by hand.
+        """
+        self.dlg.set_phase_progress(phase, total, self.tr(name), percent)
         QApplication.processEvents()
         if self._cancel_requested:
             raise ProcessingCancelledError()
@@ -1192,7 +1196,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         min_overlap_mst = calc_footprint_density(
             hu_layer, sel_strassen_layer, 100,
-            global_footprint_density, 'local', params['min_bdg_count'])
+            global_footprint_density, 'local', params['min_bdg_count'],
+            debug_mode=debug_mode, workspace_path=part_workspace)
         logger.log(f"Local building coverage = {min_overlap_mst}", 'SUCCESS')
 
         sel_hu_layer = processing.run("native:splitwithlines",
@@ -1201,26 +1206,29 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                                        'OUTPUT': 'memory:'
                                        })['OUTPUT']
 
-        self._update_phase(2, 6, "Calculate Blocks", 10)
+        self._update_phase(2, 9, "Calculate Blocks", 10)
         blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
                          debug_mode=debug_mode, workspace_path=part_workspace)
 
-        self._update_phase(3, 6, "Apply Filter", 20)
+        self._update_phase(3, 9, "Apply Filter", 20)
         hu_filter = input_hu_filter(
             sel_hu_layer, params['input_filter'], params['min_area'], 50, 200,
             debug_mode=debug_mode, workspace_path=part_workspace)
-        blocks_dense = identify_dense_blocks(hu_filter, blocks, params['min_overlap_blocks'])
+        blocks_dense = identify_dense_blocks(
+            hu_filter, blocks, params['min_overlap_blocks'],
+            debug_mode=debug_mode, workspace_path=part_workspace)
         hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
 
-        self._update_phase(4, 6, "Calculate MST", 40)
-        mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
+        self._update_phase(4, 9, "Calculate MST", 35)
+        mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference,
+                                  debug_mode=debug_mode, workspace_path=part_workspace)
 
         if mst_layer is None:
             logger.log(
                 f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
             return None, anz_hu
 
-        self._update_phase(5, 6, "Clustering", 60)
+        self._update_phase(5, 9, "Clustering", 50)
         hu_cluster_output = mst_clustering(
             hu_filter_sel, mst_layer, spatial_reference,
             min_overlap_mst, debug_mode=debug_mode, workspace_path=part_workspace)
@@ -1245,18 +1253,20 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         })['OUTPUT']
 
+        self._update_phase(6, 9, "Erode Empty Areas", 70)
         eroded = erode_empty_areas(
             blocks_merge, sel_hu_layer,
             workspace_path=part_workspace,
             debug_mode=debug_mode,
         )
 
+        self._update_phase(7, 9, "Close Gaps", 80)
         gaps_closed = gap_close(
             eroded, blocks, params['max_hole_size'], params['max_gap_size'],
             spatial_reference, gap_dist=30,
             debug_mode=debug_mode, workspace_path=part_workspace)
 
-        self._update_phase(6, 6, "Erode Empty Areas", 90)
+        self._update_phase(8, 9, "Remove Patches", 90)
         patch_removed = patch_remove(
             gaps_closed, sel_hu_layer, spatial_reference, part_workspace,
             min_patch_size=params['min_patch_size'],
@@ -1273,9 +1283,10 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         Reads all parameter values from the UI, re-validates input, loads
         layers into GeoPackage format, then iterates over the partition list.
-        For each partition the pipeline runs six sequential steps:
-        Load Blocker, ImportFilter,  MST Clustering, GapClose
-        PatchRemove. Intermediate results are accumulated in a merge layer
+        Progress is reported in nine phases: Load Data, then per partition
+        Calculate Blocks, Apply Filter, Calculate MST, Clustering, Erode
+        Empty Areas, Close Gaps, Remove Patches, and finally Save Output.
+        Intermediate results are accumulated in a merge layer
         and saved to disk after each partition to enable resume. On
         completion the result is saved to the configured output GeoPackage
         and the result-action buttons are shown.
@@ -1354,7 +1365,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 return
 
             # Phase 1: Load Data
-            self._update_phase(1, 6, "Load Data", 0)
+            self._update_phase(1, 9, "Load Data", 0)
             layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
                 input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
 
@@ -1448,8 +1459,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 logger.log("Failed to load final merge layer", "CRITICAL")
                 return
 
-            # Phase 6: Save Output
-            self._update_phase(6, 6, "Save Output", 95)
+            # Phase 9: Save Output
+            self._update_phase(9, 9, "Save Output", 95)
             output_folder, file_with_extension = os.path.split(output_file)
             output_filename, _ = os.path.splitext(file_with_extension)
             msg(output_folder)

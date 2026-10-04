@@ -32,9 +32,29 @@ Use `INFO` for all **normal processing outcomes**, even if the result is empty:
 
 ### Output Destinations
 
-1. **UI Message Window**: Displayed in the plugin dialog's log area
-2. **Log Files**: Written to `logs/logfile_YYYY-MM-DD_HH-MM-SS.txt`
-3. **QGIS Message Bar**: Critical errors shown via `iface.messageBar()`
+Every message at or above the configured log level goes to:
+
+1. **UI Message Window**: the plugin dialog's log area. If no dialog log area
+   is attached, the message goes to the QGIS Log Messages panel, tab
+   **Meldungen**, instead.
+2. **Log File**: `logfile_YYYY-MM-DD_HH-MM-SS.txt` in the selected log
+   directory, once a log directory has been set.
+3. **QGIS Log Messages panel**: tab **IBTool**, all levels, mapped to the
+   matching QGIS message level.
+
+`Logger.log()` does not use the QGIS message bar (see
+[QGIS Message Bar](#qgis-message-bar) for direct use).
+
+```mermaid
+flowchart LR
+    L["Logger.log(message, level)"] --> TH{level ≥<br/>log level?}
+    TH -- no --> DROP[discarded]
+    TH -- yes --> F[Log file<br/>if a log directory is set]
+    TH -- yes --> BOX{Dialog log<br/>area attached?}
+    BOX -- yes --> UI[Dialog log area]
+    BOX -- no --> MSG[QGIS Log Messages<br/>tab 'Meldungen']
+    TH -- yes --> QL[QGIS Log Messages<br/>tab 'IBTool']
+```
 
 ### Rules
 

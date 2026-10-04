@@ -989,7 +989,7 @@ def process_single_feature(
     shp_area2(polygons_in_block)
     polygons_small = safe_processing_run("native:extractbyexpression", {
         'INPUT': polygons_in_block,
-        'EXPRESSION': f'"Area" < {area * AREA_FILTER_FACTOR}',  # TODO: verify operator direction
+        'EXPRESSION': f'"Area" < {area * AREA_FILTER_FACTOR}',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
 

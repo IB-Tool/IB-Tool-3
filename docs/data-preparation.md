@@ -35,6 +35,29 @@ dataset names for a specific German state, see
 7. [Export](#7-export)
 8. [Validation](#8-validation)
 
+```mermaid
+flowchart LR
+    RAW[ATKIS / ALKIS<br/>raw data] --> CLIP[Clip to<br/>study area]
+
+    CLIP --> B[ALKIS buildings]
+    B --> HU[HU]
+
+    CLIP --> V1[ver01_l] & V2[ver02_l]
+    V1 & V2 --> MRN[Merge] --> RN[RN]
+
+    CLIP --> P1[veg02_f forest] & P2[veg03_f shrubs] & P3[gew01_f water] & P4[marsh / bog<br/>if available]
+    P1 & P2 & P3 & P4 --> MP[Merge] --> D[Dissolve] --> PL[Polygons<br/>to lines]
+    CLIP --> V3[ver03_l railway]
+    PL & V3 --> MAUX[Merge] --> AUX[Aux]
+
+    HU --> CHK[Check fields;<br/>multipart → singlepart]
+    RN --> CHK
+    AUX --> CHK
+    CHK --> EXP[(Export each<br/>as GeoPackage)]
+```
+
+*Steps 4–7 at a glance: the three input layers are assembled from the clipped raw data, checked and exported.*
+
 ---
 
 ## 1. Obtaining Raw Data

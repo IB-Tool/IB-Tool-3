@@ -28,6 +28,53 @@ For input layer specifications, field requirements, filter file format, and the 
 
 ## Processing Pipeline
 
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 300}}}%%
+flowchart TB
+    subgraph inputs ["Input data"]
+        direction LR
+        HU[HU buildings] ~~~ RN[RN roads] ~~~ AUX[Aux lines] ~~~ PART[Part] ~~~ FLT[Filter file]
+    end
+
+    subgraph global ["Global preparation"]
+        direction LR
+        G1[Load layers into GeoPackages] --> G2[Merge RN + Aux → barriers] --> G3[Global density threshold]
+    end
+
+    subgraph part ["Per partition — for each PART_xxx"]
+        direction TB
+        subgraph prep [" "]
+            direction LR
+            S1[1 Blocker] --> S2[2 ImportFilter] --> S3[3 FootprintDensity]
+        end
+        subgraph aggr [" "]
+            direction LR
+            S4[4 CreateMST] --> S5[5 MST_Clustering] --> S6[6 AddSingleBuilding]
+        end
+        subgraph refine [" "]
+            direction LR
+            S7[7 EdgeCatch] --> S8[8 ErodeEmptyAreas] --> S9[9 GapClose] --> S10[10 PatchRemove]
+        end
+        prep --> aggr --> refine
+    end
+
+    subgraph output ["Output"]
+        direction LR
+        M[Merge partition results] --> OUT[Output GeoPackage]
+    end
+
+    inputs --> global --> part --> output
+
+    classDef prep fill:#74B0C4,stroke:#007D85,color:#212121
+    classDef aggr fill:#FFBCB0,stroke:#F7561A,color:#212121
+    classDef refine fill:#F7561A,stroke:#B23A0E,color:#FFFFFF
+    class S1,S2,S3 prep
+    class S4,S5,S6 aggr
+    class S7,S8,S9,S10 refine
+```
+
+*Steps 1–3 prepare the data (blue), 4–6 aggregate buildings into rectangles (pink), 7–10 refine the settlement boundary (orange).*
+
 ```
 Global preparation
 │
@@ -45,7 +92,7 @@ Per-partition loop  (for each PART_xxx)
 ├──  5. MST_Clustering   →  MST-based aggregation into minimum bounding rectangles
 ├──  6. AddSingleBuilding →  bounding rect for large isolated buildings (> 300 m²)
 ├──  7. EdgeCatch        →  snap rectangles to road network
-├──  8. ErodeEmptyAreas  →  remove building-free voids (≥ 500 m²) from settlement
+├──  8. ErodeEmptyAreas  →  remove building-free protrusions (voids ≥ 500 m²) at the fringe
 ├──  9. GapClose         →  close holes (> 1 ha removed) and gaps (≤ 70 m bridged)
 └── 10. PatchRemove      →  remove splinter areas (< 1 ha, < 20 buildings)
          │
@@ -89,6 +136,13 @@ For each partition (e.g. `PART_36`), the following steps are executed:
 - **Street blocks**: areas completely enclosed by roads/streets and the partition outline (Conzen 1960).
 - **City blocks**: additionally include railway lines, forest edges, water bodies, and other topographical barriers as boundaries.
 
+<p align="center">
+  <img src="img/how-it-works/01_blocker.png" width="800"
+       alt="Sample partition cut into coloured blocks by roads and auxiliary lines; blocks without buildings are left white">
+</p>
+
+*Figure: Blocker on the sample data — roads and Aux lines cut the partition into blocks (here street and city blocks in one step, since RN and Aux are merged); blocks without buildings (white) are dropped. Data: © GeoBasis-DE/LGB.*
+
 Sub-steps:
 
 ```
@@ -106,7 +160,14 @@ Blocks at the edge of the settlement are typically very large (they transition i
 
 ### Step 2 — ImportFilter: Three-Stage Building Filter
 
-`ImportFilter.py` removes buildings that are not relevant to Innenbereich delineation. According to BauGB § 35, certain building functions are permitted *outside* the Innenbereich (e.g. sewage treatment plants, wind turbines, livestock facilities, allotments). The filter applies three sequential stages:
+`ImportFilter.py` removes buildings that are not relevant to Innenbereich delineation. According to BauGB § 35, certain building functions are permitted *outside* the Innenbereich (e.g. sewage treatment plants, wind turbines, livestock facilities, allotments). The filter applies three sequential stages; a partition with 20 building features or fewer (counted after the split along roads) is passed through unfiltered (fixed constant `_MIN_BUILDING_COUNT`, same value as the `min_bdg_count` default):
+
+<p align="center">
+  <img src="img/how-it-works/02_import_filter.png" width="800"
+       alt="Three map tiles: buildings coloured by positive and negative function list; the settlement core zone with removed negative-list buildings; buildings removed by the minimum size">
+</p>
+
+*Figure: ImportFilter in three stages — function codes (positive / negative list), the density-based settlement core zone (negative-list buildings outside it are removed), minimum size. Data: © GeoBasis-DE/LGB.*
 
 #### Stage 1 — Negative filter (function code)
 
@@ -126,11 +187,11 @@ Buildings of the positive filter (residential, commercial, public buildings) def
 INPUT: positive-filter building polygons
 
 1. Convert positive-filter buildings to centroids
-2. Calculate point density raster
-     grid spacing = 100 m, neighbourhood radius = 200 m
-3. Delete points with density < 0.0003
+2. Calculate a kernel density raster of the centroids
+     cell size = 50 m, search radius = 200 m
+3. Convert raster cells to points; keep points with density value ≥ 4
      (threshold: isolated single buildings do not contribute)
-4. Buffer remaining points by 50 m
+4. Buffer the remaining points by 33.3 m (cell size / 1.5) and dissolve
      → nearly closed polygons around settlement cores
 5. Remove negative-filter buildings that lie OUTSIDE these buffer polygons
 OUTPUT: cleaned building layer (negative-filter buildings inside settlements retained)
@@ -141,8 +202,8 @@ OUTPUT: cleaned building layer (negative-filter buildings inside settlements ret
 Small buildings and annexes not relevant for Innenbereich delineation are removed:
 
 ```
-Detached buildings:          remove if area < 56.8 m²
-Non-detached / annexes:      remove if area < 35.0 m²
+Groups of touching buildings: remove if total area ≤ min_area (default 56.8 m²)
+Single buildings:             remove if area ≤ 35 m² (fixed)
 ```
 
 These thresholds were determined empirically (Hecht 2014).
@@ -152,6 +213,13 @@ These thresholds were determined empirically (Hecht 2014).
 ### Step 3 — FootprintDensity: Building Coverage Ratio
 
 `FootprintDensity.py` calculates the **building coverage ratio (BCR)** — the ratio of the sum of building footprint areas to the reference area — and identifies which blocks are densely enough built up to be classified as fully within the Innenbereich.
+
+<p align="center">
+  <img src="img/how-it-works/03_footprint_density.png" width="800"
+       alt="Blocks coloured by their building coverage ratio in five classes; all blocks of the sample lie below 18 percent">
+</p>
+
+*Figure: Building coverage ratio per block. No block of the sample partition reaches the 18 % dense-block threshold, so none is classified as dense here. Data: © GeoBasis-DE/LGB.*
 
 #### Local BCR threshold calculation
 
@@ -189,6 +257,13 @@ The 18% threshold was derived empirically using expert delineations from Branden
 ### Step 4 — CreateMST: Minimum Spanning Tree
 
 `CreateMST.py` builds a graph over the filtered buildings and computes a Minimum Spanning Tree that represents the spatial backbone of the settlement.
+
+<p align="center">
+  <img src="img/how-it-works/04_create_mst.png" width="800"
+       alt="Three map tiles: Delaunay triangulation between building centroids; the same triangulation with road-crossing edges greyed out; the minimum spanning tree in orange">
+</p>
+
+*Figure: CreateMST — Delaunay triangulation of the building centroids, edges crossing a road removed (grey), minimum spanning tree (orange). Data: © GeoBasis-DE/LGB.*
 
 #### Sub-step 4a — Delaunay triangulation
 
@@ -228,19 +303,35 @@ Road segments ≤ 50 m (dead ends, short access roads) are excluded from this ch
 
 `MST_Clustering.py` groups the buildings along the MST subtrees into settlement polygons. The geometry type is an **edge-weighted Minimum Bounding Rectangle (MBR)** — oriented along the dominant building edges, not area-minimising — because the Innenbereich in Germany typically ends directly behind the last building and follows cadastral (predominantly rectangular) parcel shapes.
 
+<p align="center">
+  <img src="img/how-it-works/05_mst_clustering.png" width="800"
+       alt="Buildings grouped into pink oriented rectangles along the main roads of the sample village">
+</p>
+
+*Figure: MST_Clustering — building groups with their oriented rectangles on the sample data (Algorithms 1 and 2 below show how they are built). Data: © GeoBasis-DE/LGB.*
+
 #### Algorithm 1 — Minimum Bounding Rectangle (MBR)
 
 ```
 INPUT: list of building polygons (a group)
 
 1. Extract all edges from building polygons
-2. Weight edges by length
-3. Determine dominant orientation = direction of longest-weighted edge
+   (ignore edges shorter than 20 % of the building's longest edge —
+    arc segments of round building parts)
+2. Group edge directions that differ by less than 10°
+3. Dominant orientation = direction of the group with the largest total edge length
 4. Rotate coordinate system to dominant orientation
 5. Compute axis-aligned bounding box in rotated system
 6. Rotate bounding box back to original orientation
 OUTPUT: oriented MBR polygon
 ```
+
+<p align="center">
+  <img src="img/how-it-works/05a_mbr_algorithm.svg" width="800"
+       alt="Three panels: building footprints; their edges coloured by direction group, the group between 18 and 33 degrees summing to 100 m is dominant; the resulting rectangle aligned to 21 degrees compared with an axis-aligned box">
+</p>
+
+*Figure: Algorithm 1 — the rectangle follows the direction group with the largest total edge length, not the smallest possible area.*
 
 #### Algorithm 2 — MST-based aggregation
 
@@ -260,9 +351,9 @@ INPUT: MST subtree (as sorted list of node pairs),
         IF bcr > local_threshold:
             update G with new members in group_list
         ELSE:
-            keep G unchanged
+            keep G unchanged, then try the pair alone (step b)
 
-   b. ELSE (neither node in any group):
+   b. IF neither node is in a group, OR step a was rejected:
         new_group = {node_a, node_b}
         mbr = MBR(new_group)
         bcr = Σ(building_areas) / area(mbr)
@@ -275,6 +366,13 @@ OUTPUT: list of MBR polygons (one per building cluster)
 ```
 
 The BCR check at each step ensures that only groups dense enough to form a coherent settlement unit are accepted. Adding a distant building that pushes the BCR below the threshold leaves the group unchanged.
+
+<p align="center">
+  <img src="img/how-it-works/05b_mst_aggregation.svg" width="800"
+       alt="Four panels: edge A-C creates a group, edge A-B extends it, edge B-D is rejected because the BCR drops below the threshold, result is one rectangle around A, B and C">
+</p>
+
+*Figure: Algorithm 2 — MST edges are processed shortest first; every extension must keep the group's BCR above the local threshold.*
 
 ---
 
@@ -301,12 +399,19 @@ The result is merged with the cluster polygons from Step 5 before refinement.
 
 `EdgeCatch.py` snaps the MBR polygons to the neighbouring road network. Without this step, cluster boundaries may stop just inside or outside the road, creating thin slivers. The Innenbereich in Germany is generally defined as ending directly at or just behind the last building, often coinciding with the road edge.
 
+<p align="center">
+  <img src="img/how-it-works/07_edge_catch.png" width="800"
+       alt="Two map tiles: rectangles of the building groups, and the same rectangles with the areas added by EdgeCatch up to the roads in blue">
+</p>
+
+*Figure: EdgeCatch — rectangles (pink) and the area EdgeCatch adds to reach the roads (blue); the schematic below shows how. Data: © GeoBasis-DE/LGB.*
+
 #### Sub-step 7a — Pre-filter road segments
 
 To avoid false snapping to distant roads:
 
 ```
-1. Split road network into 10 m segments, assign stable seg_id
+1. Split road network into 20 m segments, assign stable seg_id
 2. Buffer each segment by 25 m
 3. Retain only segments whose buffer intersects a building footprint
 OUTPUT: road_segs_near_buildings
@@ -315,28 +420,39 @@ OUTPUT: road_segs_near_buildings
 #### Sub-step 7b — Snap each rectangle to road network
 
 ```
-INPUT: MBR polygon (rectangle), road_segs_near_buildings
+INPUT: MBR polygon (rectangle), road_segs_near_buildings, city blocks
 
-1. Form shortest polylines from each CORNER of rectangle to road network
-2. Group polylines by orientation (direction angle)
-3. Calculate mean length per orientation group
-4. IF mean_length(group) > 1.5 × mean_length(shortest_group):
-       delete all lines in that group
-   (keeps only lines towards the nearest road; avoids snapping in
-    wrong direction when building is equidistant from multiple roads)
-5. Generate polygons from: remaining lines + rectangle edges + road segment
-6. Delete polygons that are:
-   - more than 5× the area of the rectangle, OR
-   - larger than 4900 m²  (= gap threshold, see Step 8)
-7. Dissolve rectangle + remaining polygons → single-part polygon
-OUTPUT: snapped settlement polygon
+1. Select the city block(s) touched by the rectangle and the road
+   segments of these blocks
+2. Form the shortest line from each CORNER of the rectangle to the road
+3. Filter the corner lines (rules applied in order; at least 2 lines are kept):
+   Rule 1:  delete lines ≥ 70 m
+   Rule 2:  delete lines whose end point lies inside the rectangle spanned
+            by the corners (they point back into the building)
+   Rule 3a: of two parallel lines (± 2°) whose end points are ≤ 5 m apart,
+            delete the longer one
+   Rule 3b: if all 4 lines are parallel (± 5°), keep only the 2 shortest
+   Rule 4:  with ≥ 3 direction groups, delete the group whose mean length is
+            more than 2 × that of the next-longest group
+4. Polygonise: remaining lines + road segments + rectangle edges
+5. Keep polygons that touch the rectangle, clipped to the city block
+6. Keep only polygons smaller than 2 × the rectangle area
+OUTPUT: rectangle and the pieces between rectangle and road
+        (merged with the other clusters, dissolved in later steps)
 ```
+
+<p align="center">
+  <img src="img/how-it-works/07_edgecatch_schematic.svg" width="800"
+       alt="Three panels: shortest lines from the rectangle corners to two roads, one parallel longer line removed; polygonised pieces between rectangle and roads; the rectangle extended up to the road">
+</p>
+
+*Figure: EdgeCatch — corner lines connect the rectangle to the road; the enclosed pieces extend the settlement polygon up to the road.*
 
 ---
 
 ### Step 8 — ErodeEmptyAreas: Building-Free Void Removal
 
-`ErodeEmptyAreas.py` removes areas within the settlement polygon where no buildings stand — parks, open fields, or water bodies enclosed by building clusters. Without this step, such voids inflate the settlement footprint and cause GapClose (Step 9) to bridge gaps across open space that should remain open.
+`ErodeEmptyAreas.py` removes building-free protrusions at the settlement fringe — lobes of the settlement polygon without buildings that hang off the built area by a narrow connection (e.g. a field enclosed by the rectangle of an edge building). Without this step, such protrusions inflate the settlement footprint and cause GapClose (Step 9) to bridge gaps across open space that should remain open. Building-free areas enclosed by built settlement (parks, courtyards) are kept.
 
 ```
 INPUT: settlement polygon (output of EdgeCatch merge), building footprints
@@ -355,15 +471,29 @@ INPUT: settlement polygon (output of EdgeCatch merge), building footprints
    difference(settlement, buffer_union) → empty areas
    Keep only areas ≥ 500 m²
 
-5. Contact-fraction filter: measure what fraction of each void's perimeter
-   runs along the settlement OUTER boundary (interior ring lines excluded).
-   Only voids with contact < 20% are candidates for removal.
-   → Voids with ≥ 20% contact (fringe features) are kept.
-   → Interior voids (0% contact) are also kept.
+5. Protrusion filter:
+   a. Temporarily subtract all voids from the settlement; split the
+      remainder into parts. Parts containing a building = built settlement.
+   b. Split each void's perimeter into
+        building contact — borders a built part
+        void contact     — borders another void
+        free edge        — everything else (open land at the outer
+                           boundary, or remainder parts without buildings)
+   c. Remove the void if building contact < 20 % AND free edge ≥ 80 %
+      (both thresholds are parameters and depend on the local situation)
+   → Interior voids (100 % building contact) are kept.
+   → Voids between built parts and fringe bays are kept.
 
-6. Subtract qualifying voids from settlement
-OUTPUT: settlement polygon with building-free isolated voids removed
+6. Subtract the selected voids from the original settlement
+OUTPUT: settlement polygon with building-free protrusions removed
 ```
+
+<p align="center">
+  <img src="img/how-it-works/08_protrusion_filter.svg" width="700"
+       alt="Settlement polygon with building buffers and three voids: an interior void with 100 percent building contact is kept, a building-free lobe with 16 percent building contact is cut out, a fringe bay with 70 percent building contact is kept">
+</p>
+
+*Figure: ErodeEmptyAreas protrusion filter — only voids with building contact < 20 % and free edge ≥ 80 % are removed.*
 
 The buffer distance scales with `sqrt(building_area)`, giving each building a protection zone proportional to its geometric radius. In dense clusters the buffer zones merge, naturally covering the built-up area; isolated buildings still protect a 10–100 m surroundings.
 
@@ -372,6 +502,13 @@ The buffer distance scales with `sqrt(building_area)`, giving each building a pr
 ### Step 9 — GapClose: Holes and Gap Closing
 
 `GapClose.py` corrects two classes of topological defects in the settlement polygon:
+
+<p align="center">
+  <img src="img/how-it-works/09_gap_close.png" width="800"
+       alt="Two map tiles: the settlement before GapClose, and after it with the added holes and gaps in orange">
+</p>
+
+*Figure: GapClose — the settlement before and after; orange marks all area added by hole and gap closing. Data: © GeoBasis-DE/LGB.*
 
 #### Sub-step 9a — Close holes inside settlement polygons
 
@@ -398,23 +535,33 @@ Narrow gaps between neighbouring polygons (e.g. a road that was cut out, or a mi
 ```
 INPUT: dissolved settlement polygons
 
-1. Buffer outline of dissolved polygons by +15 m   →  layer A
-2. Buffer outline of layer A by +15 m              →  layer B
-3. Subtract buffered outlines from layer A         →  gap polygons
+1. Buffer settlement by +15 m, dissolved          →  layer A
+   (clusters less than 30 m apart merge)
+2. Buffer the outer boundary line of A by 15.3 m   →  edge zone
+3. A minus edge zone                               →  settlement with bridged gaps
+4. Minus the original settlement polygons          →  gap polygons
 
-4. Delete gap polygons < 200 m²
+5. Delete gap polygons < 200 m²
    (artefacts from corners/buffering)
 
-5. FOR each remaining gap polygon:
-   Filter 1 (area ≤ max_gap_size, ≥ 70% border overlap):
+6. FOR each remaining gap polygon:
+   Filter 1 (area < max_gap_size, ≥ 70% border overlap):
        ADD gap to settlement  (parcel surrounded on ≥ 3 sides)
    Filter 2 (≥ 90% border overlap, any size):
        ADD gap to settlement  (almost fully enclosed)
-   Filter 3 / compact large gaps (area ≥ max_gap_size, < 70 m longest edge):
-       tessellate into triangles; ADD gap if all triangles are narrow
+   Filter 3 / compact large gaps (area ≥ max_gap_size, 70–90% border overlap):
+       densify outline (10 m), tessellate into triangles;
+       ADD every triangle whose longest side is < 70 m
 ```
 
 The 70 m threshold for the compact-gap filter is based on German planning guidance (Bukies et al. 2009): an undeveloped strip of 50–60 m is generally considered inside the Innenbereich; even 90 m does not necessarily interrupt the built-up area.
+
+<p align="center">
+  <img src="img/how-it-works/09_gapclose_double_buffer.svg" width="800"
+       alt="Top row: two settlement clusters 20 m apart, buffered by 15 m, shrunk back with the bridge remaining, and the resulting gap candidate. Bottom row: the three gap filters, a small gap with at least 70 percent contact, a gap of any size with at least 90 percent contact, and a large gap where only the narrow triangles are added">
+</p>
+
+*Figure: GapClose — gap candidates from the double buffer (top) and the three filters that decide which gaps are added (bottom).*
 
 ---
 

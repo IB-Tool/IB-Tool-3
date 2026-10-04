@@ -33,6 +33,17 @@ Steps:
 4. Runs the full test suite inside the container with coverage reporting
 5. Verifies `coverage.xml` exists and strips container-absolute paths
 6. Uploads the coverage report to Codecov
+7. Fails the job if the test step failed (the test step itself runs with
+   `continue-on-error`, so coverage is uploaded even for failing runs)
+
+```mermaid
+flowchart LR
+    T["push to master/main<br/>or pull request"] --> C[Checkout] --> BX[Set up<br/>Docker Buildx] --> BI[Build<br/>Docker image]
+    BI --> RT["Run tests<br/>with coverage<br/>(continue-on-error)"] --> VC[Verify coverage.xml,<br/>fix paths] --> UP[Upload to<br/>Codecov]
+    UP --> F{Tests<br/>failed?}
+    F -- yes --> X[Job fails]
+    F -- no --> OK[Job passes]
+```
 
 ```yaml
 name: CI
@@ -112,6 +123,14 @@ Steps:
 | Style linting | `flake8` | PEP 8 compliance |
 | Security scanning | `bandit -r . -ll` | Common Python security issues |
 | Secret detection | `detect-secrets` | Accidentally committed credentials |
+
+```mermaid
+flowchart LR
+    T["push to master/main<br/>or pull request"] --> C[Checkout] --> PY[Set up<br/>Python 3.11] --> I[Install flake8,<br/>bandit, detect-secrets]
+    I --> V[Structure + metadata<br/>validator] --> FL[flake8] --> BA[bandit] --> DS[detect-secrets]
+```
+
+*Single job `validate`; the steps run in sequence and the first failing step stops the job.*
 
 `Testdaten/` contains sample GIS data for manual QA and demo runs (see
 [quickstart.md → Sample Data](quickstart.md#sample-data)); it is not consumed

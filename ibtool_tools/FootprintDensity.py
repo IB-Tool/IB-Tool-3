@@ -8,9 +8,10 @@ density threshold for the processing pipeline.
 Public API
 ----------
 calc_footprint_density(InputBdg, InputStrNetwork, Buffer, GlobalThreshold, Ext,
-                       MinBdgCount, Partition)
+                       MinBdgCount, Partition, debug_mode, workspace_path)
 footprint_density(HU_Input, Bloecke, footprint_density_threshold)
-identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold)
+identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
+                      debug_mode, workspace_path)
 """
 from qgis.core import (
     QgsVectorLayer,
@@ -29,6 +30,7 @@ try:
     # from ..helpers.system_utils import save_temp_layer_to_gpkg
     from ..helpers.message import msg
     from ..helpers.logger import Logger
+    from ..helpers.debug_utils import save_debug_layer
 except ImportError:
     # Fallback for test context or direct execution
 
@@ -42,10 +44,14 @@ except ImportError:
         def log(message, level="INFO"):
             print(f"[{level}] {message}")
 
+    def save_debug_layer(*_args, **_kwargs):
+        """Fallback: no debug output outside the plugin package"""
+        return None
+
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
 # ---------------------------------------------------------------------------
-_DEBUG_TOOL_NAME = "FootprintDensity"
+_DEBUG_TOOL_NAME = "02a_FootprintDensity"
 
 
 # ---------------------------------------------------------------------------
@@ -172,7 +178,8 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
 # ---------------------------------------------------------------------------
 
 def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshold=18, Ext='local',
-                           MinBdgCount=20, Partition=None):
+                           MinBdgCount=20, Partition=None, debug_mode=False,
+                           workspace_path=None):
     """
     Calculates the degree of overlap of the given building footprints on the city blocks
     constructed of the given road network.
@@ -184,6 +191,9 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
     :param Ext: Extent of area to calculate ('local' or 'global')
     :param MinBdgCount: Minimum building count to consider
     :param Partition: Partition layer for 'global' extent
+    :param debug_mode: If True, saves the inner blocks with their overlap to
+        ``workspace_path/02a_FootprintDensity/`` (Defaults to False)
+    :param workspace_path: Base path for debug output
     :return: Global overlap value in percent
     """
     if Ext == 'global':
@@ -250,6 +260,9 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
     if result > 5:
         overlap_sum = 0
         Blocks_red = footprint_density(InputBdg, Inner_Blocks, 0)
+        if debug_mode and workspace_path:
+            save_debug_layer(Blocks_red, _DEBUG_TOOL_NAME, f"{Ext}_block_overlap",
+                             workspace_path)
 
         for feature in Blocks_red.getFeatures():
             overlap_sum += feature["OVERLAP"]  # Assuming OVERLAP field exists
@@ -356,11 +369,15 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
     return joined_layer
 
 
-def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
+def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
+                          debug_mode=False, workspace_path=None):
     """
     :param HU_Input: Input layer of building footprints (QGIS vector layer)
     :param Bloecke: Input layer of city blocks (QGIS vector layer)
     :param footprintdensitythreshold: Threshold for footprint density
+    :param debug_mode: If True, saves the blocks with their OVERLAP and the dense
+        blocks to ``workspace_path/02a_FootprintDensity/`` (Defaults to False)
+    :param workspace_path: Base path for debug output
     :return: City blocks and related buildings below given footprintdensitythreshold
 
     - Calculates the overlap ratio of the sum of building footprint areas to the area of each city block
@@ -427,6 +444,8 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
          'FIELD_PRECISION': 0,
          'FORMULA': ' "FOOTPRINT_AREA_sum" / "SHAPE_AREA" * 100',
          'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(diss_overlap, _DEBUG_TOOL_NAME, "block_overlap", workspace_path)
 
     # Filter blocks below the footprint density threshold
     filtered_layer = processing.run(
@@ -435,5 +454,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold):
             "INPUT": diss_overlap,
             "EXPRESSION": '\"OVERLAP\" >= {}'.format(footprintdensitythreshold),
             'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+    if debug_mode and workspace_path:
+        save_debug_layer(filtered_layer, _DEBUG_TOOL_NAME, "dense_blocks", workspace_path)
 
     return filtered_layer

@@ -3,12 +3,18 @@
 [![CI](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/ci.yml/badge.svg)](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/ci.yml)
 [![QGIS Plugin CI](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml/badge.svg)](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml)
 <a href="https://codecov.io/gh/IB-Tool/IB-Tool-3" > 
- <img src="https://codecov.io/gh/IB-Tool/IB-Tool-3/graph/badge.svg?token=XGTC33WCFB"/> 
+ <img src="https://codecov.io/gh/IB-Tool/IB-Tool-3/graph/badge.svg?token=XGTC33WCFB" alt="Code coverage"/> 
  </a>
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 ![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 
+<p align="center">
+  <img src="docs/img/readme/01_before_after.png" width="800"
+       alt="Sample village shown twice: left the input buildings and roads, right the same with the derived Innenbereich in pink beneath them">
+</p>
+
+*IB-Tool 3 derives the Innenbereich (§ 34 BauGB) from building footprints and the road network. Data: © GeoBasis-DE/LGB.*
 
 ## Quick Start
 
@@ -183,7 +189,7 @@ The plugin processes each partition through a fixed sequence of steps:
 5. **MST_Clustering** — groups buildings into oriented MBRs, validated by local BCR threshold
 6. **AddSingleBuilding** — adds bounding rectangles for large isolated buildings (> 300 m²)
 7. **EdgeCatch** — snaps boundaries to road network (nearest road within 25 m)
-8. **ErodeEmptyAreas** — removes building-free voids (≥ 500 m²) enclosed within the settlement polygon
+8. **ErodeEmptyAreas** — removes building-free protrusions (voids ≥ 500 m² that barely touch the built settlement) at the settlement fringe
 9. **GapClose** — closes enclosed holes above area threshold; bridges narrow gaps at the fringe
 10. **PatchRemove** — removes splinter areas below size and building-count thresholds
 

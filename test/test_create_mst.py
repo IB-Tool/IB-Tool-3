@@ -328,3 +328,39 @@ class TestCreateMST:
                 f"Feature {feat.id()}: geometry must not be empty"
             assert geom.isGeosValid(), \
                 f"Feature {feat.id()}: geometry must be GEOS-valid"
+
+
+class TestCreateMSTDebugOutput:
+    """Debug checkpoints of calculate_mst (debug_mode / workspace_path)."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.qgis_app, cls.canvas, cls.iface, cls.parent = get_qgis_app()
+        cls.fixtures = MSTTestFixtures()
+
+    def test_debug_mode_writes_checkpoints(self, tmp_path):
+        """Full triangulation, processed streets, filtered triangulation, MST."""
+        result = calculate_mst(self.fixtures.create_simple_building_layer(),
+                               self.fixtures.create_simple_street_layer(),
+                               self.fixtures.create_test_crs(),
+                               debug_mode=True, workspace_path=str(tmp_path))
+
+        assert result is not None
+        folder = tmp_path / "02b_CreateMST"
+        names = sorted(p.name for p in folder.glob("*.gpkg"))
+        assert names == ["001_delaunay_triangulation.gpkg",
+                         "002_streets_without_dead_ends.gpkg",
+                         "003_triangulation_street_filtered.gpkg",
+                         "004_mst.gpkg"]
+        full = QgsVectorLayer(str(folder / "001_delaunay_triangulation.gpkg"), "f", "ogr")
+        cut = QgsVectorLayer(str(folder / "003_triangulation_street_filtered.gpkg"), "c", "ogr")
+        # The full triangulation is saved before the street filter deletes edges
+        assert full.featureCount() >= cut.featureCount()
+
+    def test_no_debug_output_by_default(self, tmp_path):
+        calculate_mst(self.fixtures.create_simple_building_layer(),
+                      self.fixtures.create_simple_street_layer(),
+                      self.fixtures.create_test_crs(),
+                      workspace_path=str(tmp_path))
+
+        assert not (tmp_path / "02b_CreateMST").exists()

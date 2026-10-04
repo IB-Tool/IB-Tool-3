@@ -4,15 +4,17 @@
 For each settlement polygon, building footprints are buffered by
 ``clamp(sqrt(building_area), MIN_BUFFER_M, MAX_BUFFER_M)`` metres. Areas
 inside the settlement that lie outside all building buffers are treated as
-building-free voids. Only voids where less than
-``BOUNDARY_CONTACT_THRESHOLD_PCT`` percent of their boundary coincides with
-the settlement outer boundary are removed; voids with equal or higher contact
-are kept.
+building-free voids. Only building-free protrusions are removed: the voids
+are temporarily subtracted from the settlement, and a void is removed when
+less than ``MAX_BUILDING_CONTACT_PCT`` percent of its perimeter borders built
+remainder parts (parts containing a building) and at least
+``MIN_FREE_EDGE_PCT`` percent borders neither a built part nor another void.
 
 Public API
 ----------
 erode_empty_areas(input_layer, buildings_layer, min_empty_area, min_buffer_m,
-                  max_buffer_m, contact_threshold_pct, workspace_path, debug_mode)
+                  max_buffer_m, max_building_contact_pct, min_free_edge_pct,
+                  workspace_path, debug_mode)
 """
 
 import math
@@ -24,6 +26,7 @@ from qgis.core import (
     QgsGeometry,
     QgsWkbTypes,
     QgsProcessing,
+    QgsSpatialIndex,
 )
 
 from ..helpers.logger import Logger
@@ -55,16 +58,18 @@ TOPOLOGY_GRID_SIZE = 0.001
 void slivers to zero, producing degenerate output geometries. 1 mm is coarse
 enough to remove floating-point noise while preserving meaningful voids."""
 
-BOUNDARY_CONTACT_THRESHOLD_PCT = 20.0
-"""Maximum fraction (%) of a void's boundary touching the settlement outer
-boundary for the void to be removed. Only voids whose contact is strictly
-below this threshold are eroded away; voids with higher contact are kept."""
+MAX_BUILDING_CONTACT_PCT = 20.0
+"""Maximum share (%) of a void's perimeter that may border built settlement
+parts for the void to be removed. Built parts are the pieces of
+"settlement minus all voids" that contain at least one building."""
 
-_BOUNDARY_SEGMENT_M = 10.0
-"""Segment length (m) for splitting void boundaries during contact measurement."""
+MIN_FREE_EDGE_PCT = 80.0
+"""Minimum share (%) of a void's perimeter that must border neither a built
+settlement part nor another void (i.e. open land at the outer boundary, or
+unbuilt remainder pieces) for the void to be removed."""
 
 _BOUNDARY_SNAP_M = 0.5
-"""Buffer (m) around the settlement boundary to catch near-touching segments."""
+"""Buffer (m) around neighbouring geometries to catch near-touching edges."""
 
 
 # ---------------------------------------------------------------------------
@@ -107,187 +112,128 @@ def _build_buffer_layer(sel_buildings, min_buffer_m, max_buffer_m):
     return buf_layer
 
 
-def _settlement_outer_buffer(settlement_layer, void_layer):
-    """Build a buffered strip around the settlement's outer boundary only.
-
-    Deletes interior rings before converting to lines so that inner-ring edges
-    (which border existing holes) are excluded from the reference boundary.
-
-    Returns:
-        QgsVectorLayer (Polygon) — thin buffer strip around the outer boundary.
-    """
-    settlement_no_holes = safe_processing_run("native:deleteholes", {
-        'INPUT': settlement_layer,
-        'MIN_AREA': 0,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    settlement_fixed = safe_processing_run("native:fixgeometries", {
-        'INPUT': settlement_no_holes,
-        'METHOD': 1,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-    void_fixed = safe_processing_run("native:fixgeometries", {
-        'INPUT': void_layer,
-        'METHOD': 1,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    settlement_diff = safe_processing_run("native:difference", {
-        'INPUT': settlement_fixed,
-        'OVERLAY': void_fixed,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        'GRID_SIZE': TOPOLOGY_GRID_SIZE,
-    })['OUTPUT']
-
-    settlement_lines = safe_processing_run("native:polygonstolines", {
-        'INPUT': settlement_diff,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    return safe_processing_run("native:buffer", {
-        'INPUT': settlement_lines,
-        'DISTANCE': _BOUNDARY_SNAP_M,
-        'SEGMENTS': 5,
-        'END_CAP_STYLE': 0,
-        'JOIN_STYLE': 0,
-        'MITER_LIMIT': 2,
-        'DISSOLVE': False,
-        'SEPARATE_DISJOINT': False,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+def _polygon_union(layer):
+    """Union of all non-empty geometries in ``layer`` (None when there are none)."""
+    geoms = [f.geometry() for f in layer.getFeatures()
+             if f.geometry() and not f.geometry().isNull() and not f.geometry().isEmpty()]
+    return QgsGeometry.unaryUnion(geoms) if geoms else None
 
 
-def _void_split_lines(void_with_fid):
-    """Convert void polygons to length-annotated boundary line segments.
+def _built_parts(settlement_geom, void_geoms, buildings_layer):
+    """Return the union of the remainder parts that contain a building.
+
+    The voids are subtracted from the settlement only temporarily; the
+    remainder is split into its parts and every part that intersects at
+    least one building counts as built settlement.
 
     Returns:
-        QgsVectorLayer of short line segments with ``fid_copy`` and
-        ``length_1`` (total perimeter of the parent void) attributes.
+        QgsGeometry, or None when no part contains a building.
     """
-    void_lines = safe_processing_run("native:polygonstolines", {
-        'INPUT': void_with_fid,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-    void_lines_single = safe_processing_run("native:multiparttosingleparts", {
-        'INPUT': void_lines,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-    void_lines_length = safe_processing_run("qgis:fieldcalculator", {
-        'INPUT': void_lines_single,
-        'FIELD_NAME': 'length_1',
-        'FIELD_TYPE': 0,
-        'FIELD_LENGTH': 20,
-        'FIELD_PRECISION': 10,
-        'NEW_FIELD': True,
-        'FORMULA': '$length',
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-    return safe_processing_run("native:splitlinesbylength", {
-        'INPUT': void_lines_length,
-        'LENGTH': _BOUNDARY_SEGMENT_M,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    remainder = settlement_geom.difference(QgsGeometry.unaryUnion(void_geoms))
+    if remainder is None or remainder.isEmpty():
+        return None
+
+    index = QgsSpatialIndex()
+    building_geoms = {}
+    for feat in buildings_layer.getFeatures():
+        geom = feat.geometry()
+        if geom and not geom.isNull() and not geom.isEmpty():
+            building_geoms[feat.id()] = geom
+            index.addFeature(feat)
+
+    built = []
+    for part in remainder.asGeometryCollection():
+        candidates = index.intersects(part.boundingBox())
+        if any(part.intersects(building_geoms[fid]) for fid in candidates):
+            built.append(part)
+    return QgsGeometry.unaryUnion(built) if built else None
 
 
-def _contact_fraction_filter(settlement_layer, void_layer, threshold_pct):
-    """Return void polygons whose boundary-contact with the settlement outer
-    boundary is strictly below threshold_pct.
+def _edge_shares(void_geom, built_strip, other_voids_strip):
+    """Split a void's perimeter into building contact, void contact and free edge.
 
-    Measures the fraction of each void's perimeter that coincides with the
-    settlement polygon's exterior boundary only. Interior ring lines (edges
-    of existing holes) are excluded by deleting holes from the settlement before
-    converting to lines -- otherwise voids inside existing holes would show high
-    contact with those inner-ring lines and would never be selected for removal.
+    Args:
+        void_geom: Void polygon (QgsGeometry).
+        built_strip: Built parts buffered by ``_BOUNDARY_SNAP_M`` (or None).
+        other_voids_strip: Other voids buffered by ``_BOUNDARY_SNAP_M`` (or None).
 
-    Only voids whose contact fraction is strictly below the threshold are
-    returned as polygon features for removal. Interior voids (0 % contact)
-    never appear in the overlap result and are never returned.
+    Returns:
+        Tuple ``(building_pct, void_pct, free_pct)`` of the full perimeter
+        (outer and inner rings).
+    """
+    edge = QgsGeometry(void_geom.constGet().boundary())
+    perimeter = edge.length()
+    if perimeter <= 0:
+        return 0.0, 0.0, 0.0
+
+    building_len = 0.0
+    rest = edge
+    if built_strip is not None:
+        building_len = edge.intersection(built_strip).length()
+        rest = edge.difference(built_strip)
+    void_len = 0.0
+    if other_voids_strip is not None and not rest.isEmpty():
+        void_len = rest.intersection(other_voids_strip).length()
+    free_len = max(0.0, perimeter - building_len - void_len)
+    return (building_len / perimeter * 100, void_len / perimeter * 100,
+            free_len / perimeter * 100)
+
+
+def _protrusion_filter(settlement_layer, void_layer, buildings_layer,
+                       max_building_contact_pct, min_free_edge_pct):
+    """Return the voids that are building-free protrusions of the settlement.
+
+    The voids are temporarily subtracted from the settlement; remainder parts
+    containing a building are the built settlement. A void is returned for
+    removal when less than ``max_building_contact_pct`` of its perimeter
+    borders built parts AND at least ``min_free_edge_pct`` borders neither
+    built parts nor another void. Interior voids (fully surrounded by built
+    settlement) and voids between built parts are therefore kept.
 
     Args:
         settlement_layer: Settlement polygon (``QgsVectorLayer``).
         void_layer: Building-free void polygons (singlepart ``QgsVectorLayer``).
-        threshold_pct: Contact fraction threshold in percent. Only voids with
-            contact strictly below this value are returned for removal.
+        buildings_layer: Building footprints within the settlement.
+        max_building_contact_pct: Building contact must be strictly below this.
+        min_free_edge_pct: Free edge must be at least this.
 
     Returns:
-        ``QgsVectorLayer`` (Polygon) containing void polygons whose
-        boundary-contact fraction with the settlement outer boundary is
-        strictly below ``threshold_pct``. Returns an empty polygon layer when
-        no voids qualify.
+        ``QgsVectorLayer`` (Polygon, memory) with the voids to remove; empty
+        when no void qualifies.
     """
-    # Step 1: Assign stable fid_copy to void POLYGONS before converting to lines
-    # so that IDs survive all intermediate processing steps and can be used
-    # to select the original polygon features at the end.
-    void_with_fid = safe_processing_run("native:fieldcalculator", {
-        'INPUT': void_layer,
-        'FIELD_NAME': 'fid_copy',
-        'FIELD_TYPE': 0,
-        'FIELD_LENGTH': 0,
-        'FIELD_PRECISION': 0,
-        'FORMULA': '@id',
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    crs_id = void_layer.crs().authid()
+    out = QgsVectorLayer(f"Polygon?crs={crs_id}", "voids_to_remove", "memory")
 
-    # Steps 2-5: Settlement outer boundary buffer + void boundary split lines
-    settlement_buff = _settlement_outer_buffer(settlement_layer, void_layer)
-    split_lines = _void_split_lines(void_with_fid)
+    settlement_geom = _polygon_union(settlement_layer)
+    voids = [f.geometry() for f in void_layer.getFeatures()
+             if f.geometry() and not f.geometry().isNull() and not f.geometry().isEmpty()]
+    if settlement_geom is None or not voids:
+        return out
 
-    # Step 6: Select void segments that touch the settlement outer boundary
-    overlapping = safe_processing_run("native:extractbylocation", {
-        'INPUT': split_lines,
-        'PREDICATE': [0],  # intersects
-        'INTERSECT': settlement_buff,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    built = _built_parts(settlement_geom, voids, buildings_layer)
+    built_strip = built.buffer(_BOUNDARY_SNAP_M, 5) if built is not None else None
+    void_strips = [v.buffer(_BOUNDARY_SNAP_M, 5) for v in voids]
 
-    if overlapping.featureCount() == 0:
+    selected = []
+    for i, void in enumerate(voids):
+        others = [s for j, s in enumerate(void_strips)
+                  if j != i and s.boundingBoxIntersects(void_strips[i])]
+        others_strip = QgsGeometry.unaryUnion(others) if others else None
+        building_pct, void_pct, free_pct = _edge_shares(void, built_strip, others_strip)
+        remove = building_pct < max_building_contact_pct and free_pct >= min_free_edge_pct
         Logger.log(
-            "_contact_fraction_filter: no void boundary segments touch settlement "
-            "outer boundary -> all voids are interior, none qualify for removal.",
+            f"ErodeEmptyAreas: void {i}: building {building_pct:.1f} %, "
+            f"void {void_pct:.1f} %, free {free_pct:.1f} % -> "
+            f"{'removed' if remove else 'kept'}",
             level="INFO",
         )
-        return QgsVectorLayer(
-            f"Polygon?crs={void_layer.crs().authid()}", "empty", "memory")
+        if remove:
+            feat = QgsFeature()
+            feat.setGeometry(void)
+            selected.append(feat)
 
-    # Step 7: Sum overlapping segment lengths per void (length_2)
-    dissolved_overlap = safe_processing_run("qgis:dissolve", {
-        'INPUT': overlapping,
-        'FIELD': ['fid_copy'],
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    with_length_2 = safe_processing_run("qgis:fieldcalculator", {
-        'INPUT': dissolved_overlap,
-        'FIELD_NAME': 'length_2',
-        'FIELD_TYPE': 0,
-        'FIELD_LENGTH': 20,
-        'FIELD_PRECISION': 10,
-        'NEW_FIELD': True,
-        'FORMULA': '$length',
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    # Step 8: Find fid_copy values whose contact fraction is below the threshold
-    qualifying_lines = safe_processing_run("qgis:extractbyexpression", {
-        'INPUT': with_length_2,
-        'EXPRESSION': f'("length_2" / "length_1") * 100 < {threshold_pct}',
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
-
-    if qualifying_lines.featureCount() == 0:
-        return QgsVectorLayer(
-            f"Polygon?crs={void_layer.crs().authid()}", "empty", "memory")
-
-    # Step 9: Select matching POLYGON features from void_with_fid using the
-    # qualifying fid_copy values -- return polygons, not line segments.
-    fid_values = [f['fid_copy'] for f in qualifying_lines.getFeatures()]
-    fid_list = ','.join(str(int(v)) for v in fid_values)
-    return safe_processing_run("qgis:extractbyexpression", {
-        'INPUT': void_with_fid,
-        'EXPRESSION': f'"fid_copy" IN ({fid_list})',
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    out.dataProvider().addFeatures(selected)
+    return out
 
 
 def _dissolve_union(input_layer, debug_mode=False, workspace_path=None):
@@ -455,18 +401,11 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
                       min_empty_area=MIN_EMPTY_AREA_M2,
                       min_buffer_m=MIN_BUFFER_M,
                       max_buffer_m=MAX_BUFFER_M,
-                      contact_threshold_pct=BOUNDARY_CONTACT_THRESHOLD_PCT,
+                      max_building_contact_pct=MAX_BUILDING_CONTACT_PCT,
+                      min_free_edge_pct=MIN_FREE_EDGE_PCT,
                       workspace_path=None,
                       debug_mode=False):
     """Remove building-free voids from a settlement polygon.
-
-    Selects building footprints within ``input_layer``, buffers each by
-    ``clamp(sqrt(building_area), min_buffer_m, max_buffer_m)`` metres, then
-    identifies uncovered areas (voids) inside the settlement. A void is only
-    removed if less than ``contact_threshold_pct`` percent of its boundary
-    coincides with the settlement's outer boundary -- voids at or above the
-    threshold border the settlement significantly and are left intact.
-
     The input layer's attribute schema is preserved in the output.
 
     Requires QGIS >= 3.20. Both layers must use a metric CRS (metres).
@@ -481,10 +420,12 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
             Default: ``MIN_BUFFER_M`` (10 m).
         max_buffer_m: Maximum per-building buffer distance (m).
             Default: ``MAX_BUFFER_M`` (100 m).
-        contact_threshold_pct: Maximum share (%) of a void's boundary that may
-            touch the settlement outer boundary for the void to be removed.
-            Voids with equal or higher contact are kept.
-            Default: ``BOUNDARY_CONTACT_THRESHOLD_PCT`` (20 %).
+        max_building_contact_pct: A void is removed only when less than this
+            share (%) of its perimeter borders built settlement parts.
+            Default: ``MAX_BUILDING_CONTACT_PCT`` (20 %).
+        min_free_edge_pct: A void is removed only when at least this share (%)
+            of its perimeter borders neither built parts nor another void.
+            Default: ``MIN_FREE_EDGE_PCT`` (80 %).
         workspace_path: Absolute path for debug layer output. Ignored when
             ``debug_mode`` is ``False``.
         debug_mode: When ``True``, saves intermediate layers to
@@ -609,20 +550,21 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
             )
             return fixed_input
 
-        # --- Step 4b: Contact-fraction filter ---
-        # Only remove voids whose boundary touches the settlement outer boundary
-        # by less than contact_threshold_pct %. Voids at or above this threshold
-        # border the settlement significantly and are left intact.
+        # --- Step 4b: Protrusion filter ---
+        # Only remove building-free protrusions: voids that border built
+        # settlement parts by less than max_building_contact_pct % and are free
+        # (no built part, no other void) along at least min_free_edge_pct %.
         Logger.log(
-            f"ErodeEmptyAreas: Step 4b - contact fraction filter "
-            f"(threshold={contact_threshold_pct}%)...",
+            f"ErodeEmptyAreas: Step 4b - protrusion filter "
+            f"(building contact < {max_building_contact_pct}%, "
+            f"free edge >= {min_free_edge_pct}%)...",
             level="INFO",
         )
-        voids_to_remove = _contact_fraction_filter(
-            fixed_input, filtered_empty, contact_threshold_pct)
+        voids_to_remove = _protrusion_filter(
+            fixed_input, filtered_empty, sel_buildings,
+            max_building_contact_pct, min_free_edge_pct)
         Logger.log(
-            f"ErodeEmptyAreas: {voids_to_remove.featureCount()} void(s) to remove "
-            f"(contact < {contact_threshold_pct}%); "
+            f"ErodeEmptyAreas: {voids_to_remove.featureCount()} void(s) to remove; "
             f"{filtered_empty.featureCount() - voids_to_remove.featureCount()} kept.",
             level="INFO",
         )
@@ -632,7 +574,7 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
 
         if voids_to_remove.featureCount() == 0:
             Logger.log(
-                "ErodeEmptyAreas: no voids qualify after contact filter, "
+                "ErodeEmptyAreas: no voids qualify after protrusion filter, "
                 "returning input unchanged.",
                 level="INFO",
             )

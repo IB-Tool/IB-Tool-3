@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 400" width="920" height="400" font-family="sans-serif">
+<rect x="0" y="0" width="920" height="400" fill="#FFFFFF"/>
+<text x="15.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">1  A–C (7 m)</text>
+<polygon points="32.6,114.2 67.5,105.5 83.7,170.6 48.9,179.3" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="55.2" y1="120.6" x2="63.0" y2="162.2" stroke="#F7561A" stroke-width="3" stroke-linecap="round" />
+<line x1="55.2" y1="120.6" x2="104.6" y2="118.0" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<line x1="104.6" y1="118.0" x2="226.8" y2="159.6" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<polygon points="42.9,135.7 73.2,128.2 67.5,105.5 37.2,113.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="55.2" y="125.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">A</text>
+<polygon points="92.3,130.7 120.5,125.8 116.9,105.3 88.7,110.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="104.6" y="123.0" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">B</text>
+<polygon points="50.8,178.8 82.8,167.8 75.2,145.6 43.2,156.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="63.0" y="167.2" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">C</text>
+<polygon points="223.6,170.3 238.0,159.1 230.0,148.9 215.6,160.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="226.8" y="164.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">D</text>
+<text x="15.0" y="272.0" font-size="20" text-anchor="start" font-weight="bold" fill="#007D85">✓</text>
+<text x="39.0" y="270.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">new group: BCR 63 % &gt; t</text>
+<text x="240.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">2  A–B (7 m)</text>
+<polygon points="260.2,111.2 340.4,97.0 352.5,165.3 272.2,179.4" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="280.2" y1="120.6" x2="288.0" y2="162.2" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<line x1="280.2" y1="120.6" x2="329.6" y2="118.0" stroke="#F7561A" stroke-width="3" stroke-linecap="round" />
+<line x1="329.6" y1="118.0" x2="451.8" y2="159.6" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<polygon points="267.9,135.7 298.2,128.2 292.5,105.5 262.2,113.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="280.2" y="125.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">A</text>
+<polygon points="317.3,130.7 345.5,125.8 341.9,105.3 313.7,110.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="329.6" y="123.0" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">B</text>
+<polygon points="275.8,178.8 307.8,167.8 300.2,145.6 268.2,156.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="288.0" y="167.2" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">C</text>
+<polygon points="448.6,170.3 463.0,159.1 455.0,148.9 440.6,160.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="451.8" y="164.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">D</text>
+<text x="240.0" y="272.0" font-size="20" text-anchor="start" font-weight="bold" fill="#007D85">✓</text>
+<text x="264.0" y="270.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">extend group: BCR 37 % &gt; t</text>
+<text x="465.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">3  B–D (39 m)</text>
+<polygon points="485.2,111.2 565.4,97.0 577.5,165.3 497.2,179.4" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="485.2,111.2 673.7,77.9 689.5,167.5 501.0,200.8" fill="none" stroke="#3C3C3C" stroke-width="2" stroke-linejoin="round" stroke-dasharray="7 5"/>
+<line x1="505.2" y1="120.6" x2="513.0" y2="162.2" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<line x1="505.2" y1="120.6" x2="554.6" y2="118.0" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<line x1="554.6" y1="118.0" x2="676.8" y2="159.6" stroke="#3C3C3C" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5"/>
+<polygon points="492.9,135.7 523.2,128.2 517.5,105.5 487.2,113.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="505.2" y="125.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">A</text>
+<polygon points="542.3,130.7 570.5,125.8 566.9,105.3 538.7,110.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="554.6" y="123.0" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">B</text>
+<polygon points="500.8,178.8 532.8,167.8 525.2,145.6 493.2,156.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="513.0" y="167.2" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">C</text>
+<polygon points="673.6,170.3 688.0,159.1 680.0,148.9 665.6,160.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="676.8" y="164.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">D</text>
+<text x="465.0" y="272.0" font-size="20" text-anchor="start" font-weight="bold" fill="#3C3C3C">✗</text>
+<text x="489.0" y="270.0" font-size="14" text-anchor="start" font-weight="bold" fill="#212121">rejected:</text>
+<text x="489.0" y="292.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">A+B+C+D: BCR 14 % &lt; t</text>
+<text x="489.0" y="314.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">B+D alone: BCR 7 % &lt; t</text>
+<text x="690.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">4  Result</text>
+<polygon points="710.2,111.2 790.4,97.0 802.5,165.3 722.2,179.4" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="730.2" y1="120.6" x2="738.0" y2="162.2" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<line x1="730.2" y1="120.6" x2="779.6" y2="118.0" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<line x1="779.6" y1="118.0" x2="901.8" y2="159.6" stroke="#616161" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="3 3"/>
+<polygon points="717.9,135.7 748.2,128.2 742.5,105.5 712.2,113.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="730.2" y="125.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">A</text>
+<polygon points="767.3,130.7 795.5,125.8 791.9,105.3 763.7,110.2" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="779.6" y="123.0" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">B</text>
+<polygon points="725.8,178.8 757.8,167.8 750.2,145.6 718.2,156.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="738.0" y="167.2" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">C</text>
+<polygon points="898.6,170.3 913.0,159.1 905.0,148.9 890.6,160.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="901.8" y="164.6" font-size="13" text-anchor="middle" font-weight="bold" fill="#FFFFFF">D</text>
+<text x="690.0" y="270.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">one rectangle per group;</text>
+<text x="690.0" y="292.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">D stays ungrouped</text>
+<text x="15.0" y="355.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">Edges are processed shortest first (distance between building edges). t = local BCR threshold, here 25 % as an example.</text>
+<text x="15.0" y="378.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">BCR = sum of footprint areas / area of the oriented rectangle (Algorithm 1).</text>
+</svg>
