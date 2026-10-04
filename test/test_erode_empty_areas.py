@@ -5,7 +5,8 @@ The module exposes one public function:
 
   erode_empty_areas(input_layer, buildings_layer,
                     min_empty_area=500.0, min_buffer_m=10.0, max_buffer_m=100.0,
-                    contact_threshold_pct=20.0, workspace_path=None, debug_mode=False)
+                    max_building_contact_pct=20.0, min_free_edge_pct=80.0,
+                    workspace_path=None, debug_mode=False)
 
 Buffer scaling formula:
   buf_dist = clamp(sqrt(building_area), min_buffer_m, max_buffer_m)
@@ -24,20 +25,22 @@ Unit tests cover _build_buffer_layer (no Processing):
   - null-geometry building silently skipped
   - multiple buildings → matching buffer count
 
-Integration tests cover _contact_fraction_filter (contact = share of the void
-perimeter on the settlement OUTER boundary; see issue #168):
-  - void with low outer contact (~9 %) returned for removal at default 20 %
-  - void with high outer contact (50 %) not returned at default 20 %
-  - frame void (~77 % outer contact) not returned even at threshold 50 %
-  - frame void returned at threshold 80 % (perimeter includes the inner ring)
-  - interior void (0 % contact) never returned
+Tests cover _protrusion_filter (void perimeter split into building contact,
+void contact and free edge; removed when building contact < 20 % and free
+edge >= 80 %):
+  - building-free lobe (15 % building contact) returned for removal
+  - interior void, fringe strip (45 %) and void between two built parts kept
+  - remainder part without buildings counts as free edge
+  - contact with another void is not free edge
+  - both thresholds are applied as passed
 
 Integration tests cover:
   - returns valid QgsVectorLayer
   - output geometries are GEOS-valid
-  - fringe void (contact ≥ 20 %) kept when threshold is default (20 %)
-  - corner-building void (~94 % outer contact) kept at default threshold
-  - any void (contact < 100 %) removed when permissive threshold (100 %) is used
+  - frame void around a central building kept (≥ 20 % building contact)
+  - void attached to a single corner building removed (~8 % building contact)
+  - same void kept with max_building_contact_pct = 5 %
+  - building-free lobe at the settlement edge removed
   - very large min_empty_area filters all voids → returned unchanged
   - debug_mode=True produces same feature count as debug_mode=False
   - null-geometry building in buildings_layer: no crash, valid result
@@ -61,11 +64,12 @@ from .layer_factories import make_polygon_layer, make_square_geom, add_feature_t
 from ibtool.ibtool_tools.ErodeEmptyAreas import (
     erode_empty_areas,
     _build_buffer_layer,
-    _contact_fraction_filter,
+    _protrusion_filter,
     MIN_BUFFER_M,
     MAX_BUFFER_M,
     MIN_EMPTY_AREA_M2,
-    BOUNDARY_CONTACT_THRESHOLD_PCT,
+    MAX_BUILDING_CONTACT_PCT,
+    MIN_FREE_EDGE_PCT,
 )
 
 
@@ -244,92 +248,129 @@ class TestBuildBufferLayer:
 
 
 # ---------------------------------------------------------------------------
-# TestContactFractionFilter — integration tests for the private helper
+# TestProtrusionFilter — tests for the private helper (no Processing)
 # ---------------------------------------------------------------------------
 
-class TestContactFractionFilter:
-    """Integration tests for _contact_fraction_filter with hand-built voids.
+class TestProtrusionFilter:
+    """Tests for _protrusion_filter with hand-built settlements and voids.
 
-    Contact is the share of a void's perimeter that runs along the settlement
-    OUTER boundary. Voids are removed only when 0 % < contact < threshold.
-    Regression for #168: the void outlines must not become part of the
-    reference boundary (that measured contact with the remaining settlement).
+    The voids are subtracted from the settlement; the remainder is split into
+    parts, and parts containing a building are "built parts". Each void's
+    perimeter is divided into building contact (built parts), void contact
+    (other voids) and free edge (the rest). A void is removed when building
+    contact < max_building_contact_pct and free edge >= min_free_edge_pct.
     """
 
     CRS_ID = "EPSG:25833"
-
-    def _settlement(self) -> QgsVectorLayer:
-        """Return a 200 × 200 m settlement polygon layer."""
-        layer = make_polygon_layer(self.CRS_ID, "settlement")
-        add_feature_to_layer(layer, make_square_geom(0, 0, 200))
-        return layer
-
-    def _void_layer(self, geom: QgsGeometry) -> QgsVectorLayer:
-        """Single-void polygon layer."""
-        layer = make_polygon_layer(self.CRS_ID, "voids")
-        add_feature_to_layer(layer, geom)
-        return layer
 
     @staticmethod
     def _rect(xmin, ymin, xmax, ymax) -> QgsGeometry:
         return QgsGeometry.fromRect(QgsRectangle(xmin, ymin, xmax, ymax))
 
+    def _layer(self, *geoms) -> QgsVectorLayer:
+        layer = make_polygon_layer(self.CRS_ID)
+        for geom in geoms:
+            add_feature_to_layer(layer, geom)
+        return layer
+
+    def _body_with_lobe(self) -> QgsVectorLayer:
+        """Settlement: 200 × 100 m body plus a 30 × 70 m lobe to the north."""
+        body = self._rect(0, 0, 200, 100).combine(self._rect(85, 100, 115, 170))
+        return self._layer(body)
+
+    def _building_in_body(self) -> QgsVectorLayer:
+        return self._layer(self._rect(50, 40, 60, 50))
+
+    def _run(self, settlement, voids, buildings, **kwargs):
+        return _protrusion_filter(
+            settlement, voids, buildings,
+            kwargs.get("max_building_contact_pct", MAX_BUILDING_CONTACT_PCT),
+            kwargs.get("min_free_edge_pct", MIN_FREE_EDGE_PCT),
+        )
+
     @pytest.mark.integration
-    def test_low_contact_void_returned_at_default_threshold(self):
-        """Void (95,0)-(105,150) touching the south edge over 10 m → removed.
+    def test_protrusion_without_buildings_is_returned(self):
+        """Lobe void: 30 m of 200 m on the built body (15 %), 85 % free → removed."""
+        voids = self._layer(self._rect(85, 100, 115, 170))
 
-        Measured contact = 30 m of 320 m ≈ 9 %: every 10 m boundary segment that
-        touches the 0.5 m snap strip counts in full, so the two side segments
-        adjoining the edge are included as well.
-        """
-        voids = self._void_layer(self._rect(95, 0, 105, 150))
-
-        result = _contact_fraction_filter(
-            self._settlement(), voids, BOUNDARY_CONTACT_THRESHOLD_PCT)
+        result = self._run(self._body_with_lobe(), voids, self._building_in_body())
 
         assert result.featureCount() == 1
 
     @pytest.mark.integration
-    def test_high_contact_void_not_returned_at_default_threshold(self):
-        """Strip (0,0)-(200,40): 240 m of 480 m perimeter on the edge = 50 % → kept."""
-        voids = self._void_layer(self._rect(0, 0, 200, 40))
+    def test_interior_void_is_kept(self):
+        """Void inside the body borders built settlement on all sides (100 %)."""
+        voids = self._layer(self._rect(100, 30, 140, 70))
 
-        result = _contact_fraction_filter(
-            self._settlement(), voids, BOUNDARY_CONTACT_THRESHOLD_PCT)
-
-        assert result.featureCount() == 0
-
-    @pytest.mark.integration
-    def test_frame_void_not_returned_at_threshold_50(self):
-        """Frame (200×200 minus inner 60×60): 800 m of 1 040 m ≈ 77 % → kept at 50 %."""
-        frame = self._rect(0, 0, 200, 200).difference(self._rect(70, 70, 130, 130))
-        voids = self._void_layer(frame)
-
-        result = _contact_fraction_filter(self._settlement(), voids, 50.0)
+        result = self._run(self._body_with_lobe(), voids, self._building_in_body())
 
         assert result.featureCount() == 0
 
     @pytest.mark.integration
-    def test_frame_void_contact_uses_full_perimeter_including_inner_ring(self):
-        """Frame void: contact ≈ 77 % of the FULL perimeter (outer + inner ring).
+    def test_fringe_strip_with_high_building_contact_is_kept(self):
+        """Strip along the body's south edge: 200 m of 440 m on built body (45 %)."""
+        voids = self._layer(self._rect(0, 0, 200, 20))
 
-        At threshold 80 % the frame must be returned. If the perimeter were
-        taken from a single ring (outer 800 m → 100 %), it would be kept.
+        result = self._run(self._body_with_lobe(), voids, self._building_in_body())
+
+        assert result.featureCount() == 0
+
+    @pytest.mark.integration
+    def test_void_between_two_built_parts_is_kept(self):
+        """Void cutting the settlement in two: both long sides border built parts."""
+        settlement = self._layer(self._rect(0, 0, 300, 100))
+        buildings = self._layer(self._rect(40, 40, 50, 50), self._rect(250, 40, 260, 50))
+        voids = self._layer(self._rect(140, 0, 160, 100))
+
+        result = self._run(settlement, voids, buildings)
+
+        assert result.featureCount() == 0
+
+    @pytest.mark.integration
+    def test_remainder_part_without_buildings_counts_as_free(self):
+        """A void that only borders an unbuilt remainder part is fully free.
+
+        Settlement: two disjoint blocks; the void sits on the unbuilt block.
         """
-        frame = self._rect(0, 0, 200, 200).difference(self._rect(70, 70, 130, 130))
-        voids = self._void_layer(frame)
+        settlement = self._layer(
+            self._rect(0, 0, 100, 100).combine(self._rect(200, 0, 300, 100)))
+        buildings = self._layer(self._rect(40, 40, 50, 50))
+        voids = self._layer(self._rect(200, 0, 300, 60))
 
-        result = _contact_fraction_filter(self._settlement(), voids, 80.0)
+        result = self._run(settlement, voids, buildings)
 
         assert result.featureCount() == 1
 
     @pytest.mark.integration
-    def test_interior_void_never_returned(self):
-        """Void (80,80)-(120,120) has no outer-boundary contact (0 %) → kept."""
-        voids = self._void_layer(self._rect(80, 80, 120, 120))
+    def test_contact_with_another_void_is_not_free(self):
+        """Lobe split into two stacked voids: the upper one touches the lower one.
 
-        result = _contact_fraction_filter(
-            self._settlement(), voids, BOUNDARY_CONTACT_THRESHOLD_PCT)
+        Upper void (85,135)-(115,170): perimeter 130 m, 30 m on the lower void
+        → free 77 % < 80 % → kept. Lower void: 30 m on the body (23 %) → kept.
+        """
+        voids = self._layer(self._rect(85, 100, 115, 135), self._rect(85, 135, 115, 170))
+
+        result = self._run(self._body_with_lobe(), voids, self._building_in_body())
+
+        assert result.featureCount() == 0
+
+    @pytest.mark.integration
+    def test_building_contact_threshold_is_applied(self):
+        """Lobe void has 15 % building contact: kept when the threshold is 10 %."""
+        voids = self._layer(self._rect(85, 100, 115, 170))
+
+        result = self._run(self._body_with_lobe(), voids, self._building_in_body(),
+                           max_building_contact_pct=10.0)
+
+        assert result.featureCount() == 0
+
+    @pytest.mark.integration
+    def test_free_edge_threshold_is_applied(self):
+        """Lobe void has 85 % free edge: kept when 90 % free edge is required."""
+        voids = self._layer(self._rect(85, 100, 115, 170))
+
+        result = self._run(self._body_with_lobe(), voids, self._building_in_body(),
+                           min_free_edge_pct=90.0)
 
         assert result.featureCount() == 0
 
@@ -421,55 +462,60 @@ class TestErodeEmptyAreasIntegration:
             f"Expected area ≈ {expected_area:.0f} m² (void kept), got {result_area:.0f} m²"
 
     @pytest.mark.integration
-    def test_corner_building_void_with_high_contact_kept_at_default_threshold(self):
-        """Large void touching the outer boundary on ~3.5 sides is kept at 20 %.
+    def test_void_attached_to_single_corner_building_is_removed(self):
+        """Large void that touches the built area only at one corner is removed.
 
         Setup:
           Settlement: 200 × 200 m = 40 000 m²
           Building: 10×10 at corner (5, 5); buf_dist = 10 m
-          Void: everything except the corner buffer; outer-boundary contact ≈ 94 %.
+          Void: everything except the corner buffer. Its edge borders the
+          built corner over ~8 % and is free (outer boundary) over ~92 %.
 
-        Regression for #168: the contact must be measured against the outer
-        boundary, not against the remaining settlement (≈ 6 % → wrongly removed).
-
-        Expected: result area ≈ settlement area (void kept).
+        Expected: building contact < 20 % and free edge >= 80 % → void removed,
+        only the corner area around the building remains.
         """
         settlement = self._settlement()
         buildings = self._buildings_layer((5, 5, 10))
-        expected_area = self._settlement_area()
 
         result = erode_empty_areas(settlement, buildings)
 
         result_area = _total_area(result)
-        assert result_area == pytest.approx(expected_area, rel=0.05), \
-            f"Expected area ≈ {expected_area:.0f} m² (void kept), got {result_area:.0f} m²"
+        assert result.featureCount() > 0, "Built corner must remain"
+        assert result_area < 0.1 * self._settlement_area(),             f"Expected only the corner area to remain, got {result_area:.0f} m²"
 
     @pytest.mark.integration
-    def test_void_removed_when_contact_below_permissive_threshold(self):
-        """Void whose boundary contact < contact_threshold_pct is eroded away.
-
-        Setup:
-          Settlement: 200 × 200 m = 40 000 m²
-          Building: 10×10 at corner (5, 5); buf_dist = max(10, sqrt(100)) = 10 m
-          Void: L-shaped frame covering most of the settlement, touching the outer
-                boundary on ~3.5 of 4 sides → contact ≈ 94 % < 100 %.
-          threshold = 100 % (accept any non-full-contact void for removal).
-
-        Expected: result area < settlement area (large void eroded out).
-        """
+    def test_corner_void_kept_when_building_contact_threshold_is_strict(self):
+        """Same corner setup, but max_building_contact_pct = 5 % → void kept."""
         settlement = self._settlement()
         buildings = self._buildings_layer((5, 5, 10))
-        settlement_area = self._settlement_area()
 
-        result = erode_empty_areas(
-            settlement, buildings,
-            contact_threshold_pct=100.0,
-        )
+        result = erode_empty_areas(settlement, buildings, max_building_contact_pct=5.0)
 
         result_area = _total_area(result)
-        assert result.featureCount() > 0, "Result must not be empty after void removal"
-        assert result_area < settlement_area, \
-            f"Expected result ({result_area:.0f} m²) < settlement ({settlement_area:.0f} m²)"
+        assert result_area == pytest.approx(self._settlement_area(), rel=0.05),             f"Expected void kept, got {result_area:.0f} m²"
+
+    @pytest.mark.integration
+    def test_unbuilt_protrusion_is_removed(self):
+        """A building-free lobe at the settlement edge is cut off.
+
+        Setup:
+          Settlement: 200 × 100 m body + 30 × 70 m lobe (85..115, 100..170)
+          Buildings: 10×10 every 25 m in the body (buffer 10 m covers the body)
+          Void: the lobe above the top row buffers (≈ 30 × 67.5 m); it borders
+          the built body over ≈ 15 % of its perimeter, the rest is free.
+
+        Expected: lobe removed → result area ≈ body area (20 000 m²).
+        """
+        settlement = make_polygon_layer(self.CRS_ID, "settlement")
+        add_feature_to_layer(settlement, QgsGeometry.fromRect(QgsRectangle(0, 0, 200, 100))
+                             .combine(QgsGeometry.fromRect(QgsRectangle(85, 100, 115, 170))))
+        rects = [(x, y, 10) for x in range(8, 200, 25) for y in range(8, 100, 25)]
+        buildings = self._buildings_layer(*rects)
+
+        result = erode_empty_areas(settlement, buildings)
+
+        result_area = _total_area(result)
+        assert result_area == pytest.approx(20000 + 30 * 2.5, rel=0.02),             f"Expected lobe removed (≈ 20 075 m²), got {result_area:.0f} m²"
 
     # --- min_empty_area filter ---
 

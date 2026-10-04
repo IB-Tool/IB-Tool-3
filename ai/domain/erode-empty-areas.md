@@ -6,8 +6,10 @@
 where no buildings are located. It runs as Step 8 in the main processing
 pipeline, immediately after `EdgeCatch` and before `GapClose`.
 
-The step prevents parks, open fields, or water bodies enclosed by building
-clusters from inflating the settlement footprint. Running before `GapClose`
+The step removes building-free protrusions at the settlement fringe: lobes of
+the settlement polygon that contain no buildings and hang off the built area
+by a narrow connection. Building-free voids enclosed by built settlement
+(parks, courtyards) and voids between built parts are kept. Running before `GapClose`
 ensures that large building-free voids are excluded before gap detection, so
 GapClose does not attempt to bridge across areas that should stay open.
 
@@ -55,29 +57,21 @@ Input: settlement polygon (output of patch_remove)
          If filtered_empty.featureCount() == 0: return fixed_input unchanged
     |
     v
-[Step 4b] Contact-fraction filter
-         Goal: measure what fraction of each void's perimeter runs along the
-         settlement's OUTER boundary only (not inner-ring lines of existing holes).
-
-         1. Add fid_copy (@id) to void POLYGONS before converting to lines
-            -- so the ID survives all intermediate steps and can select polygons at the end
-         2. native:deleteholes(settlement_layer, MIN_AREA=0)
-            -- removes all interior rings; inner-ring lines (edges of existing holes)
-               must not be included in the reference, or voids inside existing holes
-               would incorrectly show high contact and never be removed
-         3. native:polygonstolines -> settlement outer boundary line only
-         4. void boundaries: polygonstolines -> record total perimeter as
-            length_1 (qgis:fieldcalculator, $length; BEFORE splitting, so inner
-            rings of a void are included) -> multiparttosingleparts
-         5. native:splitlinesbylength (10 m segments) on void boundary lines
-         6. buffer settlement outer boundary by 0.5 m (snap distance)
-         7. extractbylocation(segments, settlement_buff, intersects) -> overlapping
-         8. dissolve overlapping segments by fid_copy, measure overlap length (length_2)
-         9. extractbyexpression('(length_2/length_1)*100 < threshold') -> qualifying_lines
-            (interior voids never appear here -- they had no overlapping segments)
-        10. collect fid_copy values from qualifying_lines
-        11. extractbyexpression(void_with_fid, fid_copy IN (...)) -> voids_to_remove (POLYGONS)
-
+[Step 4b] Protrusion filter (pure Python, QgsGeometry)
+         1. remainder = settlement - union(all voids)   (temporary)
+         2. split remainder into parts; parts intersecting at least one
+            building are "built parts" (QgsSpatialIndex pre-filter)
+         3. buffer built parts and every void by _BOUNDARY_SNAP_M (0.5 m)
+         4. per void, split the FULL perimeter (outer + inner rings) into
+              building contact = perimeter inside the built-parts strip
+              void contact     = rest inside the strip of the other voids
+              free edge        = the rest (outer boundary towards open land,
+                                 or unbuilt remainder parts)
+         5. remove when building contact < max_building_contact_pct
+                    AND free edge >= min_free_edge_pct
+            -> voids_to_remove (POLYGONS, memory layer)
+         Interior voids (100 % building contact) and voids between built
+         parts are therefore always kept.
          If voids_to_remove.featureCount() == 0: return fixed_input unchanged
     |
     v
@@ -116,11 +110,11 @@ areas while isolated buildings still protect a reasonable surroundings.
 | `_DEBUG_TOOL_NAME` | `"06_ErodeEmptyAreas"` | Debug folder prefix |
 | `MIN_BUFFER_M` | `10.0` | Minimum per-building buffer distance (m) |
 | `MAX_BUFFER_M` | `100.0` | Maximum per-building buffer distance (m) |
-| `MIN_EMPTY_AREA_M2` | `500.0` | Minimum void area (m2) to enter the contact filter |
+| `MIN_EMPTY_AREA_M2` | `500.0` | Minimum void area (m2) to enter the protrusion filter |
 | `TOPOLOGY_GRID_SIZE` | `0.001` | Grid size for difference operations (1 mm; see code docstring) |
-| `BOUNDARY_CONTACT_THRESHOLD_PCT` | `20.0` | Maximum boundary-contact fraction (%) for a void to be removed; only voids with contact BELOW this value are removed; voids with equal or higher contact (significant fringe features) are kept |
-| `_BOUNDARY_SEGMENT_M` | `10.0` | Split length (m) for void boundary segments in contact measurement |
-| `_BOUNDARY_SNAP_M` | `0.5` | Buffer (m) around settlement boundary to catch near-touching segments |
+| `MAX_BUILDING_CONTACT_PCT` | `20.0` | A void is removed only when its building contact (share of perimeter bordering built parts) is BELOW this value |
+| `MIN_FREE_EDGE_PCT` | `80.0` | A void is removed only when its free edge (share of perimeter bordering neither built parts nor another void) is AT LEAST this value |
+| `_BOUNDARY_SNAP_M` | `0.5` | Buffer (m) around built parts and voids to catch near-touching edges |
 
 ---
 
@@ -133,7 +127,12 @@ areas while isolated buildings still protect a reasonable surroundings.
 | `min_empty_area` | `MIN_EMPTY_AREA_M2` | Area threshold (m2): voids smaller than this are skipped entirely |
 | `min_buffer_m` | `MIN_BUFFER_M` | Minimum per-building buffer distance (m) |
 | `max_buffer_m` | `MAX_BUFFER_M` | Maximum per-building buffer distance (m) |
-| `contact_threshold_pct` | `BOUNDARY_CONTACT_THRESHOLD_PCT` | Maximum boundary-contact % for a void to be removed; only voids with contact strictly below this value are removed |
+| `max_building_contact_pct` | `MAX_BUILDING_CONTACT_PCT` | Building contact must be strictly below this % for removal |
+| `min_free_edge_pct` | `MIN_FREE_EDGE_PCT` | Free edge must be at least this % for removal |
+
+Both thresholds depend on the local situation and are examples, not fixed
+rules. They are function parameters only; they are not yet exposed in
+CONFIG.ini or the dialog.
 | `workspace_path` | `None` | Absolute path for debug layer output |
 | `debug_mode` | `False` | Save intermediate layers to `workspace_path` |
 
@@ -186,39 +185,29 @@ fresh memory layer. A single clean `MultiPolygon` always produces `Polygon` or
 Side effect: the output layer's attribute schema is the dissolved layer's schema
 (minimal attributes), not the per-feature schema of the original `blocks_merge`.
 
-### Contact filter uses exterior ring only (Step 4b)
+### Protrusion filter replaces the outer-contact filter (Step 4b)
 
-`polygonstolines` on a polygon with holes produces lines for ALL rings (exterior
-AND interior). Interior ring lines are the edges of existing holes in the
-settlement. Measuring void contact against all rings would cause voids inside
-existing holes to show high contact with those inner-ring lines and would never
-be selected for removal.
+Until 2026-10 the filter removed voids whose contact with the settlement OUTER
+boundary was below 20 % (issue #168). That kept fringe protrusions and removed
+voids with a small edge opening. The current rule measures the opposite side:
+contact with the *built* remainder (settlement minus all voids, parts with
+buildings only). A void is a protrusion when it barely touches built parts and
+most of its edge is free.
 
-**Fix**: `native:deleteholes(MIN_AREA=0)` is applied to the settlement before
-`polygonstolines`, so only the true outer boundary is used as the reference.
-
-**Do not subtract the voids from the settlement before extracting the
-reference lines** (issue #168). A `difference(settlement, voids)` puts each
-void's outline into the reference: edge voids then measure their contact with
-the *remaining settlement* (about 100 % minus the outer-boundary contact) and
-interior voids measure 100 %. The filter would remove large open fringe voids
-and keep voids with a small edge opening — the opposite of the intended
-behavior. Interior voids (0 % outer contact) are intentionally kept.
-
-**Measurement granularity**: void boundaries are split into 10 m segments and
-every segment that touches the 0.5 m snap strip counts in full. Segments that
-merely end at the outer boundary (e.g. the sides of a narrow void opening onto
-the edge) are therefore counted too, which slightly overestimates small
-contacts.
-
-### Contact filter returns polygons (Step 4b)
-
-`fid_copy` is assigned to the void POLYGON layer in Step 4b (before line
-conversion), not to the line layer. After identifying qualifying `fid_copy`
-values in the dissolved overlap result, the final `extractbyexpression` selects
-matching polygon features from the void layer. This ensures that the return
-value of `_contact_fraction_filter` is always a polygon layer that can be
-correctly buffered and subtracted in Step 5.
+- **Voids are subtracted only temporarily** to obtain the remainder; the final
+  result still subtracts only the selected voids (Step 5).
+- **Unbuilt remainder parts count as free edge.** Slivers below
+  `min_empty_area` stay in the remainder; they contain no buildings and must
+  not shield a protrusion.
+- **Void-to-void contact is not free.** Voids from `multiparttosingleparts`
+  rarely share edges, but where two voids lie within the 0.5 m snap distance
+  neither counts the shared edge as free, so a protrusion split in two is kept
+  rather than removed piecewise.
+- **Full perimeter**: inner rings of a void (e.g. around an island of building
+  buffers) count; they border built parts and raise the building contact.
+- **Measurement** uses exact `QgsGeometry` intersection lengths with the 0.5 m
+  strips, no segment splitting; overlaps between the built strip and a void
+  strip are counted once (as building contact).
 
 ### Metric CRS required
 
@@ -258,7 +247,7 @@ All layers are written to `{workspace_path}/06_ErodeEmptyAreas/`.
 | `step3_buffer_union` | 3 | Dissolved union of all building buffers |
 | `step4_empty_areas` | 4 | Raw empty areas (before area filter) |
 | `step4_filtered_empty_areas` | 4 | Empty areas passing the `min_empty_area` threshold |
-| `step4b_voids_to_remove` | 4b | Void POLYGONS that passed the contact filter (contact < threshold) and will be subtracted |
+| `step4b_voids_to_remove` | 4b | Void POLYGONS that passed the protrusion filter and will be subtracted |
 | `step5_result` | 5 | Final result |
 | `exception_input` | on error | Raw input at time of crash |
 

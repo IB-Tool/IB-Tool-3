@@ -172,7 +172,7 @@ Cross-reference of every production module, its test file, approximate test coun
 | `EdgeCatch.py` | `test_edge_catch.py` | 14 | integration | Performance cases |
 | `AddSingleBuilding.py` | `test_add_single_building.py` | 8 | integration | — |
 | `PatchRemove.py` | `test_patch_remove.py` | 9 | integration | — |
-| `ErodeEmptyAreas.py` | `test_erode_empty_areas.py` | 17 | unit + integration | Performance tests |
+| `ErodeEmptyAreas.py` | `test_erode_empty_areas.py` | 27 | unit + integration | Performance tests |
 
 ### ibtool/ (UI + plugin)
 
