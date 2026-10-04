@@ -13,7 +13,7 @@ REM Kompiliere die Ressourcen
 pyrcc5 -o resources.py resources.qrc
 
 REM Kompiliere die Übersetzungen
-"C:\OSGeo4W\apps\qt5\bin\lrelease.exe" i18n\de.ts -qm i18n\de.qm
+"C:\OSGeo4W\apps\qt5\bin\lrelease.exe" i18n\IBTool_de.ts -qm i18n\IBTool_de.qm
 
 @echo Compilation completed!
 pause

@@ -1500,6 +1500,35 @@ class TestUpdatePhase:
             self.tool._update_phase(2, 6, "", 20)  # Must not raise
 
     @pytest.mark.unit
+    def test_phase_name_is_translated(self):
+        """The phase name shown in the dialog goes through self.tr()."""
+        with patch.object(self.tool.dlg, "set_phase_progress") as mock_spp, \
+             patch.object(self.tool, "tr", side_effect=lambda s: f"DE:{s}"):
+            self.tool._update_phase(7, 9, "Close Gaps", 80)
+
+        mock_spp.assert_called_once_with(7, 9, "DE:Close Gaps", 80)
+
+    @pytest.mark.integration
+    def test_every_phase_name_has_german_translation(self):
+        """Every phase name passed to _update_phase in ibtool.py is translated
+        by the compiled i18n/IBTool_de.qm (context IBTool)."""
+        import re
+        from pathlib import Path
+        from qgis.PyQt.QtCore import QTranslator
+
+        root = Path(__file__).resolve().parent.parent
+        source = (root / "ibtool" / "ibtool.py").read_text(encoding="utf-8")
+        names = set(re.findall(r'_update_phase\(\d+, \d+, "([^"]+)"', source))
+        assert len(names) == 9, names
+
+        translator = QTranslator()
+        assert translator.load(str(root / "i18n" / "IBTool_de.qm"))
+        # QTranslator.translate() returns "" for a missing entry
+        untranslated = sorted(n for n in names if not translator.translate("IBTool", n))
+
+        assert untranslated == [], f"missing in IBTool_de.qm: {untranslated}"
+
+    @pytest.mark.unit
     def test_raises_processing_cancelled_error_when_cancel_requested(self):
         """Must raise ProcessingCancelledError after processEvents if _cancel_requested is True."""
         from ibtool.ibtool.ibtool import ProcessingCancelledError

@@ -1089,8 +1089,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.set_step(2)
 
     def _update_phase(self, phase: int, total: int, name: str, percent: int) -> None:
-        """Update the phase progress indicator and flush pending UI events."""
-        self.dlg.set_phase_progress(phase, total, name, percent)
+        """Update the phase progress indicator and flush pending UI events.
+
+        ``name`` is the English phase name; it is translated here (context
+        ``IBTool``), so the entries in ``i18n/IBTool_de.ts`` are maintained by hand.
+        """
+        self.dlg.set_phase_progress(phase, total, self.tr(name), percent)
         QApplication.processEvents()
         if self._cancel_requested:
             raise ProcessingCancelledError()
