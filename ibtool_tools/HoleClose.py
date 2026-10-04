@@ -6,12 +6,13 @@ holes, filters by area, and merges small holes back into the dissolved polygon.
 
 Public API
 ----------
-hole_close(input_layer, max_hole_size)
+hole_close(input_layer, max_hole_size, debug_mode, workspace_path)
 """
 from qgis.core import QgsProcessing, QgsVectorLayer
 from qgis import processing
 
 from ..helpers.geometry_utils import shp_area2, get_hole_polygons
+from ..helpers.debug_utils import save_debug_layer
 
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
@@ -31,7 +32,8 @@ _OPERATOR_LESS_THAN_OR_EQUAL: int = 5
 # Public API
 # ---------------------------------------------------------------------------
 
-def hole_close(input_layer: QgsVectorLayer, max_hole_size: float) -> QgsVectorLayer:
+def hole_close(input_layer: QgsVectorLayer, max_hole_size: float,
+               debug_mode: bool = False, workspace_path: str = None) -> QgsVectorLayer:
     """Close holes inside a polygon layer up to a maximum hole area.
 
     Dissolves the input, converts to lines, polygonizes, identifies inner holes
@@ -42,6 +44,10 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float) -> QgsVectorLa
         input_layer: Input polygon layer (QgsVectorLayer).
         max_hole_size: Maximum hole area to close (e.g. in square metres).
             Holes with ``Area <= max_hole_size`` are filled.
+        debug_mode: If True, saves intermediate layers to
+            ``workspace_path/HoleClose/``. Defaults to False.
+        workspace_path: Base path for debug output; required when
+            ``debug_mode`` is True.
 
     Returns:
         Polygon layer with holes up to ``max_hole_size`` filled (QgsVectorLayer).
@@ -52,6 +58,9 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float) -> QgsVectorLa
         'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
+    debug = debug_mode and workspace_path
+    if debug:
+        save_debug_layer(input_layer_diss, _DEBUG_TOOL_NAME, "after_dissolve", workspace_path)
 
     input_diss_line = processing.run("native:polygonstolines", {
         'INPUT': input_layer_diss,
@@ -68,6 +77,8 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float) -> QgsVectorLa
     holes = get_hole_polygons(lines_poly, input_layer_diss)
 
     shp_area2(holes)
+    if debug:
+        save_debug_layer(holes, _DEBUG_TOOL_NAME, "holes_identified", workspace_path)
 
     # Keep only holes smaller than or equal to the size threshold
     holes_filtered = processing.run("native:extractbyattribute", {
@@ -77,6 +88,9 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float) -> QgsVectorLa
         'VALUE': max_hole_size,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
+
+    if debug:
+        save_debug_layer(holes_filtered, _DEBUG_TOOL_NAME, "holes_filtered", workspace_path)
 
     # Merge filtered holes with the dissolved polygon to fill them
     merged_result = processing.run("qgis:mergevectorlayers", {
@@ -91,4 +105,6 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float) -> QgsVectorLa
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
     })['OUTPUT']
 
+    if debug:
+        save_debug_layer(dissolved_result, _DEBUG_TOOL_NAME, "result", workspace_path)
     return dissolved_result

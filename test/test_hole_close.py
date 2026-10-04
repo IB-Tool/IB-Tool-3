@@ -434,3 +434,28 @@ class TestHoleClose:
         expected = 40_000.0 - 3_600.0  # large hole stays
         assert result_area == pytest.approx(expected, rel=0.05), \
             f"Expected ≈ {expected:.0f} m², got {result_area:.1f} m²"
+
+
+class TestHoleCloseDebugOutput:
+    """Debug checkpoints of hole_close (debug_mode / workspace_path)."""
+
+    @pytest.mark.integration
+    def test_debug_mode_writes_checkpoints(self, tmp_path):
+        """debug_mode=True writes the four checkpoints to HoleClose/."""
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, _square_with_hole(100, 40, 40, 10))
+
+        hole_close(layer, max_hole_size=500, debug_mode=True, workspace_path=str(tmp_path))
+
+        names = sorted(p.name for p in (tmp_path / "HoleClose").glob("*.gpkg"))
+        assert names == ["001_after_dissolve.gpkg", "002_holes_identified.gpkg",
+                         "003_holes_filtered.gpkg", "004_result.gpkg"]
+
+    @pytest.mark.integration
+    def test_no_debug_output_by_default(self, tmp_path):
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, _square_with_hole(100, 40, 40, 10))
+
+        hole_close(layer, max_hole_size=500, workspace_path=str(tmp_path))
+
+        assert not (tmp_path / "HoleClose").exists()

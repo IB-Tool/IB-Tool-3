@@ -1192,7 +1192,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         min_overlap_mst = calc_footprint_density(
             hu_layer, sel_strassen_layer, 100,
-            global_footprint_density, 'local', params['min_bdg_count'])
+            global_footprint_density, 'local', params['min_bdg_count'],
+            debug_mode=debug_mode, workspace_path=part_workspace)
         logger.log(f"Local building coverage = {min_overlap_mst}", 'SUCCESS')
 
         sel_hu_layer = processing.run("native:splitwithlines",
@@ -1209,11 +1210,14 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         hu_filter = input_hu_filter(
             sel_hu_layer, params['input_filter'], params['min_area'], 50, 200,
             debug_mode=debug_mode, workspace_path=part_workspace)
-        blocks_dense = identify_dense_blocks(hu_filter, blocks, params['min_overlap_blocks'])
+        blocks_dense = identify_dense_blocks(
+            hu_filter, blocks, params['min_overlap_blocks'],
+            debug_mode=debug_mode, workspace_path=part_workspace)
         hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
 
         self._update_phase(4, 6, "Calculate MST", 40)
-        mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference)
+        mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference,
+                                  debug_mode=debug_mode, workspace_path=part_workspace)
 
         if mst_layer is None:
             logger.log(

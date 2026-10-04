@@ -8,7 +8,7 @@ minimum spanning tree of the triangulated graph.
 Public API
 ----------
 CreateMST                              — orchestrator class
-calculate_mst(input_bdg, streets_orig, spatial_reference)
+calculate_mst(input_bdg, streets_orig, spatial_reference, debug_mode, workspace_path)
 """
 
 from typing import Optional
@@ -21,11 +21,12 @@ from .mst import (
     MSTResult,
 )
 from ..helpers.logger import Logger
+from ..helpers.debug_utils import save_debug_layer
 
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
 # ---------------------------------------------------------------------------
-_DEBUG_TOOL_NAME = "CreateMST"
+_DEBUG_TOOL_NAME = "02b_CreateMST"
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +54,9 @@ class CreateMST:
         self,
         input_buildings: QgsVectorLayer,
         streets_original: QgsVectorLayer,
-        spatial_reference: QgsCoordinateReferenceSystem
+        spatial_reference: QgsCoordinateReferenceSystem,
+        debug_mode: bool = False,
+        workspace_path: Optional[str] = None,
     ) -> Optional[QgsVectorLayer]:
         """
         Calculate Minimum Spanning Tree from building and street data.
@@ -65,10 +68,15 @@ class CreateMST:
             input_buildings: Building polygons layer
             streets_original: Original street network layer
             spatial_reference: Coordinate reference system to use
+            debug_mode: If True, saves the full triangulation, the processed
+                streets, the street-filtered triangulation and the MST to
+                ``workspace_path/02b_CreateMST/``
+            workspace_path: Base path for debug output
 
         Returns:
             QgsVectorLayer containing MST lines, or None if processing fails
         """
+        debug = debug_mode and workspace_path
         try:
             # Step 1: Extract building centroids
             centroids_result = self.delaunay_processor.extract_building_centroids(input_buildings)
@@ -84,14 +92,24 @@ class CreateMST:
             triangulation_layer = self.delaunay_processor.create_triangulation_layer(
                 triangulation_edges, spatial_reference
             )
+            # Saved before Step 4, which deletes street-crossing edges in place
+            if debug:
+                save_debug_layer(triangulation_layer, _DEBUG_TOOL_NAME,
+                                 "delaunay_triangulation", workspace_path)
 
             # Step 3: Process streets (remove short dead-ends)
             street_result = self.street_processor.process_streets(streets_original)
+            if debug:
+                save_debug_layer(street_result.filtered_streets, _DEBUG_TOOL_NAME,
+                                 "streets_without_dead_ends", workspace_path)
 
             # Step 4: Filter triangulation edges by streets
             filtered_edges = self.delaunay_processor.filter_edges_by_streets(
                 triangulation_layer, street_result.filtered_streets
             )
+            if debug:
+                save_debug_layer(triangulation_layer, _DEBUG_TOOL_NAME,
+                                 "triangulation_street_filtered", workspace_path)
 
             if len(filtered_edges) == 0:
                 self.logger.log("No triangulation edges remaining after filtering", level="WARNING")
@@ -119,6 +137,9 @@ class CreateMST:
             if mst_result.mst_layer is None:
                 self.logger.log("MST calculation failed", level="WARNING")
                 return None
+            if debug:
+                save_debug_layer(mst_result.mst_layer, _DEBUG_TOOL_NAME, "mst",
+                                 workspace_path)
 
             return mst_result.mst_layer
 
@@ -192,6 +213,8 @@ def calculate_mst(
     input_bdg: QgsVectorLayer,
     streets_orig: QgsVectorLayer,
     spatial_reference: QgsCoordinateReferenceSystem,
+    debug_mode: bool = False,
+    workspace_path: Optional[str] = None,
 ) -> Optional[QgsVectorLayer]:
     """Backward-compatible entry point for MST calculation.
 
@@ -202,9 +225,13 @@ def calculate_mst(
         input_bdg: Building polygons layer.
         streets_orig: Original street network layer.
         spatial_reference: Coordinate reference system to use.
+        debug_mode: If True, saves intermediate layers (see
+            :meth:`CreateMST.calculate_mst`). Defaults to False.
+        workspace_path: Base path for debug output.
 
     Returns:
         QgsVectorLayer containing MST lines, or None if processing fails.
     """
     mst_creator = CreateMST()
-    return mst_creator.calculate_mst(input_bdg, streets_orig, spatial_reference)
+    return mst_creator.calculate_mst(input_bdg, streets_orig, spatial_reference,
+                                     debug_mode=debug_mode, workspace_path=workspace_path)
