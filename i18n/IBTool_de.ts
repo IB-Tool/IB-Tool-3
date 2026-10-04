@@ -368,6 +368,14 @@ Diese Aktion kann nicht rückgängig gemacht werden.</translation>
         <translation>Leerflächen erodieren</translation>
     </message>
     <message>
+        <source>Close Gaps</source>
+        <translation>Lücken schließen</translation>
+    </message>
+    <message>
+        <source>Remove Patches</source>
+        <translation>Splitterflächen entfernen</translation>
+    </message>
+    <message>
         <source>Save Output</source>
         <translation>Ausgabe speichern</translation>
     </message>

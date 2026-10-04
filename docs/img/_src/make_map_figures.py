@@ -73,10 +73,10 @@ FIGURES = {
         "out": "readme",
         "center": VILLAGE_CENTER, "width_m": 1100, "ratio": 7 / 8,
         "tiles": [
-            ("Input", [B_AUX, B_RN, B_HU]),
-            ("Result", [B_AUX, B_RN, B_RESULT, B_HU]),
+            ("Input", [B_RN, B_HU]),
+            ("Result", [B_RESULT, B_RN, B_HU]),
         ],
-        "legend": [(B_HU, "building"), (B_RN, "road"), (B_AUX, "Aux line"),
+        "legend": [(B_HU, "building"), (B_RN, "road"),
                    (B_RESULT, "Innenbereich (result)")],
     },
     # F16 - the line and building input layers (Part: F17, at a larger scale)

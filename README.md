@@ -3,7 +3,7 @@
 [![CI](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/ci.yml/badge.svg)](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/ci.yml)
 [![QGIS Plugin CI](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml/badge.svg)](https://github.com/IB-Tool/IB-Tool-3/actions/workflows/qgis-plugin-ci.yml)
 <a href="https://codecov.io/gh/IB-Tool/IB-Tool-3" > 
- <img src="https://codecov.io/gh/IB-Tool/IB-Tool-3/graph/badge.svg?token=XGTC33WCFB"/> 
+ <img src="https://codecov.io/gh/IB-Tool/IB-Tool-3/graph/badge.svg?token=XGTC33WCFB" alt="Code coverage"/> 
  </a>
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
 ![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green)
@@ -11,7 +11,7 @@
 
 <p align="center">
   <img src="docs/img/readme/01_before_after.png" width="800"
-       alt="Sample village shown twice: left the input buildings, roads and auxiliary lines, right the same with the derived Innenbereich in pink">
+       alt="Sample village shown twice: left the input buildings and roads, right the same with the derived Innenbereich in pink beneath them">
 </p>
 
 *IB-Tool 3 derives the Innenbereich (§ 34 BauGB) from building footprints and the road network. Data: © GeoBasis-DE/LGB.*

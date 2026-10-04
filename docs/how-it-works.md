@@ -160,7 +160,7 @@ Blocks at the edge of the settlement are typically very large (they transition i
 
 ### Step 2 — ImportFilter: Three-Stage Building Filter
 
-`ImportFilter.py` removes buildings that are not relevant to Innenbereich delineation. According to BauGB § 35, certain building functions are permitted *outside* the Innenbereich (e.g. sewage treatment plants, wind turbines, livestock facilities, allotments). The filter applies three sequential stages:
+`ImportFilter.py` removes buildings that are not relevant to Innenbereich delineation. According to BauGB § 35, certain building functions are permitted *outside* the Innenbereich (e.g. sewage treatment plants, wind turbines, livestock facilities, allotments). The filter applies three sequential stages; a partition with 20 building features or fewer (counted after the split along roads) is passed through unfiltered (fixed constant `_MIN_BUILDING_COUNT`, same value as the `min_bdg_count` default):
 
 <p align="center">
   <img src="img/how-it-works/02_import_filter.png" width="800"
