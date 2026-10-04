@@ -14,6 +14,13 @@ This document specifies the five input datasets required by IB-Tool 3: geometry 
 | **Aux** — Auxiliary Layer | Additional line barriers merged with the road network |
 | **Filter File** | `.txt` file defining positive and negative ATKIS function-code filters |
 
+<p align="center">
+  <img src="img/input-data/16_input_layers.png" width="800"
+       alt="Three map tiles of the same village: building footprints, the road network and the auxiliary lines">
+</p>
+
+*Figure: the line and building inputs of the sample data — HU, RN and Aux for the same village (the Part layer is shown below at a larger scale). Data: © GeoBasis-DE/LGB.*
+
 A ready-to-use sample dataset satisfying all five requirements is provided in
 the `Testdaten/` folder at the project root — see
 [quickstart.md → Sample Data](quickstart.md#sample-data). Its CRS is
@@ -94,6 +101,13 @@ Road segments shorter than 50 m (dead ends) are filtered automatically during MS
 | Part:HU ratio | Should not exceed 1:10,000. Too few partitions leads to very long per-partition runtimes. |
 
 The partitioning defines independent processing units. In the plugin interface a subset can be specified by partition name list or start/end range.
+
+<p align="center">
+  <img src="img/input-data/17_partitions.png" width="800"
+       alt="Partition polygons with their NAME labels PART_7 to PART_64 over the building footprints of the sample data">
+</p>
+
+*Figure: partitions of the sample data, each labelled with its `NAME` (`PART_<number>`). Data: © GeoBasis-DE/LGB.*
 
 If you have no partitioning layer, the companion plugin **[IB-Tool (Partitioning)](https://github.com/IB-Tool/Partitioning)** derives one from building footprints (KDE + Voronoi tessellation) and writes exactly the `PART_<number>` format described above.
 

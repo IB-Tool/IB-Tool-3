@@ -9,6 +9,12 @@
 ![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 
+<p align="center">
+  <img src="docs/img/readme/01_before_after.png" width="800"
+       alt="Sample village shown twice: left the input buildings, roads and auxiliary lines, right the same with the derived Innenbereich in pink">
+</p>
+
+*IB-Tool 3 derives the Innenbereich (§ 34 BauGB) from building footprints and the road network. Data: © GeoBasis-DE/LGB.*
 
 ## Quick Start
 

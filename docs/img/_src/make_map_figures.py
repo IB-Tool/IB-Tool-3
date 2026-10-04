@@ -34,7 +34,6 @@ from qgis.PyQt.QtGui import QColor, QFont, QImage, QPainter, QPen, QPolygonF
 from make_figures_project import REF_XMAX, REF_XMIN, REF_YMAX, REF_YMIN, role_renderer
 
 SRC_DIR = Path(__file__).resolve().parent
-OUT_DIR = SRC_DIR.parent / "how-it-works"
 PROJECT_PATH = SRC_DIR / "figures.qgz"
 
 WIDTH = 1600                  # px, displayed at 800 px
@@ -60,9 +59,43 @@ def reference_extent():
 
 # Layer references: ("base", name), ("result", ""), or (tool folder, step name);
 # an optional third element overrides the layer's role (style) for this tile.
-B_HU, B_RN, B_AUX = ("base", "HU"), ("base", "RN"), ("base", "Aux")
+B_HU, B_RN, B_AUX, B_PART = ("base", "HU"), ("base", "RN"), ("base", "Aux"), ("base", "Part")
+B_RESULT = ("result", "")
+
+# Window around the whole village of the sample (the result reaches south of the
+# reference extent); inside partition PART_31, so the result is complete
+VILLAGE_CENTER = (439280, 5837922)
+PART_31_CENTER = (438622, 5838732)
 
 FIGURES = {
+    # F01 - README hero image
+    "01_before_after.png": {
+        "out": "readme",
+        "center": VILLAGE_CENTER, "width_m": 1100, "ratio": 7 / 8,
+        "tiles": [
+            ("Input", [B_AUX, B_RN, B_HU]),
+            ("Result", [B_AUX, B_RN, B_RESULT, B_HU]),
+        ],
+        "legend": [(B_HU, "building"), (B_RN, "road"), (B_AUX, "Aux line"),
+                   (B_RESULT, "Innenbereich (result)")],
+    },
+    # F16 - the line and building input layers (Part: F17, at a larger scale)
+    "16_input_layers.png": {
+        "out": "input-data",
+        "center": VILLAGE_CENTER, "width_m": 1100,
+        "tiles": [
+            ("HU  buildings", [B_HU]),
+            ("RN  road network", [B_RN]),
+            ("Aux  auxiliary lines", [B_AUX]),
+        ],
+    },
+    # F17 - partitions over the buildings
+    "17_partitions.png": {
+        "out": "input-data",
+        "center": PART_31_CENTER, "width_m": 14000, "ratio": 0.6,
+        "tiles": [("Partitions PART_<n>", [B_HU, B_PART])],
+        "legend": [(B_PART, "partition boundary with NAME"), (B_HU, "building")],
+    },
     "01_blocker.png": {
         "extent": None,
         "tiles": [
@@ -253,7 +286,7 @@ def boxed_text(painter, x, y, text, px, bold=False, colour=TEXT, align_right=Fal
 
 def scale_bar(painter, x, y, metres_per_px):
     target = 220 * metres_per_px
-    length = max(v for v in (25, 50, 100, 200, 250, 500, 1000) if v <= target)
+    length = max(v for v in (25, 50, 100, 200, 250, 500, 1000, 2000, 5000) if v <= target)
     bar = length / metres_per_px
     painter.fillRect(QRectF(x - 10, y - 34, bar + 90, 50), QColor(255, 255, 255, 225))
     painter.fillRect(QRectF(x, y, bar, 7), QColor("#3C3C3C"))
@@ -300,16 +333,27 @@ def draw_legend(painter, index, legend, y0):
     assert x <= WIDTH + 30, f"legend too wide ({x:.0f} px)"
 
 
+def figure_geometry(spec):
+    """Extent and tile size: reference extent (2:1), a fixed square extent, or
+    a window from "center" / "width_m" with tile height = "ratio" * width."""
+    n = len(spec["tiles"])
+    tile_w = (WIDTH - (n - 1) * GAP) // n
+    if "center" in spec:
+        ratio = spec.get("ratio", 1.0)
+        (cx, cy), w = spec["center"], spec["width_m"]
+        h = w * ratio
+        return QgsRectangle(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), tile_w, round(tile_w * ratio)
+    if spec["extent"] is None:
+        return reference_extent(), WIDTH, WIDTH // 2
+    return spec["extent"], tile_w, tile_w
+
+
 def make_figure(name, spec, index, crs):
     tiles = spec["tiles"]
     n = len(tiles)
-    if spec["extent"] is None:
-        extent, tile_w, tile_h = reference_extent(), WIDTH, WIDTH // 2
-    else:
-        extent = spec["extent"]
-        tile_w = (WIDTH - (n - 1) * GAP) // n
-        tile_h = tile_w
-    image = QImage(WIDTH, tile_h + LEGEND_H, QImage.Format_ARGB32)
+    extent, tile_w, tile_h = figure_geometry(spec)
+    legend_h = LEGEND_H if spec.get("legend") else 0
+    image = QImage(WIDTH, tile_h + legend_h, QImage.Format_ARGB32)
     image.fill(QColor("white"))
     painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing)
@@ -329,10 +373,12 @@ def make_figure(name, spec, index, crs):
             north_arrow(painter, x0 + tile_w - 34, 16)
             boxed_text(painter, x0 + tile_w - 14, tile_h - 14, "© GeoBasis-DE/LGB", 18,
                        colour=MUTED, align_right=True)
-    draw_legend(painter, index, spec["legend"], tile_h)
+    if legend_h:
+        draw_legend(painter, index, spec["legend"], tile_h)
     painter.end()
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUT_DIR / name
+    out_dir = SRC_DIR.parent / spec.get("out", "how-it-works")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / name
     assert image.save(str(path)), path
     size_kb = path.stat().st_size / 1024
     print(f"wrote {name} ({image.width()} x {image.height()}, {size_kb:.0f} KB)")
