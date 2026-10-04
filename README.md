@@ -207,7 +207,7 @@ For the full development setup, CI/CD pipeline details, Docker environment, test
 
 ## Logging
 
-IB-Tool 3 writes log messages to the plugin dialog, to a timestamped log file in `logs/`, and to the QGIS message bar for critical errors. Four levels are supported: `CRITICAL`, `WARNING`, `INFO`, and `SUCCESS`. The active log level and log directory are configurable in the dialog.
+IB-Tool 3 writes log messages to the plugin dialog, to a timestamped log file in `<QGIS profile>/ibtool/logs/`, and to the QGIS message bar for critical errors. Four levels are supported: `CRITICAL`, `WARNING`, `INFO`, and `SUCCESS`. The active log level and log directory are configurable in the dialog.
 
 For the full logging reference including level definitions, output destinations, and the debug mode, see **[docs/error-handling.md](docs/error-handling.md)**.
 

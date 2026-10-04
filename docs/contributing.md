@@ -231,7 +231,6 @@ Tests are located in the `test/` directory and run with pytest:
 | `test_logger.py` | Logging system |
 | `test_blocker.py` | Blocker functionality |
 | `test_message.py` | Message system |
-| `test_resources.py` | Resource management |
 | `test_data_loader.py` | Data loading functions |
 | `test_ibtool.py` | Main plugin class |
 | `test_ibtool_dialog.py` | UI dialog |

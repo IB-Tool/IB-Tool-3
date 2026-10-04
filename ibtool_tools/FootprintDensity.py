@@ -107,22 +107,22 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'OUTPUT': 'TEMPORARY_OUTPUT'
     })['OUTPUT']
 
-    # Erste Auswahl basierend auf räumlicher Beziehung
+    # First selection based on spatial relation
     processing.run("native:selectbylocation", {
         'INPUT': InputStrNetwork_Poly,
-        'PREDICATE': [0],  # Überschneidet
+        'PREDICATE': [0],  # Intersects
         'INTERSECT': InputBdg_Buff_Line,
-        'METHOD': 0  # Neue Auswahl erstellen
+        'METHOD': 0  # Create new selection
     })
 
-    # IDs der ausgewählten Features holen
+    # Get the IDs of the selected features
     selected_ids = InputStrNetwork_Poly.selectedFeatureIds()
 
-    # Invertierung: Wähle alle Features, die nicht in der aktuellen Auswahl sind
+    # Inversion: select all features that are not in the current selection
     all_ids = [f.id() for f in InputStrNetwork_Poly.getFeatures()]
     inverted_ids = [fid for fid in all_ids if fid not in selected_ids]
 
-    # Auswahl mit invertierten IDs setzen
+    # Apply the selection with the inverted IDs
     InputStrNetwork_Poly.selectByIds(inverted_ids)
 
     InputStrNetwork_Poly_Sel = processing.run(
@@ -131,12 +131,12 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
          'OUTPUT': 'TEMPORARY_OUTPUT'
          })['OUTPUT']
 
-    # Zweite Auswahl basierend auf der invertierten Auswahl
+    # Second selection based on the inverted selection
     BlocksInside = processing.run("native:selectbylocation", {
         'INPUT': InputStrNetwork_Poly_Sel,
-        'PREDICATE': [0],  # Überschneidet
+        'PREDICATE': [0],  # Intersects
         'INTERSECT': InputBdg,
-        'METHOD': 2  # Auswahl verfeinern (auf bestehender Auswahl aufbauen)
+        'METHOD': 2  # Refine selection (build on the existing selection)
     })['OUTPUT']
 
     # Spatial join between building buffer and street polygons
@@ -276,17 +276,17 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
 def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
     """
-    Berechnet den Flächenanteil kleiner Polygone an großen Polygonen in QGIS.
+    Calculates the area share of small polygons within large polygons in QGIS.
 
-    :param small_polygons_layer: Name oder Pfad zum Layer mit kleinen Polygonen
-    :param large_polygons_layer: Name oder Pfad zum Layer mit großen Polygonen
-    :param output_path: Pfad zur Ausgabe-Shape-Datei
+    :param small_polygons_layer: Name or path of the layer with small polygons
+    :param large_polygons_layer: Name or path of the layer with large polygons
+    :param output_path: Path to the output shapefile
     """
-    # Lade die Eingabe-Layer
+    # Load the input layers
     # small_layer = QgsProject.instance().mapLayersByName(small_polygons_layer)[0]
     # large_layer = QgsProject.instance().mapLayersByName(large_polygons_layer)[0]
 
-    # Geoverarbeitung: Intersektion
+    # Geoprocessing: intersection
     intersection_result = processing.run(
         "native:intersection",
         {
@@ -297,11 +297,11 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
     )
     intersected_layer = intersection_result['OUTPUT']
 
-    # Fläche der Intersektion berechnen
+    # Calculate the intersection area
     intersected_layer.startEditing()
     provider = intersected_layer.dataProvider()
 
-    # Sicherstellen, dass das Feld 'area_intersect' existiert
+    # Ensure the 'area_intersect' field exists
     if provider.fieldNameIndex('area_intersect') == -1:
         provider.addAttributes([QgsField("area_intersect", QMetaType.Double)])
         intersected_layer.updateFields()
@@ -313,7 +313,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         intersected_layer.updateFeature(feature)
     intersected_layer.commitChanges()
 
-    # Summierung der Flächenanteile für jedes große Polygon
+    # Sum the area shares for each large polygon
     sum_result = processing.run(
         "native:aggregate",
         {
@@ -329,7 +329,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         }
     )['OUTPUT']
 
-    # Fläche der großen Polygone hinzufügen
+    # Add the area of the large polygons
     joined_layer = processing.run(
         "native:joinattributestable",
         {
@@ -345,7 +345,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
         }
     )['OUTPUT']
 
-    # Berechnung des Flächenanteils
+    # Calculate the area share
     joined_layer.startEditing()
     provider = joined_layer.dataProvider()
 

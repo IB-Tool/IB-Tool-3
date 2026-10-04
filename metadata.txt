@@ -8,7 +8,7 @@ qgisMinimumVersion=3.40
 qgisMaximumVersion=3.50
 pythonMinimumVersion=3.11
 description=QGIS plugin for the automated delineation of the Innenbereich (the coherently built-up area under Sec. 34 BauGB, internationally known as an urban growth boundary) from building footprints.
-version=0.2.3
+version=0.2.4
 author=Oliver Harig
 email=ottmar.hittzfeld@web.de
 
@@ -22,7 +22,8 @@ license=GPL-2.0-or-later
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=0.2.3 - Prepared for the first release on plugins.qgis.org. Release ZIP now packages under the constant folder name ibtool/ (dist/ibtool.zip) regardless of the checkout directory name, replacing exclusion-list packaging with an explicit whitelist, a build guard (forbidden extensions, executable bit, size limit, unexpected binaries), and a static import-resolution smoke test. Removed the now-unnecessary manual plugin-folder-rename instructions from the README and docs. Shortened the description and documented the scipy/networkx dependency (with OSGeo4W install instructions) and the German ATKIS input-data scope in "about". Added per-file validation-skip granularity to Check. Fixed Global Footprint Density input on non-English systems and its float precision. Fixed the German translation not loading at runtime.
+changelog=0.2.4 - First release on plugins.qgis.org. CONFIG.ini and log files are now stored in the QGIS profile folder (ibtool subfolder) so plugin updates no longer erase them. For git/manual installs an existing CONFIG.ini in the plugin folder is copied once to the new location; when updating from a release ZIP, back up CONFIG.ini from the plugin folder before installing 0.2.4 and copy it to the ibtool subfolder of the QGIS profile afterwards. ErodeEmptyAreas now removes building-free protrusions instead of using a contact filter (results change); fixed the ImportFilter minimum-building-count filter; added debug output for CreateMST, FootprintDensity and HoleClose; progress phase labels corrected and localized. Runtime-generated files (CONFIG.ini, logs) are never packaged into the release ZIP. Removed the unused compiled Qt resource module (resources.py/resources.qrc); Qt is imported through qgis.PyQt throughout. Remaining code comments translated to English; removed an empty Afrikaans translation stub.
+ 0.2.3 - Prepared for the first release on plugins.qgis.org. Release ZIP now packages under the constant folder name ibtool/ (dist/ibtool.zip) regardless of the checkout directory name, replacing exclusion-list packaging with an explicit whitelist, a build guard (forbidden extensions, executable bit, size limit, unexpected binaries), and a static import-resolution smoke test. Removed the now-unnecessary manual plugin-folder-rename instructions from the README and docs. Shortened the description and documented the scipy/networkx dependency (with OSGeo4W install instructions) and the German ATKIS input-data scope in "about". Added per-file validation-skip granularity to Check. Fixed Global Footprint Density input on non-English systems and its float precision. Fixed the German translation not loading at runtime.
 0.2.2 - Fixed the release ZIP silently excluding helpers/debug_utils.py (caused a ModuleNotFoundError on install for all 8 tools that use it). Release ZIP filename and internal folder name were made constant across every version. Default CRS switched to EPSG:25833 to match the sample dataset. Documented the manual release-publishing process.
 
 

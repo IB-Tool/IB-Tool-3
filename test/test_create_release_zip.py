@@ -80,7 +80,7 @@ class TestIsIncluded:
     def test_whitelisted_root_file_is_included(self):
         """Every file in WHITELIST_FILES is included at the repository root."""
         for fname in ("__init__.py", "metadata.txt", "icon.png", "LICENSE", "README.md",
-                      "requirements.txt", "resources.qrc"):
+                      "requirements.txt"):
             assert is_included(Path(fname)), f"'{fname}' should be included"
 
     @pytest.mark.unit
@@ -144,6 +144,27 @@ class TestIsIncluded:
         """*.pyo files inside a whitelisted dir are excluded."""
         rel = Path("helpers") / "logger.pyo"
         assert not is_included(rel)
+
+    # --- runtime-generated files (CONFIG.ini, logs, logfiles) ---
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("rel", [
+        "CONFIG.ini",
+        "ibtool/CONFIG.ini",
+        "helpers/config.ini",
+        "ibtool/logs/logfile_2026-10-04.txt",
+        "logs/logfile_2026-10-04.txt",
+        "ibtool_tools/logfile_2026-10-04.txt",
+        "helpers/debug.log",
+    ])
+    def test_runtime_generated_files_are_excluded(self, rel):
+        """CONFIG.ini and log files are produced by using the plugin and must never ship."""
+        assert is_included(Path(rel)) is False
+
+    @pytest.mark.unit
+    def test_regular_txt_in_whitelisted_dir_still_included(self):
+        """The log-pattern exclusion must not swallow ordinary .txt files."""
+        assert is_included(Path("helpers/notes.txt")) is True
 
 
 # ===========================================================================
@@ -264,6 +285,18 @@ class TestCollectFiles:
         result = collect_files(tmp_path)
         assert Path(".gitignore") not in result
         assert Path("metadata.txt") in result
+
+    @pytest.mark.unit
+    def test_runtime_files_on_disk_are_not_collected(self, tmp_path):
+        """CONFIG.ini and log files on disk are not collected, even in whitelisted dirs."""
+        (tmp_path / "ibtool" / "logs").mkdir(parents=True)
+        (tmp_path / "ibtool" / "ibtool.py").write_text("", encoding="utf-8")
+        (tmp_path / "ibtool" / "CONFIG.ini").write_text("[x]", encoding="utf-8")
+        (tmp_path / "ibtool" / "logs" / "logfile_1.txt").write_text("", encoding="utf-8")
+
+        names = {p.as_posix() for p in collect_files(tmp_path)}
+
+        assert names == {"ibtool/ibtool.py"}
 
 
 # ===========================================================================
@@ -526,3 +559,14 @@ class TestRunImportSmokeTest:
         )
 
         run_import_smoke_test(root, "ibtool")  # must not raise
+
+
+@pytest.mark.unit
+def test_no_generated_qt_resource_module_ships():
+    """plugins.qgis.org forbids generated files such as compiled Qt resources."""
+    repo_root = Path(__file__).resolve().parent.parent
+    files = collect_files(repo_root)
+    names = {p.name for p in files}
+    assert "resources.py" not in names
+    assert "resources_rc.py" not in names
+    assert "resources.qrc" not in names

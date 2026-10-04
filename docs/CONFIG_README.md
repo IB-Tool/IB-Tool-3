@@ -3,7 +3,7 @@
 ## Overview
 
 IB-Tool 3 supports an optional `CONFIG.ini` file that pre-fills all dialog fields on
-plugin start. Place the file in the plugin root directory; if it exists and
+plugin start. The file lives in the QGIS profile (see [File Location](#file-location)); if it exists and
 `auto_load_last_used = True`, every field (input paths, processing parameters, CRS,
 log settings) is populated automatically before the dialog opens. The current dialog
 state can be written back to `CONFIG.ini` at any time via the **Config speichern**
@@ -14,11 +14,21 @@ button.
 ## File Location
 
 ```
-<QGIS profile>/python/plugins/<plugin-folder>/CONFIG.ini
+<QGIS profile>/ibtool/CONFIG.ini
 ```
 
-The plugin root is the directory that also contains `helpers/`, `ibtool_tools/`, and
-`ibtool/`. The filename must be exactly `CONFIG.ini` (case-sensitive on Linux/macOS).
+On Windows this is `%APPDATA%\QGIS\QGIS3\profiles\default\ibtool\CONFIG.ini`.
+The file is stored in the QGIS profile, not in the plugin folder, because QGIS
+deletes and replaces the plugin folder on every plugin update. Log files are written
+to `<QGIS profile>/ibtool/logs/` by default.
+
+**Migration:** for git/manual installs, an existing `CONFIG.ini` in the plugin folder is
+copied once to the new location on plugin start (only if the profile directory has none
+yet; the legacy file is never deleted or overwritten). When updating from a release ZIP
+or via the plugin repository, QGIS deletes the old plugin folder before the new version
+loads, so back up `CONFIG.ini` from the plugin folder before installing 0.2.4 and copy it
+to `<QGIS profile>/ibtool/` afterwards. The filename must be exactly `CONFIG.ini`
+(case-sensitive on Linux/macOS).
 
 A commented template is provided at `docs/CONFIG.ini.example`.
 
@@ -110,7 +120,7 @@ full output file path, not just a directory.
 auto_load_last_used    = True    # Apply CONFIG.ini to dialog on every plugin start
 show_progress_details  = True
 log_level              = INFO    # CRITICAL | WARNING | INFO | SUCCESS
-log_directory          =         # Leave empty for default (plugin root/logs/)
+log_directory          =         # Leave empty for default (<QGIS profile>/ibtool/logs/)
 remember_window_size   = True
 ```
 
@@ -123,7 +133,7 @@ the file for manual reference.
 
 1. Copy the template:
    ```
-   docs/CONFIG.ini.example  →  CONFIG.ini   (plugin root)
+   docs/CONFIG.ini.example  →  <QGIS profile>/ibtool/CONFIG.ini
    ```
 2. Edit `CONFIG.ini` — uncomment keys and set paths for your project.
 3. Use forward slashes or double backslashes in paths:
@@ -179,7 +189,7 @@ if self.config_manager.config_exists():
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Fields not populated on start | `auto_load_last_used = False` or file not found | Check `[UI]` section; confirm file is in plugin root |
+| Fields not populated on start | `auto_load_last_used = False` or file not found | Check `[UI]` section; confirm the file is in `<QGIS profile>/ibtool/` |
 | Path not loaded | Single backslash in path | Replace `\` with `/` or `\\` |
 | Save overwrites custom comments | Expected behavior — INI format does not preserve comments | Keep comments in `CONFIG.ini.example` only |
 | Wrong field values after save | Dialog had stale values before clicking the button | Re-check dialog fields before saving |

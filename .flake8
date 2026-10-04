@@ -3,7 +3,6 @@ max-line-length = 120
 exclude =
     test/,
     ci/,
-    resources.py,
     .git,
     __pycache__,
     Testdaten/,

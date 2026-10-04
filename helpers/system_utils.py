@@ -2,6 +2,8 @@ import os
 import sys
 import shutil
 import hashlib
+import configparser
+from typing import Optional
 from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter, Qgis
 from .logger import Logger
 
@@ -15,6 +17,79 @@ MAX_QGIS = 35000  # QGIS 3.50
 
 # Shapefile sidecar extensions that must be copied alongside the main .shp file.
 _SHAPEFILE_EXTENSIONS = ['.shp', '.shx', '.dbf', '.prj', '.cpg', '.qpj']
+
+
+def get_user_config_dir(settings_dir: Optional[str] = None) -> str:
+    """Return the per-profile IB-Tool directory for CONFIG.ini and logs.
+
+    Lives in the QGIS profile so it survives plugin updates and is writable
+    even when the plugin itself is installed system-wide.
+
+    Args:
+        settings_dir: QGIS settings directory. Defaults to
+            ``QgsApplication.qgisSettingsDirPath()``.
+
+    Returns:
+        ``<settings_dir>/ibtool`` (created if missing).
+
+    Raises:
+        OSError: If the QGIS settings directory is empty or unavailable.
+    """
+    if settings_dir is None:
+        from qgis.core import QgsApplication
+        settings_dir = QgsApplication.qgisSettingsDirPath()
+    if not settings_dir:
+        raise OSError("QGIS settings directory unavailable")
+    path = os.path.join(settings_dir, "ibtool")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def migrate_legacy_config(legacy_dir: str, target_dir: str) -> bool:
+    """Copy a pre-0.2.4 CONFIG.ini from the plugin folder once; never overwrite.
+
+    Args:
+        legacy_dir: Directory that may contain a legacy ``CONFIG.ini``.
+        target_dir: New config directory (see :func:`get_user_config_dir`).
+
+    Returns:
+        True if the file was copied, False otherwise. The legacy file is
+        never deleted.
+    """
+    src = os.path.join(legacy_dir, "CONFIG.ini")
+    dst = os.path.join(target_dir, "CONFIG.ini")
+    if not os.path.isfile(src) or os.path.exists(dst):
+        return False
+    try:
+        shutil.copy2(src, dst)
+    except OSError as exc:
+        Logger.log(f"Legacy CONFIG.ini could not be migrated: {exc}", level="WARNING")
+        return False
+    Logger.log(f"Legacy CONFIG.ini migrated to {dst}", level="INFO")
+    _blank_legacy_log_directory(dst, os.path.join(legacy_dir, "logs"))
+    return True
+
+
+def _blank_legacy_log_directory(config_path: str, legacy_logs: str) -> None:
+    """Reset ``[UI] log_directory`` to empty if it points at the legacy logs dir.
+
+    The legacy plugin folder is wiped on plugin updates, so an explicit
+    default value must not survive migration. Custom values are kept.
+    """
+    def _norm(path: str) -> str:
+        return os.path.normcase(os.path.normpath(path))
+
+    try:
+        parser = configparser.ConfigParser()
+        parser.read(config_path, encoding="utf-8")
+        value = parser.get("UI", "log_directory", fallback="").strip()
+        if not value or _norm(value) != _norm(legacy_logs):
+            return
+        parser.set("UI", "log_directory", "")
+        with open(config_path, "w", encoding="utf-8") as fh:
+            parser.write(fh)
+    except (OSError, configparser.Error) as exc:
+        Logger.log(f"Could not update migrated log_directory: {exc}", level="WARNING")
 
 
 def compute_file_checksum(path: str, chunk_size: int = 8192) -> str:

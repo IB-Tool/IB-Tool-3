@@ -17,7 +17,7 @@ import math
 
 import numpy as np
 
-from PyQt5.QtCore import QMetaType
+from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
 from qgis.core import (
     QgsGeometry,

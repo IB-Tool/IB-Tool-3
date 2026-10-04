@@ -51,6 +51,8 @@ from ibtool.helpers.system_utils import (
     save_temp_layer_to_gpkg,
     version_check,
     compute_file_checksum,
+    get_user_config_dir,
+    migrate_legacy_config,
 )
 from ibtool.helpers.message import msg
 from ibtool.helpers.check import InputValidator, ValidationResult
@@ -111,9 +113,19 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.iface = iface
         # Initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
-        # Initialize config manager (plugin root is one level above ibtool/ibtool/)
+        # Plugin root is one level above ibtool/ibtool/
         plugin_root = os.path.dirname(self.plugin_dir)
-        self.config_manager = ConfigManager(plugin_root)
+        # CONFIG.ini and logs live in the QGIS profile so plugin updates
+        # (which replace the plugin folder) do not wipe them.
+        try:
+            self.config_dir = get_user_config_dir()
+            migrate_legacy_config(plugin_root, self.config_dir)
+        except OSError as exc:
+            logger.log(
+                f"Profile config dir unavailable ({exc}); using plugin folder.",
+                level="WARNING")
+            self.config_dir = plugin_root
+        self.config_manager = ConfigManager(self.config_dir)
         # Initialize locale
         locale = QSettings().value('locale/userLocale')[0:2]
         locale_path = os.path.join(
@@ -271,11 +283,11 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Removes the plugin menu item and icon from QGIS GUI."""
         for action in self.actions:
             self.iface.removePluginMenu(
-                self.tr(u'&IB-Tool'),
+                self.menu,
                 action)
             self.iface.removeToolBarIcon(action)
 
-        # Logger schließen
+        # Close the logger
         logger.close_logger()
 
     def setup_logging_in_plugin(self):
@@ -411,12 +423,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             # Set default CRS (overridden later by _apply_config_to_ui if config exists)
             self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25833"))
 
-        # Config aus CONFIG.ini in UI laden
+        # Load config from CONFIG.ini into the UI
         self._apply_config_to_ui()
 
-        # Automatische Aktualisierung der Textfelder bei Start
-        file_path = self.dlg.FilterPath.text()  # Pfad aus dem QLineEdit abrufen
-        if file_path and os.path.exists(file_path):  # Prüfen, ob Pfad existiert
+        # Refresh the text fields automatically on start
+        file_path = self.dlg.FilterPath.text()  # Read the path from the QLineEdit
+        if file_path and os.path.exists(file_path):  # Check whether the path exists
             self.load_filter_file(file_path)
 
         logger.set_message_box(self.dlg.MessageBox)
@@ -707,7 +719,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if not cfg.ui.auto_load_last_used:
             return
 
-        # Pfad-Felder befüllen
+        # Fill the path fields
         self.config_manager.apply_to_ui_elements({
             'HuPath': self.dlg.HuPath,
             'RnPath': self.dlg.RnPath,
@@ -736,7 +748,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if cfg.processing.part_list:
             self.dlg.partlistBox.setText(cfg.processing.part_list)
 
-        # Settlement-Analyse-Parameter (QSpinBox — nur wenn > 0)
+        # Settlement analysis parameters (QSpinBox - only if > 0)
         proc = cfg.processing
         if proc.min_building_count > 0:
             self.dlg.MinBdgCountBox.setValue(int(proc.min_building_count))
@@ -753,11 +765,11 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if proc.max_gap_size > 0:
             self.dlg.MaxGapSizeBox.setValue(int(proc.max_gap_size))
 
-        # Checkboxen
+        # Checkboxes
         self.dlg.DebugModeBox.setChecked(cfg.processing.debug_mode)
         self.dlg.PartLogBox.setChecked(cfg.processing.delete_part_log)
 
-        # Filter-Datei laden, wenn gesetzt
+        # Load the filter file if set
         filter_path = cfg.input_data.filter_file_path
         if filter_path and os.path.exists(filter_path):
             self.load_filter_file(filter_path)
@@ -879,7 +891,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 return
 
         # Re-init manager with empty defaults
-        self.config_manager = ConfigManager(self.plugin_dir)
+        self.config_manager = ConfigManager(self.config_dir)
 
         # Clear all path fields
         for widget in [
@@ -1277,6 +1289,10 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         return patch_removed, anz_hu
 
+    def _effective_log_dir(self) -> str:
+        """Return the log directory from the UI, or ``<config_dir>/logs`` if empty."""
+        return self.dlg.LogDirPath.text().strip() or os.path.join(self.config_dir, "logs")
+
     def start_processing(
             self):  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
         """Run the full settlement-delineation pipeline for all partitions.
@@ -1313,9 +1329,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 except ValueError as e:
                     msg(str(e))
 
-            log_dir = self.dlg.LogDirPath.text()
-            if log_dir:
-                logger.set_log_dir(log_dir)
+            logger.set_log_dir(self._effective_log_dir())
 
             workspace = os.getcwd()
             os.chdir(workspace)

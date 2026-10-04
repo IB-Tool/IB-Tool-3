@@ -33,6 +33,11 @@ Unit tests cover (no Processing or real iface operations):
 """
 # pylint: disable=too-many-lines,protected-access,import-outside-toplevel,wrong-import-order
 
+import atexit
+import os
+import shutil
+import tempfile
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -58,7 +63,11 @@ def _make_tool() -> IBTool:
     tests asserting the untranslated English defaults), so it is removed
     again immediately after construction.
     """
-    with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs:
+    # Never touch the real QGIS profile: redirect CONFIG.ini/logs to a temp dir.
+    cfg_dir = tempfile.mkdtemp(prefix="ibtool_cfg_")
+    atexit.register(shutil.rmtree, cfg_dir, ignore_errors=True)
+    with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs,          patch("ibtool.ibtool.ibtool.get_user_config_dir",
+               return_value=cfg_dir):
         mock_qs.return_value.value.return_value = "de_DE"
         tool = IBTool(_IFACE)
     translator = getattr(tool, "translator", None)
@@ -78,6 +87,24 @@ class TestIBTool:  # pylint: disable=too-many-public-methods
     def setup_class(cls):
         """Create a single IBTool instance for all tests in the class."""
         cls.tool = _make_tool()
+
+    # --- _effective_log_dir ---
+
+    @pytest.mark.unit
+    def test_effective_log_dir_defaults_to_config_logs(self):
+        """Empty LogDirPath resolves to <config_dir>/logs."""
+        tool = _make_tool()
+        tool.dlg = MagicMock()
+        tool.dlg.LogDirPath.text.return_value = "  "
+        assert tool._effective_log_dir() == os.path.join(tool.config_dir, "logs")
+
+    @pytest.mark.unit
+    def test_effective_log_dir_uses_custom_path(self):
+        """A non-empty LogDirPath is used unchanged."""
+        tool = _make_tool()
+        tool.dlg = MagicMock()
+        tool.dlg.LogDirPath.text.return_value = "C:/custom/logs"
+        assert tool._effective_log_dir() == "C:/custom/logs"
 
     # --- tr ---
 
@@ -532,6 +559,20 @@ class TestAddAction:
         tool.iface.addPluginToMenu.assert_not_called()
 
     @pytest.mark.unit
+    def test_add_action_uses_plugins_menu(self):
+        """add_action must put the action into the Plugins menu (shared &IB-Tool submenu with the companion plugins), not Vector."""
+        tool = _make_tool()
+        tool.iface = MagicMock()
+        tool.add_action(
+            icon_path="",
+            text="IB-Tool",
+            callback=lambda: None,
+            parent=_PARENT,
+        )
+        tool.iface.addPluginToMenu.assert_called_once()
+        tool.iface.addPluginToVectorMenu.assert_not_called()
+
+    @pytest.mark.unit
     def test_sets_status_tip_when_provided(self):
         """add_action must set the status tip when status_tip is not None."""
         tool = _make_tool()
@@ -600,6 +641,7 @@ class TestUnload:
             tool.unload()
 
         assert tool.iface.removePluginMenu.call_count == 2
+        tool.iface.removePluginVectorMenu.assert_not_called()
 
     @pytest.mark.unit
     def test_calls_logger_close_logger(self):
@@ -1259,7 +1301,7 @@ class TestConfigRoundTripParamsAndDebug:
         from helpers.config_manager import ConfigManager
 
         tool = _make_tool()
-        tool.plugin_dir = str(tmp_path)
+        tool.config_dir = str(tmp_path)
         tool.config_manager = ConfigManager(str(tmp_path))
 
         tool.dlg.MinOverlapBlocksBox.setValue(22)
@@ -1306,6 +1348,37 @@ class TestConfigRoundTripParamsAndDebug:
 # ---------------------------------------------------------------------------
 # TestDeleteConfig
 # ---------------------------------------------------------------------------
+
+class TestConfigDir:
+    """CONFIG.ini location is the profile dir, shared by init and reset."""
+
+    @pytest.mark.unit
+    def test_config_manager_uses_profile_dir_not_plugin_dir(self):
+        tool = _make_tool()
+        assert tool.config_manager.plugin_root_dir == tool.config_dir
+        assert not tool.config_dir.startswith(os.path.dirname(tool.plugin_dir))
+
+    @pytest.mark.unit
+    def test_init_falls_back_to_plugin_root_when_profile_dir_fails(self):
+        with patch("ibtool.ibtool.ibtool.QSettings") as mock_qs,              patch("ibtool.ibtool.ibtool.get_user_config_dir",
+                   side_effect=OSError("read-only")):
+            mock_qs.return_value.value.return_value = "de_DE"
+            tool = IBTool(_IFACE)
+        translator = getattr(tool, "translator", None)
+        if translator is not None:
+            QCoreApplication.removeTranslator(translator)
+        assert tool.config_dir == os.path.dirname(tool.plugin_dir)
+
+    @pytest.mark.unit
+    def test_reset_recreates_manager_in_config_dir(self, tmp_path):
+        from qgis.PyQt.QtWidgets import QMessageBox as _QMB
+        tool = _make_tool()
+        tool.config_dir = str(tmp_path)
+        with patch("ibtool.ibtool.ibtool.QMessageBox.question",
+                   return_value=_QMB.Yes),              patch("ibtool.ibtool.ibtool.ConfigManager") as mock_cm,              patch("ibtool.ibtool.ibtool.logger"):
+            tool._delete_config()
+        assert mock_cm.call_args[0][0] == str(tmp_path)
+
 
 class TestDeleteConfig:
     """Tests for IBTool._delete_config â€” confirmation, deletion, and UI reset."""

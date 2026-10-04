@@ -64,5 +64,5 @@ remember_window_size = True         # Remember dialog window size and position
 # 1. Uncomment and set all paths in [INPUT_DATA] section
 # 2. Adjust processing parameters in [PROCESSING] section if needed
 # 3. Set workspace_directory in [OUTPUT] section
-# 4. Save as CONFIG.ini in the plugin root directory
+# 4. Save as <QGIS profile>/ibtool/CONFIG.ini (Windows: %APPDATA%\QGIS\QGIS3\profiles\default\ibtool\)
 # 5. Restart QGIS or reload the plugin
