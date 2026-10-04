@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 300" width="600" height="300" font-family="sans-serif">
+<rect x="0" y="0" width="600" height="300" fill="#FFFFFF"/>
+<polygon points="24.0,177.3 71.7,107.7 263.5,106.2 285.1,106.2 286.2,116.9 286.2,138.5 277.6,227.4 231.2,233.9 209.6,233.9 27.4,231.2 24.0,198.9" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="-3.0" y1="270.0" x2="317.0" y2="270.0" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<line x1="112.0" y1="262.0" x2="112.0" y2="90.4" stroke="#616161" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<line x1="202.0" y1="262.0" x2="202.0" y2="90.4" stroke="#616161" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<polygon points="38.2,220.4 81.2,215.9 77.8,183.6 34.8,188.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="81.2,215.9 91.9,214.7 89.7,193.2 78.9,194.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="80.5,132.8 91.1,134.3 93.1,120.0 82.5,118.5" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="133.4,213.9 172.7,218.7 177.0,182.9 137.7,178.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="130.3,145.9 155.2,149.8 158.5,128.5 133.6,124.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="220.4,223.1 266.8,216.6 262.8,188.1 216.4,194.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="227.1,193.1 252.1,189.6 249.1,168.2 224.1,171.7" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="266.5,128.6 275.4,127.7 274.3,117.0 265.4,117.9" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="314.0,177.3 357.0,172.8 416.9,167.3 528.3,157.4 549.9,157.4 563.6,177.3 567.6,205.8 567.6,227.4 521.2,233.9 499.6,233.9 317.4,231.2 314.0,198.9" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<line x1="287.0" y1="270.0" x2="607.0" y2="270.0" stroke="#007D85" stroke-width="6" stroke-linecap="round" />
+<line x1="402.0" y1="262.0" x2="402.0" y2="90.4" stroke="#616161" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<line x1="492.0" y1="262.0" x2="492.0" y2="90.4" stroke="#616161" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<polygon points="328.2,220.4 371.2,215.9 367.8,183.6 324.8,188.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="371.2,215.9 381.9,214.7 379.7,193.2 368.9,194.4" fill="#BDBDBD" stroke="none" stroke-width="1.0" stroke-linejoin="round" fill-opacity="0.5"/>
+<polygon points="370.5,132.8 381.1,134.3 383.1,120.0 372.5,118.5" fill="#BDBDBD" stroke="none" stroke-width="1.0" stroke-linejoin="round" fill-opacity="0.5"/>
+<polygon points="423.4,213.9 462.7,218.7 467.0,182.9 427.7,178.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="420.3,145.9 445.2,149.8 448.5,128.5 423.6,124.6" fill="#BDBDBD" stroke="none" stroke-width="1.0" stroke-linejoin="round" fill-opacity="0.5"/>
+<polygon points="510.4,223.1 556.8,216.6 552.8,188.1 506.4,194.6" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="517.1,193.1 542.1,189.6 539.1,168.2 514.1,171.7" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="556.5,128.6 565.4,127.7 564.3,117.0 555.4,117.9" fill="#BDBDBD" stroke="none" stroke-width="1.0" stroke-linejoin="round" fill-opacity="0.5"/>
+<text x="375.4" y="250.0" font-size="14" text-anchor="middle" font-weight="normal" fill="#616161">18 m²</text>
+<text x="376.8" y="111.5" font-size="14" text-anchor="middle" font-weight="normal" fill="#616161">12 m²</text>
+<text x="434.4" y="117.6" font-size="14" text-anchor="middle" font-weight="normal" fill="#616161">42 m²</text>
+<text x="560.4" y="110.0" font-size="14" text-anchor="middle" font-weight="normal" fill="#616161">8 m²</text>
+<text x="15.0" y="30.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">Before: all buildings</text>
+<text x="15.0" y="52.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">boundary reaches the rear sheds</text>
+<text x="305.0" y="30.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">After: min_area = 56.8 m²</text>
+<text x="305.0" y="52.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">boundary follows the houses</text>
+<text x="15.0" y="290.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">Removed: groups of touching buildings ≤ 56.8 m², then single buildings ≤ 35 m².</text>
+</svg>

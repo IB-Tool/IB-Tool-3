@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 720" width="920" height="720" font-family="sans-serif">
+<rect x="0" y="0" width="920" height="720" fill="#FFFFFF"/>
+<text x="15.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">1  Settlement</text>
+<text x="15.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">two clusters, 20 m apart</text>
+<g transform="translate(25,110)">
+<polygon points="15.0,30.0 85.0,30.0 85.0,140.0 15.0,140.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="105.0,30.0 175.0,30.0 175.0,140.0 105.0,140.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+</g>
+<text x="243.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">2  Buffer +15 m</text>
+<text x="243.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">dissolved: the gap disappears</text>
+<g transform="translate(253,110)">
+<rect x="0" y="15" width="100" height="140" rx="15" fill="#FFBCB0" fill-opacity="0.45"/>
+<rect x="90" y="15" width="100" height="140" rx="15" fill="#FFBCB0" fill-opacity="0.45"/>
+<polygon points="15.0,30.0 85.0,30.0 85.0,140.0 15.0,140.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="105.0,30.0 175.0,30.0 175.0,140.0 105.0,140.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+</g>
+<text x="471.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">3  Remove outer 15 m</text>
+<text x="471.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">outline shrinks back,</text>
+<text x="471.0" y="76.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">bridge remains</text>
+<g transform="translate(481,110)">
+<polygon points="15.0,30.0 175.0,30.0 175.0,140.0 15.0,140.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="15.0,30.0 85.0,30.0 85.0,140.0 15.0,140.0" fill="none" stroke="#F7561A" stroke-width="1" stroke-linejoin="round" stroke-dasharray="4 3"/>
+<polygon points="105.0,30.0 175.0,30.0 175.0,140.0 105.0,140.0" fill="none" stroke="#F7561A" stroke-width="1" stroke-linejoin="round" stroke-dasharray="4 3"/>
+</g>
+<text x="699.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">4  Minus settlement</text>
+<text x="699.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">= gap candidate</text>
+<text x="699.0" y="76.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">2,200 m², 85 % contact</text>
+<g transform="translate(709,110)">
+<polygon points="15.0,30.0 85.0,30.0 85.0,140.0 15.0,140.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="105.0,30.0 175.0,30.0 175.0,140.0 105.0,140.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="85.0,30.0 105.0,30.0 105.0,140.0 85.0,140.0" fill="#F7561A" stroke="#F7561A" stroke-width="2" stroke-linejoin="round" />
+</g>
+<line x1="15.0" y1="305.0" x2="905.0" y2="305.0" stroke="#E4E4E4" stroke-width="1.5" stroke-linecap="round" />
+<text x="15.0" y="330.0" font-size="16" text-anchor="start" font-weight="bold" fill="#212121">Which gap candidates are added to the settlement (max_gap_size = 4,900 m²):</text>
+<text x="15.0" y="366.0" font-size="16" text-anchor="start" font-weight="bold" fill="#212121">Filter 1</text>
+<text x="15.0" y="388.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">&lt; max_gap_size and</text>
+<text x="15.0" y="408.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">≥ 70 % contact</text>
+<polygon points="55.0,470.0 85.0,470.0 85.0,580.0 205.0,580.0 205.0,470.0 235.0,470.0 235.0,620.0 55.0,620.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="85.0,500.0 205.0,500.0 205.0,580.0 85.0,580.0" fill="#F7561A" stroke="#F7561A" stroke-width="1.5" stroke-linejoin="round" />
+<line x1="85.0" y1="500.0" x2="205.0" y2="500.0" stroke="#3C3C3C" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5"/>
+<text x="320.0" y="366.0" font-size="16" text-anchor="start" font-weight="bold" fill="#212121">Filter 2</text>
+<text x="320.0" y="388.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">any size and</text>
+<text x="320.0" y="408.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">≥ 90 % contact</text>
+<polygon points="360.0,460.0 580.0,460.0 580.0,640.0 360.0,640.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="390.0,490.0 550.0,490.0 550.0,610.0 390.0,610.0" fill="#F7561A" stroke="#F7561A" stroke-width="1.5" stroke-linejoin="round" />
+<polygon points="460.0,460.0 476.0,460.0 476.0,490.0 460.0,490.0" fill="#FFFFFF" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<line x1="460.0" y1="490.0" x2="476.0" y2="490.0" stroke="#3C3C3C" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5"/>
+<line x1="460.0" y1="460.0" x2="460.0" y2="490.0" stroke="#F7561A" stroke-width="2.5" stroke-linecap="round" />
+<line x1="476.0" y1="460.0" x2="476.0" y2="490.0" stroke="#F7561A" stroke-width="2.5" stroke-linecap="round" />
+<text x="625.0" y="366.0" font-size="16" text-anchor="start" font-weight="bold" fill="#212121">Filter 3</text>
+<text x="625.0" y="388.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">≥ max_gap_size, 70–90 % contact:</text>
+<text x="625.0" y="408.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">only triangles with</text>
+<text x="625.0" y="428.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">longest side &lt; 70 m</text>
+<polygon points="665.0,460.0 865.0,460.0 865.0,640.0 810.0,640.0 810.0,560.0 775.0,560.0 775.0,480.0 725.0,480.0 725.0,560.0 690.0,560.0 690.0,640.0 665.0,640.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="725.0,480.0 775.0,480.0 725.0,500.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="775.0,480.0 775.0,500.0 725.0,500.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="725.0,500.0 775.0,500.0 725.0,520.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="775.0,500.0 775.0,520.0 725.0,520.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="725.0,520.0 775.0,520.0 725.0,540.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="775.0,520.0 775.0,540.0 725.0,540.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="725.0,540.0 775.0,540.0 725.0,560.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="775.0,540.0 775.0,560.0 725.0,560.0" fill="#F7561A" stroke="#FFFFFF" stroke-width="1" stroke-linejoin="round" />
+<polygon points="690.0,560.0 810.0,560.0 690.0,640.0" fill="#FFFFFF" stroke="#616161" stroke-width="1" stroke-linejoin="round" stroke-dasharray="4 3"/>
+<polygon points="810.0,560.0 810.0,640.0 690.0,640.0" fill="#FFFFFF" stroke="#616161" stroke-width="1" stroke-linejoin="round" stroke-dasharray="4 3"/>
+<line x1="690.0" y1="640.0" x2="810.0" y2="640.0" stroke="#3C3C3C" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5"/>
+<polygon points="15.0,682.0 35.0,682.0 35.0,696.0 15.0,696.0" fill="#FFBCB0" stroke="#F7561A" stroke-width="2" stroke-linejoin="round" />
+<text x="42.0" y="695.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">settlement</text>
+<polygon points="150.0,682.0 170.0,682.0 170.0,696.0 150.0,696.0" fill="#F7561A" stroke="#F7561A" stroke-width="1.5" stroke-linejoin="round" />
+<text x="177.0" y="695.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">gap added</text>
+<line x1="290.0" y1="689.0" x2="318.0" y2="689.0" stroke="#3C3C3C" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5"/>
+<text x="325.0" y="695.0" font-size="14" text-anchor="start" font-weight="normal" fill="#212121">boundary without settlement contact</text>
+<text x="620.0" y="695.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">Filter 3 triangles are schematic.</text>
+</svg>

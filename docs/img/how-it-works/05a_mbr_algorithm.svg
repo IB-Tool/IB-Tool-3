@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 440" width="860" height="440" font-family="sans-serif">
+<rect x="0" y="0" width="860" height="440" fill="#FFFFFF"/>
+<text x="20.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">1  Collect building edges</text>
+<text x="20.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">edges &lt; 20 % of a building&#x27;s</text>
+<text x="20.0" y="76.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">longest edge are ignored</text>
+<polygon points="54.2,278.3 108.6,253.0 89.6,212.2 35.2,237.5" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="120.5,234.4 167.2,216.5 152.9,179.1 106.2,197.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="187.4,223.6 244.8,193.1 221.3,148.9 163.9,179.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="116.6,301.1 141.7,284.7 128.1,263.8 102.9,280.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="183.1,281.3 225.9,267.4 215.1,234.1 172.3,248.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="300.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">2  Find the dominant direction</text>
+<text x="300.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">group directions within ±10°;</text>
+<text x="300.0" y="76.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">largest total length wins</text>
+<polygon points="334.2,278.3 388.6,253.0 369.6,212.2 315.2,237.5" fill="#E4E4E4" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<line x1="334.2" y1="278.3" x2="388.6" y2="253.0" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="388.6" y1="253.0" x2="369.6" y2="212.2" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<line x1="369.6" y1="212.2" x2="315.2" y2="237.5" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="315.2" y1="237.5" x2="334.2" y2="278.3" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<polygon points="400.5,234.4 447.2,216.5 432.9,179.1 386.2,197.1" fill="#E4E4E4" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<line x1="400.5" y1="234.4" x2="447.2" y2="216.5" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="447.2" y1="216.5" x2="432.9" y2="179.1" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<line x1="432.9" y1="179.1" x2="386.2" y2="197.1" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="386.2" y1="197.1" x2="400.5" y2="234.4" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<polygon points="467.4,223.6 524.8,193.1 501.3,148.9 443.9,179.4" fill="#E4E4E4" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<line x1="467.4" y1="223.6" x2="524.8" y2="193.1" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="524.8" y1="193.1" x2="501.3" y2="148.9" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<line x1="501.3" y1="148.9" x2="443.9" y2="179.4" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="443.9" y1="179.4" x2="467.4" y2="223.6" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<polygon points="396.6,301.1 421.7,284.7 408.1,263.8 382.9,280.1" fill="#E4E4E4" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<line x1="396.6" y1="301.1" x2="421.7" y2="284.7" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="421.7" y1="284.7" x2="408.1" y2="263.8" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<line x1="408.1" y1="263.8" x2="382.9" y2="280.1" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="382.9" y1="280.1" x2="396.6" y2="301.1" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<polygon points="463.1,281.3 505.9,267.4 495.1,234.1 452.3,248.0" fill="#E4E4E4" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<line x1="463.1" y1="281.3" x2="505.9" y2="267.4" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="505.9" y1="267.4" x2="495.1" y2="234.1" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<line x1="495.1" y1="234.1" x2="452.3" y2="248.0" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<line x1="452.3" y1="248.0" x2="463.1" y2="281.3" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<line x1="395.0" y1="356.1" x2="516.4" y2="309.5" stroke="#F7561A" stroke-width="2.5" stroke-linecap="round" />
+<polygon points="516.4,309.5 508.8,317.5 505.4,308.6" fill="#F7561A" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<text x="522.4" y="314.5" font-size="14" text-anchor="start" font-weight="bold" fill="#F7561A">21°</text>
+<line x1="300.0" y1="392.0" x2="326.0" y2="392.0" stroke="#F7561A" stroke-width="4" stroke-linecap="round" />
+<text x="334.0" y="397.0" font-size="14" text-anchor="start" font-weight="bold" fill="#F7561A">Σ 100 m at 18–33° → dominant</text>
+<line x1="300.0" y1="416.0" x2="326.0" y2="416.0" stroke="#007D85" stroke-width="4" stroke-linecap="round" />
+<text x="334.0" y="421.0" font-size="14" text-anchor="start" font-weight="normal" fill="#007D85">Σ 78 m at 108–123°</text>
+<text x="580.0" y="34.0" font-size="17" text-anchor="start" font-weight="bold" fill="#212121">3  Oriented rectangle</text>
+<text x="580.0" y="55.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">along 21°, encloses all vertices</text>
+<text x="580.0" y="76.0" font-size="14" text-anchor="start" font-weight="normal" fill="#616161">BCR = 411 / 950 m² = 43 %</text>
+<polygon points="595.2,148.9 804.8,148.9 804.8,301.1 595.2,301.1" fill="none" stroke="#616161" stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="7 5"/>
+<text x="595.2" y="140.9" font-size="13" text-anchor="start" font-weight="normal" fill="#616161">axis-aligned box, for comparison</text>
+<polygon points="589.4,222.6 787.0,146.7 827.2,251.5 629.7,327.3" fill="#FFBCB0" stroke="#F7561A" stroke-width="2.5" stroke-linejoin="round" />
+<polygon points="614.2,278.3 668.6,253.0 649.6,212.2 595.2,237.5" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="680.5,234.4 727.2,216.5 712.9,179.1 666.2,197.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="747.4,223.6 804.8,193.1 781.3,148.9 723.9,179.4" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="676.6,301.1 701.7,284.7 688.1,263.8 662.9,280.1" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+<polygon points="743.1,281.3 785.9,267.4 775.1,234.1 732.3,248.0" fill="#3C3C3C" stroke="none" stroke-width="1.0" stroke-linejoin="round" />
+</svg>
