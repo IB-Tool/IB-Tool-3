@@ -14,10 +14,14 @@ processing partitions in parallel worker processes.
 
 **Branch:** `Add_multiprocessing`
 
-**Status (2026-11-01):** Phases 0–3, UI fix and GapClose sym-diff
-committed (Phase 3: 3.44 521 → 262 s). **Phase 4 (parallel partitions)
-implemented, results identical on 3.40 and 3.44; not committed. 3.44:
-262 → 101.5 s with 4 workers; GUI test OK.** — see Phase 4 section.
+**Status (2026-11-01):** Phases 0–4, UI fix and GapClose sym-diff
+committed (Phase 4 in `ea09a84`). Phase 5a (CreateMST `nodes_detect`) and
+5b (`identify_dense_blocks` area fields) implemented and verified, not
+committed. Sample data, QGIS 3.44: 843.6 s (3.40, start) → 262 s
+sequential → 101.5 s with 4 workers → **71.8 s with 4 workers after 5a+5b**
+(3.40: 71.8 s; sequential 177 s), results identical. **Next:** PART_64 is
+51 s; largest remaining steps (sequential, all partitions): EdgeCatch 41.8 s,
+ImportFilter 36.8 s, GapClose 24.1 s, Erode 12.0 s, MST_Clustering 10.3 s.
 
 ---
 
@@ -556,15 +560,15 @@ gap 10.2 s (PatchRemove). Overall since the start (3.40, no cProfile):
 Partitions are independent (see `docs/how-it-works.md`), inputs are already
 written to GeoPackages in the workspace, and the resume log is per partition.
 
-**Spec (2026-11-01, brainstorming with user, pending user review):**
+**Spec (2026-11-01, approved by the user):**
 `docs/superpowers/specs/2026-11-01-parallel-partitions-design.md` —
 supersedes the sketch below (worker pool via QProcess, Windows-only launcher
 strategy, worker count automatic + UI field, run manifest
 `ibtool_run.json` incl. settings restore, per-partition result files +
 single final merge, recompute list in-process). Spec approved by the user.
 **Implementation plan:** `docs/superpowers/plans/2026-11-01-parallel-partitions.md`
-(10 tasks) — **implemented 2026-11-01 (inline execution, ledger in
-`.superpowers/sdd/2026-11-01-parallel-partitions/progress.md`); not committed.**
+(10 tasks) — **implemented and committed 2026-11-01 (`ea09a84`; inline
+execution, ledger in `.superpowers/sdd/2026-11-01-parallel-partitions/progress.md`).**
 
 Results (all RESULT: IDENTICAL vs. the references):
 - QGIS 3.44, `profile_pipeline.py`: 4 workers 157.3 s, 3 workers 166.4 s,
@@ -584,6 +588,41 @@ Results (all RESULT: IDENTICAL vs. the references):
   optimizations: CreateMST, PatchRemove, ImportFilter) or overlapping the
   global density with the first partitions.
 - GUI test by the user: OK.
+- Follow-ups (not done): shapefile checksum covers only the `.shp` (attribute
+  changes in the `.dbf` are not detected on resume); `edge_catch_utils.py`
+  > 1000 lines (C0302). (The `0,0000…` validation error for Global
+  Footprint Density appeared only in the headless test harness; the GUI
+  run with 0 works.)
+
+### Phase 5a — CreateMST: `nodes_detect` without processing (2026-11-01)
+
+- [x] Profile CreateMST on PART_64 (3.44): 13.8 s, of which `native:aggregate`
+      in `nodes_detect` 8.8 s, `selectbylocation` ×3 1.5 s, rest ≈ 1.5 s.
+- [x] `nodes_detect` counts first/last vertices by exact x in Python; former
+      chain kept as `_nodes_detect_processing` (fallback + test reference).
+      Findings while matching the chain: no rounding of the `x-coord` field
+      (precision 10 is metadata only); `native:aggregate` unites the group
+      geometries (identical points merge); grouping by x only is a quirk of
+      the ArcPy port (a dead end sharing x with a junction is not detected) —
+      kept for identical results.
+- [x] Verified: 50 calls on the sample data, 0 mismatches (1,691 nodes);
+      33.8 s → 0.3 s summed; full runs identical on 3.44 and 3.40.
+- [x] Timing (4 workers, CPU base load 14–24 %): 3.44 89.2 s (PART_64 69.5 s,
+      parallel phase 71.5 s), 3.40 92.4 s.
+- [ ] Commit (user).
+
+### Phase 5b — identify_dense_blocks: area fields (2026-11-01)
+
+- [x] Profile PatchRemove on PART_64 (3.44): 10.1 s, of which
+      `identify_dense_blocks` 9.5 s — `globalProjectLayerScopes` per feature
+      (7,216 calls, 7.1 s) + one `updateFeature` per feature (2.1 s).
+- [x] `_store_area`: one expression context per layer, values written with one
+      `changeAttributeValues` call; also speeds up step 06 (dense blocks).
+- [x] Verified: full runs identical on 3.44 (4 workers and sequential) and 3.40.
+- [x] Timing (CPU base load 0–10 %): 4 workers 71.8 s (3.44 and 3.40),
+      PART_64 51.1 s; sequential 3.44 177.0 s (06_dense_blocks 1.3 s,
+      13_patch_remove 6.0 s).
+- [ ] Commit (user).
 
 Original design sketch (superseded):
 
@@ -631,3 +670,6 @@ count; ~3.5–4× on 4 cores. Combined with Phases 1–3, rough estimate
 | 2026-11-01 | Results must be reproducible per QGIS version; identity across versions (3.40 vs 3.44) is not required. Development reference = QGIS 3.44 LTR. |
 | 2026-11-01 | UI freeze fixed with option A (heartbeat + monotonic progress + UI lock); GUI test OK. |
 | 2026-11-01 | GapClose grid stays at 1e-5 (10 cm makes the QGIS algorithm fail). Speed-ups must keep the result identical ("speed with unchanged stability"): sym-diff with cached union accepted, per-block clipping rejected. |
+| 2026-11-01 | Phase 4: fixed worker pool via QProcess (approach A); Windows only for now, launcher kept platform-pluggable (`find_worker_command`) for a later release on more systems; worker count automatic (cores − 1, max 4) + UI field; worker mode used automatically when the self-test passes. |
+| 2026-11-01 | Phase 4: one working directory = one run; `ibtool_run.json` with input checksums, parameters, versions; resume is checked against it and the plugin offers to take over its settings ("Prüfen + Einstellungen übernehmen"). |
+| 2026-11-01 | Phase 4 result: 3.44 262 → 101.5 s with 4 workers, identical; target < 100 s missed by 1.5 s — PART_64 is the critical path. |

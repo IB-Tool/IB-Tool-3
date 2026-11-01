@@ -619,19 +619,83 @@ def create_linestring_layer_from_array(data, crs, layer_name):
     return layer
 
 
+def _count_end_nodes(input_road_network):
+    """Group the first and last vertex of every line by their exact x coordinate.
+
+    Mirrors ``native:extractspecificvertices`` with ``VERTICES '0, -1'``:
+    vertex numbers count over the whole geometry (multi-part lines give the
+    first vertex of the first part and the last of the last part), a line
+    with one vertex yields it twice, features without geometry yield nothing.
+    The key is the exact x value (the former ``x-coord`` field was not
+    rounded to its declared precision — verified by test).
+
+    Returns:
+        Dict ``x -> [QgsPoint, ...]`` in input order.
+    """
+    groups = {}
+    request = QgsFeatureRequest().setNoAttributes()
+    for feature in input_road_network.getFeatures(request):
+        geom = feature.geometry()
+        if geom.isNull() or geom.isEmpty():
+            continue
+        total = geom.constGet().nCoordinates()
+        for index in (0, -1):
+            number = total + index if index < 0 else index
+            if number < 0 or number >= total:
+                continue
+            point = geom.vertexAt(number)
+            groups.setdefault(point.x(), []).append(point)
+    return groups
+
+
 def nodes_detect(input_road_network, count):
     """Detect road network nodes with a specific connection count.
 
-    QGIS port of the ArcPy NodesDetect function. Extracts endpoints from
-    the road network, aggregates by X coordinate, and returns only those
-    nodes matching the specified connection count.
+    QGIS port of the ArcPy NodesDetect function: takes the first and last
+    vertex of every road, groups them by X coordinate only (two different
+    end points with the same x count as connected — kept from the original
+    port) and returns the groups with exactly *count* points.
+
+    Computed directly from the geometries (the former processing chain —
+    ``native:aggregate`` alone took ~9 s on large partitions — is kept as
+    :func:`_nodes_detect_processing` and used as fallback on errors).
 
     Args:
         input_road_network: QgsVectorLayer containing road line features.
         count: Target connection count to filter nodes by.
 
     Returns:
-        QgsVectorLayer containing filtered network nodes.
+        QgsVectorLayer (memory, MultiPoint) with one feature per matching
+        node group and the field ``x-coord`` (the group's point count).
+    """
+    try:
+        groups = _count_end_nodes(input_road_network)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"nodes_detect: geometry path failed ({e}), using processing", "WARNING")
+        return _nodes_detect_processing(input_road_network, count)
+
+    crs = input_road_network.crs().authid()
+    layer = QgsVectorLayer(f"MultiPoint?crs={crs}&field=x-coord:double", "nodes", "memory")
+    features = []
+    for points in groups.values():
+        if len(points) != count:
+            continue
+        feature = QgsFeature(layer.fields())
+        # native:aggregate unites the group's geometries (identical points merge)
+        feature.setGeometry(QgsGeometry.unaryUnion(
+            [QgsGeometry(point.clone()) for point in points]))
+        feature.setAttributes([float(len(points))])
+        features.append(feature)
+    layer.dataProvider().addFeatures(features)
+    layer.updateExtents()
+    return layer
+
+
+def _nodes_detect_processing(input_road_network, count):
+    """Former processing implementation of :func:`nodes_detect` (fallback, reference).
+
+    extractspecificvertices '0, -1' -> x coordinate field -> aggregate by x
+    with count -> extract groups whose count equals *count*.
     """
     vertices = processing.run("native:extractspecificvertices", {
         'INPUT': input_road_network,

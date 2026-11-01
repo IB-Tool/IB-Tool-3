@@ -24,6 +24,8 @@ Integration tests cover:
   - identify_dense_blocks: low threshold (0) → all blocks returned
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from qgis.core import (
     QgsVectorLayer,
@@ -354,3 +356,38 @@ class TestGlobalInnerBlocksMerge:
     def test_single_partition_is_not_merged(self):
         _inner, merges = self._run(["P1"])
         assert merges == []
+
+
+
+# ---------------------------------------------------------------------------
+# TestIdentifyDenseBlocksAreas — exact area fields, context built once per layer
+# ---------------------------------------------------------------------------
+
+class TestIdentifyDenseBlocksAreas:
+    """identify_dense_blocks computes $area once per feature with one context per layer."""
+
+    CRS_ID = "EPSG:25833"
+
+    def _inputs(self):
+        blocks = _block_layer_with_name(self.CRS_ID)
+        _add_named_block(blocks, 0, 0, 100, 1)
+        _add_named_block(blocks, 200, 0, 50, 2)          # no buildings -> not joined
+        return _building_layer(self.CRS_ID), blocks
+
+    @pytest.mark.integration
+    def test_area_fields_and_overlap_are_exact(self):
+        buildings, blocks = self._inputs()
+        result = identify_dense_blocks(buildings, blocks, 0)
+        assert [f["FOOTPRINT_AREA"] for f in buildings.getFeatures()] == [100.0] * 16
+        rows = [(f["SHAPE_AREA"], f["FOOTPRINT_AREA_sum"], f["OVERLAP"])
+                for f in result.getFeatures()]
+        assert rows == [(10000.0, 1600.0, 16.0)]
+
+    @pytest.mark.integration
+    def test_expression_context_built_once_per_layer(self):
+        from ibtool.ibtool_tools import FootprintDensity as fd
+        buildings, blocks = self._inputs()
+        spy = MagicMock(wraps=fd.QgsExpressionContextUtils)
+        with patch.object(fd, "QgsExpressionContextUtils", spy):
+            identify_dense_blocks(buildings, blocks, 0)
+        assert spy.globalProjectLayerScopes.call_count <= 2   # blocks + buildings
