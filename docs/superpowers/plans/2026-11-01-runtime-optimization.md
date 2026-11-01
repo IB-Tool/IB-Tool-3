@@ -14,11 +14,10 @@ processing partitions in parallel worker processes.
 
 **Branch:** `Add_multiprocessing`
 
-**Status (2026-11-01):** Phases 0, 1, 2, UI fix and GapClose sym-diff
-committed. **Phase 3 (EdgeCatch) implemented and verified on 3.40 and 3.44
-(3.44: 521 → 262 s, results identical); not committed.** Next: Phase 4
-(parallel partitions) or further single-step optimizations (CreateMST,
-PatchRemove, ImportFilter) — user decision.
+**Status (2026-11-01):** Phases 0–3, UI fix and GapClose sym-diff
+committed (Phase 3: 3.44 521 → 262 s). **Phase 4 (parallel partitions)
+implemented, results identical on 3.40 and 3.44; not committed. 3.44:
+262 → 101.5 s with 4 workers; GUI test OK.** — see Phase 4 section.
 
 ---
 
@@ -557,7 +556,36 @@ gap 10.2 s (PatchRemove). Overall since the start (3.40, no cProfile):
 Partitions are independent (see `docs/how-it-works.md`), inputs are already
 written to GeoPackages in the workspace, and the resume log is per partition.
 
-Design sketch (to be refined into a spec in `docs/superpowers/specs/`):
+**Spec (2026-11-01, brainstorming with user, pending user review):**
+`docs/superpowers/specs/2026-11-01-parallel-partitions-design.md` —
+supersedes the sketch below (worker pool via QProcess, Windows-only launcher
+strategy, worker count automatic + UI field, run manifest
+`ibtool_run.json` incl. settings restore, per-partition result files +
+single final merge, recompute list in-process). Spec approved by the user.
+**Implementation plan:** `docs/superpowers/plans/2026-11-01-parallel-partitions.md`
+(10 tasks) — **implemented 2026-11-01 (inline execution, ledger in
+`.superpowers/sdd/2026-11-01-parallel-partitions/progress.md`); not committed.**
+
+Results (all RESULT: IDENTICAL vs. the references):
+- QGIS 3.44, `profile_pipeline.py`: 4 workers 157.3 s, 3 workers 166.4 s,
+  1 worker 375.9 s. **These timings are invalid**: a game (ClearedHot.exe)
+  used ~2.4 of the 4 cores during the runs (global density 12.8 → 19.5 s with
+  unchanged code; PART_64 92 s instead of 60 s even alone). Re-measure on an
+  idle machine; target 3.44 with 3–4 workers < 100 s (LPT estimate 62–83 s).
+- QGIS 3.40, `IBTool.start_processing()` (3 workers): 178.4 s under the same
+  load; resume of the finished run 33.2 s (nothing recomputed).
+- `scripts/resume_test.py` (3.44, 3 workers, killed after 26 partitions):
+  26 skipped, orphaned workers gone after 2.9 s, identical.
+- **Idle machine, QGIS 3.44, 4 workers: 101.5 s** (was 262 s sequential,
+  −61 %; load 2.6 s, global density 13.9 s, partitions 82.7 s); identical.
+  The partition phase is bounded by PART_64 (80.1 s in a worker vs. 59.7 s
+  alone: ~1.3× slowdown per partition when 4 run at once; sum of partition
+  times 318 s vs. 246 s). Further gains need a faster PART_64 (single-step
+  optimizations: CreateMST, PatchRemove, ImportFilter) or overlapping the
+  global density with the first partitions.
+- GUI test by the user: OK.
+
+Original design sketch (superseded):
 
 - [ ] Extract partition pipeline into a GUI-free module (e.g.
       `helpers/partition_runner.py`) callable from both the plugin and a worker

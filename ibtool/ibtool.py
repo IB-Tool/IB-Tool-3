@@ -23,6 +23,7 @@ import sys
 
 from qgis.PyQt.QtCore import (
     QCoreApplication,
+    QEventLoop,
     QSettings,
     QTranslator,
 )
@@ -35,6 +36,8 @@ from qgis.PyQt.QtWidgets import (
     QMessageBox,
 )
 from qgis.core import (
+    Qgis,
+    QgsApplication,
     QgsCoordinateReferenceSystem,
     QgsProcessing,
     QgsVectorLayer,
@@ -49,7 +52,6 @@ from ibtool.helpers.processing_context import (
 from ibtool.helpers.logger import Logger as MainLogger
 from ibtool.helpers.geometry_utils import (
     load_to_geopackage,
-    select_and_save_by_location,
     create_empty_layer
 )
 from ibtool.helpers.system_utils import (
@@ -64,19 +66,28 @@ from ibtool.helpers.message import msg
 from ibtool.helpers.check import InputValidator, ValidationResult
 from ibtool.helpers.config_manager import ConfigManager
 from ibtool.helpers.data_loader import create_partitions_list
-from ibtool.ibtool_tools.FootprintDensity import (
-    calc_footprint_density,
-    identify_dense_blocks
+from ibtool.ibtool_tools.FootprintDensity import calc_footprint_density
+from ibtool.helpers.partition_pipeline import run_partition, PHASE_PERCENT
+from ibtool.helpers.partition_results import (
+    FinishedPart,
+    OLD_FORMAT,
+    append_finished,
+    cleanup_temporary,
+    estimate_buildings,
+    merge_results,
+    read_finished,
+    validate_finished,
+    write_part_result,
 )
-from ibtool.ibtool_tools.Blocker import blocker
-from ibtool.ibtool_tools.ImportFilter import input_hu_filter
-from ibtool.ibtool_tools.CreateMST import calculate_mst
-from ibtool.ibtool_tools.MST_Clustering import mst_clustering
-from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
-from ibtool.ibtool_tools.EdgeCatch import edge_catch
-from ibtool.ibtool_tools.GapClose import gap_close
-from ibtool.ibtool_tools.PatchRemove import patch_remove
-from ibtool.ibtool_tools.ErodeEmptyAreas import erode_empty_areas
+from ibtool.helpers.run_manifest import (
+    build_manifest,
+    compare_manifests,
+    manifest_to_ui_settings,
+    read_manifest,
+    write_manifest,
+)
+from ibtool.helpers.worker_launcher import default_worker_count, find_worker_command
+from ibtool.helpers.worker_pool import WorkerPool
 # Import the dialog class
 from ibtool.ibtool.ibtool_dialog import IBToolDialog, FilterPreviewDialog
 # Logger class (singleton handled internally; no early file init on import)
@@ -176,6 +187,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Processing state flags for cancel support
         self._is_processing: bool = False
         self._cancel_requested: bool = False
+        # Worker pool while partitions are computed in worker processes
+        self._pool = None
 
         # Overall progress bookkeeping (buildings done / current partition / total)
         self._progress_total_hu: int = 0
@@ -213,6 +226,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         else:
             self._cancel_requested = True
             self.update_messages("Abbruch wird nach dem aktuellen Schritt durchgeführt...")
+            if self._pool is not None:          # worker mode: stop the workers at once
+                self._pool.cancel()
 
     # noinspection PyMethodMayBeStatic
     def tr(self, message):  # pylint: disable=invalid-name
@@ -298,6 +313,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
+        if self._pool is not None:              # never leave worker processes behind
+            self._cancel_requested = True
+            self._pool.cancel()
         for action in self.actions:
             self.iface.removePluginMenu(
                 self.menu,
@@ -348,6 +366,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.dlg.AuxButton.clicked.connect(self.select_aux_file)
             self.dlg.OutputButton.clicked.connect(self.select_output_file)
             self.dlg.WorkspaceButton.clicked.connect(self.select_workspace_file)
+            # Typed-in working directory: offer the settings of a begun run
+            self.dlg.WorkspacePath.editingFinished.connect(
+                lambda: self._offer_manifest_restore(self.dlg.WorkspacePath.text()))
             self.dlg.FilterButton.clicked.connect(self.select_filter_file)
             self.dlg.LogDirButton.clicked.connect(self.select_log_dir)
             self.dlg.CheckButton.clicked.connect(self.run_validation)
@@ -521,6 +542,68 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         )
         if folder_path:
             self.dlg.WorkspacePath.setText(folder_path)
+            self._offer_manifest_restore(folder_path)
+
+    # Manifest parameter key -> UI spin box (see _parse_numeric_params)
+    _MANIFEST_PARAM_BOXES = {
+        "min_overlap_blocks": "MinOverlapBlocksBox",
+        "global_footprint_density": "GlobalFootprintDensityBox",
+        "min_area": "MinAreaBox",
+        "min_bdg_count": "MinBdgCountBox",
+        "min_patch_size": "MinPatchSizeBox",
+        "max_hole_size": "MaxHoleSizeBox",
+        "max_gap_size": "MaxGapSizeBox",
+    }
+    # Manifest input key -> UI path field
+    _MANIFEST_INPUT_FIELDS = {"hu": "HuPath", "rn": "RnPath", "part": "PartPath",
+                              "aux": "AuxPath", "filter": "FilterPath"}
+
+    def _offer_manifest_restore(self, workspace: str) -> None:
+        """Offer the settings of a begun run in *workspace* (``ibtool_run.json``).
+
+        Asks only if the manifest's inputs, parameters or CRS differ from the
+        dialog; on "Yes" the dialog fields are set from the manifest.
+        """
+        if not workspace:
+            return
+        manifest = read_manifest(workspace)
+        if manifest is None:
+            return
+        settings = manifest_to_ui_settings(manifest)
+        changes = {}
+        for key, path in settings["inputs"].items():
+            field = self._MANIFEST_INPUT_FIELDS.get(key)
+            if field and path and getattr(self.dlg, field).text() != path:
+                changes[field] = path
+        for key, value in settings["params"].items():
+            box_name = self._MANIFEST_PARAM_BOXES.get(key)
+            if box_name and value is not None:
+                box = getattr(self.dlg, box_name)
+                if box.value() != type(box.value())(value):
+                    changes[box_name] = value
+        crs = settings.get("crs")
+        if crs and self.dlg.SpatialReferenceBox.crs().authid() != crs:
+            changes["crs"] = crs
+        if not changes:
+            return
+        answer = QMessageBox.question(
+            self.dlg, "IB-Tool",
+            "Dieses Arbeitsverzeichnis enthält einen begonnenen Lauf.\n"
+            "Einstellungen (Eingabedaten und Parameter) daraus übernehmen?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if answer != QMessageBox.Yes:
+            return
+        for name, value in changes.items():
+            if name == "crs":
+                self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem(value))
+            elif name in self._MANIFEST_INPUT_FIELDS.values():
+                getattr(self.dlg, name).setText(value)
+            else:
+                box = getattr(self.dlg, name)
+                box.setValue(type(box.value())(value))
+        if "FilterPath" in changes and os.path.exists(changes["FilterPath"]):
+            self.load_filter_file(changes["FilterPath"])
+        logger.log("Einstellungen aus dem Laufprotokoll übernommen.", "INFO")
 
     def select_filter_file(self):
         """Opens a file dialog to select the filter file
@@ -785,6 +868,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Checkboxes
         self.dlg.DebugModeBox.setChecked(cfg.processing.debug_mode)
         self.dlg.PartLogBox.setChecked(cfg.processing.delete_part_log)
+        self.dlg.WorkerCountBox.setValue(int(cfg.processing.worker_count))
 
         # Load the filter file if set
         filter_path = cfg.input_data.filter_file_path
@@ -862,6 +946,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 'crs_epsg': int(self.dlg.SpatialReferenceBox.crs().authid().split(":")[-1].strip() or 25833),
                 'debug_mode': self.dlg.DebugModeBox.isChecked(),
                 'delete_part_log': self.dlg.PartLogBox.isChecked(),
+                'worker_count': int(self.dlg.WorkerCountBox.value()),
             },
         )
         validation_cache = {
@@ -935,6 +1020,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.dlg.partlistBox.setText("#")
         self.dlg.DebugModeBox.setChecked(False)
         self.dlg.PartLogBox.setChecked(True)
+        self.dlg.WorkerCountBox.setValue(0)
         self.dlg.SpatialReferenceBox.setCrs(QgsCoordinateReferenceSystem("EPSG:25833"))
 
         # Reset checksum and validation caches
@@ -1225,150 +1311,251 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         }, context=current_processing_context())['OUTPUT']
         return layer_hu, layer_rn, layer_aux, layer_part, aux_layers_line
 
-    def _run_partition_pipeline(  # pylint: disable=too-many-arguments,too-many-locals
+    def _run_partition_pipeline(  # pylint: disable=too-many-arguments
             self, part_name, part_index, part_count,
             layers, spatial_reference, workspace_path,
             debug_mode, global_footprint_density, params):
-        """Run the six-step delineation pipeline for a single partition.
+        """Run one partition in this process (sequential path / recompute list).
 
-        Args:
-            part_name: Partition identifier string (matches ``NAME`` field).
-            part_index: 1-based position in the current run (for log messages).
-            part_count: Total number of partitions (for log messages).
-            layers: Dict with keys ``layer_part``, ``layer_hu``, ``layer_rn``,
-                and ``aux_layers_line``.
-            spatial_reference: QgsCoordinateReferenceSystem for all outputs.
-            workspace_path: Workspace directory path (trailing slash).
-            debug_mode: Whether to save intermediate debug layers.
-            global_footprint_density: Pre-computed global density threshold.
-            params: Numeric parameter dict from ``_parse_numeric_params()``,
-                extended with ``input_filter`` (path string).
+        Thin wrapper around :func:`ibtool.helpers.partition_pipeline.run_partition`
+        (the only partition pipeline implementation) that adds the partition
+        banner and the dialog progress updates.
 
         Returns:
-            Tuple of ``(result_layer, anz_hu)`` where *result_layer* is the
-            ``patch_removed`` output or ``None`` if the partition is skipped,
-            and *anz_hu* is the building count used for overall progress tracking.
+            Tuple ``(result_layer, building_count)``; *result_layer* is ``None``
+            if the partition is skipped.
         """
         logger.log("###############################", 'CRITICAL')
         logger.log(
             f"PARTITION: {part_name} - {part_index} of {part_count}", 'CRITICAL')
 
-        if debug_mode and workspace_path:
-            part_workspace = os.path.join(workspace_path, "debug", f"PART_{part_name}")
-        else:
-            part_workspace = workspace_path
+        def _progress(phase, phase_name):
+            self._update_phase(phase, 9, phase_name,
+                               self._overall_percent(PHASE_PERCENT[phase]))
 
-        sel_part_layer = processing.run(
-            "native:extractbyexpression", {
-                'INPUT': layers['layer_part'],
-                'EXPRESSION': f"\"NAME\" = '{part_name}'",
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            }, context=current_processing_context())['OUTPUT']
+        def _selected(count):
+            self._progress_part_hu = count
 
-        hu_layer = select_and_save_by_location(layers['layer_hu'], sel_part_layer)
-        anz_hu = hu_layer.featureCount()
-        self._progress_part_hu = anz_hu
+        return run_partition(part_name, layers, spatial_reference, workspace_path,
+                             debug_mode, global_footprint_density, params,
+                             progress=_progress, on_selected=_selected)
 
-        if anz_hu < 10:
-            logger.log(
-                "Warning: No or less than 10 buildings selected in partition", 'WARNING')
-            return None, anz_hu
+    # -- Phase 4: worker mode, part files, run manifest -------------------------
 
-        sel_strassen_layer = select_and_save_by_location(layers['layer_rn'], sel_part_layer)
-        anz_strassen = sel_strassen_layer.featureCount()
+    def _effective_worker_count(self) -> int:
+        """Worker processes to use: the UI value, or automatic if it is 0 / absent."""
+        box = getattr(self.dlg, "WorkerCountBox", None)
+        value = box.value() if box is not None else 0
+        return value if value > 0 else default_worker_count()
 
-        if anz_strassen < 5:
-            logger.log(
-                f"Warning: No or less than 5 roads selected in partition {part_name}",
-                'WARNING')
+    def _plugin_version(self) -> str:
+        """Plugin version from metadata.txt (empty if unreadable)."""
+        path = os.path.join(os.path.dirname(self.plugin_dir), "metadata.txt")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("version="):
+                        return line.split("=", 1)[1].strip()
+        except OSError:
+            pass
+        return ""
 
-        aux_lines_sel = select_and_save_by_location(layers['aux_layers_line'], sel_part_layer)
+    def _prepare_manifest(self, workspace, inputs, params, crs, del_part_log) -> bool:
+        """Check the run manifest of *workspace* and mark the run as ``running``.
 
-        logger.log(f"SelHU Count = {anz_hu}", 'SUCCESS')
-        logger.log(f"SelStrassen Count = {anz_strassen}", 'SUCCESS')
+        A resume (``del_part_log`` off) is refused with a message box if the
+        stored manifest differs from the current inputs/parameters/versions.
 
-        min_overlap_mst = calc_footprint_density(
-            hu_layer, sel_strassen_layer, 100,
-            global_footprint_density, 'local', params['min_bdg_count'],
-            debug_mode=debug_mode, workspace_path=part_workspace)
-        logger.log(f"Local building coverage = {min_overlap_mst}", 'SUCCESS')
+        Returns:
+            ``False`` if processing must not start.
+        """
+        current = build_manifest(inputs, params, crs, self._plugin_version(), Qgis.version(),
+                                 self._effective_worker_count())
+        if not del_part_log:
+            stored = read_manifest(workspace)
+            if stored is None:
+                log_fin = workspace + 'IB_Tool_Results/IB_Tool2_Log_Fin.txt'
+                if read_finished(log_fin):
+                    logger.log("Kein Laufprotokoll (ibtool_run.json) gefunden – älterer Lauf, "
+                               "Fortsetzung ohne Prüfung der Eingabedaten.", "WARNING")
+            else:
+                diffs = compare_manifests(stored, current)
+                if diffs:
+                    text = ("Das Arbeitsverzeichnis enthält einen Lauf mit anderen "
+                            "Einstellungen und kann nicht fortgesetzt werden:\n\n"
+                            + "\n".join(f"• {d}" for d in diffs)
+                            + "\n\nFür einen Neustart „PartLog beim Start löschen“ aktivieren "
+                              "oder ein anderes Arbeitsverzeichnis wählen.")
+                    logger.log(text, "CRITICAL")
+                    QMessageBox.warning(self.dlg, "IB-Tool", text)
+                    return False
+        write_manifest(workspace, current, "running")
+        return True
 
-        sel_hu_layer = processing.run("native:splitwithlines",
-                                      {'INPUT': hu_layer,
-                                       'LINES': sel_strassen_layer,
-                                       'OUTPUT': 'memory:'
-                                       }, context=current_processing_context())['OUTPUT']
+    @staticmethod
+    def _set_manifest_status(workspace, status) -> None:
+        """Update the status of the run manifest (ignored if there is none)."""
+        stored = read_manifest(workspace)
+        if stored is not None:
+            try:
+                write_manifest(workspace, stored, status)
+            except OSError as e:
+                logger.log(f"Laufprotokoll nicht aktualisiert: {e}", "WARNING")
 
-        self._update_phase(2, 9, "Calculate Blocks", self._overall_percent(10))
-        blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
-                         debug_mode=debug_mode, workspace_path=part_workspace)
+    @staticmethod
+    def _resume_base_layer(results_dir, finished, spatial_reference):
+        """Base layer of the final merge.
 
-        self._update_phase(3, 9, "Apply Filter", self._overall_percent(20))
-        hu_filter = input_hu_filter(
-            sel_hu_layer, params['input_filter'], params['min_area'], 50, 200,
-            debug_mode=debug_mode, workspace_path=part_workspace)
-        blocks_dense = identify_dense_blocks(
-            hu_filter, blocks, params['min_overlap_blocks'],
-            debug_mode=debug_mode, workspace_path=part_workspace)
-        hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
+        Results of partitions finished by a version before 0.2.5 live only in
+        ``IB_Tool_merge_temp.gpkg``; it becomes the base layer then. Otherwise
+        (and if that file is unusable) an empty layer is used.
+        """
+        if any(part.result == OLD_FORMAT for part in finished.values()):
+            merge_temp = os.path.join(results_dir, 'IB_Tool_merge_temp.gpkg')
+            layer = QgsVectorLayer(merge_temp, 'global_merge_layer', 'ogr') \
+                if os.path.isfile(merge_temp) else None
+            if layer is not None and layer.isValid():
+                logger.log("Zwischenergebnis eines älteren Laufs übernommen "
+                           "(IB_Tool_merge_temp.gpkg).", 'INFO')
+                return layer
+            logger.log("IB_Tool_merge_temp.gpkg fehlt oder ist ungültig – Ergebnisse der mit "
+                       "einer älteren Version berechneten Partitionen fehlen. Für ein "
+                       "vollständiges Ergebnis „PartLog beim Start löschen“ aktivieren.",
+                       'CRITICAL')
+        return create_empty_layer("global_merge_layer", "Polygon", spatial_reference.authid())
 
-        self._update_phase(4, 9, "Calculate MST", self._overall_percent(35))
-        mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference,
-                                  debug_mode=debug_mode, workspace_path=part_workspace)
+    @staticmethod
+    def _largest_first(names, estimates) -> list:
+        """*names* sorted by estimated size, largest first (stable for ties)."""
+        return sorted(names, key=lambda name: -estimates.get(name, 0))
 
-        if mst_layer is None:
-            logger.log(
-                f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
-            return None, anz_hu
+    def _on_partition_finished(self, name, rel_path, features, buildings, log_fin) -> None:
+        """Record a finished partition (finish line) and advance the progress bar.
 
-        self._update_phase(5, 9, "Clustering", self._overall_percent(50))
-        hu_cluster_output = mst_clustering(
-            hu_filter_sel, mst_layer, spatial_reference,
-            min_overlap_mst, debug_mode=debug_mode, workspace_path=part_workspace)
+        The part file (if any) is already written; only then the finish line
+        is appended, so a resume never trusts an incomplete file.
+        """
+        append_finished(log_fin, FinishedPart(name, rel_path, features if rel_path else None))
+        self._progress_done_hu += buildings
+        self.dlg.ProgressBar.setValue(self._overall_percent(0))
 
-        add_sing_bdg = add_single_bdg(
-            hu_filter_sel, hu_cluster_output, spatial_reference,
-            part_workspace, debug_mode=debug_mode)
+    def _dispatch_partitions(self, names, ctx, worker_count) -> None:
+        """Compute *names* in worker processes if possible, else in this process.
 
-        rect_merged = processing.run("qgis:mergevectorlayers", {
-            'LAYERS': [add_sing_bdg, hu_cluster_output],
-            'CRS': spatial_reference,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }, context=current_processing_context())['OUTPUT']
+        Worker mode needs more than one worker and partition, a worker command
+        for this system and a passing self-test; otherwise (and for
+        partitions whose worker crashed or failed) the sequential path runs.
+        """
+        command = None
+        if worker_count > 1 and len(names) > 1:
+            command = find_worker_command(os.path.dirname(self.plugin_dir))
+            if command is None:
+                logger.log("Worker-Modus auf diesem System nicht verfügbar – "
+                           "Partitionen werden nacheinander berechnet.", "INFO")
+        if command is None:
+            self._process_partitions_sequential(names, ctx)
+            return
 
-        snapped_rect = edge_catch(
-            rect_merged, hu_filter_sel, sel_strassen_layer, blocks,
-            spatial_reference, part_workspace, debug_mode=debug_mode)
+        pool = WorkerPool(command, min(worker_count, len(names)), ctx["init_fields"])
+        self._pool = pool
+        try:
+            self.dlg.phaseLabel.setText("Worker werden gestartet...")
+            if not pool.selftest():
+                if self._cancel_requested:
+                    raise ProcessingCancelledError()
+                logger.log("Worker-Selbsttest fehlgeschlagen – Partitionen werden "
+                           "nacheinander berechnet.", "WARNING")
+                for line in pool.stderr_tail(20):
+                    logger.log(f"  {line}", "INFO")
+                self._pool = None
+                self._process_partitions_sequential(names, ctx)
+                return
+            recompute = self._process_partitions_parallel(names, ctx, pool)
+        finally:
+            self._pool = None
+        if recompute:
+            logger.log(f"Im Hauptprozess nachzurechnen: {', '.join(recompute)}", "WARNING")
+            self._process_partitions_sequential(recompute, ctx)
 
-        blocks_merge = processing.run("qgis:mergevectorlayers", {
-            'LAYERS': [snapped_rect, blocks_dense],
-            'CRS': spatial_reference,
-            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        }, context=current_processing_context())['OUTPUT']
+    def _process_partitions_sequential(self, names, ctx) -> None:
+        """Compute *names* one after another in this process."""
+        part_list = ctx["part_list"]
+        for name in names:
+            with open(ctx["part_log"], 'a', encoding='utf-8') as part_log:
+                part_log.write("\n" + name)
+            self._progress_part_hu = 0
+            # One shared processing context per partition (fresh per partition
+            # to release layers QGIS keeps in the context's temporary store)
+            with shared_processing_context():
+                result, buildings = self._run_partition_pipeline(
+                    name, part_list.index(name) + 1, len(part_list), ctx["layers"], ctx["crs"],
+                    ctx["workspace"], ctx["debug_mode"], ctx["global_density"], ctx["params"])
+                rel_path, features = (None, 0) if result is None else \
+                    write_part_result(result, name, ctx["results_dir"])
+            self._progress_part_hu = 0
+            self._on_partition_finished(name, rel_path, features,
+                                        ctx["estimates"].get(name, buildings), ctx["log_fin"])
 
-        self._update_phase(6, 9, "Erode Empty Areas", self._overall_percent(70))
-        eroded = erode_empty_areas(
-            blocks_merge, sel_hu_layer,
-            workspace_path=part_workspace,
-            debug_mode=debug_mode,
-        )
+    def _process_partitions_parallel(self, names, ctx, pool) -> list:
+        """Compute *names* with *pool* (largest first); return the recompute list.
 
-        self._update_phase(7, 9, "Close Gaps", self._overall_percent(80))
-        gaps_closed = gap_close(
-            eroded, blocks, params['max_hole_size'], params['max_gap_size'],
-            spatial_reference, gap_dist=30,
-            debug_mode=debug_mode, workspace_path=part_workspace)
+        The QGIS main thread runs a local event loop until the pool is
+        finished, so the dialog stays responsive; Cancel stops the pool.
 
-        self._update_phase(8, 9, "Remove Patches", self._overall_percent(90))
-        patch_removed = patch_remove(
-            gaps_closed, sel_hu_layer, spatial_reference, part_workspace,
-            min_patch_size=params['min_patch_size'],
-            min_bdg_count=params['min_bdg_count'],
-            footprint_area_sum=6000,
-            footprint_density_threshold=18,
-            debug_mode=debug_mode)
+        Raises:
+            ProcessingCancelledError: If the user cancelled.
+        """
+        estimates = ctx["estimates"]
+        order = self._largest_first(names, estimates)
+        partial, started, done = {}, set(), []
+        workers = min(pool.size, len(order))
 
-        return patch_removed, anz_hu
+        def _status():
+            running = ", ".join(sorted(pool.running.values()))
+            self.dlg.phaseLabel.setText(
+                f"{workers} Worker · {len(done)} von {len(order)} Partitionen fertig"
+                + (f" · läuft: {running}" if running else ""))
+
+        def _on_progress(partition, phase, _phase_name):
+            if partition not in started:
+                started.add(partition)
+                with open(ctx["part_log"], 'a', encoding='utf-8') as part_log:
+                    part_log.write("\n" + partition)
+            partial[partition] = estimates.get(partition, 0) * PHASE_PERCENT.get(phase, 0) / 100
+            self._progress_part_hu = sum(partial.values())
+            self.dlg.ProgressBar.setValue(self._overall_percent(100))
+            _status()
+
+        def _on_log(level, message):
+            logger.log(message, level if level in ("INFO", "WARNING", "CRITICAL", "SUCCESS")
+                       else "WARNING")
+
+        def _on_done(event):
+            name = event["partition"]
+            partial.pop(name, None)
+            self._progress_part_hu = sum(partial.values())
+            self._on_partition_finished(name, event["result"], event["features"],
+                                        estimates.get(name, event["buildings"]), ctx["log_fin"])
+            done.append(name)
+            logger.log(f"Partition {name} fertig ({event['seconds']:.1f} s)", "SUCCESS")
+            _status()
+
+        pool.progress.connect(_on_progress)
+        pool.log.connect(_on_log)
+        pool.partition_done.connect(_on_done)
+        finished = []
+        loop = QEventLoop()
+        pool.finished.connect(lambda: finished.append(True))
+        pool.finished.connect(loop.quit)
+        _status()
+        pool.run(order)
+        if not finished:
+            loop.exec_()
+        self._progress_part_hu = 0
+        if self._cancel_requested:
+            raise ProcessingCancelledError()
+        failed = set(pool.recompute)
+        return [name for name in names if name in failed]
 
     def _effective_log_dir(self) -> str:
         """Return the log directory from the UI, or ``<config_dir>/logs`` if empty."""
@@ -1404,6 +1591,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._progress_part_hu = 0
         self._last_percent = 0
         ui_stack = ExitStack()
+        manifest_workspace = None
         try:
             self._set_processing_ui_locked(True)
             # Navigate to the processing page and reset UX state
@@ -1475,28 +1663,32 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             # Keep the UI responsive (and Cancel effective) during all tools
             ui_stack.enter_context(ui_heartbeat(self._keep_ui_alive))
 
+            # Run manifest: one working directory = one run. Checked before the
+            # (slow) loading so a refused resume costs nothing.
+            manifest_inputs = {"hu": input_hu, "rn": input_rn, "part": input_part,
+                               "aux": input_aux, "filter": _p['input_filter']}
+            manifest_params = {key: value for key, value in _p.items()
+                               if key not in ("part_start", "part_end", "input_filter")}
+            if not self._prepare_manifest(workspace_path, manifest_inputs, manifest_params,
+                                          spatial_reference.authid(), del_part_log):
+                self.dlg.phaseLabel.setText("Fortsetzung nicht möglich – siehe Meldung.")
+                return
+            manifest_workspace = workspace_path
+
             # Phase 1: Load Data
             self._update_phase(1, 9, "Load Data", 0)
             with shared_processing_context():
                 layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
                     input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
+            # Workers and the sequential path read the very same aux line file
+            aux_line_file = save_temp_layer_to_gpkg(
+                aux_layers_line, "layer_aux_line", workspace_path)
+            aux_layers_line = QgsVectorLayer(aux_line_file or "", "aux_layers_line", "ogr")
+            if not aux_layers_line.isValid():
+                raise OSError(f"Hilfslinien-Layer nicht lesbar: {aux_line_file}")
 
-            merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
-            if not del_part_log and os.path.isfile(merge_temp_file):
-                merge_layer = QgsVectorLayer(merge_temp_file, 'global_merge_layer', 'ogr')
-                if not merge_layer.isValid():
-                    logger.log("Intermediate merge file invalid, starting fresh", 'WARNING')
-                    merge_layer = create_empty_layer("global_merge_layer", "Polygon",
-                                                     spatial_reference.authid())
-                else:
-                    logger.log("Loaded intermediate merge layer for resume", 'INFO')
-            else:
-                merge_layer = create_empty_layer("global_merge_layer", "Polygon",
-                                                 spatial_reference.authid())
-            merge = merge_layer  # guard against empty part_list
-
-            part_list = create_partitions_list(
-                layer_part, part_list_input, _p['part_start'], _p['part_end'])
+            part_list = [str(name) for name in create_partitions_list(
+                layer_part, part_list_input, _p['part_start'], _p['part_end'])]
             logger.log(f"Part list: {part_list}", 'SUCCESS')
 
             global_footprint_density = _p['global_footprint_density']
@@ -1507,74 +1699,80 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             logger.log(
                 f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
 
-            if del_part_log:
-                if os.path.isfile(part_log_path):
-                    os.remove(part_log_path)
-                with open(part_log_fin, 'w', encoding='utf-8') as part_log:
-                    part_log.write("")
+            results_dir = workspace_path + 'IB_Tool_Results'
+            for path in (part_log_path, part_log_fin):
+                if not os.path.isfile(path):
+                    with open(path, 'w', encoding='utf-8') as f:
+                        f.write("")
+            cleanup_temporary(results_dir)
 
-            if not os.path.isfile(part_log_path):
-                with open(part_log_path, 'w', encoding='utf-8') as part_log:
-                    part_log.write("")
+            # Resume: trust a finished partition only if its part file is complete
+            valid, recompute = validate_finished(results_dir, read_finished(part_log_fin))
+            for name in recompute:
+                logger.log(f"Teilergebnis von {name} fehlt oder ist unvollständig – "
+                           "wird neu berechnet.", "WARNING")
+            todo = [name for name in part_list if name not in valid]
+            if len(todo) < len(part_list):
+                logger.log(f"{len(part_list) - len(todo)} Partition(en) bereits fertig – "
+                           "werden übersprungen.", "INFO")
 
-            if not os.path.isfile(part_log_fin):
-                with open(part_log_fin, 'w', encoding='utf-8') as f:
-                    f.write("")
+            # Progress = estimated buildings of finished partitions / of all
+            estimates = estimate_buildings(layer_hu, layer_part, part_list)
+            self._progress_total_hu = max(1, sum(estimates.values()))
+            self._progress_done_hu = sum(estimates[name] for name in part_list
+                                         if name in valid)
+            self.dlg.ProgressBar.setValue(self._overall_percent(0))
 
-            finished_parts = set()
-            with open(part_log_fin, 'r', encoding='utf-8') as f:
-                finished_parts = {row.strip() for row in f if row.strip()}
-
-            self._progress_total_hu = layer_hu.featureCount()
-            layers = {
-                'layer_part': layer_part,
-                'layer_hu': layer_hu,
-                'layer_rn': layer_rn,
-                'aux_layers_line': aux_layers_line,
+            ctx = {
+                "part_list": part_list,
+                "layers": {
+                    'layer_part': layer_part,
+                    'layer_hu': layer_hu,
+                    'layer_rn': layer_rn,
+                    'aux_layers_line': aux_layers_line,
+                },
+                "crs": spatial_reference,
+                "workspace": workspace_path,
+                "results_dir": results_dir,
+                "log_fin": part_log_fin,
+                "part_log": part_log_path,
+                "params": _p,
+                "debug_mode": debug_mode,
+                "global_density": global_footprint_density,
+                "estimates": estimates,
+                "init_fields": {
+                    "plugin_root": os.path.dirname(self.plugin_dir),
+                    "sys_path": list(sys.path),
+                    "prefix_path": QgsApplication.prefixPath(),
+                    "inputs": {"hu": workspace_path + "layer_hu.gpkg",
+                               "rn": workspace_path + "layer_rn.gpkg",
+                               "part": workspace_path + "layer_part.gpkg",
+                               "aux_line": aux_line_file},
+                    "crs": spatial_reference.authid(),
+                    "params": _p,
+                    "workspace": workspace_path,
+                    "results_dir": results_dir,
+                    "debug_mode": debug_mode,
+                    "global_density": global_footprint_density,
+                    "log_level": self.dlg.LogLevelBox.currentText() or "INFO",
+                    "parent_pid": os.getpid(),
+                },
             }
+            if todo:
+                self._dispatch_partitions(todo, ctx, self._effective_worker_count())
 
-            for a, i in enumerate(part_list, start=1):
-                logger.log(f"Check if {i} is in Partlist.", 'SUCCESS')
-                if i in finished_parts:
-                    logger.log(f"{i} already completed, skipping.", 'SUCCESS')
-                    continue
-                with open(part_log_path, 'a', encoding='utf-8') as part_log:
-                    part_log.write("\n" + i)
+            # Final merge: earlier batches (resume with another selection) first,
+            # then the selected partitions in list order — the order of the
+            # former incremental merge, independent of the worker count.
+            finished = read_finished(part_log_fin)
+            selected = set(part_list)
+            order = [name for name in finished if name not in selected] + part_list
+            merge_layer = merge_results(
+                results_dir, order, finished,
+                self._resume_base_layer(results_dir, finished, spatial_reference),
+                spatial_reference)
 
-                # One shared processing context per partition (saves the per-call
-                # context setup of processing.run; fresh per partition to release
-                # layers QGIS keeps in the context's temporary store)
-                self._progress_part_hu = 0
-                with shared_processing_context():
-                    result, anz_hu = self._run_partition_pipeline(
-                        i, a, len(part_list), layers, spatial_reference,
-                        workspace_path, debug_mode, global_footprint_density, _p)
-
-                # Count skipped partitions too, otherwise the bar never gets full
-                self._progress_done_hu += anz_hu
-                self._progress_part_hu = 0
-                self.dlg.ProgressBar.setValue(self._overall_percent(0))
-
-                if result is None:
-                    with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                        part_log.write("\n" + i)
-                    continue
-
-                merge = processing.run("native:mergevectorlayers", {
-                    'LAYERS': [result, merge_layer],
-                    'CRS': spatial_reference,
-                    'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                }, context=current_processing_context())['OUTPUT']
-                merge_layer = merge
-
-                save_temp_layer_to_gpkg(
-                    merge_layer, 'IB_Tool_merge_temp', workspace_path + 'IB_Tool_Results/')
-
-                with open(part_log_fin, 'a', encoding='utf-8') as part_log:
-                    part_log.write("\n" + i)
-                finished_parts.add(i)
-
-            if not merge.isValid():
+            if not merge_layer.isValid():
                 logger.log("Failed to load final merge layer", "CRITICAL")
                 return
 
@@ -1593,12 +1791,22 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self._last_output_folder = output_folder
             self.dlg.show_result_actions()
 
+            self._set_manifest_status(manifest_workspace, "finished")
             logger.log("Processing completed successfully.", level="CRITICAL")
         except ProcessingCancelledError:
+            if manifest_workspace:
+                self._set_manifest_status(manifest_workspace, "cancelled")
             self.dlg.phaseLabel.setText("Verarbeitung abgebrochen.")
             self.update_messages("Verarbeitung abgebrochen.")
             logger.log("Verarbeitung durch Nutzer abgebrochen.", level="WARNING")
+        except Exception:
+            if manifest_workspace:
+                self._set_manifest_status(manifest_workspace, "failed")
+            raise
         finally:
+            if self._pool is not None:          # never leave worker processes behind
+                self._pool.cancel()
+                self._pool = None
             ui_stack.close()
             self._set_processing_ui_locked(False)
             self._is_processing = False

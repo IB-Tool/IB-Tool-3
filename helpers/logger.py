@@ -19,6 +19,7 @@ class Logger:
     file_handler = None
     log_level = logging.INFO  # default log level
     log_dir = None  # directory for log files
+    sink = None  # callable(level, message); replaces all outputs (worker processes)
 
     def __new__(cls) -> "Logger":
         if cls._instance is None:
@@ -52,6 +53,18 @@ class Logger:
             message_box: A QPlainTextEdit (or compatible) widget to receive log lines.
         """
         cls.message_box = message_box
+
+    @classmethod
+    def set_sink(cls, sink) -> None:
+        """Route all log output to *sink* instead of file, message box and QGIS log.
+
+        Used by worker processes, which forward log lines to the plugin.
+
+        Args:
+            sink: ``callable(level, message)``, or ``None`` to restore the
+                normal outputs.
+        """
+        cls.sink = sink
 
     @classmethod
     def set_log_dir(cls, log_dir: str) -> None:
@@ -135,6 +148,10 @@ class Logger:
         if cls.log_level <= logger_level:
             if not isinstance(message, str):
                 message = str(message)
+
+            if cls.sink is not None:
+                cls.sink(level, message)
+                return
 
             # write to log file if a file handler is configured
             if cls.file_handler:

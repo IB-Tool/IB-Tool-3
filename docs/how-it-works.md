@@ -589,7 +589,9 @@ After patch removal, the gap-closing step is applied once more across the entire
 
 ### Merge and Output
 
-After all partitions are processed, the per-partition results are merged into a single layer. The final layer is saved as a GeoPackage at the configured output path.
+Each partition result is written to its own file `IB_Tool_Results/parts/<partition>.gpkg` as soon as the partition is finished. After all partitions are processed, these part files are merged into a single layer in partition order (independent of how many worker processes computed them). The final layer is saved as a GeoPackage at the configured output path.
+
+**Worker mode (Windows).** Partitions are independent, so on Windows they are computed in parallel by worker processes (the QGIS Python interpreter running `ibtool/partition_worker.py`; count: setting *Worker processes*, automatic = physical cores − 1, at most 4). Large partitions are started first. The plugin keeps the global steps (loading, global footprint density, final merge) and runs a self-test before using workers; if it fails, or on other systems, partitions are computed one after another in the QGIS process as before. A partition whose worker crashes or reports an error is recomputed in the QGIS process. Results are identical in both modes.
 
 ---
 
@@ -616,9 +618,17 @@ The method performs best for compact settlements. Dispersed rural settlements wi
 The result is a **GeoPackage** (`.gpkg`) containing one polygon layer with the delineated Innenbereich boundaries. Each polygon represents one settlement body.
 
 The workspace folder additionally contains:
-- Intermediate GeoPackages per partition (for inspection)
-- A partition log file (`IB_Tool2_Log.txt`) — tracks completed partitions, allows resuming interrupted runs
+- The loaded inputs as GeoPackages (`layer_hu.gpkg`, `layer_rn.gpkg`, `layer_part.gpkg`, `layer_aux.gpkg`, `layer_aux_line.gpkg`)
+- `ibtool_run.json` — the run manifest: input paths with checksums, parameters, CRS, plugin and QGIS version, status (`running`, `finished`, `cancelled`, `failed`). One working directory holds one run.
+- `IB_Tool_Results/parts/` — one result GeoPackage per finished partition
+- `IB_Tool_Results/IB_Tool2_Log_Fin.txt` — finish log, one line per finished partition (`name<TAB>part file<TAB>feature count`, or `name<TAB>skipped`); `IB_Tool2_Log.txt` lists started partitions
 - Debug layers in `debug/` subdirectories (when **Debug Mode** is enabled in the dialog)
+
+**Resuming an interrupted run.** With *Delete PartLog at Start* unchecked, a new run in the same working directory continues where the last one stopped — also after a crash or a restart of QGIS:
+- The run manifest must match: changed input files (by checksum), parameters, CRS, QGIS or plugin version prevent resuming (a message lists the differences). Moved input files with unchanged content are fine; the partition selection and the worker count may change.
+- A partition counts as finished only if its line is in the finish log **and** its part file exists with the logged feature count. Part files are written under a temporary name and renamed before the line is written, so an interruption never leaves a half-written result that is trusted; such partitions are recomputed.
+- Choosing a working directory that contains a begun run offers to take over its settings (inputs and parameters) into the dialog.
+- Finish logs of versions before 0.2.5 (results in `IB_Tool_merge_temp.gpkg`) are still resumed; that file is used as the base of the final merge.
 
 ---
 
