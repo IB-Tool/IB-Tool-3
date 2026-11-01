@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## Unreleased
+
+### Fixed
+- **MST_Clustering result depended on feature order** (`MST_Clustering.py`): identical input produced different clusters in different QGIS processes (e.g. PART_7 of the sample data: 74 / 76 / 77 rectangles), because building FIDs / feature order vary between processes. Each MST edge becomes a pair `(orig_fid1, orig_fid2)` whose orientation came from the row order of `native:joinattributesbylocation`; when both buildings are already in different groups, the group of `orig_fid1` absorbs the other building, so the orientation decided the result. Pairs are now oriented by an FID-independent geometry key (`_building_geom_key`, sorted vertex coordinates), and edges with equal weight are ordered by the same key. A building may still belong to two groups (intended). Behavior change: clusters change once compared to earlier runs; afterwards results are reproducible. Tests: `TestMstClusteringDeterminism` (all 24 building orders of a four-building chain give the same result).
+- **`select_and_save_by_location` returned features in a process-dependent order** (`helpers/geometry_utils.py`): the output came from `native:saveselectedfeatures`, which iterates the selection's hash set — for memory layers the order differed between QGIS processes. Blocker polygonizes the selected lines, so the block vertices differed by < 1 nm between runs, which was enough to change the road selection in EdgeCatch (sample data: 10 of 71 partitions differed between two runs). Selected features are now written sorted by feature ID, and the input layer's previous selection is restored (the function no longer leaves a selection behind). Tests: `TestSelectAndSaveByLocation`.
+
+### Changed
+- **EdgeCatch selects block roads with a 10 cm tolerance** (`helpers/edge_catch_utils.py`, new `select_roads_near_blocks`, constant `ROAD_BLOCK_TOLERANCE = 0.1`): roads within 10 cm of the block count as roads of the block. Previously an exact `intersects` test was used; since block vertices from polygonize carry floating-point noise, roads ending on the block boundary were included or not by chance. Behavior change: such roads are now always included, results of EdgeCatch change accordingly. The clipping to the block stays exact. Tests: `TestSelectRoadsNearBlocks`.
+
 ## 0.2.4 — 2026-10-04
 
 ### Added
@@ -43,6 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a before/after hero image to `README.md` and the input layers and partitions of the sample data to `docs/input-data.md` (`make_map_figures.py`).
 - `docs/img/_src/debug/` and `docs/img/_src/IB_Tool_Results/` (local reference debug run for the documentation figures) and `docs/img/_src/figures_preview.png` (layout check image) are git-ignored.
 - Aligned `docs/how-it-works.md` with the code: Step 5 (dominant direction from ±10° edge-direction groups; pair fallback after a rejected group extension), Step 7 EdgeCatch (20 m road segments, corner-line filter rules 1–4, pieces < 2 × rectangle area — the previous text described 10 m segments and 1.5× / 5× / 4,900 m² rules that are not in the code), Step 9b (double-buffer sequence including the subtraction of the settlement).
+
+## 0.2.4 — 2026-10-04
+
+### Changed
+- Maintenance release with no functional changes; version bumped from 0.2.3 to 0.2.4.
+
+### Fixed
+- **`metadata.txt` changelog continuation lines are now indented**: older entries started at column 0, which is invalid INI continuation syntax. The file only parsed because the `0.2.2` line happened to contain `EPSG:25833`, so configparser read it as a stray key. Without indentation, any new entry broke `scripts/create_release_zip.py` with a `ParsingError`.
 
 ## 0.2.3 — 2026-09-24
 

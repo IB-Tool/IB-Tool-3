@@ -423,7 +423,8 @@ OUTPUT: road_segs_near_buildings
 INPUT: MBR polygon (rectangle), road_segs_near_buildings, city blocks
 
 1. Select the city block(s) touched by the rectangle and the road
-   segments of these blocks
+   segments of these blocks (segments within 10 cm of a block count as
+   its roads — robust against floating-point noise on block boundaries)
 2. Form the shortest line from each CORNER of the rectangle to the road
 3. Filter the corner lines (rules applied in order; at least 2 lines are kept):
    Rule 1:  delete lines ≥ 70 m
