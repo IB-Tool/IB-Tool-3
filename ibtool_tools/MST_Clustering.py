@@ -219,6 +219,24 @@ def _filter_short_edges(edge_rows: list[list]) -> list[list]:
 # Public API
 # ---------------------------------------------------------------------------
 
+def _building_geom_key(edge_rows: list[list]) -> tuple:
+    """Return an FID-independent, sortable key for one building.
+
+    Used to orient MST pairs and break weight ties deterministically, so that
+    the clustering result does not depend on feature order or FIDs.
+
+    Args:
+        edge_rows: List of ``[x1, y1, x2, y2, length]`` rows for one building
+            (values of ``dict_hu`` in :func:`mst_clustering`).
+
+    Returns:
+        Sorted tuple of the building's edge start points, rounded to mm. Using
+        all points (not only the minimum) keeps the key unique for building
+        parts that share vertices, e.g. after splitting along roads.
+    """
+    return tuple(sorted((round(row[0], 3), round(row[1], 3)) for row in edge_rows))
+
+
 def calc_bounding_rect(
     hu_polyline: list[tuple[float, float]] | object,
     hu_layer: object,
@@ -547,7 +565,25 @@ def mst_clustering(
     dict_member_group = {}
     dict_group_all_members = {}
 
-    mst_pair_list_sorted = sorted(mst_pair_list, key=itemgetter(0))
+    # Make the result independent of feature order / FIDs (which vary between
+    # QGIS processes): orient every pair by a geometry key and break weight ties
+    # by the same key. The grouping below is asymmetric when both buildings are
+    # already in different groups (the group of orig_fid1 absorbs orig_fid2), so
+    # the orientation must not come from FID order.
+    geom_keys = {fid: _building_geom_key(rows) for fid, rows in dict_hu.items()}
+    _missing_key = ((math.inf, math.inf),)
+    for pair in mst_pair_list:
+        key1 = geom_keys.get(pair[3], _missing_key)
+        key2 = geom_keys.get(pair[4], _missing_key)
+        if key1 > key2:
+            pair[1], pair[2] = pair[2], pair[1]
+            pair[3], pair[4] = pair[4], pair[3]
+
+    mst_pair_list_sorted = sorted(
+        mst_pair_list,
+        key=lambda p: (p[0],
+                       geom_keys.get(p[3], _missing_key),
+                       geom_keys.get(p[4], _missing_key)))
 
     group_number = 0
     for element in mst_pair_list_sorted:

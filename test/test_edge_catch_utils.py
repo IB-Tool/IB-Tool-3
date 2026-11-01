@@ -40,6 +40,8 @@ from ibtool.helpers.edge_catch_utils import (
     _build_minimized_lines_from_selection,
     extract_road_subline,
     delete_first_point,
+    select_roads_near_blocks,
+    ROAD_BLOCK_TOLERANCE,
 )
 
 
@@ -899,3 +901,77 @@ class TestDeleteFirstPoint:
         layer = self._make_point_layer(3)
         result = delete_first_point(layer)
         assert result.crs().authid() == layer.crs().authid()
+
+
+# ── select_roads_near_blocks ──────────────────────────────────────────────────
+
+class TestSelectRoadsNearBlocks:
+    """Roads are selected if they lie within ROAD_BLOCK_TOLERANCE of a block.
+
+    Block vertices come from polygonize/noding and carry floating-point noise
+    (< 1e-9 m). An exact ``intersects`` test then flips for roads that end on
+    the block boundary; the tolerance makes the selection robust.
+    Block in the tests: square 0..100 × 0..100.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @staticmethod
+    def _block_layer() -> QgsVectorLayer:
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "block", "memory")
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromPolygonXY([[
+            QgsPointXY(0, 0), QgsPointXY(100, 0), QgsPointXY(100, 100),
+            QgsPointXY(0, 100), QgsPointXY(0, 0),
+        ]]))
+        layer.dataProvider().addFeatures([f])
+        return layer
+
+    @staticmethod
+    def _road_layer(roads: dict) -> QgsVectorLayer:
+        """Line layer with a 'name' field; *roads* maps name → list of (x, y)."""
+        layer = QgsVectorLayer("LineString?crs=EPSG:25833&field=name:string",
+                               "roads", "memory")
+        feats = []
+        for name, coords in roads.items():
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in coords]))
+            f["name"] = name
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        return layer
+
+    def _selected(self, roads: dict) -> list:
+        result = select_roads_near_blocks(self._road_layer(roads), self._block_layer())
+        return [f["name"] for f in result.getFeatures()]
+
+    @pytest.mark.unit
+    def test_tolerance_is_ten_centimetres(self):
+        assert ROAD_BLOCK_TOLERANCE == pytest.approx(0.1)
+
+    @pytest.mark.integration
+    def test_road_ending_short_of_boundary_within_tolerance_is_selected(self):
+        """A road ending 5 cm before the block boundary (no exact contact) is selected."""
+        assert self._selected({"near": [(-50, 50), (-0.05, 50)]}) == ["near"]
+
+    @pytest.mark.integration
+    def test_road_beyond_tolerance_is_not_selected(self):
+        """A road ending 50 cm before the block boundary is not selected."""
+        assert self._selected({"far": [(-50, 50), (-0.5, 50)]}) == []
+
+    @pytest.mark.integration
+    def test_boundary_and_crossing_roads_are_selected(self):
+        """Roads on the boundary or crossing the block are selected, as before."""
+        selected = self._selected({
+            "boundary": [(0, -20), (0, 120)],
+            "crossing": [(-20, 50), (120, 50)],
+        })
+        assert sorted(selected) == ["boundary", "crossing"]
+
+    @pytest.mark.integration
+    def test_output_keeps_input_order(self):
+        """Selected roads come out in input order (downstream chaining is order-sensitive)."""
+        roads = {f"r{i:02d}": [(-20, i * 4), (120, i * 4)] for i in range(25)}
+        assert self._selected(roads) == list(roads)

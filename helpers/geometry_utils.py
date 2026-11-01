@@ -14,6 +14,8 @@ from qgis.core import (
     QgsWkbTypes,
     QgsProcessingFeatureSourceDefinition,
     QgsProcessing,
+    QgsFeatureRequest,
+    QgsMemoryProviderUtils,
     edit,
 )
 from qgis.PyQt.QtCore import QMetaType
@@ -206,7 +208,16 @@ def select_and_save_by_location(
     method=0,
     output='TEMPORARY_OUTPUT',
 ):
-    """Select features by spatial relationship and save the selection.
+    """Select features by spatial relationship and save them, in a fixed order.
+
+    The selected features are written in ascending feature-ID order (the
+    natural order of memory, GeoPackage and Shapefile sources), and the input
+    layer's previous selection is restored afterwards. The former
+    ``native:saveselectedfeatures`` route — and ``native:extractbylocation``
+    for some predicates — returned features in the iteration order of a hash
+    set of IDs, which varies between QGIS processes for memory layers.
+    Order-sensitive geometry operations downstream (polygonize in Blocker)
+    then produced results that differed between runs.
 
     Args:
         input_layer: The layer to apply the selection to.
@@ -215,25 +226,36 @@ def select_and_save_by_location(
             intersects). Defaults to [0].
         method: Selection method (e.g., 0 for 'create new selection').
         output: Output location for selected features. Defaults to
-            'TEMPORARY_OUTPUT'.
+            'TEMPORARY_OUTPUT' (memory layer).
 
     Returns:
         Output layer containing the selected features.
     """
     if predicate is None:
         predicate = [0]
+    previous_selection = input_layer.selectedFeatureIds()
     processing.run("native:selectbylocation", {
         'INPUT': input_layer,
         'PREDICATE': predicate,
         'INTERSECT': intersect_layer,
         'METHOD': method
     })
+    selected_ids = sorted(input_layer.selectedFeatureIds())
+    input_layer.selectByIds(previous_selection)
 
-    selected_features = processing.run(
-        "native:saveselectedfeatures",
-        {'INPUT': input_layer,
-         'OUTPUT': output
-         })['OUTPUT']
+    request = QgsFeatureRequest().setFilterFids(selected_ids)
+    features = sorted(input_layer.getFeatures(request), key=lambda feat: feat.id())
+
+    selected_features = QgsMemoryProviderUtils.createMemoryLayer(
+        input_layer.name(), input_layer.fields(), input_layer.wkbType(), input_layer.crs())
+    selected_features.dataProvider().addFeatures(features)
+    selected_features.updateExtents()
+
+    if output not in ('TEMPORARY_OUTPUT', QgsProcessing.TEMPORARY_OUTPUT):
+        selected_features = processing.run("native:savefeatures", {
+            'INPUT': selected_features,
+            'OUTPUT': output
+        })['OUTPUT']
 
     return selected_features
 

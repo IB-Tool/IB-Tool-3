@@ -20,6 +20,7 @@ Integration tests cover (mst_clustering):
   - two buildings connected by MST line produce at least one cluster rectangle
 """
 
+import itertools
 import math
 import pytest
 from qgis.core import (
@@ -290,6 +291,102 @@ class TestMstClustering:
         )
 
         assert result_debug.featureCount() == result_normal.featureCount()
+
+
+# ---------------------------------------------------------------------------
+# TestMstClusteringDeterminism — result must not depend on input feature order
+# ---------------------------------------------------------------------------
+
+# Four buildings in a row: A–B and C–D are close (5 m gaps), B–C is 15 m apart.
+# MST edges sorted by weight: A–B (5), C–D (5) form two groups first; the
+# edge B–C (15) then connects two buildings that are already in DIFFERENT
+# groups. Before the fix, which group absorbed the other building depended on
+# the pair orientation, i.e. on building FIDs → {ABC}+{CD} or {AB}+{BCD}.
+_CHAIN_BUILDINGS = {
+    "A": (0, 0, 20),
+    "B": (25, 0, 20),
+    "C": (60, 0, 30),
+    "D": (95, 0, 30),
+}
+_CHAIN_EDGES = [("A", "B", 5.0), ("C", "D", 5.0), ("B", "C", 15.0)]
+
+
+def _centroid(name: str) -> QgsPointXY:
+    x0, y0, size = _CHAIN_BUILDINGS[name]
+    return QgsPointXY(x0 + size / 2, y0 + size / 2)
+
+
+def _make_chain_layers(building_order: tuple, crs: str = "EPSG:25833"):
+    """Build hu/mst layers for the A-B-C-D chain, buildings added in *building_order*."""
+    hu = make_polygon_layer(crs)
+    hu.dataProvider().addAttributes([
+        QgsField("fktkurz", QMetaType.QString),
+        QgsField("fkt", QMetaType.QString),
+    ])
+    hu.updateFields()
+    for name in building_order:
+        x0, y0, size = _CHAIN_BUILDINGS[name]
+        # Factory layers have no default fields → attributes map 1:1 to the added fields
+        _add_feat(hu, make_square_geom(x0, y0, size), attrs=["1010", "1010"])
+
+    mst = make_line_layer(crs)
+    mst.dataProvider().addAttributes([QgsField("weight", QMetaType.Double)])
+    mst.updateFields()
+    for a, b, weight in _CHAIN_EDGES:
+        _add_feat(mst, QgsGeometry.fromPolylineXY([_centroid(a), _centroid(b)]),
+                  attrs=[weight])
+    return hu, mst
+
+
+def _result_signature(layer: QgsVectorLayer) -> list:
+    """Order-independent description of the cluster rectangles."""
+    return sorted(
+        (round(f.geometry().area(), 1),
+         round(f.geometry().centroid().asPoint().x(), 1),
+         round(f.geometry().centroid().asPoint().y(), 1))
+        for f in layer.getFeatures()
+    )
+
+
+class TestMstClusteringDeterminism:
+    """mst_clustering must give the same result for any building feature order."""
+
+    CRS_ID = "EPSG:25833"
+
+    @classmethod
+    def setup_class(cls):
+        cls.crs = QgsCoordinateReferenceSystem(cls.CRS_ID)
+
+    @pytest.mark.integration
+    def test_result_independent_of_building_order(self):
+        """All 24 orderings of the four buildings produce identical rectangles."""
+        signatures = {}
+        for order in itertools.permutations("ABCD"):
+            hu, mst = _make_chain_layers(order, self.CRS_ID)
+            result = mst_clustering(hu, mst, self.crs, overlap_ratio=18)
+            signatures["".join(order)] = _result_signature(result)
+
+        distinct = {tuple(sig) for sig in signatures.values()}
+        assert len(distinct) == 1, (
+            "mst_clustering result depends on building order: "
+            + "; ".join(f"{k}={v}" for k, v in signatures.items()
+                        if tuple(v) != tuple(signatures["ABCD"]))
+        )
+
+    @pytest.mark.integration
+    def test_bridge_edge_extends_group_and_keeps_other_group(self):
+        """A bridge edge between two groups extends one group; the other group is kept.
+
+        A building may belong to two groups (intended behaviour), so the
+        result has two rectangles, one of them covering three buildings.
+        """
+        hu, mst = _make_chain_layers(tuple("ABCD"), self.CRS_ID)
+        result = mst_clustering(hu, mst, self.crs, overlap_ratio=18)
+
+        areas = sorted(round(f.geometry().area()) for f in result.getFeatures())
+        # {AB}=45×20=900 or {CD}=65×30=1950 plus {ABC}=90×30=2700 or {BCD}=100×30=3000
+        assert len(areas) == 2
+        assert areas[1] in (2700, 3000)
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ ROAD_SEGMENT_LENGTH = 20    # Maximum segment length for road splitting (meters)
 ROAD_BUFFER_DISTANCE = 25   # Buffer radius for building-proximity check (meters)
 LINE_EXTEND_DISTANCE = 1    # Distance by which lines are extended before polygonizing (meters)
 AREA_FILTER_FACTOR = 2      # Candidate polygons larger than source_area × factor are discarded
+ROAD_BLOCK_TOLERANCE = 0.1  # Roads within this distance of a block count as its roads (meters)
 
 # Filter rule thresholds
 _MAX_LINE_DISTANCE = 70         # Absolute maximum line distance (meters)
@@ -868,6 +869,51 @@ def filter_roads_near_buildings(
     return road_segs_near_bdgs
 
 
+def select_roads_near_blocks(
+    road_network: QgsVectorLayer,
+    blocks: QgsVectorLayer,
+    dbg: Optional[dict] = None,
+) -> QgsVectorLayer:
+    """Select the road segments of the given blocks, with a small tolerance.
+
+    A road counts as a road of the block if it lies within
+    ``ROAD_BLOCK_TOLERANCE`` of the block. Block vertices come from
+    polygonize/noding and carry floating-point noise (< 1e-9 m), so an exact
+    ``intersects`` test flips for roads that end on the block boundary. The
+    blocks are buffered by the tolerance for the selection only; the
+    clipping to the block later in ``process_single_feature`` stays exact.
+
+    ``native:extractbylocation`` with ``intersects`` keeps the input order,
+    which matters because ``_build_minimized_lines_from_selection`` chains
+    segments in iteration order.
+
+    Args:
+        road_network: Road segment line layer.
+        blocks: Block polygon layer (usually the blocks touched by one rectangle).
+        dbg: Optional debug kwargs for ``safe_processing_run``.
+
+    Returns:
+        QgsVectorLayer with the selected road segments in input order.
+    """
+    dbg = dbg or {}
+    blocks_buffered = safe_processing_run("native:buffer", {
+        'INPUT': blocks,
+        'DISTANCE': ROAD_BLOCK_TOLERANCE,
+        'SEGMENTS': 5,
+        'END_CAP_STYLE': 0,
+        'JOIN_STYLE': 0,
+        'MITER_LIMIT': 2,
+        'DISSOLVE': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **dbg)['OUTPUT']
+    return safe_processing_run("native:extractbylocation", {
+        'INPUT': road_network,
+        'PREDICATE': [0],  # intersects
+        'INTERSECT': blocks_buffered,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **dbg)['OUTPUT']
+
+
 def process_single_feature(
     feature: QgsFeature,
     road_network: QgsVectorLayer,
@@ -923,12 +969,7 @@ def process_single_feature(
         'INTERSECT': outline_points,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
-    road_network_sel = safe_processing_run("native:extractbylocation", {
-        'INPUT': road_network,
-        'PREDICATE': [0],  # intersects
-        'INTERSECT': block_sel,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    }, **_dbg)['OUTPUT']
+    road_network_sel = select_roads_near_blocks(road_network, block_sel, _dbg)
     road_network_sel = _build_minimized_lines_from_selection(road_network_sel, crs)
 
     hu_ortho = create_shortest_lines_to_roads(outline_points, road_network_sel)
