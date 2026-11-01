@@ -395,6 +395,77 @@ PatchRemove 44 → 41 s. New reference timing for Phase 2: **653 s**.
 
 New baseline for Phase 3 on 3.44: **554 s**, of which EdgeCatch 311 s (56 %).
 
+## Interlude — UI freeze / progress bar bugfix (option A, 2026-11-01)
+
+User report: progress bar never worked, window hangs while processing
+continues in the background. Causes (pre-existing): pipeline on the main
+thread with `processEvents()` only at 8 phase changes per partition; progress
+bar overwritten alternately with fixed per-partition values and overall
+progress; no UI lock (nested Start possible). Decision (user): option A now,
+Phase 4 (worker processes) will make the main thread fully free later.
+
+- [x] `ui_heartbeat()` / `heartbeat()` in `helpers/processing_context.py`;
+      ticked from `current_processing_context()` (before every
+      `processing.run()`), explicit tick in the MST grouping loop
+- [x] `IBTool._keep_ui_alive()` (processEvents + cancel),
+      `ProcessingCancelledError(BaseException)`
+- [x] Monotonic overall progress `_overall_percent()`; skipped partitions counted
+- [x] UI lock `_set_processing_ui_locked()`, re-entrant Start ignored
+- [x] Tests (unit), full suite green
+- [x] Full 3.44 run: result IDENTICAL to 3.44 reference; 73,308
+      heartbeats; **longest gap 21.6 s, in GapClose**
+- [x] User GUI test #1: view jumped to the validation page (re-validation in
+      `start_processing()` called `set_step(2)`; with locked step buttons the
+      progress page was unreachable — regression of this fix) → fixed
+      (`show_page=not is_valid`), test `test_valid_input_keeps_processing_page_visible`.
+      Buttons were NOT greyed → user's QGIS still ran the old modules
+      (plugin registers a virtual `ibtool` package; "reload plugin" does not
+      reliably reload `ibtool.*` submodules) → **restart QGIS before GUI tests**.
+- [x] GUI smoke test #2 by user after QGIS restart: **OK** (2026-11-01)
+- **Remaining freeze, root cause measured:** one single C++ call,
+  `qgis:symmetricaldifference` in `GapClose._close_block_gaps` (284 blocks vs.
+  1 settlement polygon, `GRID_SIZE=1e-5`): 21.96 s of 24.8 s GapClose on
+  PART_64. A heartbeat cannot run during a C++ call. Variants on PART_64:
+  without GRID_SIZE 7.1 s but different result (259 vs 224 features);
+  "blocks − settlement" with grid = 23.1 s (the expensive half),
+  "settlement − blocks" 0.2 s. Idea (unverified): clip the settlement to
+  each block's extent before the difference. Options: optimize this step
+  (also saves runtime) or accept until Phase 4 (worker processes).
+- **GRID_SIZE experiment (user proposal: 10 cm, 2026-11-01), PART_64,
+  `qgis:symmetricaldifference`:** 1e-5 → 21.1 s / 224 features; 1e-3 → 21.0 s
+  / 225; **1e-2 and 0.1 → algorithm fails** ("Could not write feature", also
+  with INVALID_FEATURE_HANDLING=1; presumably snap-rounding collapses thin
+  parts to lines). Grid size is not the speed lever. Danger: in the pipeline
+  `safe_processing_run` would treat the failure as a geometry error and the
+  last-resort retry drops GRID_SIZE **silently** (→ third, unintended result,
+  259 features). A 10 cm grid would need an own sym-diff via `QgsGeometry`
+  with grid parameter + polygon-part extraction = method change with new
+  reference → proposed as separate topic after Phase 3.
+- **Decision (user, 2026-11-01):** keep the grid; speed up the sym-diff by
+  clipping the settlement per block — "speed with unchanged stability of the
+  whole process" → only accepted if the full run stays IDENTICAL to the
+  reference. Plan: (1) Python re-implementation of the sym-diff with
+  `QgsGeometry` + grid 1e-5 must reproduce `qgis:symmetricaldifference`
+  bit-identically (WKT + order); (2) then add the per-block clip and measure.
+- **Result (2026-11-01):** (1) re-implementation bit-identical on PART_64
+  (21.3 s, like QGIS). (2) per-block clip (`clipped()` or GEOS bbox
+  intersection): 0.4 s but result changes by 168–184k m² → rejected.
+  (3) **cached overlay union** (QGIS recomputes the same grid union of the
+  settlement for every block): 0.49 s, bit-identical → implemented as
+  `GapClose._symmetrical_difference()` (+ fallback to the QGIS algorithm).
+  First full run: 70/71 partitions identical, **PART_56 different
+  (5,940 m²)** → root cause: grid difference returned a GeometryCollection
+  (polygons + collapsed line remnants), `convertToType()` returned null and
+  the whole block was dropped → fixed with `_polygon_parts()` (keeps polygon
+  parts like QGIS); PART_56 sym-diff now identical. **Full runs 3.44 + 3.40
+  vs. references: IDENTICAL (0 partitions differ).** GapClose 54 → 23 s,
+  total 3.44: 554 → 521 s, 3.40: 542 → 516 s; longest heartbeat gap
+  21.6 → 9.2 s (now in PatchRemove). Helpers moved to
+  `helpers/overlay_utils.py` (GapClose exceeded 1000 lines; pylint GapClose
+  9.22 → 9.24, overlay_utils 10.0). Not committed.
+- **New baseline for Phase 3 (3.44): 521 s**, EdgeCatch 311 s (60 %).
+  Remaining UI gaps > 5 s: PatchRemove (9.2 s) — to be looked at if needed.
+
 ## Phase 3 — Rewrite EdgeCatch per-feature pipeline (high effort, biggest gain)
 
 EdgeCatch is 55 % of runtime. Target: replace the ~16 processing calls per
@@ -467,3 +538,5 @@ count; ~3.5–4× on 4 cores. Combined with Phases 1–3, rough estimate
 | 2026-11-01 | `select_and_save_by_location` outputs features sorted by FID and restores the input selection (fixes process-dependent order at the source). |
 | 2026-11-01 | EdgeCatch road-per-block selection uses a 10 cm tolerance (`ROAD_BLOCK_TOLERANCE`). |
 | 2026-11-01 | Results must be reproducible per QGIS version; identity across versions (3.40 vs 3.44) is not required. Development reference = QGIS 3.44 LTR. |
+| 2026-11-01 | UI freeze fixed with option A (heartbeat + monotonic progress + UI lock); GUI test OK. |
+| 2026-11-01 | GapClose grid stays at 1e-5 (10 cm makes the QGIS algorithm fail). Speed-ups must keep the result identical ("speed with unchanged stability"): sym-diff with cached union accepted, per-block clipping rejected. |

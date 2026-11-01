@@ -30,7 +30,12 @@ ap.add_argument("--filter", default=None, help="Filter file (default: <data>/IB-
 ap.add_argument("--out", required=True, help="Workspace/output folder")
 ap.add_argument("--crs", default="EPSG:25833")
 ap.add_argument("--parts", type=int, default=0, help="Process only the first N partitions (0 = all)")
+ap.add_argument("--only", default=None,
+                help="Comma-separated partition names to process (e.g. PART_64)")
 ap.add_argument("--no-cprofile", action="store_true", help="Only phase timings, no cProfile")
+ap.add_argument("--heartbeat-stats", action="store_true",
+                help="Report the longest gap between UI heartbeats (= longest time the "
+                     "plugin window would not respond)")
 args = ap.parse_args()
 
 DATA = Path(args.data)
@@ -56,7 +61,7 @@ sys.modules["ibtool"] = _pkg
 
 from ibtool.helpers.logger import Logger  # noqa: E402
 from ibtool.helpers.processing_context import (  # noqa: E402
-    current_processing_context, shared_processing_context)
+    current_processing_context, shared_processing_context, ui_heartbeat)
 from ibtool.helpers.geometry_utils import load_to_geopackage, select_and_save_by_location  # noqa: E402
 from ibtool.helpers.data_loader import create_partitions_list  # noqa: E402
 from ibtool.ibtool_tools.FootprintDensity import calc_footprint_density, identify_dense_blocks  # noqa: E402
@@ -124,6 +129,9 @@ def main():
     parts = create_partitions_list(part, ["#"], -1, -1)
     if args.parts:
         parts = parts[:args.parts]
+    if args.only:
+        wanted = [n.strip() for n in args.only.split(",")]
+        parts = [n for n in parts if n in wanted]
     results = []
     for name in parts:
         with shared_processing_context():
@@ -188,7 +196,34 @@ def save_result(results):
     print(f"Result written: {OUT / 'result.gpkg'} ({final.featureCount()} features)")
 
 
-if args.no_cprofile:
+HEARTBEATS = {"last": None, "max_gap": 0.0, "max_gap_at": "", "count": 0, "step": ""}
+
+
+def _record_heartbeat():
+    """Heartbeat callback: track the longest gap between two UI heartbeats."""
+    now = time.perf_counter()
+    if HEARTBEATS["last"] is not None:
+        gap = now - HEARTBEATS["last"]
+        if gap > HEARTBEATS["max_gap"]:
+            HEARTBEATS["max_gap"] = gap
+            HEARTBEATS["max_gap_at"] = HEARTBEATS["step"]
+    HEARTBEATS["last"] = now
+    HEARTBEATS["count"] += 1
+
+
+if args.heartbeat_stats:
+    _orig_timed = timed
+
+    def timed(name, fn, *a, **k):  # noqa: F811  (wraps timed to label the current step)
+        HEARTBEATS["step"] = name
+        return _orig_timed(name, fn, *a, **k)
+
+if args.heartbeat_stats:
+    with ui_heartbeat(_record_heartbeat, min_interval=0):
+        save_result(main())
+    print(f"\n=== UI heartbeat ===\nheartbeats: {HEARTBEATS['count']}, longest gap: "
+          f"{HEARTBEATS['max_gap']:.2f} s (during {HEARTBEATS['max_gap_at'] or '?'})")
+elif args.no_cprofile:
     save_result(main())
 else:
     prof = cProfile.Profile()
@@ -200,7 +235,7 @@ else:
 print("\n=== Phase times (s) ===")
 for k, v in sorted(TIMES.items()):
     print(f"{k:20s} {v:8.2f}")
-if not args.no_cprofile:
+if not (args.no_cprofile or args.heartbeat_stats):
     st = pstats.Stats(prof)
     st.sort_stats("cumulative").print_stats(r"ibtool", 30)
     st.sort_stats("tottime").print_stats(15)

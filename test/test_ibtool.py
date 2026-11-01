@@ -2048,3 +2048,137 @@ class TestOpenDirectory:
             _open_directory("/fake/output/dir")
         mock_msg.assert_called_once()
         assert "xdg-open" in mock_msg.call_args[0][0]
+
+
+# ---------------------------------------------------------------------------
+# UI responsiveness during processing (progress bar, heartbeat, locked UI)
+# ---------------------------------------------------------------------------
+
+class TestProcessingResponsiveness:
+    """The dialog stays usable while processing runs on the main thread."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.tool = _make_tool()
+
+    def setup_method(self):
+        self.tool._cancel_requested = False
+        self.tool._is_processing = False
+        self.tool._progress_total_hu = 0
+        self.tool._progress_done_hu = 0
+        self.tool._progress_part_hu = 0
+        self.tool._last_percent = 0
+
+    # --- ProcessingCancelledError --------------------------------------------
+
+    @pytest.mark.unit
+    def test_cancel_error_is_not_swallowed_by_except_exception(self):
+        """Tools catch `Exception` broadly (e.g. safe_processing_run); a cancel
+        raised from the heartbeat inside a tool must pass through."""
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+        assert issubclass(ProcessingCancelledError, BaseException)
+        assert not issubclass(ProcessingCancelledError, Exception)
+
+    # --- overall progress -----------------------------------------------------
+
+    @pytest.mark.unit
+    def test_overall_percent_combines_done_and_current_partition(self):
+        self.tool._progress_total_hu = 1000
+        self.tool._progress_done_hu = 200
+        self.tool._progress_part_hu = 100
+        # (200 + 100 * 50 %) / 1000 = 25 % of the partition span (95 %)
+        assert self.tool._overall_percent(50) == int(95 * 0.25)
+
+    @pytest.mark.unit
+    def test_overall_percent_never_decreases(self):
+        self.tool._progress_total_hu = 1000
+        self.tool._progress_done_hu = 500
+        self.tool._progress_part_hu = 100
+        high = self.tool._overall_percent(90)
+        self.tool._progress_part_hu = 10          # next, smaller partition
+        assert self.tool._overall_percent(10) >= high
+
+    @pytest.mark.unit
+    def test_overall_percent_without_totals_returns_input(self):
+        """Pipeline called without start_processing (tests, tools): unchanged value."""
+        assert self.tool._overall_percent(35) == 35
+
+    @pytest.mark.unit
+    def test_partition_phases_report_overall_progress(self):
+        """_run_partition_pipeline reports overall progress, not fixed per-partition
+        values (the bar used to jump back to 10 % at every partition)."""
+        import re
+        from pathlib import Path
+        source = (Path(__file__).resolve().parent.parent / "ibtool" / "ibtool.py").read_text(
+            encoding="utf-8")
+        calls = re.findall(r'_update_phase\((\d+), 9, "[^"]+",\s*([^)]+)\)', source)
+        in_partition = [arg for phase, arg in calls if 2 <= int(phase) <= 8]
+        assert in_partition and all(a.strip().startswith("self._overall_percent(")
+                                    for a in in_partition), in_partition
+
+    # --- heartbeat ------------------------------------------------------------
+
+    @pytest.mark.unit
+    def test_keep_ui_alive_processes_events(self):
+        with patch("ibtool.ibtool.ibtool.QApplication.processEvents") as pe:
+            self.tool._keep_ui_alive()
+        pe.assert_called_once()
+
+    @pytest.mark.unit
+    def test_keep_ui_alive_raises_when_cancel_requested(self):
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+        self.tool._cancel_requested = True
+        with patch("ibtool.ibtool.ibtool.QApplication.processEvents"):
+            with pytest.raises(ProcessingCancelledError):
+                self.tool._keep_ui_alive()
+
+    # --- locked UI / re-entrance ---------------------------------------------
+
+    @pytest.mark.unit
+    def test_lock_ui_disables_and_unlock_restores_controls(self):
+        names = ("StartButton", "CheckButton", "backButton", "nextButton",
+                 "stepBtn0", "stepBtn1", "stepBtn2", "stepBtn3", "DeleteConfigButton")
+        self.tool._set_processing_ui_locked(True)
+        assert all(not getattr(self.tool.dlg, n).isEnabled() for n in names)
+        assert self.tool.dlg.CancelButton.isEnabled()
+        self.tool._set_processing_ui_locked(False)
+        assert all(getattr(self.tool.dlg, n).isEnabled() for n in names)
+
+    @pytest.mark.unit
+    def test_start_processing_is_ignored_while_running(self):
+        """A second click on Start (possible while events are processed) must not
+        start a nested run."""
+        self.tool._is_processing = True
+        with patch.object(self.tool.dlg, "set_step") as set_step:
+            self.tool.start_processing()
+        set_step.assert_not_called()
+        assert self.tool._is_processing is True
+
+    # --- view stays on the processing page -----------------------------------
+
+    def _run_until_load(self, valid: bool):
+        """Run start_processing with mocked validation; stop at 'Load Data'."""
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+        result = MagicMock()
+        result.is_valid = valid
+        result.errors = [] if valid else ["broken"]
+        result.warnings = []
+        with patch("ibtool.ibtool.ibtool.InputValidator") as validator,                 patch("ibtool.ibtool.ibtool.manage_directory"),                 patch("ibtool.ibtool.ibtool.logger"),                 patch("ibtool.ibtool.ibtool.msg"),                 patch.object(self.tool, "_load_input_layers",
+                             side_effect=ProcessingCancelledError()),                 patch.object(self.tool.dlg, "set_step") as set_step,                 patch.object(self.tool.dlg, "populate_validation_checklist"):
+            validator.return_value.validate_all.return_value = result
+            self.tool.dlg.partlistBox.setText("#")
+            self.tool.start_processing()
+        return [c.args[0] for c in set_step.call_args_list]
+
+    @pytest.mark.unit
+    def test_valid_input_keeps_processing_page_visible(self):
+        """The re-validation in start_processing must not switch to the
+        validation page (the progress bar would be hidden, and the page buttons
+        are locked while processing)."""
+        assert self._run_until_load(valid=True) == [3]
+
+    @pytest.mark.unit
+    def test_invalid_input_shows_validation_page_and_unlocks(self):
+        steps = self._run_until_load(valid=False)
+        assert steps[-1] == 2
+        assert self.tool.dlg.StartButton.isEnabled()

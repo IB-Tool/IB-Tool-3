@@ -26,7 +26,9 @@ from qgis import processing  # noqa: E402
 
 from ibtool.helpers.processing_context import (  # noqa: E402
     current_processing_context,
+    heartbeat,
     shared_processing_context,
+    ui_heartbeat,
 )
 
 
@@ -123,3 +125,72 @@ class TestSharedContextWithProcessing:
                         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
                     }, context=current_processing_context())
         create_ctx.assert_not_called()
+
+
+class TestUiHeartbeat:
+    """ui_heartbeat(): keeps the QGIS UI responsive during long processing.
+
+    The callback (in the plugin: processEvents + cancel check) is invoked from
+    current_processing_context() — i.e. before every processing.run() — and
+    from explicit heartbeat() calls in long Python loops, at most every
+    *min_interval* seconds.
+    """
+
+    @pytest.mark.unit
+    def test_no_callback_outside_block(self):
+        calls = []
+        heartbeat()
+        current_processing_context()
+        assert calls == []
+
+    @pytest.mark.unit
+    def test_current_processing_context_ticks_inside_block(self):
+        calls = []
+        with ui_heartbeat(lambda: calls.append(1), min_interval=0):
+            current_processing_context()
+            current_processing_context()
+        assert len(calls) == 2
+
+    @pytest.mark.unit
+    def test_explicit_heartbeat_ticks_inside_block(self):
+        calls = []
+        with ui_heartbeat(lambda: calls.append(1), min_interval=0):
+            heartbeat()
+        assert calls == [1]
+
+    @pytest.mark.unit
+    def test_callback_is_throttled(self):
+        """At most one callback per min_interval."""
+        calls = []
+        clock = iter([0.0, 0.05, 0.1, 0.25, 0.3, 0.6])
+        with patch("ibtool.helpers.processing_context.time.monotonic",
+                   side_effect=lambda: next(clock)):
+            with ui_heartbeat(lambda: calls.append(1), min_interval=0.2):
+                for _ in range(6):
+                    heartbeat()
+        # ticks at t=0.0 (first), 0.25, 0.6
+        assert len(calls) == 3
+
+    @pytest.mark.unit
+    def test_exception_from_callback_propagates_and_block_resets(self):
+        class Cancelled(BaseException):
+            pass
+
+        def cancel():
+            raise Cancelled()
+
+        with pytest.raises(Cancelled):
+            with ui_heartbeat(cancel, min_interval=0):
+                heartbeat()
+        calls = []
+        heartbeat()                      # no longer active
+        assert calls == []
+
+    @pytest.mark.unit
+    def test_ticks_inside_shared_context_block(self):
+        """Heartbeat and shared context are independent and can be combined."""
+        calls = []
+        with ui_heartbeat(lambda: calls.append(1), min_interval=0):
+            with shared_processing_context() as ctx:
+                assert current_processing_context() is ctx
+        assert calls == [1]

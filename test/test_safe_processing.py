@@ -43,6 +43,24 @@ class TestSafeProcessingRun:
                 safe_processing_run("native:buffer", {"INPUT": "layer"})
         assert run.call_args.kwargs["context"] is ctx
 
+    @pytest.mark.unit
+    def test_cancel_from_heartbeat_is_not_swallowed(self):
+        """A cancel raised by the UI heartbeat (evaluated before processing.run)
+        must leave safe_processing_run untouched — no repair/retry, no logging."""
+        from ibtool.helpers.processing_context import ui_heartbeat
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+
+        def cancel():
+            raise ProcessingCancelledError()
+
+        with patch("ibtool.helpers.safe_processing.processing.run") as run, \
+                patch("ibtool.helpers.safe_processing.Logger") as log:
+            with ui_heartbeat(cancel, min_interval=0):
+                with pytest.raises(ProcessingCancelledError):
+                    safe_processing_run("native:buffer", {"INPUT": "layer"})
+        run.assert_not_called()
+        log.log.assert_not_called()
+
     # ── Non-geometry errors ───────────────────────────────────────────────────
 
     @pytest.mark.unit

@@ -36,6 +36,12 @@ When modifying existing code or documentation, apply these language rules to the
   results, only saves the per-call context setup of `processing.run()` (~24 % runtime).
   **Every `processing.run()` call passes `context=current_processing_context()`**;
   outside a block this is `None` and QGIS builds its own context as before.
+  The same module holds the **UI heartbeat** (`ui_heartbeat()`, set by
+  `IBTool.start_processing()`): `current_processing_context()` ticks it, so the
+  plugin window stays responsive. Long pure-Python loops in tools call
+  `heartbeat()` explicitly. Tools never call `QApplication.processEvents()`
+  themselves. `ProcessingCancelledError` derives from `BaseException` — do not
+  catch `BaseException` in tools.
 
 ## Documentation
 

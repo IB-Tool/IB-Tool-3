@@ -17,6 +17,7 @@ License: GNU General Public License v2 or later
 
 import json
 import os
+from contextlib import ExitStack
 import subprocess
 import sys
 
@@ -43,6 +44,7 @@ from qgis import processing
 from ibtool.helpers.processing_context import (
     current_processing_context,
     shared_processing_context,
+    ui_heartbeat,
 )
 from ibtool.helpers.logger import Logger as MainLogger
 from ibtool.helpers.geometry_utils import (
@@ -98,8 +100,13 @@ def _open_directory(path: str) -> None:
             msg("Cannot open folder: xdg-open not found on this system.")
 
 
-class ProcessingCancelledError(Exception):
-    """Raised inside start_processing() when the user requests cancellation."""
+class ProcessingCancelledError(BaseException):
+    """Raised inside start_processing() when the user requests cancellation.
+
+    Derives from ``BaseException`` (like ``KeyboardInterrupt``): it is raised
+    from the UI heartbeat *inside* tools, many of which catch ``Exception``
+    broadly (e.g. ``safe_processing_run`` would treat it as a failed algorithm).
+    """
 
 
 class IBTool:  # pylint: disable=too-many-instance-attributes
@@ -169,6 +176,12 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Processing state flags for cancel support
         self._is_processing: bool = False
         self._cancel_requested: bool = False
+
+        # Overall progress bookkeeping (buildings done / current partition / total)
+        self._progress_total_hu: int = 0
+        self._progress_done_hu: int = 0
+        self._progress_part_hu: int = 0
+        self._last_percent: int = 0
 
         # Checksum cache: field_name → MD5 hex of file at last path-check
         self._file_checksums: dict = {}
@@ -1060,8 +1073,16 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self._display_validation_result(result)
         self.dlg.set_start_button_ready(result.is_valid)
 
-    def _display_validation_result(self, result: ValidationResult) -> None:
-        """Format and display validation results in MessageBox and checklist."""
+    def _display_validation_result(self, result: ValidationResult,
+                                   show_page: bool = True) -> None:
+        """Format and display validation results in MessageBox and checklist.
+
+        Args:
+            result: Validation result to display.
+            show_page: Switch to the validation page (step 2). ``start_processing``
+                passes ``False`` for a successful re-validation so the progress
+                page stays visible.
+        """
         # Always populate the visual checklist
         self.dlg.populate_validation_checklist(result.errors, result.warnings)
 
@@ -1102,7 +1123,62 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 )
 
         # Navigate to step 2 (Validierung) so the checklist is visible
-        self.dlg.set_step(2)
+        if show_page:
+            self.dlg.set_step(2)
+
+    # Share of the progress bar for the partition loop (rest: Save Output)
+    _PARTITION_PROGRESS_SPAN = 95
+
+    # Controls disabled while processing runs (Cancel stays enabled)
+    _PROCESSING_LOCKED_WIDGETS = (
+        "StartButton", "CheckButton", "backButton", "nextButton",
+        "stepBtn0", "stepBtn1", "stepBtn2", "stepBtn3", "DeleteConfigButton",
+    )
+
+    def _overall_percent(self, partition_percent: int) -> int:
+        """Convert a progress value within the current partition to overall progress.
+
+        Overall progress = (buildings of finished partitions + share of the
+        current partition) / all buildings, scaled to ``_PARTITION_PROGRESS_SPAN``.
+        The value never decreases. Without totals (pipeline called outside
+        ``start_processing()``) *partition_percent* is returned unchanged.
+
+        Args:
+            partition_percent: Progress within the current partition (0–100).
+
+        Returns:
+            Overall progress in percent (0–100).
+        """
+        if not self._progress_total_hu:
+            return partition_percent
+        done = self._progress_done_hu + self._progress_part_hu * partition_percent / 100
+        percent = int(self._PARTITION_PROGRESS_SPAN * min(done / self._progress_total_hu, 1.0))
+        self._last_percent = max(self._last_percent, percent)
+        return self._last_percent
+
+    def _keep_ui_alive(self) -> None:
+        """UI heartbeat during processing: process events and honour Cancel.
+
+        Called via ``ui_heartbeat`` before every ``processing.run()`` (at most
+        every 0.2 s), so the window does not freeze during long tools.
+
+        Raises:
+            ProcessingCancelledError: If the user requested cancellation.
+        """
+        QApplication.processEvents()
+        if self._cancel_requested:
+            raise ProcessingCancelledError()
+
+    def _set_processing_ui_locked(self, locked: bool) -> None:
+        """Disable (or re-enable) controls that must not be used while processing.
+
+        While events are processed during a run, a click on Start would
+        otherwise launch a nested run; navigation would leave the progress page.
+        """
+        for name in self._PROCESSING_LOCKED_WIDGETS:
+            widget = getattr(self.dlg, name, None)
+            if widget is not None:
+                widget.setEnabled(not locked)
 
     def _update_phase(self, phase: int, total: int, name: str, percent: int) -> None:
         """Update the phase progress indicator and flush pending UI events.
@@ -1191,6 +1267,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         hu_layer = select_and_save_by_location(layers['layer_hu'], sel_part_layer)
         anz_hu = hu_layer.featureCount()
+        self._progress_part_hu = anz_hu
 
         if anz_hu < 10:
             logger.log(
@@ -1222,11 +1299,11 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                                        'OUTPUT': 'memory:'
                                        }, context=current_processing_context())['OUTPUT']
 
-        self._update_phase(2, 9, "Calculate Blocks", 10)
+        self._update_phase(2, 9, "Calculate Blocks", self._overall_percent(10))
         blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
                          debug_mode=debug_mode, workspace_path=part_workspace)
 
-        self._update_phase(3, 9, "Apply Filter", 20)
+        self._update_phase(3, 9, "Apply Filter", self._overall_percent(20))
         hu_filter = input_hu_filter(
             sel_hu_layer, params['input_filter'], params['min_area'], 50, 200,
             debug_mode=debug_mode, workspace_path=part_workspace)
@@ -1235,7 +1312,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             debug_mode=debug_mode, workspace_path=part_workspace)
         hu_filter_sel = select_and_save_by_location(hu_filter, blocks_dense, [2], 0)
 
-        self._update_phase(4, 9, "Calculate MST", 35)
+        self._update_phase(4, 9, "Calculate MST", self._overall_percent(35))
         mst_layer = calculate_mst(hu_filter_sel, sel_strassen_layer, spatial_reference,
                                   debug_mode=debug_mode, workspace_path=part_workspace)
 
@@ -1244,7 +1321,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 f"MST calculation failed for partition {part_name}, skipping", 'WARNING')
             return None, anz_hu
 
-        self._update_phase(5, 9, "Clustering", 50)
+        self._update_phase(5, 9, "Clustering", self._overall_percent(50))
         hu_cluster_output = mst_clustering(
             hu_filter_sel, mst_layer, spatial_reference,
             min_overlap_mst, debug_mode=debug_mode, workspace_path=part_workspace)
@@ -1269,20 +1346,20 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
         }, context=current_processing_context())['OUTPUT']
 
-        self._update_phase(6, 9, "Erode Empty Areas", 70)
+        self._update_phase(6, 9, "Erode Empty Areas", self._overall_percent(70))
         eroded = erode_empty_areas(
             blocks_merge, sel_hu_layer,
             workspace_path=part_workspace,
             debug_mode=debug_mode,
         )
 
-        self._update_phase(7, 9, "Close Gaps", 80)
+        self._update_phase(7, 9, "Close Gaps", self._overall_percent(80))
         gaps_closed = gap_close(
             eroded, blocks, params['max_hole_size'], params['max_gap_size'],
             spatial_reference, gap_dist=30,
             debug_mode=debug_mode, workspace_path=part_workspace)
 
-        self._update_phase(8, 9, "Remove Patches", 90)
+        self._update_phase(8, 9, "Remove Patches", self._overall_percent(90))
         patch_removed = patch_remove(
             gaps_closed, sel_hu_layer, spatial_reference, part_workspace,
             min_patch_size=params['min_patch_size'],
@@ -1311,13 +1388,24 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         completion the result is saved to the configured output GeoPackage
         and the result-action buttons are shown.
 
-        Processing runs synchronously on the main thread.
-        ``QApplication.processEvents()`` is called after each phase-progress
-        update to keep the UI responsive.
+        Processing runs synchronously on the main thread. A UI heartbeat
+        (``ui_heartbeat`` → ``_keep_ui_alive``) processes UI events before
+        every ``processing.run()`` (at most every 0.2 s) and honours Cancel;
+        Start, Check and the navigation are disabled while it runs. The
+        progress bar shows overall progress (buildings processed / total).
         """
+        if self._is_processing:
+            # Re-entrant click on Start while events are processed during a run
+            return
         self._cancel_requested = False
         self._is_processing = True
+        self._progress_total_hu = 0
+        self._progress_done_hu = 0
+        self._progress_part_hu = 0
+        self._last_percent = 0
+        ui_stack = ExitStack()
         try:
+            self._set_processing_ui_locked(True)
             # Navigate to the processing page and reset UX state
             self.dlg.set_step(3)
             self.dlg.hide_result_actions()
@@ -1376,11 +1464,16 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 spatial_reference=spatial_reference,
                 params=self._collect_params(),
             )
-            self._display_validation_result(validation_result)
+            # Stay on the progress page unless the re-validation found errors
+            self._display_validation_result(
+                validation_result, show_page=not validation_result.is_valid)
             if not validation_result.is_valid:
                 logger.log("Verarbeitung abgebrochen wegen Validierungsfehlern.",
                            level="CRITICAL")
                 return
+
+            # Keep the UI responsive (and Cancel effective) during all tools
+            ui_stack.enter_context(ui_heartbeat(self._keep_ui_alive))
 
             # Phase 1: Load Data
             self._update_phase(1, 9, "Load Data", 0)
@@ -1432,8 +1525,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             with open(part_log_fin, 'r', encoding='utf-8') as f:
                 finished_parts = {row.strip() for row in f if row.strip()}
 
-            anz_hu_gesamt = layer_hu.featureCount()
-            anz_hu_sum = 0
+            self._progress_total_hu = layer_hu.featureCount()
             layers = {
                 'layer_part': layer_part,
                 'layer_hu': layer_hu,
@@ -1452,18 +1544,21 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 # One shared processing context per partition (saves the per-call
                 # context setup of processing.run; fresh per partition to release
                 # layers QGIS keeps in the context's temporary store)
+                self._progress_part_hu = 0
                 with shared_processing_context():
                     result, anz_hu = self._run_partition_pipeline(
                         i, a, len(part_list), layers, spatial_reference,
                         workspace_path, debug_mode, global_footprint_density, _p)
 
+                # Count skipped partitions too, otherwise the bar never gets full
+                self._progress_done_hu += anz_hu
+                self._progress_part_hu = 0
+                self.dlg.ProgressBar.setValue(self._overall_percent(0))
+
                 if result is None:
                     with open(part_log_fin, 'a', encoding='utf-8') as part_log:
                         part_log.write("\n" + i)
                     continue
-
-                anz_hu_sum += anz_hu
-                self.dlg.ProgressBar.setValue(int(anz_hu_sum / anz_hu_gesamt * 100))
 
                 merge = processing.run("native:mergevectorlayers", {
                     'LAYERS': [result, merge_layer],
@@ -1504,5 +1599,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.update_messages("Verarbeitung abgebrochen.")
             logger.log("Verarbeitung durch Nutzer abgebrochen.", level="WARNING")
         finally:
+            ui_stack.close()
+            self._set_processing_ui_locked(False)
             self._is_processing = False
             self._cancel_requested = False

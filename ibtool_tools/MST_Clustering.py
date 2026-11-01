@@ -34,7 +34,7 @@ from qgis.core import (
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import shp_area, create_empty_layer, merge_layers_prepending
 from ..helpers.debug_utils import save_debug_layer
-from ..helpers.processing_context import current_processing_context
+from ..helpers.processing_context import current_processing_context, heartbeat
 
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
@@ -617,6 +617,7 @@ def mst_clustering(
 
     group_number = 0
     for element in mst_pair_list_sorted:
+        heartbeat()   # keep the QGIS UI responsive (no processing.run in this loop)
         mst_diff, area1, area2, orig_fid1, orig_fid2 = element
         group_status = False
 
