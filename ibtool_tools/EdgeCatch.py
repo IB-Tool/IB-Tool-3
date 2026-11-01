@@ -15,6 +15,7 @@ edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_path,
 """
 from qgis.core import QgsProcessing
 from qgis import processing
+from ..helpers.processing_context import current_processing_context
 
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import shp_area2, create_empty_layer
@@ -97,7 +98,7 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
                 'LAYERS': [result, merge_layer],
                 'CRS': crs,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
             merge_layer = polygons_merge
         except Exception as e:
             Logger.log(f"Group could not be merged - {str(e)}", level="CRITICAL")

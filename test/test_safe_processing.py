@@ -23,6 +23,26 @@ class TestSafeProcessingRun:
             result = safe_processing_run("native:buffer", {"INPUT": "layer"})
         assert result == expected
 
+    # ── Shared processing context ─────────────────────────────────────────────
+
+    @pytest.mark.unit
+    def test_passes_no_context_outside_shared_block(self):
+        """Without a shared context, processing.run gets context=None (builds its own)."""
+        with patch("ibtool.helpers.safe_processing.processing.run",
+                   return_value={"OUTPUT": Mock()}) as run:
+            safe_processing_run("native:buffer", {"INPUT": "layer"})
+        assert run.call_args.kwargs["context"] is None
+
+    @pytest.mark.unit
+    def test_passes_shared_context_inside_block(self):
+        """Inside shared_processing_context(), the shared context is passed on."""
+        from ibtool.helpers.processing_context import shared_processing_context
+        with shared_processing_context() as ctx:
+            with patch("ibtool.helpers.safe_processing.processing.run",
+                       return_value={"OUTPUT": Mock()}) as run:
+                safe_processing_run("native:buffer", {"INPUT": "layer"})
+        assert run.call_args.kwargs["context"] is ctx
+
     # ── Non-geometry errors ───────────────────────────────────────────────────
 
     @pytest.mark.unit
@@ -61,7 +81,7 @@ class TestSafeProcessingRun:
         repaired_layer = Mock()
         expected = {"OUTPUT": Mock()}
 
-        def mock_run(alg, params):
+        def mock_run(alg, params, **_kwargs):
             if alg == "native:fixgeometries":
                 return {"OUTPUT": repaired_layer}
             # Fail only when using the original (un-repaired) layer
@@ -82,7 +102,7 @@ class TestSafeProcessingRun:
         repaired_layer = Mock()
         expected = {"OUTPUT": Mock()}
 
-        def mock_run(alg, params):
+        def mock_run(alg, params, **_kwargs):
             if alg == "native:fixgeometries":
                 return {"OUTPUT": repaired_layer}
             # Fail on original AND first retry (without INVALID_FEATURE_HANDLING)
@@ -102,7 +122,7 @@ class TestSafeProcessingRun:
         """String / dict params that have no .isValid() are not passed to fixgeometries."""
         repair_calls = []
 
-        def mock_run(alg, params):
+        def mock_run(alg, params, **_kwargs):
             if alg == "native:fixgeometries":
                 repair_calls.append(params.get("INPUT"))
                 return {"OUTPUT": Mock()}

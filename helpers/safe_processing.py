@@ -3,6 +3,7 @@
 from typing import Any, Dict, Optional
 from qgis.core import QgsProcessing
 from qgis import processing
+from .processing_context import current_processing_context
 
 from .logger import Logger
 from .debug_utils import save_debug_layer
@@ -44,7 +45,7 @@ def safe_processing_run(
             geometry-related or if all repair attempts fail.
     """
     try:
-        return processing.run(algorithm_name, parameters)
+        return processing.run(algorithm_name, parameters, context=current_processing_context())
     except Exception as e:
         error_msg = str(e).lower()
         geometry_error_hints = [
@@ -75,14 +76,14 @@ def safe_processing_run(
                             'INPUT': value,
                             'METHOD': 1,
                             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                        })['OUTPUT']
+                        }, context=current_processing_context())['OUTPUT']
                         repaired_params[key] = repaired_layer
                     except Exception:
                         pass  # Keep original layer if repair fails
 
             # Retry with repaired geometries
             try:
-                return processing.run(algorithm_name, repaired_params)
+                return processing.run(algorithm_name, repaired_params, context=current_processing_context())
             except Exception as e2:
                 Logger.log(
                     f"Retry after repair failed for {algorithm_name}: {e2}",
@@ -96,7 +97,7 @@ def safe_processing_run(
                 if 'INVALID_FEATURE_HANDLING' not in repaired_params_last:
                     repaired_params_last['INVALID_FEATURE_HANDLING'] = 1
                 try:
-                    return processing.run(algorithm_name, repaired_params_last)
+                    return processing.run(algorithm_name, repaired_params_last, context=current_processing_context())
                 except Exception as e3:
                     Logger.log(
                         f"Last-resort retry (no GRID_SIZE) failed for {algorithm_name}: {e3}",

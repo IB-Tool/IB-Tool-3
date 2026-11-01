@@ -34,6 +34,7 @@ from qgis.core import (
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import shp_area, create_empty_layer
 from ..helpers.debug_utils import save_debug_layer
+from ..helpers.processing_context import current_processing_context
 
 # ---------------------------------------------------------------------------
 # Debug folder name — prefix reflects call order in the main pipeline
@@ -409,7 +410,7 @@ def mst_clustering(
          'PREDICATE': [0],
          'INTERSECT': hu_layer,
          'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-         })['OUTPUT']
+         }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(mst_layer, _DEBUG_TOOL_NAME, "after_mst_location_filter", workspace_path)
 
@@ -493,7 +494,7 @@ def mst_clustering(
          'FIELD_PRECISION': 0,
          'FORMULA': '@id',
          'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-         })['OUTPUT']
+         }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(hu_layer, _DEBUG_TOOL_NAME, "after_hu_fid_calc", workspace_path)
 
@@ -509,13 +510,13 @@ def mst_clustering(
          'FIELD_PRECISION': 0,
          'FORMULA': '@id',
          'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-         })['OUTPUT']
+         }, context=current_processing_context())['OUTPUT']
 
     hu_points = processing.run("native:centroids",
                                {'INPUT': hu_layer,
                                 'ALL_PARTS': False,
                                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                                })['OUTPUT']
+                                }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(hu_points, _DEBUG_TOOL_NAME, "after_hu_centroids", workspace_path)
 
@@ -529,7 +530,7 @@ def mst_clustering(
          'DISCARD_NONMATCHING': False,
          'PREFIX': '',
          'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-         })['OUTPUT']
+         }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(mst_layer_hu_join, _DEBUG_TOOL_NAME, "after_location_join", workspace_path)
 
@@ -664,7 +665,7 @@ def mst_clustering(
                 'LAYERS': [rect, merge_layer_2],
                 'CRS': crs,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
             merge_layer_2 = rect_merge
         except Exception as e:
             Logger.log(

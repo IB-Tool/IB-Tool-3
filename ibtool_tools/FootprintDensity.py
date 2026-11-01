@@ -31,6 +31,7 @@ try:
     from ..helpers.message import msg
     from ..helpers.logger import Logger
     from ..helpers.debug_utils import save_debug_layer
+    from ..helpers.processing_context import current_processing_context
 except ImportError:
     # Fallback for test context or direct execution
 
@@ -46,6 +47,10 @@ except ImportError:
 
     def save_debug_layer(*_args, **_kwargs):
         """Fallback: no debug output outside the plugin package"""
+        return None
+
+    def current_processing_context():
+        """Fallback: no shared context, processing.run creates its own"""
         return None
 
 # ---------------------------------------------------------------------------
@@ -78,12 +83,12 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
     InputStrNetwork_Poly = processing.run("native:polygonize", {
         'INPUT': InputStrNetwork,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Create a spatial index for the polygonized street network
     processing.run("native:createspatialindex", {
         'INPUT': InputStrNetwork_Poly
-    })
+    }, context=current_processing_context())
 
     # Buffer buildings and dissolve them
     InputBdg_Buff = processing.run("native:buffer", {
@@ -95,17 +100,17 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'MITER_LIMIT': 2,
         'DISSOLVE': True,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Create a spatial index for the polygonized street network
     processing.run("native:createspatialindex", {
         'INPUT': InputBdg_Buff
-    })
+    }, context=current_processing_context())
 
     InputBdg_Buff_Line = processing.run("native:polygonstolines", {
         'INPUT': InputBdg_Buff,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # First selection based on spatial relation
     processing.run("native:selectbylocation", {
@@ -113,7 +118,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'PREDICATE': [0],  # Intersects
         'INTERSECT': InputBdg_Buff_Line,
         'METHOD': 0  # Create new selection
-    })
+    }, context=current_processing_context())
 
     # Get the IDs of the selected features
     selected_ids = InputStrNetwork_Poly.selectedFeatureIds()
@@ -129,7 +134,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         "native:saveselectedfeatures",
         {'INPUT': InputStrNetwork_Poly,
          'OUTPUT': 'TEMPORARY_OUTPUT'
-         })['OUTPUT']
+         }, context=current_processing_context())['OUTPUT']
 
     # Second selection based on the inverted selection
     BlocksInside = processing.run("native:selectbylocation", {
@@ -137,7 +142,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'PREDICATE': [0],  # Intersects
         'INTERSECT': InputBdg,
         'METHOD': 2  # Refine selection (build on the existing selection)
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Spatial join between building buffer and street polygons
     Blocks_join = processing.run("native:joinbylocationsummary", {
@@ -148,7 +153,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'SUMMARIES': [0],
         'DISCARD_NONMATCHING': False,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Dynamically find the count field created by the join
     count_field = None
@@ -168,7 +173,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'OPERATOR': 2,  # Greater than
         'VALUE': min_bdg_count,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     return Blocks_filtered
 
@@ -209,7 +214,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'INPUT': Partition,
                 'EXPRESSION': where_clause,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
             # Filter buildings and streets by partition
             SelHU = processing.run("native:extractbylocation", {
@@ -217,14 +222,14 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'PREDICATE': [0],  # Intersects
                 'INTERSECT': filtered_partition,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
             SelStrassen = processing.run("native:extractbylocation", {
                 'INPUT': InputStrNetwork,
                 'PREDICATE': [0],  # Intersects
                 'INTERSECT': filtered_partition,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
             Inner_BlocksPart = _select_block(SelStrassen, SelHU, Buffer, MinBdgCount)
 
@@ -232,7 +237,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 Merge_Dummy = processing.run("native:mergevectorlayers", {
                     'LAYERS': [Merge_Dummy, Inner_BlocksPart],
                     'OUTPUT': 'TEMPORARY_OUTPUT'
-                })['OUTPUT']
+                }, context=current_processing_context())['OUTPUT']
             else:
                 Merge_Dummy = Inner_BlocksPart
 
@@ -251,7 +256,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
         'GROUP_FIELDS': [],
         'SORT_EXPRESSION': '',
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Calculate the overlap
     result = Inner_Blocks.featureCount()
@@ -293,7 +298,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             'INPUT': HU_Input,
             'OVERLAY': Bloecke,
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        }
+        }, context=current_processing_context()
     )
     intersected_layer = intersection_result['OUTPUT']
 
@@ -326,7 +331,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
                  'name': 'BLOCK_ID', 'precision': 0, 'sub_type': 0, 'type': 4, 'type_name': 'int8'},
             ],
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        }
+        }, context=current_processing_context()
     )['OUTPUT']
 
     # Add the area of the large polygons
@@ -342,7 +347,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             'DISCARD_NONMATCHING': True,
             'PREFIX': '',
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        }
+        }, context=current_processing_context()
     )['OUTPUT']
 
     # Calculate the area share
@@ -391,7 +396,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
     bloecke_singlepart = processing.run(
         "native:multiparttosingleparts",
         {'INPUT': Bloecke,
-         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+         'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
 
     # Add area fields for both buildings and blocks
     bloecke_singlepart.startEditing()
@@ -432,7 +437,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
          'JOIN_FIELDS': ['FOOTPRINT_AREA'],
          'SUMMARIES': [5],
          'DISCARD_NONMATCHING': True,
-         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+         'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
 
     # Calculate overlap
     diss_overlap = processing.run(
@@ -443,7 +448,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
          'FIELD_LENGTH': 0,
          'FIELD_PRECISION': 0,
          'FORMULA': ' "FOOTPRINT_AREA_sum" / "SHAPE_AREA" * 100',
-         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+         'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(diss_overlap, _DEBUG_TOOL_NAME, "block_overlap", workspace_path)
 
@@ -453,7 +458,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
         {
             "INPUT": diss_overlap,
             "EXPRESSION": '\"OVERLAP\" >= {}'.format(footprintdensitythreshold),
-            'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+            'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(filtered_layer, _DEBUG_TOOL_NAME, "dense_blocks", workspace_path)
 

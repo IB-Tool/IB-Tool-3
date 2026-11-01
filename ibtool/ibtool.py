@@ -40,6 +40,10 @@ from qgis.core import (
     QgsProject,
 )
 from qgis import processing
+from ibtool.helpers.processing_context import (
+    current_processing_context,
+    shared_processing_context,
+)
 from ibtool.helpers.logger import Logger as MainLogger
 from ibtool.helpers.geometry_utils import (
     load_to_geopackage,
@@ -1142,7 +1146,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             'LAYERS': [layer_aux, layer_rn],
             'CRS': spatial_reference,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         return layer_hu, layer_rn, layer_aux, layer_part, aux_layers_line
 
     def _run_partition_pipeline(  # pylint: disable=too-many-arguments,too-many-locals
@@ -1183,7 +1187,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 'INPUT': layers['layer_part'],
                 'EXPRESSION': f"\"NAME\" = '{part_name}'",
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
         hu_layer = select_and_save_by_location(layers['layer_hu'], sel_part_layer)
         anz_hu = hu_layer.featureCount()
@@ -1216,7 +1220,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                                       {'INPUT': hu_layer,
                                        'LINES': sel_strassen_layer,
                                        'OUTPUT': 'memory:'
-                                       })['OUTPUT']
+                                       }, context=current_processing_context())['OUTPUT']
 
         self._update_phase(2, 9, "Calculate Blocks", 10)
         blocks = blocker(aux_lines_sel, sel_hu_layer, sel_part_layer,
@@ -1253,7 +1257,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             'LAYERS': [add_sing_bdg, hu_cluster_output],
             'CRS': spatial_reference,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
 
         snapped_rect = edge_catch(
             rect_merged, hu_filter_sel, sel_strassen_layer, blocks,
@@ -1263,7 +1267,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             'LAYERS': [snapped_rect, blocks_dense],
             'CRS': spatial_reference,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
 
         self._update_phase(6, 9, "Erode Empty Areas", 70)
         eroded = erode_empty_areas(
@@ -1380,8 +1384,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             # Phase 1: Load Data
             self._update_phase(1, 9, "Load Data", 0)
-            layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
-                input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
+            with shared_processing_context():
+                layer_hu, layer_rn, _, layer_part, aux_layers_line = self._load_input_layers(
+                    input_hu, input_rn, input_aux, input_part, workspace_path, spatial_reference)
 
             merge_temp_file = workspace_path + 'IB_Tool_Results/IB_Tool_merge_temp.gpkg'
             if not del_part_log and os.path.isfile(merge_temp_file):
@@ -1403,8 +1408,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             global_footprint_density = _p['global_footprint_density']
             if global_footprint_density == 0:
-                global_footprint_density = calc_footprint_density(
-                    layer_hu, layer_rn, 100, 0, 'global', _p['min_bdg_count'], layer_part)
+                with shared_processing_context():
+                    global_footprint_density = calc_footprint_density(
+                        layer_hu, layer_rn, 100, 0, 'global', _p['min_bdg_count'], layer_part)
             logger.log(
                 f"Global building coverage threshold = {global_footprint_density}", "CRITICAL")
 
@@ -1443,9 +1449,13 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                 with open(part_log_path, 'a', encoding='utf-8') as part_log:
                     part_log.write("\n" + i)
 
-                result, anz_hu = self._run_partition_pipeline(
-                    i, a, len(part_list), layers, spatial_reference,
-                    workspace_path, debug_mode, global_footprint_density, _p)
+                # One shared processing context per partition (saves the per-call
+                # context setup of processing.run; fresh per partition to release
+                # layers QGIS keeps in the context's temporary store)
+                with shared_processing_context():
+                    result, anz_hu = self._run_partition_pipeline(
+                        i, a, len(part_list), layers, spatial_reference,
+                        workspace_path, debug_mode, global_footprint_density, _p)
 
                 if result is None:
                     with open(part_log_fin, 'a', encoding='utf-8') as part_log:
@@ -1459,7 +1469,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                     'LAYERS': [result, merge_layer],
                     'CRS': spatial_reference,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-                })['OUTPUT']
+                }, context=current_processing_context())['OUTPUT']
                 merge_layer = merge
 
                 save_temp_layer_to_gpkg(

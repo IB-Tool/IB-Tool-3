@@ -18,6 +18,7 @@ import os
 
 from qgis.core import QgsWkbTypes, QgsVectorLayer, QgsProcessingUtils
 from qgis import processing
+from ..helpers.processing_context import current_processing_context
 
 from ..helpers.logger import Logger
 from ..helpers.geometry_utils import select_and_save_by_location, shp_area, shp_area2
@@ -189,7 +190,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'INPUT': hu_layer,
             'EXPRESSION': filterpos,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if not isinstance(residential_layer, QgsVectorLayer):
             raise RuntimeError("Failed to create residential_layer")
         if debug_mode and workspace_path:
@@ -200,7 +201,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'INPUT': residential_layer,
             'ALL_PARTS': False,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if not isinstance(res_cent, QgsVectorLayer):
             raise RuntimeError("Failed to create res_cent")
         if debug_mode and workspace_path:
@@ -221,7 +222,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'PIXEL_SIZE': cell_size,
             'DECAY': 0,
             'OUTPUT': hu_raster
-        })
+        }, context=current_processing_context())
 
         # Raster-to-Point
         res_density_points = processing.run("native:pixelstopoints", {
@@ -229,7 +230,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'RASTER_BAND': 1,
             'FIELD_NAME': 'VALUE',
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if not isinstance(res_density_points, QgsVectorLayer):
             raise RuntimeError("Failed to create res_density_points")
 
@@ -238,7 +239,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'INPUT': res_density_points,
             'EXPRESSION': f"value >= {_MIN_DENSITY_VALUE}",
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if not isinstance(filtered_points, QgsVectorLayer):
             raise RuntimeError("Failed to create filtered_points")
         if debug_mode and workspace_path:
@@ -255,7 +256,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'DISSOLVE': True,
             'SEPARATE_DISJOINT': False,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if not isinstance(points_buffer, QgsVectorLayer):
             raise RuntimeError("Failed to create points_buffer")
         if debug_mode and workspace_path:
@@ -266,7 +267,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'INPUT': hu_layer,
             'EXPRESSION': filterneg,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if not isinstance(negative_layer, QgsVectorLayer):
             raise RuntimeError("Failed to create negative_layer")
         if debug_mode and workspace_path:
@@ -284,7 +285,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'FIELD': [],
             'SEPARATE_DISJOINT': True,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         shp_area2(hu_diss, "Area")
         if debug_mode and workspace_path:
             save_debug_layer(hu_diss, _DEBUG_TOOL_NAME, "after_dissolve", workspace_path)
@@ -295,7 +296,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'OPERATOR': 2,
             'VALUE': min_area,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if not isinstance(diss_del, QgsVectorLayer):
             raise RuntimeError("Failed to create final_layer")
         if debug_mode and workspace_path:
@@ -310,7 +311,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'OPERATOR': 2,
             'VALUE': _MIN_BUILDING_AREA,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if debug_mode and workspace_path:
             save_debug_layer(final_layer, _DEBUG_TOOL_NAME, "after_area_filter", workspace_path)
 
@@ -319,7 +320,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             'FIELD': [],
             'SEPARATE_DISJOINT': True,
             'OUTPUT': 'memory:'
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
         if debug_mode and workspace_path:
             save_debug_layer(final_layer_diss, _DEBUG_TOOL_NAME, "after_final_dissolve", workspace_path)
 

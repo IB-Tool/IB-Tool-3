@@ -11,6 +11,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
+from ...helpers.processing_context import current_processing_context
 
 from .mst_data_classes import StreetProcessingResult
 from ...helpers.geometry_utils import nodes_detect
@@ -73,7 +74,7 @@ class StreetProcessor:
             'INTERSECT_FIELDS': [],
             'INTERSECT_FIELDS_PREFIX': '',
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
 
         # Buffer intersection points
         intersection_buffer = processing.run("native:buffer", {
@@ -86,7 +87,7 @@ class StreetProcessor:
             'DISSOLVE': False,
             'SEPARATE_DISJOINT': False,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
 
         return intersection_buffer
 
@@ -115,7 +116,7 @@ class StreetProcessor:
             'INTERSECT': intersection_buffer,
             'METHOD': 0,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })
+        }, context=current_processing_context())
 
         # Remove nodes at intersections (keep only dead-end nodes)
         with edit(street_nodes):
@@ -129,7 +130,7 @@ class StreetProcessor:
             'PREDICATE': [0],  # intersects
             'INTERSECT': street_nodes,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
 
         return dead_end_streets
 
@@ -169,7 +170,7 @@ class StreetProcessor:
             'INPUT': dead_end_streets,
             'EXPRESSION': f'"length" < {self.ROAD_LENGTH_THRESHOLD}',
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
 
         return short_dead_ends
 
@@ -195,7 +196,7 @@ class StreetProcessor:
             'INTERSECT': short_dead_ends,
             'METHOD': 0,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })
+        }, context=current_processing_context())
 
         # Remove selected streets
         selected_ids = streets_layer.selectedFeatureIds()
