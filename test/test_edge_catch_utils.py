@@ -42,6 +42,7 @@ from ibtool.helpers.edge_catch_utils import (
     delete_first_point,
     select_roads_near_blocks,
     ROAD_BLOCK_TOLERANCE,
+    process_single_feature,
 )
 
 
@@ -975,3 +976,89 @@ class TestSelectRoadsNearBlocks:
         """Selected roads come out in input order (downstream chaining is order-sensitive)."""
         roads = {f"r{i:02d}": [(-20, i * 4), (120, i * 4)] for i in range(25)}
         assert self._selected(roads) == list(roads)
+
+
+# ── process_single_feature: missing Area ─────────────────────────────────────
+
+class TestProcessSingleFeatureMissingArea:
+    """A rectangle without Area (shp_area2 skips invalid geometries) is skipped.
+
+    Memory layers return a missing value as None, OGR/GeoPackage layers as a
+    NULL QVariant — both must be skipped (the NULL QVariant used to raise
+    ``TypeError: unsupported operand type(s) for *: 'QVariant' and 'int'``).
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @staticmethod
+    def _feature_with_null_area():
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833&field=Area:double", "rects", "memory")
+        f = QgsFeature(layer.fields())
+        f.setGeometry(QgsGeometry.fromWkt("Polygon ((0 0, 10 0, 10 10, 0 10, 0 0))"))
+        layer.dataProvider().addFeatures([f])
+        return next(layer.getFeatures())
+
+    @pytest.mark.unit
+    def test_none_area_is_skipped(self):
+        from qgis.core import QgsCoordinateReferenceSystem
+        feat = self._feature_with_null_area()
+        feat["Area"] = None
+        assert process_single_feature(feat, None, None,
+                                      QgsCoordinateReferenceSystem("EPSG:25833")) is None
+
+    @pytest.mark.unit
+    def test_null_qvariant_area_is_skipped(self):
+        from qgis.core import QgsCoordinateReferenceSystem
+        from qgis.PyQt.QtCore import QVariant
+        feat = self._feature_with_null_area()
+        feat.setAttribute("Area", QVariant())          # NULL QVariant, as read from GeoPackage
+        assert process_single_feature(feat, None, None,
+                                      QgsCoordinateReferenceSystem("EPSG:25833")) is None
+
+
+# ── process_single_feature: fallback to the processing implementation ────────
+
+class TestProcessSingleFeatureFallback:
+    """If the geometry-based implementation fails, the original processing-based
+    implementation is used for that rectangle (stability of the whole run)."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @staticmethod
+    def _feature(area=100.0):
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833&field=Area:double", "rects", "memory")
+        f = QgsFeature(layer.fields())
+        f.setGeometry(QgsGeometry.fromWkt("Polygon ((0 0, 10 0, 10 10, 0 10, 0 0))"))
+        f["Area"] = area
+        layer.dataProvider().addFeatures([f])
+        return next(layer.getFeatures())
+
+    @pytest.mark.unit
+    def test_geometry_path_is_used(self):
+        from unittest.mock import patch, sentinel
+        from qgis.core import QgsCoordinateReferenceSystem
+        with patch("ibtool.helpers.edge_catch_utils._process_single_feature_geometry",
+                   return_value=sentinel.result) as fast,                 patch("ibtool.helpers.edge_catch_utils._process_single_feature_processing") as slow:
+            result = process_single_feature(self._feature(), None, None,
+                                            QgsCoordinateReferenceSystem("EPSG:25833"))
+        assert result is sentinel.result
+        fast.assert_called_once()
+        slow.assert_not_called()
+
+    @pytest.mark.unit
+    def test_falls_back_on_error(self):
+        from unittest.mock import patch, sentinel
+        from qgis.core import QgsCoordinateReferenceSystem
+        from ibtool.helpers.overlay_utils import GeometryOperationError
+        with patch("ibtool.helpers.edge_catch_utils._process_single_feature_geometry",
+                   side_effect=GeometryOperationError("intersection failed")),                 patch("ibtool.helpers.edge_catch_utils._process_single_feature_processing",
+                      return_value=sentinel.legacy) as slow,                 patch("ibtool.helpers.edge_catch_utils.Logger") as log:
+            result = process_single_feature(self._feature(), None, None,
+                                            QgsCoordinateReferenceSystem("EPSG:25833"))
+        assert result is sentinel.legacy
+        slow.assert_called_once()
+        assert any(c.kwargs.get("level") == "WARNING" for c in log.log.call_args_list)

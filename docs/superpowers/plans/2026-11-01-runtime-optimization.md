@@ -14,10 +14,11 @@ processing partitions in parallel worker processes.
 
 **Branch:** `Add_multiprocessing`
 
-**Status (2026-11-01):** Phase 0 + Phase 1 committed. NumPy-2 fix, CI matrix,
-version housekeeping (0.2.5 unreleased) and Phase 2 implemented and verified
-on 3.40 and 3.44 (3.44: 675 → 554 s, results identical); not committed.
-GUI smoke test by user pending. Next: Phase 3 (EdgeCatch rewrite).
+**Status (2026-11-01):** Phases 0, 1, 2, UI fix and GapClose sym-diff
+committed. **Phase 3 (EdgeCatch) implemented and verified on 3.40 and 3.44
+(3.44: 521 → 262 s, results identical); not committed.** Next: Phase 4
+(parallel partitions) or further single-step optimizations (CreateMST,
+PatchRemove, ImportFilter) — user decision.
 
 ---
 
@@ -470,6 +471,68 @@ Phase 4 (worker processes) will make the main thread fully free later.
 
 EdgeCatch is 55 % of runtime. Target: replace the ~16 processing calls per
 rectangle with direct `QgsGeometry` operations.
+
+**Harness (2026-11-01):** `scripts/edge_catch_harness.py` (dump / record /
+check). Cases (7 partitions, 1,927 rectangles: PART_64, 43, 25, 56, 33, 7, 49)
+and golden data in
+`C:\Users\Oliver\Downloads\Test1\ibtool_reference\edgecatch_cases\`
+(recorded on QGIS 3.44 with the code before Phase 3). Run with
+`python-qgis-ltr.bat scripts\edge_catch_harness.py check --cases <dir>`.
+Criterion: per rectangle the same multiset of (WKT 17 digits, attributes);
+the feature order within a rectangle's result already varies between
+processes with the original code (verified: 261/1,927 rects differ only in
+order on an unchanged rerun) → not counted. Final proof: full runs vs.
+references. Baseline: 166 s for 1,927 rects; ~135 s of it in ~31,000
+processing calls (≈4.4 ms each, overhead-dominated): extractbylocation 31.7,
+fixgeometries 23.7, polygonize 9.0, intersection 8.5, buffer 8.0,
+extendlines 7.9, extractbyexpression 7.8, extractvertices 7.7,
+explodelines 7.6, merge 7.5, polygonstolines 7.2 s.
+Side fix: `process_single_feature` now also skips a NULL-QVariant `Area`
+(only `None` was handled; QGIS 3.40 returns NULL QVariant for missing
+values — crashed the harness on PART_56 rect #130).
+
+**Implementation (2026-11-01, not committed):**
+- Step lab (scratchpad `step_lab.py`) compared every step with its
+  QgsGeometry candidate on identical inputs, all 1,926 rects, strict order:
+  fixgeometries = `makeValid(Structure)` ✓; extractvertices + delete first ✓;
+  block/road selection ✓ **only after emulating extractbylocation's order**
+  (two code paths: iterate target if it has fewer features, else per intersect
+  geometry with provider `setFilterRect` order, skipping found ids); the
+  polygonstolines → explodelines → merge → extendlines → fixgeometries →
+  polygonize chain ✓ (strictly identical). The final `native:intersection`
+  returns the same features in an **undefined order** (candidates fetched via
+  `setFilterFids` on a hash set) — source of the order variation of the
+  original EdgeCatch output.
+- `helpers/overlay_utils.py`: `make_valid_polygon`, `extract_intersecting`,
+  `polygonize_lines`, `intersection_with`, `checked()` +
+  `GeometryOperationError` (null result with GEOS error → raise; also applied
+  to the GapClose sym-diff).
+- `edge_catch_utils.process_single_feature`: area check → geometry path
+  `_process_single_feature_geometry` → on any exception (WARNING) fallback to
+  the unchanged processing version `_process_single_feature_processing`.
+  `create_shortest_lines_to_roads`, `filter_ortho_lines`,
+  `_build_minimized_lines_from_selection` split into list cores
+  (`_shortest_connections`, `_filter_ortho_items`, `_minimized_chains`) + the
+  unchanged layer wrappers (used by the fallback and existing tests) — a
+  memory layer costs ≈3.6 ms to create.
+- Harness: **175 s → 65 s → 21 s** (1,927 rects), IDENTICAL. Full runs after
+  the first step (65 s version): 3.44 521 → 335 s, 3.40 516 → 333 s, both
+  IDENTICAL to their references; EdgeCatch 311 → 118 s. **Full runs of the
+  21 s version: 3.44 521 → 262 s, 3.40 516 → 252 s, both IDENTICAL;
+  EdgeCatch 311 → 44 s.**
+
+**Results Phase 3 (2026-11-01), full runs, no cProfile (3.44 / 3.40):**
+total 262 / 252 s. Remaining steps (3.44): CreateMST 43, PatchRemove 41,
+ImportFilter 37, EdgeCatch 44, GapClose 24, dense blocks 15, global
+density 13, ErodeEmptyAreas 12, MST_Clustering 11 s. Longest UI heartbeat
+gap 10.2 s (PatchRemove). Overall since the start (3.40, no cProfile):
+843.6 → 252 s (−70 %, 3.3×), result identical (after the determinism fixes).
+**Next baseline (3.44): 262 s.**
+- Tests: `test/test_overlay_utils.py` (each function vs. its QGIS
+  algorithm), fallback tests in `test_edge_catch_utils.py`; suite 1,030 passed.
+- Follow-up: `edge_catch_utils.py` is >1000 lines (C0302 since the 10 cm
+  tolerance change, now ~1,190) → move the ortho-line filter rules into their
+  own module (pure refactor).
 
 - [ ] Write characterization tests for `process_single_feature` on real
       rectangles from `Testdaten` (capture current outputs) before touching it.
