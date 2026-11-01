@@ -82,7 +82,8 @@ make pylint
 
 ## Prerequisites
 
-- QGIS 3.40–3.50, Python 3.11+
+- QGIS 3.40–3.50, Python 3.11+ — CI tests QGIS 3.40 and 3.44 LTR; the 3.44 LTR on
+  Windows (OSGeo4W) ships NumPy 2, so code must work with NumPy 1.x and 2.x
 - Runtime dependencies: numpy, scipy, networkx, PyQt5
   - numpy and PyQt5 are bundled with QGIS 3.40+
   - scipy and networkx may not be present depending on the QGIS installation and platform — install manually if needed (`pip install scipy networkx`)

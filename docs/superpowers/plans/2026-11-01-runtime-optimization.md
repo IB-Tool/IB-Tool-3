@@ -14,10 +14,51 @@ processing partitions in parallel worker processes.
 
 **Branch:** `Add_multiprocessing`
 
-**Status:** Phase 0 done (2026-11-01): determinism fixed and verified on the
-full sample data (3 fixes, not committed). Next: Phase 1.
+**Status (2026-11-01):** Phase 0 + Phase 1 committed. NumPy-2 fix, CI matrix,
+version housekeeping (0.2.5 unreleased) and Phase 2 implemented and verified
+on 3.40 and 3.44 (3.44: 675 → 554 s, results identical); not committed.
+GUI smoke test by user pending. Next: Phase 3 (EdgeCatch rewrite).
 
 ---
+
+## Test environments (important)
+
+| Install | QGIS | NumPy | Launcher | pytest |
+|---|---|---|---|---|
+| `C:\Program Files\QGIS 3.40.0` | 3.40.0 | 1.26.4 | `bin\python-qgis.bat` | works |
+| OSGeo4W `C:\Users\Oliver\AppData\Local\Programs\OSGeo4W` (**user's GUI**) | 3.44.15 LTR | 2.5.4 | `bin\python-qgis-ltr.bat` | fails at import (`DLL load failed while importing _core`, not investigated) |
+
+All measurements above were taken with 3.40. Run the pipeline scripts with
+**both** launchers before declaring a phase done — NumPy 2 behaves differently
+(2026-11-01: `np.cross` with 2-D vectors crashed MST_Clustering in the user's
+GUI only; fixed).
+
+CI (2026-11-01): test matrix QGIS 3.40 + 3.44 (`3liz/qgis-platform`, build
+arg `QGIS_VERSION`). Verified locally: 983 tests pass in the 3.44 image. Both
+Linux images ship **NumPy 1.26** → NumPy 2 is still only testable via the
+user's OSGeo4W LTR install (headless scripts).
+
+**Open: results differ between QGIS versions (2026-11-01).** Full run on 3.44
+LTR (after the NumPy-2 fix, Phase 1 code) vs. the 3.40 reference: both 172
+features, but symmetric difference 72,050 m² (~0.6 %) in 18 partitions
+(e.g. PART_14: 0 m² in 3.40 vs. 15,674 m² in 3.44; PART_43 −3,322 m²).
+Runtime 3.44: 672.6 s. Not investigated yet. Hypothesis (unverified):
+different GEOS versions (noding / buffer / polygonize). Consequences:
+(1) the reference GPKG is **version-specific** — compare 3.44 runs against a
+3.44 reference; (2) determinism within 3.44 still has to be checked
+(2 LTR runs); (3) ask the user whether cross-version identity is a
+requirement. **Decision (user, 2026-11-01): reproducible per QGIS version is
+enough; cross-version identity is not required. From Phase 2 on, verify
+against a 3.44 reference.**
+
+**3.44 reference (2026-11-01, Phase 1 code + NumPy-2 fix):** 2 full LTR runs
+are IDENTICAL to each other (172 features, 11,721,173.448 m², symmetric
+difference 0) → 3.44 is deterministic. Stored as
+`C:\Users\Oliver\Downloads\Test1\ibtool_reference\result_testdaten_qgis344.gpkg`.
+**Baseline for Phase 2 on 3.44: 675.0 s** (682.4 / 667.6 s; EdgeCatch 345 s,
+MST_Clustering 82 s, GapClose 56 s, CreateMST 49 s, PatchRemove 42 s,
+ImportFilter 39 s). The 3.40 reference
+(`result_testdaten_2026-11-01_deterministic.gpkg`, 653 s) stays valid for 3.40.
 
 ## Baseline measurement (2026-11-01)
 
@@ -207,10 +248,13 @@ Profiling command (Windows):
 - [x] Profiling script `scripts/profile_pipeline.py` (mirrors
       `_run_partition_pipeline`, writes `result.gpkg`)
 - [x] Baseline measurement (see above)
-- [ ] Script `scripts/compare_results.py`: dissolve two result GPKGs, report
-      area A, area B, symmetric-difference area, feature counts, per-partition
-      differences (working prototypes exist only in the session scratchpad:
-      `compare.py`, `compare_parts.py` — re-create in repo before Phase 1)
+- [x] Script `scripts/compare_results.py`: feature counts, dissolved area,
+      feature-signature equality, symmetric-difference area, optional
+      per-partition breakdown (`--parts Testdaten\A_PART.shp`); exit code 0 =
+      identical (default tolerance 0.001 m² for union/difference float noise).
+      **Reference result:**
+      `C:\Users\Oliver\Downloads\Test1\ibtool_reference\result_testdaten_2026-11-01_deterministic.gpkg`
+      (172 features, 11,675,391.895 m²; Testdaten, default parameters).
 - [x] Investigate non-determinism (PART_7) → root cause in MST_Clustering
       pair orientation, fixed with option A (see "Root cause" above)
 - [x] Verify determinism on the full dataset: 2 full runs (all 71
@@ -249,38 +293,107 @@ EdgeCatch +22 s vs. the pre-fix run without cProfile (467 s): the extra
 
 Expected gain: up to ~200 s of 869 s (context creation overhead).
 
-- [ ] Create one `QgsProcessingContext` (+ `QgsProcessingFeedback`) per
+Findings (2026-11-01, QGIS 3.40 source `processing/core/Processing.py`):
+`processing.run(..., context=ctx)` still transfers output layers to the caller
+via `context.takeResultLayer()` when `onFinish` is None, so outputs do not pile
+up in a shared context. Creating the shared context with
+`processing.tools.dataobjects.createContext()` gives identical settings
+(invalid-geometry check, encoding, expression scopes) → results should be
+bit-identical. Layers loaded from *string* inputs stay in the context's
+temporary store → fresh context per partition bounds memory.
+
+**Design conflict:** `ai/core/constraints.md` forbids global variables /
+requires stateless tools; 190 `processing.run` calls in 17 files. Options:
+(A) pass `context` explicitly through all tool/helper signatures, or
+(B) a scoped "ambient" context in `helpers/` (context manager per partition,
+documented exception to the rule). **Decision (user, 2026-11-01): B.**
+
+Implementation (2026-11-01, not committed):
+- `helpers/processing_context.py`: `ContextVar` + `shared_processing_context()`
+  (creates context via `dataobjects.createContext(feedback)`, owns its
+  `QgsProcessingFeedback` for its lifetime — avoids a dangling per-call
+  feedback pointer, which the monkeypatch experiment had) and
+  `current_processing_context()` (None outside a block).
+- All 87 direct `processing.run()` calls (15 files, incl. `safe_processing.py`)
+  pass `context=current_processing_context()` — added via AST script, keeps
+  the existing module-level `processing` mocks in tests working.
+  (Earlier "190 calls" was a grep miscount that included `safe_processing_run`.)
+- `ibtool.py`: one block for loading, one for global density, one per
+  partition; `scripts/profile_pipeline.py` mirrors this.
+- `ai/core/constraints.md`: documented exception + rule "every
+  `processing.run()` passes `context=current_processing_context()`".
+- Tests: `test/test_processing_context.py` (9), 2 new context tests in
+  `test_safe_processing.py`; mocks there accept `**kwargs`. Suite: 978 passed,
+  2 pre-existing failures.
+
+Experiment result (2026-11-01; monkeypatched copy of the profiler, scratchpad
+`profile_ctx.py`, one `createContext()` per partition, all 71 partitions,
+no cProfile): **843.6 s → 642.7 s (−201 s, −24 %)**; result vs. reference:
+IDENTICAL (172 features, symmetric difference 0, no partition differs).
+Biggest gains: EdgeCatch 489 → 325 s, MST_Clustering 94 → 83 s, GapClose
+66 → 54 s.
+
+- [x] Create one `QgsProcessingContext` (+ `QgsProcessingFeedback`) per
       partition and pass it through to all `processing.run` /
       `safe_processing_run` calls (`context=` keyword).
-- [ ] Decide how to thread it through: explicit parameter vs. a small helper
-      in `helpers/safe_processing.py` (e.g. `processing_context()` context
-      manager). Keep tools stateless (see `ai/core/constraints.md`).
-- [ ] Temporary outputs accumulate in `context.temporaryLayerStore()` →
-      create a fresh context per partition so memory is released.
-- [ ] Verify results unchanged, record timing.
+- [x] Decide how to thread it through → option B (scoped ContextVar)
+- [x] Fresh context per partition (layers from string inputs are released)
+- [x] Verify results unchanged (full run vs. reference), record timing
+- [ ] Manual smoke test in the QGIS GUI (progress, cancel, resume, debug mode)
+      — to be done by the user
 
-**Results:** _pending_
+**Results (2026-11-01):** full run, all 71 partitions, no cProfile:
+**843.6 s → 653.2 s (−190 s, −23 %)**; `compare_results.py` vs. reference:
+IDENTICAL (172 features, symmetric difference 0, no partition differs).
+EdgeCatch 489 → 331 s, MST_Clustering 94 → 85 s, GapClose 66 → 54 s,
+PatchRemove 44 → 41 s. New reference timing for Phase 2: **653 s**.
 
 ---
 
 ## Phase 2 — Remove incremental merges (low effort, low risk)
 
-- [ ] `MST_Clustering`: `calc_bounding_rect` returns `QgsGeometry` (+ area)
-      instead of a memory layer; collect all rectangles in a list and write one
-      layer with a single `addFeatures`. Keep `"shape"` mode callers working
-      (check `AddSingleBuilding.py`, tests).
-- [ ] `EdgeCatch.edge_catch`: collect features of each `process_single_feature`
-      result in a list, build output layer once.
+- [x] `MST_Clustering`: new `_bounding_rect_geometry()` (geometry + area, no
+      layer) used for the ~14,000 candidate evaluations; rectangles collected
+      in one layer, merged once. `calc_bounding_rect()` API unchanged (wraps
+      the helper). Golden test `TestMstClusteringGolden` (exact WKT + order
+      recorded with the old code) stays green.
+- [x] `EdgeCatch.edge_catch`: results collected, merged once via new
+      `geometry_utils.merge_layers_prepending()` (same feature order as the
+      former incremental merge; falls back to one-by-one merge on failure;
+      "all merges failed → return grouped_bdgs" kept).
 - [ ] `ibtool.py` partition loop: append partition results to the merge
       GeoPackage instead of re-merging + rewriting the whole layer per
-      partition (keep resume behavior intact).
-- [ ] `FootprintDensity` global branch: collect, merge once.
-- [ ] `mst_utils` joins: batch attribute updates.
-- [ ] Verify results unchanged, record timing.
+      partition (keep resume behavior intact). **Deferred:** not covered by
+      `profile_pipeline.py`, only 71 merges of ≤172 features; needs a GUI
+      measurement first.
+- [x] `FootprintDensity` global branch: one merge over all partitions in
+      partition order (float sum of overlaps stays bit-identical; single
+      partition → no merge, as before).
+- [x] `mst_utils.join_array_to_polygons`: grid index (cell = tolerance,
+      ±2 cells) instead of nested loop; first match in array order kept;
+      attributes written in one edit session. Equivalence test vs. the former
+      implementation (random data, near-duplicates, misses).
+- [x] Verify results unchanged: 3.44 vs 3.44 reference IDENTICAL, 3.40 vs
+      3.40 reference IDENTICAL (0 partitions differ)
+- [x] pylint: R0914 in `mst_utils.py` fixed by extracting `_build_grid()` /
+      `_first_match_index()` (9.74 → 9.84); other changed files improved
+      (EdgeCatch 9.09 → 9.26, MST_Clustering 9.11 → 9.25,
+      FootprintDensity 7.09 → 7.29)
 
 **Results:** _pending_
 
 ---
+
+**Results Phase 2 (2026-11-01), full runs, no cProfile:**
+
+| | 3.44 before | 3.44 Phase 2 | 3.40 before | 3.40 Phase 2 |
+|---|---:|---:|---:|---:|
+| **Total** | **675.0 s** | **554.3 s (−18 %)** | **653.2 s** | **542.4 s (−17 %)** |
+| MST_Clustering | 81.5 | 10.3 | 84.9 | 10.9 |
+| EdgeCatch | 345.5 | 310.9 | 330.9 | 305.1 |
+| CreateMST | 48.6 | 42.3 | 46.5 | 41.1 |
+
+New baseline for Phase 3 on 3.44: **554 s**, of which EdgeCatch 311 s (56 %).
 
 ## Phase 3 — Rewrite EdgeCatch per-feature pipeline (high effort, biggest gain)
 
@@ -353,3 +466,4 @@ count; ~3.5–4× on 4 cores. Combined with Phases 1–3, rough estimate
 | 2026-11-01 | MST_Clustering non-determinism: option A (deterministic pair orientation by geometry key). A building may belong to two groups — intended by the method. |
 | 2026-11-01 | `select_and_save_by_location` outputs features sorted by FID and restores the input selection (fixes process-dependent order at the source). |
 | 2026-11-01 | EdgeCatch road-per-block selection uses a 10 cm tolerance (`ROAD_BLOCK_TOLERANCE`). |
+| 2026-11-01 | Results must be reproducible per QGIS version; identity across versions (3.40 vs 3.44) is not required. Development reference = QGIS 3.44 LTR. |

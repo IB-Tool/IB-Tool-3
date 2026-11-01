@@ -504,6 +504,57 @@ def shp_length(layer, field_name='Length'):
     return layer['OUTPUT']
 
 
+def merge_layers_prepending(layers, base_layer, crs):
+    """Merge *layers* onto *base_layer* in one step, in the order of an incremental merge.
+
+    Produces the same result as the former pattern::
+
+        merged = base_layer
+        for layer in layers:
+            merged = merge([layer, merged])
+
+    i.e. the features of the last layer come first and *base_layer* last —
+    but with a single ``native:mergevectorlayers`` call instead of one call
+    per layer (which copied the growing result again and again). The order is
+    kept because downstream union operations are order-sensitive at the
+    floating-point level.
+
+    If the single merge fails, the layers are merged one by one as before, so
+    that only a failing layer is skipped (logged as CRITICAL).
+
+    Args:
+        layers: Layers to merge, in processing order (may be empty).
+        base_layer: Layer the incremental merge started from (usually empty).
+        crs: Target CRS of the merge.
+
+    Returns:
+        The merged layer, or *base_layer* if *layers* is empty.
+    """
+    if not layers:
+        return base_layer
+    try:
+        return processing.run("native:mergevectorlayers", {
+            'LAYERS': list(reversed(layers)) + [base_layer],
+            'CRS': crs,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }, context=current_processing_context())['OUTPUT']
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"Bulk merge of {len(layers)} layers failed, merging one by one: {e}",
+                   level="WARNING")
+
+    merged = base_layer
+    for layer in layers:
+        try:
+            merged = processing.run("native:mergevectorlayers", {
+                'LAYERS': [layer, merged],
+                'CRS': crs,
+                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+            }, context=current_processing_context())['OUTPUT']
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            Logger.log(f"Layer could not be merged - {e}", level="CRITICAL")
+    return merged
+
+
 def create_empty_layer(layer_name: str, layer_type: str, crs: str) -> QgsVectorLayer:
     """Create an empty layer with a specified geometry type and CRS.
 

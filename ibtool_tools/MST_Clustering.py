@@ -32,7 +32,7 @@ from qgis.core import (
 )
 
 from ..helpers.logger import Logger
-from ..helpers.geometry_utils import shp_area, create_empty_layer
+from ..helpers.geometry_utils import shp_area, create_empty_layer, merge_layers_prepending
 from ..helpers.debug_utils import save_debug_layer
 from ..helpers.processing_context import current_processing_context
 
@@ -127,7 +127,13 @@ def _near_point(
     p1 = np.array([x1, y1])
     p2 = np.array([x2, y2])
 
-    distance = np.abs(np.cross(p1 - p0, p0 - p2) / np.linalg.norm(p1 - p0))
+    # 2-D cross product written out: np.cross rejects 2-D vectors since
+    # NumPy 2 (ValueError in NumPy 2.5 / QGIS 3.44 LTR). Same expression that
+    # NumPy 1.x evaluates for 2-D input, so results are unchanged.
+    line_vec = p1 - p0
+    point_vec = p0 - p2
+    cross_2d = line_vec[0] * point_vec[1] - line_vec[1] * point_vec[0]
+    distance = np.abs(cross_2d / np.linalg.norm(line_vec))
 
     dx = x1 - x0
     dy = y1 - y0
@@ -262,6 +268,44 @@ def calc_bounding_rect(
         Tuple of (bounding_rect_layer, poly_area) where poly_area is the rectangle
         area in map units squared, or None if insufficient input points.
     """
+    hu_dir_rect_geom, poly_area = _bounding_rect_geometry(hu_polyline, mode)
+    if hu_dir_rect_geom is None:
+        return hu_layer, None
+
+    # Create a memory layer for the polygon
+    hu_dir_rect = QgsVectorLayer(f'Polygon?crs={crs.authid()}', "HUDirRect", "memory")
+    provider = hu_dir_rect.dataProvider()
+
+    provider.addAttributes([QgsField("id", QMetaType.Int)])
+    hu_dir_rect.updateFields()
+
+    feature = QgsFeature()
+    feature.setGeometry(hu_dir_rect_geom)
+    feature.setAttributes([1])
+    provider.addFeature(feature)
+    hu_dir_rect.commitChanges()
+    return hu_dir_rect, poly_area
+
+
+def _bounding_rect_geometry(
+    hu_polyline: list[tuple[float, float]] | object,
+    mode: str,
+) -> tuple[QgsGeometry | None, float | None]:
+    """Compute the oriented bounding rectangle as a geometry (no layer).
+
+    Same computation as :func:`calc_bounding_rect`, which wraps the result in a
+    memory layer. ``mst_clustering`` evaluates thousands of candidate groups and
+    only needs the area (or the geometry), so it calls this function directly.
+
+    Args:
+        hu_polyline: ``(x1, y1, x2, y2, length)`` rows (``mode="list"``) or a
+            line layer (``mode="shape"``).
+        mode: ``"list"`` or ``"shape"``.
+
+    Returns:
+        Tuple of (rectangle geometry, rectangle area), or ``(None, None)`` if
+        fewer than 5 points are available.
+    """
     length_list = []
     angle_list = []
     point_list = []
@@ -349,30 +393,16 @@ def calc_bounding_rect(
              + [QgsPointXY(point[0], point[1]) for point in array_of_lines[3]]]
         )
 
-        # Create a memory layer for the polygon
-        hu_dir_rect = QgsVectorLayer(f'Polygon?crs={crs.authid()}', "HUDirRect", "memory")
-        provider = hu_dir_rect.dataProvider()
-
-        provider.addAttributes([QgsField("id", QMetaType.Int)])
-        hu_dir_rect.updateFields()
-
-        feature = QgsFeature()
-        feature.setGeometry(hu_dir_rect_geom)
-        feature.setAttributes([1])
-        provider.addFeature(feature)
-        hu_dir_rect.commitChanges()
-
         if poly_area == 0:
             Logger.log(
                 "PolyArea is zero in MST_Clustering calc_bounding_rect - causes division by zero",
                 level="CRITICAL",
             )
             poly_area = 1_000_000_000_000
-        return hu_dir_rect, poly_area
+        return hu_dir_rect_geom, poly_area
 
-    else:
-        Logger.log("CalcBoundingRect - No output generated", level="WARNING")
-        return hu_layer, None
+    Logger.log("CalcBoundingRect - No output generated", level="WARNING")
+    return None, None
 
 
 def mst_clustering(
@@ -535,7 +565,6 @@ def mst_clustering(
         save_debug_layer(mst_layer_hu_join, _DEBUG_TOOL_NAME, "after_location_join", workspace_path)
 
     mst_list = []
-    empty_polygon_layer = create_empty_layer("merge_layer_clustering_1", "Polygon", crs.authid())
     merge_layer_2 = create_empty_layer("merge_layer_clustering_2", "Polygon", crs.authid())
 
     for feature in mst_layer_hu_join.getFeatures():
@@ -613,7 +642,7 @@ def mst_clustering(
             for fid in members_group:
                 members_coords.extend(dict_hu[fid])
 
-            rect, area_rect = calc_bounding_rect(members_coords, empty_polygon_layer, "list", crs)
+            _rect_geom, area_rect = _bounding_rect_geometry(members_coords, "list")
             sum_area = sum(dict_fid_area[fid] for fid in members_group)
             ratio = sum_area / area_rect * 100 if area_rect else 0
 
@@ -639,7 +668,7 @@ def mst_clustering(
                 continue
             coords1.extend(coords2)
 
-            rect, area_rect = calc_bounding_rect(coords1, empty_polygon_layer, "list", crs)
+            _rect_geom, area_rect = _bounding_rect_geometry(coords1, "list")
             ratio = (area1 + area2) / area_rect * 100 if area_rect else 0
 
             if ratio > overlap_ratio:
@@ -650,28 +679,32 @@ def mst_clustering(
             else:
                 list_outsorted.append(["S", orig_fid1, orig_fid2])
 
-    rect_merge = None
-
-    for group_key in dict_group_all_members:
-        group_members = dict_group_all_members[group_key][:]
+    # Collect all group rectangles in one layer and merge once (formerly one
+    # merge per group, copying the growing result each time). Reversed order
+    # = order of the former incremental merge (last group first).
+    rect_features = []
+    for group_members in dict_group_all_members.values():
         members_coords = []
         for fid in group_members:
             members_coords.extend(dict_hu[fid])
 
-        rect, area_rect = calc_bounding_rect(members_coords, empty_polygon_layer, "list", crs)
+        rect_geom, _area_rect = _bounding_rect_geometry(members_coords, "list")
+        if rect_geom is None:
+            continue
+        feature = QgsFeature()
+        feature.setGeometry(rect_geom)
+        feature.setAttributes([1])
+        rect_features.append(feature)
 
-        try:
-            rect_merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [rect, merge_layer_2],
-                'CRS': crs,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            }, context=current_processing_context())['OUTPUT']
-            merge_layer_2 = rect_merge
-        except Exception as e:
-            Logger.log(
-                f"Group could not be merged: {group_members or 'None'} - {str(e)}",
-                level="CRITICAL",
-            )
+    rect_merge = None
+    if rect_features:
+        rects = QgsVectorLayer(f'Polygon?crs={crs.authid()}', "HUDirRect", "memory")
+        rects.dataProvider().addAttributes([QgsField("id", QMetaType.Int)])
+        rects.updateFields()
+        rects.dataProvider().addFeatures(list(reversed(rect_features)))
+        rect_merge = merge_layers_prepending([rects], merge_layer_2, crs)
+        if rect_merge is merge_layer_2:    # merge failed
+            rect_merge = None
 
     # Fallback return
     if not rect_merge:

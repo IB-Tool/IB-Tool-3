@@ -132,6 +132,78 @@ class TestMSTUtilitiesUnit:
         feat = list(layer.getFeatures())[0]
         assert str(feat["node"]) == "99"
 
+    @staticmethod
+    def _reference_join(layer, data_array, field_name="node", tolerance=0.0001):
+        """Former implementation (nested loop), kept as reference for equivalence."""
+        result = {}
+        for feature in layer.getFeatures():
+            centroid = feature.geometry().centroid().asPoint()
+            for x, y, node in data_array:
+                if abs(centroid.x() - x) < tolerance and abs(centroid.y() - y) < tolerance:
+                    result[feature.id()] = str(node)
+                    break
+        return result
+
+    @staticmethod
+    def _grid_layer(n_x=12, n_y=8):
+        layer = make_polygon_layer()
+        for i in range(n_x):
+            for j in range(n_y):
+                add_feature_to_layer(layer, make_square_geom(400000.0 + i * 13.7,
+                                                             5800000.0 + j * 9.1, 5.3))
+        return layer
+
+    @pytest.mark.unit
+    def test_join_array_to_polygons_matches_former_implementation(self):
+        """Same assignments as the former nested loop on realistic coordinates,
+        incl. near-duplicates within the tolerance and buildings without a match."""
+        import random
+        rng = random.Random(7)
+        layer = self._grid_layer()
+        centroids = [f.geometry().centroid().asPoint() for f in layer.getFeatures()]
+        data = []
+        for k, c in enumerate(centroids):
+            if k % 5 == 0:
+                continue                                    # no match for this building
+            jitter = 0.00009 if k % 3 == 0 else 0.0         # inside the 1e-4 tolerance
+            data.append([c.x() + jitter, c.y() - jitter, k])
+            if k % 4 == 0:                                  # second candidate, later in array
+                data.append([c.x() - 0.00005, c.y() + 0.00005, 1000 + k])
+        data.append([1.0, 2.0, 9999])                       # matches nothing
+        rng.shuffle(data)
+
+        expected = self._reference_join(layer, data)
+        MSTUtilities.join_array_to_polygons(layer, data, field_name="node")
+
+        actual = {f.id(): f["node"] for f in layer.getFeatures() if f["node"] not in (None, "")
+                  and not (hasattr(f["node"], "isNull") and f["node"].isNull())}
+        assert actual == expected
+        assert len(expected) > 0
+
+    @pytest.mark.unit
+    def test_join_array_to_polygons_first_match_in_array_order_wins(self):
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 10))
+        c = list(layer.getFeatures())[0].geometry().centroid().asPoint()
+
+        MSTUtilities.join_array_to_polygons(
+            layer, [[c.x() + 0.00005, c.y(), "first"], [c.x(), c.y(), "second"]],
+            field_name="node")
+
+        assert list(layer.getFeatures())[0]["node"] == "first"
+
+    @pytest.mark.unit
+    def test_join_array_to_polygons_outside_tolerance_is_not_assigned(self):
+        layer = make_polygon_layer()
+        add_feature_to_layer(layer, make_square_geom(0, 0, 10))
+        c = list(layer.getFeatures())[0].geometry().centroid().asPoint()
+
+        MSTUtilities.join_array_to_polygons(layer, [[c.x() + 0.0002, c.y(), 5]],
+                                           field_name="node")
+
+        value = list(layer.getFeatures())[0]["node"]
+        assert value in (None, "") or (hasattr(value, "isNull") and value.isNull())
+
 
 # ---------------------------------------------------------------------------
 # TestDelaunayProcessorUnit

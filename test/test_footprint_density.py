@@ -292,3 +292,65 @@ class TestFootprintDensityDebugOutput:
                               workspace_path=str(tmp_path))
 
         assert not (tmp_path / "02a_FootprintDensity").exists()
+
+
+# ---------------------------------------------------------------------------
+# Global extent: inner blocks of all partitions are merged in one step
+# ---------------------------------------------------------------------------
+
+class _StopAfterMerge(Exception):
+    """Raised by the test double right after the inner-blocks merge."""
+
+
+class TestGlobalInnerBlocksMerge:
+    """calc_footprint_density(Ext='global') merges the per-partition inner blocks once."""
+
+    CRS_ID = "EPSG:25833"
+
+    def _partitions(self, names):
+        layer = QgsVectorLayer(f"Polygon?crs={self.CRS_ID}&field=NAME:string", "part", "memory")
+        feats = []
+        for i, name in enumerate(names):
+            f = QgsFeature(layer.fields())
+            f.setGeometry(make_square_geom(i * 1000, 0, 900))
+            f["NAME"] = name
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        return layer
+
+    def _inner_blocks(self, x):
+        layer = make_polygon_layer(self.CRS_ID)
+        add_feature_to_layer(layer, make_square_geom(x, 0, 10))
+        return layer
+
+    def _run(self, names):
+        from unittest.mock import patch
+        from ibtool.ibtool_tools import FootprintDensity as qgis_processing_owner
+        real_run = qgis_processing_owner.processing.run
+        inner = [self._inner_blocks(i * 1000) for i in range(len(names))]
+        merges = []
+
+        def run(alg, params, **kwargs):
+            if alg == "native:mergevectorlayers":
+                merges.append(list(params["LAYERS"]))
+                raise _StopAfterMerge()
+            if alg == "native:addautoincrementalfield":
+                raise _StopAfterMerge()       # reached without any merge
+            return real_run(alg, params, **kwargs)
+
+        with patch("ibtool.ibtool_tools.FootprintDensity._select_block", side_effect=inner),                 patch("ibtool.ibtool_tools.FootprintDensity.processing.run", side_effect=run):
+            with pytest.raises(_StopAfterMerge):
+                calc_footprint_density(_building_layer(self.CRS_ID), make_polygon_layer(self.CRS_ID),
+                                       Ext="global", Partition=self._partitions(names))
+        return inner, merges
+
+    @pytest.mark.unit
+    def test_one_merge_for_all_partitions_in_partition_order(self):
+        inner, merges = self._run(["P1", "P2", "P3"])
+        assert len(merges) == 1
+        assert merges[0] == inner
+
+    @pytest.mark.unit
+    def test_single_partition_is_not_merged(self):
+        _inner, merges = self._run(["P1"])
+        assert merges == []

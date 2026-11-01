@@ -206,7 +206,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
         if not Partition:
             raise ValueError("Partition layer is required for global extent.")
 
-        Merge_Dummy = None
+        inner_blocks_parts = []
 
         for feature in Partition.getFeatures():
             where_clause = f'"NAME" = \'{feature["NAME"]}\''
@@ -231,17 +231,18 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             }, context=current_processing_context())['OUTPUT']
 
-            Inner_BlocksPart = _select_block(SelStrassen, SelHU, Buffer, MinBdgCount)
+            inner_blocks_parts.append(_select_block(SelStrassen, SelHU, Buffer, MinBdgCount))
 
-            if Merge_Dummy:
-                Merge_Dummy = processing.run("native:mergevectorlayers", {
-                    'LAYERS': [Merge_Dummy, Inner_BlocksPart],
-                    'OUTPUT': 'TEMPORARY_OUTPUT'
-                }, context=current_processing_context())['OUTPUT']
-            else:
-                Merge_Dummy = Inner_BlocksPart
-
-        Inner_Blocks = Merge_Dummy
+        # One merge over all partitions (formerly one per partition). Feature
+        # order = partition order as before, so the float sum of the overlaps
+        # below is bit-identical.
+        if len(inner_blocks_parts) > 1:
+            Inner_Blocks = processing.run("native:mergevectorlayers", {
+                'LAYERS': inner_blocks_parts,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, context=current_processing_context())['OUTPUT']
+        else:
+            Inner_Blocks = inner_blocks_parts[0] if inner_blocks_parts else None
 
     else:  # Local extent
         Inner_Blocks = _select_block(InputStrNetwork, InputBdg, Buffer, MinBdgCount)

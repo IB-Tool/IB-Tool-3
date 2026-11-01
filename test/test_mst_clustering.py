@@ -22,6 +22,8 @@ Integration tests cover (mst_clustering):
 
 import itertools
 import math
+from unittest.mock import patch
+
 import pytest
 from qgis.core import (
     QgsVectorLayer,
@@ -390,6 +392,96 @@ class TestMstClusteringDeterminism:
 
 
 # ---------------------------------------------------------------------------
+# TestMstClusteringGolden — exact output must not change during refactoring
+# ---------------------------------------------------------------------------
+
+# Two rows of buildings with different sizes, gaps and rotations; MST = chain
+# along each row plus two cross edges. Exercises group extension, rejected
+# extensions (pair fallback) and rotated bounding rectangles.
+_GOLDEN_BUILDINGS = [
+    # (x0, y0, size, rotation_deg)
+    (0, 0, 12, 0), (16, 0, 10, 0), (30, 2, 14, 10), (50, 0, 9, 0),
+    (64, 1, 11, 25), (95, 0, 20, 0), (122, 0, 8, 0), (134, 3, 12, 40),
+    (5, 45, 15, 0), (25, 47, 12, 5), (44, 45, 18, 0), (70, 48, 10, 60),
+    (86, 45, 13, 0), (150, 46, 9, 0),
+]
+_GOLDEN_EDGES = [(i, i + 1) for i in range(7)] + [(i, i + 1) for i in range(8, 13)] \
+    + [(0, 8), (5, 12)]
+
+
+def _make_golden_layers(crs: str = "EPSG:25833"):
+    hu = make_polygon_layer(crs)
+    hu.dataProvider().addAttributes([
+        QgsField("fktkurz", QMetaType.QString),
+        QgsField("fkt", QMetaType.QString),
+    ])
+    hu.updateFields()
+    geoms = []
+    for x0, y0, size, rot in _GOLDEN_BUILDINGS:
+        g = make_square_geom(x0, y0, size)
+        if rot:
+            g.rotate(rot, g.centroid().asPoint())
+        geoms.append(g)
+        _add_feat(hu, g, attrs=["1010", "1010"])
+
+    mst = make_line_layer(crs)
+    mst.dataProvider().addAttributes([QgsField("weight", QMetaType.Double)])
+    mst.updateFields()
+    for a, b in _GOLDEN_EDGES:
+        line = QgsGeometry.fromPolylineXY([geoms[a].centroid().asPoint(),
+                                           geoms[b].centroid().asPoint()])
+        _add_feat(mst, line, attrs=[geoms[a].distance(geoms[b])])
+    return hu, mst
+
+
+# Output of mst_clustering(golden layers, overlap_ratio=18) recorded with the
+# implementation before the Phase 2 refactoring (2026-11-01): feature order and
+# WKT (6 decimals) must stay identical.
+_GOLDEN_EXPECTED = [
+    'Polygon ((86 45, 159 45, 159 45, 159 58, 159 58, 86 58, 86 58, 86 45))',
+    'Polygon ((3.697639 45.113942, 61.567021 40.051027, 61.567021 40.051027, 63.562834 62.86327, 63.562834 62.86327, 5.693451 67.926185, 5.693451 67.926185, 3.697639 45.113942))',
+    'Polygon ((44 0, 115 0, 115 0, 115 63, 115 63, 44 63, 44 63, 44 0))',
+    'Polygon ((50 -0.809093, 115 -0.809093, 115 -0.809093, 115 20, 115 20, 50 20, 50 20, 50 -0.809093))',
+    'Polygon ((0 0, 59 0, 59 0, 59 60, 59 60, 0 60, 0 60, 0 0))',
+    'Polygon ((95 0, 148.452992 0, 148.452992 0, 148.452992 20, 148.452992 20, 95 20, 95 20, 95 0))',
+]
+
+
+class TestMstClusteringGolden:
+    """Characterization test: refactoring must not change the output at all."""
+
+    CRS_ID = "EPSG:25833"
+
+    @pytest.mark.integration
+    def test_output_identical_to_recorded_output(self):
+        hu, mst = _make_golden_layers(self.CRS_ID)
+        result = mst_clustering(hu, mst, QgsCoordinateReferenceSystem(self.CRS_ID),
+                                overlap_ratio=18)
+        actual = [f.geometry().asWkt(6) for f in result.getFeatures()]
+        assert actual == _GOLDEN_EXPECTED
+
+    @pytest.mark.integration
+    def test_rectangles_are_merged_once(self):
+        """All group rectangles are collected and merged in one step, not one
+        mergevectorlayers call per group (quadratic copying)."""
+        from ibtool.ibtool_tools import MST_Clustering as qgis_processing_owner
+        real_run = qgis_processing_owner.processing.run
+        merge_calls = []
+
+        def counting_run(alg, params, **kwargs):
+            if alg == "native:mergevectorlayers":
+                merge_calls.append(len(params["LAYERS"]))
+            return real_run(alg, params, **kwargs)
+
+        hu, mst = _make_golden_layers(self.CRS_ID)
+        with patch("ibtool.ibtool_tools.MST_Clustering.processing.run", side_effect=counting_run):
+            result = mst_clustering(hu, mst, QgsCoordinateReferenceSystem(self.CRS_ID),
+                                    overlap_ratio=18)
+        assert result.featureCount() == len(_GOLDEN_EXPECTED)
+        assert len(merge_calls) <= 1, f"{len(merge_calls)} merge calls"
+
+
+# ---------------------------------------------------------------------------
 # TestMainAngle — unit tests (pure Python + numpy)
 # ---------------------------------------------------------------------------
 
@@ -460,6 +552,25 @@ class TestNearPoint:
         result = _near_point(0, 0, 1, 0, 0.5, 1)
         assert len(result) == 3
         assert all(isinstance(v, (int, float)) or hasattr(v, 'item') for v in result)
+
+    @pytest.mark.unit
+    def test_works_without_2d_np_cross(self):
+        """NumPy >= 2 rejects np.cross for 2-D vectors (ValueError, e.g. NumPy 2.5
+        in QGIS 3.44 LTR). _near_point must not depend on it."""
+        def cross_numpy2(*_args, **_kwargs):
+            raise ValueError("Both input arrays must be (arrays of) 3-dimensional vectors")
+
+        with patch("ibtool.ibtool_tools.MST_Clustering.np.cross", side_effect=cross_numpy2):
+            dist, nx, ny = _near_point(0, 0, 10, 0, 5, 3)
+        assert dist == pytest.approx(3.0, abs=1e-9)
+        assert (nx, ny) == pytest.approx((5.0, 0.0), abs=1e-9)
+
+    @pytest.mark.unit
+    def test_distance_sign_independent_of_side(self):
+        """Points on either side of the line have the same (absolute) distance."""
+        left, _, _ = _near_point(0, 0, 10, 0, 5, 3)
+        right, _, _ = _near_point(0, 0, 10, 0, 5, -3)
+        assert left == pytest.approx(right, abs=1e-9) == pytest.approx(3.0, abs=1e-9)
 
 
 # ---------------------------------------------------------------------------

@@ -7,18 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## Unreleased
+## 0.2.5 — unreleased
 
 ### Performance
 - **Shared processing context per partition** (new `helpers/processing_context.py`, `ibtool.py`, all tools): `processing.run()` built a new `QgsProcessingContext` for every call (~3 ms; ~68,000 calls on the sample data). All `processing.run()` calls now pass `context=current_processing_context()`; `IBTool.start_processing()` opens one `shared_processing_context()` for loading, one for the global density and one per partition. Output layers are still handed to the caller, so nothing accumulates in the context. Sample data: 843.6 s → 653.2 s (−23 %), result identical. Outside a shared block (e.g. tools called on their own, tests) behavior is unchanged. Documented as exception in `ai/core/constraints.md`. Tests: `test/test_processing_context.py`, `TestSafeProcessingRun` (context passing).
+- **No more incremental merges** (`helpers/geometry_utils.merge_layers_prepending`, `EdgeCatch.py`, `MST_Clustering.py`, `FootprintDensity.py`): EdgeCatch (one merge per rectangle), MST_Clustering (one merge per group) and the global footprint density (one merge per partition) appended each result to a growing layer with `native:mergevectorlayers`, copying all previous features every time. Results are now collected and merged once, in exactly the former feature order (downstream unions are order-sensitive at the floating-point level). If the bulk merge fails, EdgeCatch falls back to the former one-by-one merge. MST_Clustering evaluates candidate groups via the new `_bounding_rect_geometry()` (no memory layer per candidate; `calc_bounding_rect()` keeps its API). `MSTUtilities.join_array_to_polygons` uses a grid index instead of a nested loop over all array entries per building and writes attributes in one batch. Tests: `TestMstClusteringGolden` (exact WKT + order recorded before the change), merge-count tests for EdgeCatch / MST_Clustering / global density, equivalence test of the join against the former implementation. Sample data: QGIS 3.44 675 → 554 s (−18 %), QGIS 3.40 653 → 542 s (−17 %); MST_Clustering 82 → 10 s; results identical on both versions.
 - New development scripts: `scripts/profile_pipeline.py` (headless per-step timing + cProfile, writes `result.gpkg`) and `scripts/compare_results.py` (geometric comparison of two results, per-partition breakdown, exit code 0 = identical).
 
 ### Fixed
 - **MST_Clustering result depended on feature order** (`MST_Clustering.py`): identical input produced different clusters in different QGIS processes (e.g. PART_7 of the sample data: 74 / 76 / 77 rectangles), because building FIDs / feature order vary between processes. Each MST edge becomes a pair `(orig_fid1, orig_fid2)` whose orientation came from the row order of `native:joinattributesbylocation`; when both buildings are already in different groups, the group of `orig_fid1` absorbs the other building, so the orientation decided the result. Pairs are now oriented by an FID-independent geometry key (`_building_geom_key`, sorted vertex coordinates), and edges with equal weight are ordered by the same key. A building may still belong to two groups (intended). Behavior change: clusters change once compared to earlier runs; afterwards results are reproducible. Tests: `TestMstClusteringDeterminism` (all 24 building orders of a four-building chain give the same result).
 - **`select_and_save_by_location` returned features in a process-dependent order** (`helpers/geometry_utils.py`): the output came from `native:saveselectedfeatures`, which iterates the selection's hash set — for memory layers the order differed between QGIS processes. Blocker polygonizes the selected lines, so the block vertices differed by < 1 nm between runs, which was enough to change the road selection in EdgeCatch (sample data: 10 of 71 partitions differed between two runs). Selected features are now written sorted by feature ID, and the input layer's previous selection is restored (the function no longer leaves a selection behind). Tests: `TestSelectAndSaveByLocation`.
+- **MST_Clustering crashed with NumPy 2** (`MST_Clustering._near_point`): `np.cross` no longer accepts 2-D vectors (`ValueError: Both input arrays must be (arrays of) 3-dimensional vectors`, e.g. QGIS 3.44 LTR with NumPy 2.5.4). The 2-D cross product is now written out (`a[0]*b[1] - a[1]*b[0]`) — the same expression NumPy 1.x evaluates for 2-D input; 200,000 random cases are bit-identical under NumPy 1.26. Test: `TestNearPoint.test_works_without_2d_np_cross`.
 
 ### Changed
 - **EdgeCatch selects block roads with a 10 cm tolerance** (`helpers/edge_catch_utils.py`, new `select_roads_near_blocks`, constant `ROAD_BLOCK_TOLERANCE = 0.1`): roads within 10 cm of the block count as roads of the block. Previously an exact `intersects` test was used; since block vertices from polygonize carry floating-point noise, roads ending on the block boundary were included or not by chance. Behavior change: such roads are now always included, results of EdgeCatch change accordingly. The clipping to the block stays exact. Tests: `TestSelectRoadsNearBlocks`.
+- **CI tests QGIS 3.40 and 3.44 LTR** (`.github/workflows/ci.yml`, `Dockerfile`): the test job runs as a matrix over `3liz/qgis-platform:3.40` and `:3.44` (new build argument `QGIS_VERSION`, default `3.40`); coverage is uploaded from the 3.40 job only. Both Linux images ship NumPy 1.26, so NumPy 2 (QGIS 3.44 LTR on Windows/OSGeo4W) is not covered by CI. Verified locally: 983 tests pass in the 3.44 image. README / `docs/contributing.md` / `CLAUDE.md` state the tested versions and NumPy 1.x/2.x support.
 
 ## 0.2.4 — 2026-10-04
 
@@ -40,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the `# TODO: verify operator direction` in `edge_catch_utils.process_single_feature`: `"Area" < 2 × rectangle area` is the intended filter (confirmed, matches `docs/how-it-works.md` Step 7).
 - **ErodeEmptyAreas contact filter measured the wrong boundary** (#168, `ErodeEmptyAreas.py`): `_settlement_outer_buffer()` subtracted the voids from the settlement before extracting the reference lines, so each void's contact was measured against the *remaining settlement* (≈ 100 % minus the documented outer-boundary contact). Large fringe voids with high outer contact were removed and voids with a small edge opening were kept — the opposite of the documented behavior. The `native:difference` step is removed; the reference is now the settlement outer boundary only (the earlier rationale "exclude the voids' own outlines" in the 0.x Fixed entry was wrong — `deleteholes` already excludes inner rings). Behavior change: settlement results on real data change accordingly; only voids with 0 % < outer contact < 20 % are cut out, interior voids remain.
 - **ErodeEmptyAreas void perimeter for voids with holes** (`ErodeEmptyAreas.py`): `length_1` was computed after `multiparttosingleparts`, i.e. per ring instead of per void. For a void with inner rings the contact fraction was therefore divided by the length of an arbitrary single ring. `length_1` is now computed before splitting and holds the full perimeter.
+- **`metadata.txt` changelog continuation lines are now indented**: older entries started at column 0, which is invalid INI continuation syntax. The file only parsed because the `0.2.2` line happened to contain `EPSG:25833`, so configparser read it as a stray key. Without indentation, any new entry broke `scripts/create_release_zip.py` with a `ParsingError`.
 
 ### Removed
 - **Unused compiled Qt resource module** (`resources.py`, `resources.qrc`): The compiled resource module and its source file were removed.
@@ -56,14 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a before/after hero image to `README.md` and the input layers and partitions of the sample data to `docs/input-data.md` (`make_map_figures.py`).
 - `docs/img/_src/debug/` and `docs/img/_src/IB_Tool_Results/` (local reference debug run for the documentation figures) and `docs/img/_src/figures_preview.png` (layout check image) are git-ignored.
 - Aligned `docs/how-it-works.md` with the code: Step 5 (dominant direction from ±10° edge-direction groups; pair fallback after a rejected group extension), Step 7 EdgeCatch (20 m road segments, corner-line filter rules 1–4, pieces < 2 × rectangle area — the previous text described 10 m segments and 1.5× / 5× / 4,900 m² rules that are not in the code), Step 9b (double-buffer sequence including the subtraction of the settlement).
-
-## 0.2.4 — 2026-10-04
-
-### Changed
-- Maintenance release with no functional changes; version bumped from 0.2.3 to 0.2.4.
-
-### Fixed
-- **`metadata.txt` changelog continuation lines are now indented**: older entries started at column 0, which is invalid INI continuation syntax. The file only parsed because the `0.2.2` line happened to contain `EPSG:25833`, so configparser read it as a stray key. Without indentation, any new entry broke `scripts/create_release_zip.py` with a `ParsingError`.
 
 ## 0.2.3 — 2026-09-24
 
