@@ -15,13 +15,15 @@ processing partitions in parallel worker processes.
 **Branch:** `Add_multiprocessing`
 
 **Status (2026-11-01):** Phases 0–4, UI fix and GapClose sym-diff
-committed (Phase 4 in `ea09a84`). Phase 5a (CreateMST `nodes_detect`) and
-5b (`identify_dense_blocks` area fields) implemented and verified, not
-committed. Sample data, QGIS 3.44: 843.6 s (3.40, start) → 262 s
-sequential → 101.5 s with 4 workers → **71.8 s with 4 workers after 5a+5b**
-(3.40: 71.8 s; sequential 177 s), results identical. **Next:** PART_64 is
-51 s; largest remaining steps (sequential, all partitions): EdgeCatch 41.8 s,
-ImportFilter 36.8 s, GapClose 24.1 s, Erode 12.0 s, MST_Clustering 10.3 s.
+committed (Phase 4 in `ea09a84`, 5a CreateMST `nodes_detect` + 5b
+`identify_dense_blocks` area fields in `fd6953c`). Phase 5c (ImportFilter
+LIKE filter) implemented and verified, not committed. Sample data, QGIS 3.44: 843.6 s
+(3.40, start) → 262 s sequential → 101.5 s with 4 workers → **61.7 s with
+4 workers after 5a–5c** (3.40: 64.8 s; sequential 154.5 s), results
+identical. **Next:** PART_64 is 40.3 s; largest remaining steps
+(sequential, all partitions): EdgeCatch 41.9 s, GapClose 23.6 s, ImportFilter
+15.5 s (dissolve/selectbylocation), Erode 12.0 s, MST_Clustering 10.2 s,
+global density 12.6 s (runs before the workers start).
 
 ---
 
@@ -609,7 +611,7 @@ Results (all RESULT: IDENTICAL vs. the references):
       33.8 s → 0.3 s summed; full runs identical on 3.44 and 3.40.
 - [x] Timing (4 workers, CPU base load 14–24 %): 3.44 89.2 s (PART_64 69.5 s,
       parallel phase 71.5 s), 3.40 92.4 s.
-- [ ] Commit (user).
+- [x] Committed (`fd6953c`).
 
 ### Phase 5b — identify_dense_blocks: area fields (2026-11-01)
 
@@ -622,6 +624,22 @@ Results (all RESULT: IDENTICAL vs. the references):
 - [x] Timing (CPU base load 0–10 %): 4 workers 71.8 s (3.44 and 3.40),
       PART_64 51.1 s; sequential 3.44 177.0 s (06_dense_blocks 1.3 s,
       13_patch_remove 6.0 s).
+- [x] Committed (`fd6953c`).
+
+### Phase 5c — ImportFilter: LIKE filter in Python (2026-11-01)
+
+- [x] Profile ImportFilter on PART_64 (3.44): 12.8 s, of which
+      `extractbyexpression` ×3 7.1 s (positive/negative filter: `fkt LIKE …`
+      OR-chains), dissolve 2.2 s, selectbylocation 1.7 s.
+- [x] Cause: QGIS LIKE builds its regular expression per evaluation — even a
+      prepared `QgsExpression` loop takes ~0.45 ms per building.
+- [x] `_extract_by_codes`: one precompiled Python regex for codes of
+      `[A-Za-z0-9_]` on text fields, same LIKE rules; fallback to the
+      algorithm otherwise. Identical output (ids, attributes, WKB) on all
+      29,232 sample buildings, 10–12 s → 0.2 s per filter.
+- [x] Verified: full runs identical on 3.44 (4 workers and sequential) and 3.40.
+- [x] Timing (CPU base load 12–17 %): 4 workers 3.44 61.7 s, 3.40 64.8 s,
+      PART_64 40.3 s; sequential 3.44 154.5 s (05_import_filter 15.5 s).
 - [ ] Commit (user).
 
 Original design sketch (superseded):

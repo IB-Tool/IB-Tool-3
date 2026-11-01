@@ -15,9 +15,12 @@ input_hu_filter(hu_layer, filter_file, min_area, cell_size, neighborhood_radius,
 from __future__ import annotations
 
 import os
+import re
 
-from qgis.core import QgsWkbTypes, QgsVectorLayer, QgsProcessingUtils
+from qgis.core import (QgsFeature, QgsMemoryProviderUtils, QgsProcessingUtils, QgsVectorLayer,
+                       QgsWkbTypes)
 from qgis import processing
+from qgis.PyQt.QtCore import QMetaType
 from ..helpers.processing_context import current_processing_context
 
 from ..helpers.logger import Logger
@@ -46,9 +49,80 @@ _MIN_BUILDING_AREA = 35
 _MIN_BUILDING_COUNT = 20
 
 
+# Filter codes made only of these characters are matched in Python (see
+# _extract_by_codes); everything else goes through the QGIS expression engine.
+_SIMPLE_CODE = re.compile(r"[A-Za-z0-9_]+")
+
+
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+def _like_regex(codes: list[str]):
+    """Compile ``field LIKE 'c1' OR field LIKE 'c2' …`` for simple codes.
+
+    QGIS LIKE semantics for codes of letters, digits and ``_``: ``_`` matches
+    exactly one arbitrary character (also a line break), everything else is
+    literal, the whole value must match, case-sensitive.
+    """
+    alternatives = ["".join("." if char == "_" else re.escape(char) for char in code)
+                    for code in codes]
+    return re.compile("|".join(f"(?:{a})" for a in alternatives), re.DOTALL)
+
+
+def _extract_by_codes(layer: QgsVectorLayer, codes: list[str], fieldname: str) -> QgsVectorLayer:
+    """Features whose *fieldname* matches one of *codes* with LIKE semantics.
+
+    Same result as ``native:extractbyexpression`` with
+    ``_create_filter_string`` (same features, order, ids, fields): QGIS
+    rebuilds the regular expression of every LIKE for every feature
+    (~0.45 ms per building with ~20 codes), so simple codes on a text field
+    are matched with one precompiled Python expression instead. Other codes
+    (``%``, special characters), empty code lists and non-text fields use
+    the processing algorithm.
+    """
+    index = layer.fields().lookupField(fieldname)
+    simple = bool(codes) and all(_SIMPLE_CODE.fullmatch(code) for code in codes)
+    if not simple or index < 0 or layer.fields().at(index).type() != QMetaType.QString:
+        expression = _create_filter_string([f"'{code}'" for code in codes], fieldname)
+        return processing.run("native:extractbyexpression", {
+            'INPUT': layer,
+            'EXPRESSION': expression,
+            'OUTPUT': 'memory:'
+        }, context=current_processing_context())['OUTPUT']
+
+    pattern = _like_regex(codes)
+    output = QgsMemoryProviderUtils.createMemoryLayer(
+        layer.name(), layer.fields(), layer.wkbType(), layer.crs())
+    selected = []
+    for feature in layer.getFeatures():
+        value = feature.attributes()[index]
+        if isinstance(value, str) and pattern.fullmatch(value):
+            selected.append(QgsFeature(feature))
+    output.dataProvider().addFeatures(selected)
+    output.updateExtents()
+    return output
+
+
+def _read_filter_codes(filename: str) -> tuple[list[str], list[str]]:
+    """Read the positive and negative codes (first 10 characters per entry) of a filter file."""
+    pos_codes, neg_codes = [], []
+    current_section = None
+    with open(filename, 'r', encoding='utf-8') as file:
+        for row in file:
+            row = row.strip()
+            if row.startswith("#Filter positive"):
+                current_section = "positive"
+            elif row.startswith("#Filter negative"):
+                current_section = "negative"
+            elif row.startswith("#") or not row:
+                continue
+            elif current_section == "positive":
+                pos_codes.append(row[:_FILTER_CODE_LENGTH])
+            elif current_section == "negative":
+                neg_codes.append(row[:_FILTER_CODE_LENGTH])
+    return pos_codes, neg_codes
+
 
 def _create_filter_string(filter_list: list[str], fieldname: str) -> str:
     """Build a QGIS expression string that matches features by LIKE comparisons.
@@ -112,28 +186,9 @@ def import_filter(
     else:
         raise ValueError("Der Eingabelayer hat weder ein 'fkt', 'gfkzshh'- noch ein 'funktion'-Feld.")
 
-    # Read filter file and build entry lists
-    with open(filename, 'r', encoding='utf-8') as file:
-        pos_entries = []
-        neg_entries = []
-        current_section = None
-
-        for row in file:
-            row = row.strip()
-            if row.startswith("#Filter positive"):
-                current_section = "positive"
-            elif row.startswith("#Filter negative"):
-                current_section = "negative"
-            elif row.startswith("#") or not row:
-                continue
-            else:
-                if current_section == "positive":
-                    pos_entries.append(f"'{row[:_FILTER_CODE_LENGTH]}'")
-                elif current_section == "negative":
-                    neg_entries.append(f"'{row[:_FILTER_CODE_LENGTH]}'")
-
-    filterpos = _create_filter_string(pos_entries, fieldname)
-    filterneg = _create_filter_string(neg_entries, fieldname)
+    pos_codes, neg_codes = _read_filter_codes(filename)
+    filterpos = _create_filter_string([f"'{code}'" for code in pos_codes], fieldname)
+    filterneg = _create_filter_string([f"'{code}'" for code in neg_codes], fieldname)
 
     return filterpos, filterneg, fieldname
 
@@ -183,14 +238,12 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
     if building_count > _MIN_BUILDING_COUNT:
 
         hu_layer = shp_area(hu_layer)
-        filterpos, filterneg, _ = import_filter(filter_file, hu_layer)
+        # import_filter validates file, layer and field (expressions not needed here)
+        _, _, fieldname = import_filter(filter_file, hu_layer)
+        pos_codes, neg_codes = _read_filter_codes(filter_file)
 
         # Step 1: Select residential buildings (positive filter)
-        residential_layer = processing.run("native:extractbyexpression", {
-            'INPUT': hu_layer,
-            'EXPRESSION': filterpos,
-            'OUTPUT': 'memory:'
-        }, context=current_processing_context())['OUTPUT']
+        residential_layer = _extract_by_codes(hu_layer, pos_codes, fieldname)
         if not isinstance(residential_layer, QgsVectorLayer):
             raise RuntimeError("Failed to create residential_layer")
         if debug_mode and workspace_path:
@@ -263,11 +316,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
             save_debug_layer(points_buffer, _DEBUG_TOOL_NAME, "after_density_buffer", workspace_path)
 
         # Step 2: Exclude buildings (negative filter)
-        negative_layer = processing.run("native:extractbyexpression", {
-            'INPUT': hu_layer,
-            'EXPRESSION': filterneg,
-            'OUTPUT': 'memory:'
-        }, context=current_processing_context())['OUTPUT']
+        negative_layer = _extract_by_codes(hu_layer, neg_codes, fieldname)
         if not isinstance(negative_layer, QgsVectorLayer):
             raise RuntimeError("Failed to create negative_layer")
         if debug_mode and workspace_path:
