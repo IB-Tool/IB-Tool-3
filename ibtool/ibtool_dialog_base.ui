@@ -190,7 +190,7 @@
           <item row="0" column="2">
            <widget class="QPushButton" name="HuButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -226,7 +226,7 @@
           <item row="1" column="2">
            <widget class="QPushButton" name="RnButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -259,7 +259,7 @@
           <item row="2" column="2">
            <widget class="QPushButton" name="PartButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -292,7 +292,7 @@
           <item row="3" column="2">
            <widget class="QPushButton" name="AuxButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -325,7 +325,7 @@
           <item row="4" column="2">
            <widget class="QPushButton" name="OutputButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -358,7 +358,7 @@
           <item row="5" column="2">
            <widget class="QPushButton" name="WorkspaceButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -391,7 +391,7 @@
           <item row="6" column="2">
            <widget class="QPushButton" name="FilterButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -424,7 +424,7 @@
           <item row="7" column="2">
            <widget class="QPushButton" name="LogDirButton">
             <property name="text">
-             <string>...</string>
+             <string notr="true">...</string>
             </property>
             <property name="maximumWidth">
              <number>32</number>
@@ -784,7 +784,7 @@
           <item row="0" column="1">
            <widget class="QLineEdit" name="partstartBox">
             <property name="text">
-             <string>-1</string>
+             <string notr="true">-1</string>
             </property>
            </widget>
           </item>
@@ -799,7 +799,7 @@
           <item row="1" column="1">
            <widget class="QLineEdit" name="partendBox">
             <property name="text">
-             <string>-1</string>
+             <string notr="true">-1</string>
             </property>
            </widget>
           </item>
@@ -814,7 +814,7 @@
           <item row="2" column="1">
            <widget class="QLineEdit" name="partlistBox">
             <property name="text">
-             <string>#</string>
+             <string notr="true">#</string>
             </property>
            </widget>
           </item>
@@ -1080,7 +1080,7 @@
         <string>Check</string>
        </property>
        <property name="styleSheet">
-        <string>QPushButton { background-color: #1565C0; color: white; }</string>
+        <string notr="true">QPushButton { background-color: #1565C0; color: white; }</string>
        </property>
       </widget>
      </item>
