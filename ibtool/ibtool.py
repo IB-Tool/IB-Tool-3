@@ -378,7 +378,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.dlg.CancelButton.clicked.connect(self.cancel_processing)
             self.dlg.SaveConfigButton.clicked.connect(self._save_config_from_ui)
             self.dlg.DeleteConfigButton.clicked.connect(self._delete_config)
-            # Start button disabled by default — requires successful check
+            # Start button disabled by default — requires successful check
             self.dlg.set_start_button_ready(False)
             # Any validation-relevant UI change invalidates the cached result.
             for path_widget in [
@@ -482,9 +482,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the HU file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,  # Dialog is part of the GUI
-            "Select building footprints file",
+            self.tr("Select building footprints file"),
             "",
-            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
+            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)")
         )
         if file_path:
             self.dlg.HuPath.setText(file_path)  # Display the path in QLineEdit
@@ -493,9 +493,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the RN file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,
-            "Select road network file",
+            self.tr("Select road network file"),
             "",
-            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
+            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)")
         )
         if file_path:
             self.dlg.RnPath.setText(file_path)  # Display the path in QLineEdit
@@ -504,9 +504,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the PART file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,
-            "Select partitions file",
+            self.tr("Select partitions file"),
             "",
-            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
+            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)")
         )
         if file_path:
             self.dlg.PartPath.setText(
@@ -516,9 +516,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a file dialog to select the AUX file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,
-            "Select auxiliary data file",
+            self.tr("Select auxiliary data file"),
             "",
-            "Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)"
+            self.tr("Vector files (*.shp *.gpkg);;Shapefiles (*.shp);;GeoPackage (*.gpkg);;All Files (*)")
         )
         if file_path:
             self.dlg.AuxPath.setText(file_path)
@@ -528,9 +528,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
            (GeoPackage)."""
         file_path, _ = QFileDialog.getSaveFileName(
             self.dlg,
-            "Select output file",
+            self.tr("Select output file"),
             "",
-            "GeoPackage (*.gpkg);;All Files (*)"
+            self.tr("GeoPackage (*.gpkg);;All Files (*)")
         )
         if file_path:
             self.dlg.OutputPath.setText(file_path)
@@ -539,7 +539,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Opens a dialog to select a workspace folder."""
         folder_path = QFileDialog.getExistingDirectory(
             self.dlg,
-            "Select workspace folder",
+            self.tr("Select workspace folder"),
             ""
         )
         if folder_path:
@@ -592,8 +592,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             return
         answer = QMessageBox.question(
             self.dlg, "IB-Tool",
-            "Dieses Arbeitsverzeichnis enthält einen begonnenen Lauf.\n"
-            "Einstellungen (Eingabedaten und Parameter) daraus übernehmen?",
+            self.tr("This working directory contains a run that has already been started.\n"
+                    "Take over its settings (input data and parameters)?"),
             QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         if answer != QMessageBox.Yes:
             return
@@ -614,9 +614,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         and processes it."""
         file_path, _ = QFileDialog.getOpenFileName(
             self.dlg,  # Dialog is part of the GUI
-            "Select filter config file",
+            self.tr("Select filter config file"),
             "",
-            "Text files (*.txt);;All Files (*)"
+            self.tr("Text files (*.txt);;All Files (*)")
         )
         if file_path:
             self.dlg.FilterPath.setText(file_path)
@@ -626,7 +626,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """Open a directory dialog to select the log output directory."""
         folder_path = QFileDialog.getExistingDirectory(
             self.dlg,
-            "Select log directory",
+            self.tr("Select log directory"),
             ""
         )
         if folder_path:
@@ -691,7 +691,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
     def _check_path_field(self, field_name: str, path: str) -> None:
         """Quick path-existence check triggered by textChanged.
 
-        Does not load any QGIS layer — pure filesystem check.
+        Does not load any QGIS layer — pure filesystem check.
         For input file fields the MD5 checksum of the file is stored in
         ``self._file_checksums`` so that :meth:`run_validation` can skip
         re-validation when files have not changed.
@@ -731,9 +731,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
     def _load_result_to_qgis(self):
         """Load the last output GeoPackage as a layer in QGIS."""
         if not self._last_output_path or not os.path.exists(self._last_output_path):
-            msg("Output file not found.")
+            msg(self.tr("Output file not found."))
             return
-        layer = QgsVectorLayer(self._last_output_path, "IB-Tool result", "ogr")
+        layer = QgsVectorLayer(self._last_output_path, self.tr("IB-Tool result"), "ogr")
         if layer.isValid():
             QgsProject.instance().addMapLayer(layer)
         else:
@@ -745,19 +745,19 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         if folder and os.path.isdir(folder):
             _open_directory(folder)
         else:
-            msg("Output directory not found.")
+            msg(self.tr("Output directory not found."))
 
     def _export_log(self):
         """Save the current log content to a text file."""
         text = self.dlg.MessageBox.toPlainText()
         if not text:
-            msg("No log content to export.")
+            msg(self.tr("No log content to export."))
             return
         file_path, _ = QFileDialog.getSaveFileName(
             self.dlg,
-            "Export log",
+            self.tr("Export log"),
             self._last_output_folder or "",
-            "Text files (*.txt);;All Files (*)"
+            self.tr("Text files (*.txt);;All Files (*)")
         )
         if file_path:
             try:
@@ -910,7 +910,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self._last_validation_result = None
             self._validated_context = {}
 
-        logger.log("Konfiguration aus CONFIG.ini geladen.", level="INFO")
+        logger.log(self.tr("Configuration loaded from CONFIG.ini."), level="INFO")
 
     def _save_config_from_ui(self) -> None:
         """Persist the current UI state to CONFIG.ini."""
@@ -967,7 +967,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         self.config_manager.update_config(validation_cache=validation_cache)
 
         self.config_manager.save_config()
-        logger.log("Konfiguration in CONFIG.ini gespeichert.", level="INFO")
+        logger.log(self.tr("Configuration saved to CONFIG.ini."), level="INFO")
 
     def _delete_config(self) -> None:
         """Delete CONFIG.ini and reset all UI fields to factory defaults.
@@ -978,9 +978,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         """
         reply = QMessageBox.question(
             self.dlg,
-            "Konfiguration zurücksetzen",
-            "CONFIG.ini löschen und alle Felder zurücksetzen?\n"
-            "Diese Aktion kann nicht rückgängig gemacht werden.",
+            self.tr("Reset Configuration"),
+            self.tr("Delete CONFIG.ini and reset all fields to defaults?\n"
+                    "This action cannot be undone."),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1037,7 +1037,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # Disable Start button (re-check required)
         self.dlg.set_start_button_ready(False)
 
-        logger.log("Konfiguration zurückgesetzt — CONFIG.ini gelöscht.", level="INFO")
+        logger.log(self.tr("Configuration reset — CONFIG.ini deleted."), level="INFO")
 
     def _collect_params(self) -> dict:
         """Collect all UI parameter values as raw strings for validation.
@@ -1076,7 +1076,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             return float(text)
         except ValueError:
             logger.log(
-                f"Invalid numeric value: {text!r} — using fallback {fallback}.",
+                f"Invalid numeric value: {text!r} — using fallback {fallback}.",
                 level="WARNING",
             )
             return fallback
@@ -1128,7 +1128,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         # ------------------------------------------------------------------
         if self._can_reuse_validation_result():
             logger.log(
-                "Validierung übersprungen - Eingaben und Parameter unverändert.",
+                self.tr("Validation skipped — inputs and parameters unchanged."),
                 level="INFO",
             )
             self._display_validation_result(self._last_validation_result)
@@ -1178,14 +1178,14 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         if result.is_valid and not result.warnings:
             logger.log(
-                "=== VALIDATION SUCCESSFUL === "
-                "All input data checks passed.",
+                self.tr("=== VALIDATION SUCCESSFUL === All input data checks passed."),
                 level="INFO"
             )
         else:
             if result.errors:
                 logger.log(
-                    f"=== VALIDATION ERRORS ({len(result.errors)}) ===",
+                    self.tr("=== VALIDATION ERRORS ({count}) ===").format(
+                        count=len(result.errors)),
                     level="CRITICAL"
                 )
                 for i, error in enumerate(result.errors, 1):
@@ -1193,7 +1193,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
             if result.warnings:
                 logger.log(
-                    f"=== WARNINGS ({len(result.warnings)}) ===",
+                    self.tr("=== WARNINGS ({count}) ===").format(count=len(result.warnings)),
                     level="WARNING"
                 )
                 for i, warning in enumerate(result.warnings, 1):
@@ -1463,7 +1463,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         pool = WorkerPool(command, min(worker_count, len(names)), ctx["init_fields"])
         self._pool = pool
         try:
-            self.dlg.phaseLabel.setText("Worker werden gestartet...")
+            self.dlg.phaseLabel.setText(self.tr("Starting workers..."))
             if not pool.selftest():
                 if self._cancel_requested:
                     raise ProcessingCancelledError()
@@ -1516,9 +1516,11 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
 
         def _status():
             running = ", ".join(sorted(pool.running.values()))
-            self.dlg.phaseLabel.setText(
-                f"{workers} Worker · {len(done)} von {len(order)} Partitionen fertig"
-                + (f" · läuft: {running}" if running else ""))
+            text = self.tr("{workers} workers · {done} of {total} partitions finished").format(
+                workers=workers, done=len(done), total=len(order))
+            if running:
+                text += self.tr(" · running: {names}").format(names=running)
+            self.dlg.phaseLabel.setText(text)
 
         def _on_progress(partition, phase, _phase_name):
             if partition not in started:
@@ -1601,7 +1603,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             # Navigate to the processing page and reset UX state
             self.dlg.set_step(3)
             self.dlg.hide_result_actions()
-            self.dlg.phaseLabel.setText("Starting processing...")
+            self.dlg.phaseLabel.setText(self.tr("Starting processing..."))
             self.dlg.ProgressBar.setValue(0)
             QApplication.processEvents()
 
@@ -1660,7 +1662,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self._display_validation_result(
                 validation_result, show_page=not validation_result.is_valid)
             if not validation_result.is_valid:
-                logger.log("Verarbeitung abgebrochen wegen Validierungsfehlern.",
+                logger.log(self.tr("Processing aborted due to validation errors."),
                            level="CRITICAL")
                 return
 
@@ -1675,7 +1677,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
                                if key not in ("part_start", "part_end", "input_filter")}
             if not self._prepare_manifest(workspace_path, manifest_inputs, manifest_params,
                                           spatial_reference.authid(), del_part_log):
-                self.dlg.phaseLabel.setText("Fortsetzung nicht möglich – siehe Meldung.")
+                self.dlg.phaseLabel.setText(self.tr("Cannot resume — see message."))
                 return
             manifest_workspace = workspace_path
 
@@ -1790,7 +1792,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             save_temp_layer_to_gpkg(merge_layer, str(output_filename), output_folder + "/")
 
             self.dlg.ProgressBar.setValue(100)
-            self.dlg.phaseLabel.setText("Processing complete")
+            self.dlg.phaseLabel.setText(self.tr("Processing complete"))
             self._last_output_path = output_file
             self._last_output_folder = output_folder
             self.dlg.show_result_actions()
@@ -1800,8 +1802,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         except ProcessingCancelledError:
             if manifest_workspace:
                 self._set_manifest_status(manifest_workspace, "cancelled")
-            self.dlg.phaseLabel.setText("Verarbeitung abgebrochen.")
-            self.update_messages("Verarbeitung abgebrochen.")
+            self.dlg.phaseLabel.setText(self.tr("Processing cancelled."))
+            self.update_messages(self.tr("Processing cancelled."))
             logger.log("Verarbeitung durch Nutzer abgebrochen.", level="WARNING")
         except Exception:
             if manifest_workspace:

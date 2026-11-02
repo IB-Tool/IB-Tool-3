@@ -25,7 +25,8 @@ These rules are binding for all code changes. They are referenced from
 ## Release ZIP
 
 - The release ZIP is built exclusively via `scripts/create_release_zip.py`
-- `make zip` (pb_tool) is obsolete for publishing — do not use it for releases
+- The former Plugin Builder tooling (`pb_tool.cfg`, `make zip`/`deploy`/`package`/`upload`)
+  was removed in 0.2.5 — do not reintroduce it
 - The whitelist in `scripts/create_release_zip.py` (`WHITELIST_FILES`,
   `WHITELIST_DIRS`) is the authoritative source of truth for what constitutes
   productive plugin code

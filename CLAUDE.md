@@ -84,10 +84,12 @@ pytest test/ -v
 pytest test/test_blocker.py -v
 pytest test/ --cov=. --cov-report=html
 
-# Build
-compile.bat                # Windows
-pb_tool compile && pb_tool deploy  # Cross-platform
-make compile && make deploy        # Linux/Mac
+# Translations
+compile.bat                # Windows: i18n/IBTool_de.ts -> .qm
+make transcompile          # Linux/Mac
+
+# Release ZIP (dist/ibtool.zip) — the only supported way to package the plugin
+python scripts/create_release_zip.py
 
 # Code quality
 make pep8

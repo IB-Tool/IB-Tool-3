@@ -161,7 +161,7 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
         self.validationChecklist.clear()
 
         if not errors and not warnings:
-            item = QListWidgetItem("✅  Alle Prüfungen bestanden")
+            item = QListWidgetItem(_tr("✅  All checks passed"))
             item.setForeground(QColor("#2E7D32"))
             self.validationChecklist.addItem(item)
             return
@@ -190,7 +190,8 @@ class IBToolDialog(QtWidgets.QDialog, FORM_CLASS):
             name: Human-readable phase name.
             percent: Overall progress percentage (0–100).
         """
-        self.phaseLabel.setText(f"Phase {phase}/{total}: {name}...")
+        self.phaseLabel.setText(
+            _tr("Phase {phase}/{total}: {name}...").format(phase=phase, total=total, name=name))
         self.ProgressBar.setValue(percent)
 
     # ------------------------------------------------------------------
@@ -260,7 +261,7 @@ class FilterPreviewDialog(QDialog):
             parent: Optional parent widget.
         """
         super().__init__(parent)
-        self.setWindowTitle("Filtereinträge")
+        self.setWindowTitle(_tr("Filter entries"))
         self.setMinimumSize(700, 450)
         self._build_ui(positive_text, negative_text)
 
@@ -273,7 +274,7 @@ class FilterPreviewDialog(QDialog):
         # Positive pane
         pos_widget = QtWidgets.QWidget()
         pos_layout = QVBoxLayout(pos_widget)
-        pos_label = QLabel("<b>Positivfilter</b>")
+        pos_label = QLabel("<b>{}</b>".format(_tr("Positive filter")))
         pos_edit = QPlainTextEdit(positive_text)
         pos_edit.setReadOnly(True)
         pos_layout.addWidget(pos_label)
@@ -283,7 +284,7 @@ class FilterPreviewDialog(QDialog):
         # Negative pane
         neg_widget = QtWidgets.QWidget()
         neg_layout = QVBoxLayout(neg_widget)
-        neg_label = QLabel("<b>Negativfilter</b>")
+        neg_label = QLabel("<b>{}</b>".format(_tr("Negative filter")))
         neg_edit = QPlainTextEdit(negative_text)
         neg_edit.setReadOnly(True)
         neg_layout.addWidget(neg_label)

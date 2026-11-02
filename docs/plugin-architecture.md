@@ -144,10 +144,10 @@ For the full `CONFIG.ini` reference including all sections and keys, see [docs/C
 | File | Purpose |
 |------|---------|
 | `metadata.txt` | Plugin metadata for QGIS plugin repository |
-| `pb_tool.cfg` | Plugin Builder tool configuration |
+| `scripts/create_release_zip.py` | Builds the release ZIP (`dist/ibtool.zip`) |
 | `Dockerfile` | Containerized test environment setup |
-| `Makefile` | Build automation and development tasks |
-| `compile.bat` | Windows compilation script |
+| `Makefile` | Development tasks (tests, translations, lint) |
+| `compile.bat` | Windows translation compile (`IBTool_de.ts` → `.qm`) |
 | `.github/workflows/ci.yml` | Continuous integration pipeline |
 
 ---

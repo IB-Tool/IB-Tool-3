@@ -332,10 +332,6 @@ Diese Aktion kann nicht rückgängig gemacht werden.</translation>
         <translation>Verarbeitung wegen Validierungsfehlern abgebrochen.</translation>
     </message>
     <message>
-        <source>Processing cannot be cancelled mid-run.</source>
-        <translation>Verarbeitung kann während des Laufs nicht abgebrochen werden.</translation>
-    </message>
-    <message>
         <source>Output file not found.</source>
         <translation>Ausgabedatei nicht gefunden.</translation>
     </message>
@@ -408,12 +404,30 @@ Diese Aktion kann nicht rückgängig gemacht werden.</translation>
         <translation>=== WARNUNGEN ({count}) ===</translation>
     </message>
     <message>
-        <source>Validation passed (with warnings). Processing can be started.</source>
-        <translation>Validierung bestanden (mit Warnungen). Verarbeitung kann gestartet werden.</translation>
+        <source>This working directory contains a run that has already been started.
+Take over its settings (input data and parameters)?</source>
+        <translation>Dieses Arbeitsverzeichnis enthält einen begonnenen Lauf.
+Einstellungen (Eingabedaten und Parameter) daraus übernehmen?</translation>
     </message>
     <message>
-        <source>Validation failed. Please fix errors above before starting.</source>
-        <translation>Validierung fehlgeschlagen. Bitte Fehler oben korrigieren.</translation>
+        <source>Starting workers...</source>
+        <translation>Worker werden gestartet...</translation>
+    </message>
+    <message>
+        <source>{workers} workers · {done} of {total} partitions finished</source>
+        <translation>{workers} Worker · {done} von {total} Partitionen fertig</translation>
+    </message>
+    <message>
+        <source> · running: {names}</source>
+        <translation> · läuft: {names}</translation>
+    </message>
+    <message>
+        <source>Cannot resume — see message.</source>
+        <translation>Fortsetzung nicht möglich – siehe Meldung.</translation>
+    </message>
+    <message>
+        <source>Processing cancelled.</source>
+        <translation>Verarbeitung abgebrochen.</translation>
     </message>
 </context>
 
@@ -465,11 +479,15 @@ Diese Aktion kann nicht rückgängig gemacht werden.</translation>
     </message>
     <message>
         <source>Positive filter</source>
-        <translation>Positiver Filter</translation>
+        <translation>Positivfilter</translation>
     </message>
     <message>
         <source>Negative filter</source>
-        <translation>Negativer Filter</translation>
+        <translation>Negativfilter</translation>
+    </message>
+    <message>
+        <source>Phase {phase}/{total}: {name}...</source>
+        <translation>Phase {phase}/{total}: {name}...</translation>
     </message>
 </context>
 
