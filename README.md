@@ -30,7 +30,7 @@ New to IB-Tool 3? → **[docs/quickstart.md](docs/quickstart.md)** — installat
 
 IB-Tool 3 is an adaption of the original [ArcGIS IB-Tool 2 Script](https://github.com/IB-Tool/ib-tool). Due to the different programming environment, the method has been adapted to QGIS and Python.
 
-The delineation is fine-grained — the boundary follows individual buildings rather than administrative units. It processes large datasets partition by partition and produces GeoPackage output ready for use in spatial analysis and planning.
+The delineation is fine-grained — the boundary follows individual buildings rather than administrative units. It processes large datasets partition by partition — on Windows several partitions in parallel worker processes — and produces GeoPackage output ready for use in spatial analysis and planning. Interrupted runs can be resumed.
 
 
 ---
@@ -54,6 +54,11 @@ The delineation is fine-grained — the boundary follows individual buildings ra
   - EdgeCatch: snaps MBR boundaries to the nearest road segments.
   - GapClose: closes holes (> 1 ha removed) and bridges narrow gaps (≤ 70 m) via double-buffer.
   - PatchRemove: removes splinter areas (< 1 ha, < 20 buildings).
+
+- **Parallel processing and resume:**
+  - Windows: partitions are computed in parallel by worker processes (setting *Worker processes (parallel)*: automatic = physical cores − 1, at most 4; 1 = one after another). Largest partitions first; results are identical to sequential processing.
+  - Other systems, or if the worker self-test fails: partitions run one after another in the QGIS process.
+  - Each finished partition is saved immediately; with *Delete PartLog at Start* unchecked, an interrupted run (cancel, crash, QGIS restart) continues where it stopped. The run manifest `ibtool_run.json` ensures inputs (by checksum), parameters and versions are unchanged.
 
 - **Guided 4-step workflow:**
   - Step 1 *Input* — path fields with real-time existence validation.
@@ -160,7 +165,7 @@ The easiest way to install IB-Tool 3 is to download the ready-to-use ZIP file fr
 1. Launch the plugin from the QGIS menu bar under **Plugins → IB-Tool**.
 2. **Step 1 — Input:** Fill in all path fields (building footprints, road network, partitions, auxiliary layer, filter file, workspace, output). Each field shows a green ✓ or red ✗ as you type.
 3. **Step 2 — Parameters:** Review and adjust the processing parameters. Refer to **[docs/parameterization.md](docs/parameterization.md)** for a full description of each parameter.
-4. **Step 3 — Validation:** Click the **Check** button to run all pre-processing checks. Errors must be resolved before processing can start. Warnings are informational.
+4. **Step 3 — Validation:** Click the **Check** button to run all pre-processing checks. Errors must be resolved before processing can start. Warnings are informational. The run options on this page — *Worker processes (parallel)* (0 = automatic) and *Delete PartLog at Start* (uncheck to resume an interrupted run) — control how the run is executed, not its result.
 5. **Step 4 — Processing:** Click **Start**. Monitor progress via the phase label and progress bar. After a successful run, use the result action buttons to load the layer into QGIS, open the output folder, or export the log.
 
 > **Tip:** Enable *Debug Mode* in the dialog to save intermediate GeoPackage snapshots for each processing step to `workspace/debug/`. This is useful for diagnosing unexpected results.
@@ -181,7 +186,7 @@ Don't have HU/RN/Aux data yet? The companion plugins under **[Related Projects](
 
 ## How It Works
 
-The plugin processes each partition through a fixed sequence of steps:
+After loading the inputs and computing the global footprint density, the plugin processes each partition — in parallel worker processes on Windows — through a fixed sequence of steps, then merges the partition results into one layer:
 
 1. **Blocker** — derives street and city blocks from the road + auxiliary network
 2. **ImportFilter** — 3-stage semantic/spatial/size filter removes buildings not relevant to the Innenbereich

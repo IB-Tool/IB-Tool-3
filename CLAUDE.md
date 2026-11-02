@@ -13,17 +13,30 @@ ibtool/                    # Plugin root (QGIS package)
 ├── __init__.py           # QGIS entry point (from .ibtool.ibtool import IBTool)
 ├── helpers/              # Shared utility modules
 │   ├── logger.py        # Logging system
-│   ├── data_loader.py   # Geodata loading and validation
-│   ├── geometry_utils.py # Spatial geometry operations
-│   ├── system_utils.py  # System path and environment utilities
 │   ├── message.py       # User messaging system
 │   ├── config_manager.py # Configuration management
 │   ├── qgis_defaults.py # QGIS technical parameters
+│   ├── system_utils.py  # System paths, environment, input checksums
+│   ├── data_loader.py   # Geodata loading and validation
+│   ├── check.py         # Input validation (InputValidator, checklist)
+│   ├── geometry_utils.py # Spatial geometry operations
+│   ├── overlay_utils.py # QgsGeometry re-implementations of QGIS overlay algorithms
+│   ├── safe_processing.py # processing.run wrapper with geometry repair
+│   ├── processing_context.py # Shared processing context per partition + UI heartbeat
+│   ├── debug_utils.py   # Debug-mode layer snapshots
 │   ├── mst_utils.py     # MST utility functions
-│   └── edge_catch_utils.py # Edge detection utilities
+│   ├── edge_catch_utils.py # EdgeCatch per-rectangle processing
+│   ├── ortho_line_filter.py # EdgeCatch filter rules for orthogonal lines
+│   ├── partition_pipeline.py # Steps 1–10 for one partition (no UI; plugin + worker)
+│   ├── partition_results.py # Part files, finish log, resume check, final merge
+│   ├── run_manifest.py  # ibtool_run.json (inputs, parameters, versions)
+│   ├── worker_launcher.py # How to start a worker process (Windows only for now)
+│   ├── worker_protocol.py # Line protocol plugin ↔ worker
+│   └── worker_pool.py   # QProcess worker pool (parallel partitions)
 ├── ibtool_tools/        # Processing tools
 │   ├── Blocker.py       # Settlement blocking and partitioning
 │   ├── CreateMST.py     # Minimum spanning tree creation
+│   ├── mst/             # MST building blocks (Delaunay, streets, MST calculation)
 │   ├── MST_Clustering.py # MST-based clustering
 │   ├── FootprintDensity.py # Building density calculations
 │   ├── ImportFilter.py  # Data filtering and preprocessing
@@ -34,8 +47,9 @@ ibtool/                    # Plugin root (QGIS package)
 │   ├── ErodeEmptyAreas.py # Building-free void removal
 │   └── PatchRemove.py   # Patch removal
 ├── ibtool/              # Nested package for main plugin class
-│   ├── ibtool.py        # Main plugin class
-│   └── ibtool_dialog.py # UI dialog
+│   ├── ibtool.py        # Main plugin class (UI orchestration, sequential/worker mode)
+│   ├── ibtool_dialog.py # UI dialog
+│   └── partition_worker.py # Worker program (one QGIS process, runs partitions)
 ├── docs/                # Project documentation
 ├── ai/                  # AI rules, domain knowledge, task templates
 └── test/                # Test suite

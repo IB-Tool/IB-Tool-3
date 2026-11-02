@@ -625,7 +625,7 @@ The workspace folder additionally contains:
 - Debug layers in `debug/` subdirectories (when **Debug Mode** is enabled in the dialog)
 
 **Resuming an interrupted run.** With *Delete PartLog at Start* unchecked, a new run in the same working directory continues where the last one stopped — also after a crash or a restart of QGIS:
-- The run manifest must match: changed input files (by checksum), parameters, CRS, QGIS or plugin version prevent resuming (a message lists the differences). Moved input files with unchanged content are fine; the partition selection and the worker count may change.
+- The run manifest must match: changed input files (by checksum; for a shapefile the checksum also covers its `.shx`, `.dbf`, `.prj`, `.cpg` and `.qpj`, so attribute or CRS edits count as changes), parameters, CRS, QGIS or plugin version prevent resuming (a message lists the differences). Moved input files with unchanged content are fine; the partition selection and the worker count may change.
 - A partition counts as finished only if its line is in the finish log **and** its part file exists with the logged feature count. Part files are written under a temporary name and renamed before the line is written, so an interruption never leaves a half-written result that is trusted; such partitions are recomputed.
 - Choosing a working directory that contains a begun run offers to take over its settings (inputs and parameters) into the dialog.
 - Finish logs of versions before 0.2.5 (results in `IB_Tool_merge_temp.gpkg`) are still resumed; that file is used as the base of the final merge.
