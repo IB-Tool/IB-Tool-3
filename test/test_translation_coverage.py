@@ -39,7 +39,7 @@ def _parse(rel):
 def _ts_entries():
     """Return {(context, source): (translation, type)} from the .ts file."""
     entries = {}
-    for ctx in ET.parse(TS_FILE).getroot().iter("context"):
+    for ctx in ET.parse(TS_FILE).getroot().iter("context"):  # nosec B314 - repository file, not untrusted input
         name = ctx.findtext("name")
         for message in ctx.iter("message"):
             translation = message.find("translation")
@@ -66,7 +66,7 @@ def _literal_tr_sources():
 def _ui_sources():
     """Return {(context, source)} of all translatable strings in the .ui file."""
     used = set()
-    for prop in ET.parse(UI_FILE).getroot().iter("property"):
+    for prop in ET.parse(UI_FILE).getroot().iter("property"):  # nosec B314 - repository file, not untrusted input
         string = prop.find("string")
         if string is None or not string.text or string.get("notr") == "true":
             continue
