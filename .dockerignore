@@ -1,4 +1,41 @@
+# Build context for the test image (Dockerfile: COPY . /plugins/ibtool/).
+# Keep tests, test data (Testdaten/), scripts/ and ci/ — the test suite uses them.
+# CI mounts the checkout over /plugins/ibtool anyway; this file mainly keeps
+# local builds small and free of machine-specific state.
+
+# Version control
 .git
+
+# Python byproducts
 __pycache__
 *.pyc
+*.pyo
+
+# Virtual environments and secrets
+.venv
+venv
+env
 .env
+.env.*
+
+# IDE / assistant tooling
+.idea
+.vscode
+.claude
+.superpowers
+
+# Test and coverage artefacts
+.pytest_cache
+.coverage
+coverage.xml
+htmlcov
+
+# Build output
+dist
+
+# Runtime-generated files (user configuration, logs) — a local CONFIG.ini
+# would otherwise leak into the container and influence tests
+**/CONFIG.ini
+**/logs
+**/logfile_*.txt
+**/*.log

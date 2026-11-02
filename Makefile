@@ -2,7 +2,7 @@
 # IBTool
 #
 # Toolset for the delineation of settlements on the basis
-of building footprints
+# of building footprints
 #							 -------------------
 #		begin				: 2024-12-18
 #		git sha				: $Format:%H$
@@ -19,164 +19,30 @@ of building footprints
 # *																		 *
 # ***************************************************************************/
 
-#################################################
-# Edit the following to match your sources lists
-#################################################
+# Development tasks only. The release ZIP is built exclusively with
+#   python scripts/create_release_zip.py
+# (see ai/core/release-conventions.md). The former Plugin Builder targets
+# (compile, deploy, zip, package, upload, ...) packaged a wrong file layout
+# and were removed.
 
-
-#Add iso code for any locales you want to support here (space separated)
-# default is no locales
-# NOTE: scripts/compile-strings.sh and update-strings.sh build the path as
-# i18n/$(LOCALE).ts, so this must be the .ts file's basename, not just the
-# ISO code (the plugin's translator loads i18n/IBTool_<locale>.qm).
+# Translation file basenames (space separated). scripts/compile-strings.sh and
+# update-strings.sh build the path as i18n/$(LOCALE).ts, so this must be the
+# .ts file's basename, not just the ISO code (the plugin's translator loads
+# i18n/IBTool_<locale>.qm).
 LOCALES = IBTool_de
-# LOCALES = af
 
-# If locales are enabled, set the name of the lrelease binary on your system. If
-# you have trouble compiling the translations, you may have to specify the full path to
-# lrelease
+# Name of the lrelease binary on your system. If you have trouble compiling the
+# translations, you may have to specify the full path to lrelease.
 LRELEASE = lrelease
-#LRELEASE = lrelease-qt4
 
 
-# translation
-SOURCES = \
-	__init__.py \
-	ibtool.py ibtool_dialog.py
-
-PLUGINNAME = ibtool
-
-PY_FILES = \
-	__init__.py \
-	ibtool.py ibtool_dialog.py
-
-UI_FILES = ibtool_dialog_base.ui
-
-EXTRAS = metadata.txt icon.png
-
-EXTRA_DIRS =
-
-COMPILED_RESOURCE_FILES =
-
-# QGISDIR points to the location where your plugin should be installed.
-# This varies by platform, relative to your HOME directory:
-#	* Linux:
-#	  .local/share/QGIS/QGIS3/profiles/default/python/plugins/
-#	* Mac OS X:
-#	  Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
-#	* Windows:
-#	  AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins'
-
-QGISDIR=C:\Users\Oliver\AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins
-
-#################################################
-# Normally you would not need to edit below here
-#################################################
-
-HELP = help/build/html
-
-PLUGIN_UPLOAD = $(c)/plugin_upload.py
-
-
-.PHONY: default
+.PHONY: default test transup transcompile transclean pylint pep8
 default:
-	@echo While you can use make to build and deploy your plugin, pb_tool
-	@echo is a much better solution.
-	@echo A Python script, pb_tool provides platform independent management of
-	@echo your plugins and runs anywhere.
-	@echo You can install pb_tool using: pip install pb_tool
-	@echo See https://g-sherman.github.io/plugin_build_tool/ for info. 
+	@echo "Targets: test, transup, transcompile, transclean, pylint, pep8"
+	@echo "Release ZIP: python scripts/create_release_zip.py"
 
-compile: $(COMPILED_RESOURCE_FILES)
-
-
-%.qm : %.ts
-	$(LRELEASE) $<
-
-test: compile transcompile
-	@echo
-	@echo "----------------------"
-	@echo "Regression Test Suite"
-	@echo "----------------------"
-
-	@# Preceding dash means that make will continue in case of errors
-	@-export PYTHONPATH=`pwd`:$(PYTHONPATH); \
-		export QGIS_DEBUG=0; \
-		export QGIS_LOG_FILE=/dev/null; \
-		nosetests -v --with-id --with-coverage --cover-package=. \
-		3>&1 1>&2 2>&3 3>&- || true
-	@echo "----------------------"
-	@echo "If you get a 'no module named qgis.core error, try sourcing"
-	@echo "the helper script we have provided first then run make test."
-	@echo "e.g. source run-env-linux.sh <path to qgis install>; make test"
-	@echo "----------------------"
-
-deploy: compile doc transcompile
-	@echo
-	@echo "------------------------------------------"
-	@echo "Deploying plugin to your .qgis2 directory."
-	@echo "------------------------------------------"
-	# The deploy  target only works on unix like operating system where
-	# the Python plugin directory is located at:
-	# $HOME/$(QGISDIR)/python/plugins
-	mkdir -p $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(PY_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(UI_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(EXTRAS) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vfr i18n $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vfr $(HELP) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)/help
-	# Copy extra directories if any
-	(foreach EXTRA_DIR,(EXTRA_DIRS), cp -R (EXTRA_DIR) (HOME)/(QGISDIR)/python/plugins/(PLUGINNAME)/;)
-
-
-# The dclean target removes compiled python files from plugin directory
-# also deletes any .git entry
-dclean:
-	@echo
-	@echo "-----------------------------------"
-	@echo "Removing any compiled python files."
-	@echo "-----------------------------------"
-	find $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME) -iname "*.pyc" -delete
-	find $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME) -iname ".git" -prune -exec rm -Rf {} \;
-
-
-derase:
-	@echo
-	@echo "-------------------------"
-	@echo "Removing deployed plugin."
-	@echo "-------------------------"
-	rm -Rf $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-
-zip: deploy dclean
-	@echo
-	@echo "---------------------------"
-	@echo "Creating plugin zip bundle."
-	@echo "---------------------------"
-	# The zip target deploys the plugin and creates a zip file with the deployed
-	# content. You can then upload the zip file on http://plugins.qgis.org
-	rm -f $(PLUGINNAME).zip
-	cd $(HOME)/$(QGISDIR)/python/plugins; zip -9r $(CURDIR)/$(PLUGINNAME).zip $(PLUGINNAME)
-
-package: compile
-	# Create a zip package of the plugin named $(PLUGINNAME).zip.
-	# This requires use of git (your plugin development directory must be a
-	# git repository).
-	# To use, pass a valid commit or tag as follows:
-	#   make package VERSION=Version_0.3.2
-	@echo
-	@echo "------------------------------------"
-	@echo "Exporting plugin to zip package.	"
-	@echo "------------------------------------"
-	rm -f $(PLUGINNAME).zip
-	git archive --prefix=$(PLUGINNAME)/ -o $(PLUGINNAME).zip $(VERSION)
-	echo "Created package: $(PLUGINNAME).zip"
-
-upload: zip
-	@echo
-	@echo "-------------------------------------"
-	@echo "Uploading plugin to QGIS Plugin repo."
-	@echo "-------------------------------------"
-	$(PLUGIN_UPLOAD) $(PLUGINNAME).zip
+test:
+	python -m pytest test/ -v
 
 transup:
 	@echo
@@ -201,39 +67,23 @@ transclean:
 	@echo "------------------------------------"
 	rm -f i18n/*.qm
 
-clean:
-	@echo
-	@echo "------------------------------------"
-	@echo "Removing uic and rcc generated files"
-	@echo "------------------------------------"
-	rm $(COMPILED_UI_FILES) $(COMPILED_RESOURCE_FILES)
-
-doc:
-	@echo
-	@echo "------------------------------------"
-	@echo "Building documentation using sphinx."
-	@echo "------------------------------------"
-	cd help; make html
-
 pylint:
 	@echo
 	@echo "-----------------"
 	@echo "Pylint violations"
 	@echo "-----------------"
-	@pylint --reports=n --rcfile=pylintrc . || true
+	@pylint --reports=n --rcfile=.pylintrc . || true
 	@echo
 	@echo "----------------------"
 	@echo "If you get a 'no module named qgis.core' error, try sourcing"
 	@echo "the helper script we have provided first then run make pylint."
-	@echo "e.g. source run-env-linux.sh <path to qgis install>; make pylint"
+	@echo "e.g. source scripts/run-env-linux.sh <path to qgis install>; make pylint"
 	@echo "----------------------"
 
 
 # Run style checking with flake8, using the same config (.flake8) as CI
 # (.github/workflows/qgis-plugin-ci.yml), so a local pass here means CI's
-# "Flake8 (style)" step will pass too. Unlike the old `pep8`-based target,
-# this fails the build (no `|| true`) and does not rely on the unmaintained,
-# no-longer-installed `pep8` package.
+# "Flake8 (style)" step will pass too.
 pep8:
 	@echo
 	@echo "-----------"
