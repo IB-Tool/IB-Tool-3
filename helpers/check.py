@@ -19,6 +19,7 @@ from qgis.core import (
 )
 from qgis import processing
 from qgis.PyQt.QtCore import QCoreApplication
+from .processing_context import current_processing_context
 
 
 def _tr(text: str) -> str:
@@ -401,7 +402,7 @@ class InputValidator:
                 'VALID_OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
                 'INVALID_OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
                 'ERROR_OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            })
+            }, context=current_processing_context())
 
             invalid_layer = check_result.get('INVALID_OUTPUT')
             error_layer = check_result.get('ERROR_OUTPUT')

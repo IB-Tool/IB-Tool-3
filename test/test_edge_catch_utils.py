@@ -28,18 +28,23 @@ from qgis.PyQt.QtCore import QVariant
 from .utilities import get_qgis_app
 from ibtool.helpers.edge_catch_utils import (
     _normalize_node,
-    apply_filter_rules,
     build_catch_polygon,
     project_point_to_line,
     create_shortest_lines_to_roads,
+    _build_minimized_lines_from_selection,
+    extract_road_subline,
+    delete_first_point,
+    select_roads_near_blocks,
+    ROAD_BLOCK_TOLERANCE,
+    process_single_feature,
+)
+from ibtool.helpers.ortho_line_filter import (
+    apply_filter_rules,
     _apply_rule_parallel_close_endpoints,
     _apply_rule_all_parallel,
     _apply_rule_angle_outliers,
     _group_lines_by_angle,
     filter_ortho_lines,
-    _build_minimized_lines_from_selection,
-    extract_road_subline,
-    delete_first_point,
 )
 
 
@@ -899,3 +904,224 @@ class TestDeleteFirstPoint:
         layer = self._make_point_layer(3)
         result = delete_first_point(layer)
         assert result.crs().authid() == layer.crs().authid()
+
+
+# ── select_roads_near_blocks ──────────────────────────────────────────────────
+
+class TestSelectRoadsNearBlocks:
+    """Roads are selected if they lie within ROAD_BLOCK_TOLERANCE of a block.
+
+    Block vertices come from polygonize/noding and carry floating-point noise
+    (< 1e-9 m). An exact ``intersects`` test then flips for roads that end on
+    the block boundary; the tolerance makes the selection robust.
+    Block in the tests: square 0..100 × 0..100.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @staticmethod
+    def _block_layer() -> QgsVectorLayer:
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "block", "memory")
+        f = QgsFeature()
+        f.setGeometry(QgsGeometry.fromPolygonXY([[
+            QgsPointXY(0, 0), QgsPointXY(100, 0), QgsPointXY(100, 100),
+            QgsPointXY(0, 100), QgsPointXY(0, 0),
+        ]]))
+        layer.dataProvider().addFeatures([f])
+        return layer
+
+    @staticmethod
+    def _road_layer(roads: dict) -> QgsVectorLayer:
+        """Line layer with a 'name' field; *roads* maps name → list of (x, y)."""
+        layer = QgsVectorLayer("LineString?crs=EPSG:25833&field=name:string",
+                               "roads", "memory")
+        feats = []
+        for name, coords in roads.items():
+            f = QgsFeature(layer.fields())
+            f.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in coords]))
+            f["name"] = name
+            feats.append(f)
+        layer.dataProvider().addFeatures(feats)
+        return layer
+
+    def _selected(self, roads: dict) -> list:
+        result = select_roads_near_blocks(self._road_layer(roads), self._block_layer())
+        return [f["name"] for f in result.getFeatures()]
+
+    @pytest.mark.unit
+    def test_tolerance_is_ten_centimetres(self):
+        assert ROAD_BLOCK_TOLERANCE == pytest.approx(0.1)
+
+    @pytest.mark.integration
+    def test_road_ending_short_of_boundary_within_tolerance_is_selected(self):
+        """A road ending 5 cm before the block boundary (no exact contact) is selected."""
+        assert self._selected({"near": [(-50, 50), (-0.05, 50)]}) == ["near"]
+
+    @pytest.mark.integration
+    def test_road_beyond_tolerance_is_not_selected(self):
+        """A road ending 50 cm before the block boundary is not selected."""
+        assert self._selected({"far": [(-50, 50), (-0.5, 50)]}) == []
+
+    @pytest.mark.integration
+    def test_boundary_and_crossing_roads_are_selected(self):
+        """Roads on the boundary or crossing the block are selected, as before."""
+        selected = self._selected({
+            "boundary": [(0, -20), (0, 120)],
+            "crossing": [(-20, 50), (120, 50)],
+        })
+        assert sorted(selected) == ["boundary", "crossing"]
+
+    @pytest.mark.integration
+    def test_output_keeps_input_order(self):
+        """Selected roads come out in input order (downstream chaining is order-sensitive)."""
+        roads = {f"r{i:02d}": [(-20, i * 4), (120, i * 4)] for i in range(25)}
+        assert self._selected(roads) == list(roads)
+
+
+# ── process_single_feature: missing Area ─────────────────────────────────────
+
+class TestProcessSingleFeatureMissingArea:
+    """A rectangle without Area (shp_area2 skips invalid geometries) is skipped.
+
+    Memory layers return a missing value as None, OGR/GeoPackage layers as a
+    NULL QVariant — both must be skipped (the NULL QVariant used to raise
+    ``TypeError: unsupported operand type(s) for *: 'QVariant' and 'int'``).
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @staticmethod
+    def _feature_with_null_area():
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833&field=Area:double", "rects", "memory")
+        f = QgsFeature(layer.fields())
+        f.setGeometry(QgsGeometry.fromWkt("Polygon ((0 0, 10 0, 10 10, 0 10, 0 0))"))
+        layer.dataProvider().addFeatures([f])
+        return next(layer.getFeatures())
+
+    @pytest.mark.unit
+    def test_none_area_is_skipped(self):
+        from qgis.core import QgsCoordinateReferenceSystem
+        feat = self._feature_with_null_area()
+        feat["Area"] = None
+        assert process_single_feature(feat, None, None,
+                                      QgsCoordinateReferenceSystem("EPSG:25833")) is None
+
+    @pytest.mark.unit
+    def test_null_qvariant_area_is_skipped(self):
+        from qgis.core import QgsCoordinateReferenceSystem
+        from qgis.PyQt.QtCore import QVariant
+        feat = self._feature_with_null_area()
+        feat.setAttribute("Area", QVariant())          # NULL QVariant, as read from GeoPackage
+        assert process_single_feature(feat, None, None,
+                                      QgsCoordinateReferenceSystem("EPSG:25833")) is None
+
+
+# ── process_single_feature: fallback to the processing implementation ────────
+
+class TestProcessSingleFeatureFallback:
+    """If the geometry-based implementation fails, the original processing-based
+    implementation is used for that rectangle (stability of the whole run)."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @staticmethod
+    def _feature(area=100.0):
+        layer = QgsVectorLayer("Polygon?crs=EPSG:25833&field=Area:double", "rects", "memory")
+        f = QgsFeature(layer.fields())
+        f.setGeometry(QgsGeometry.fromWkt("Polygon ((0 0, 10 0, 10 10, 0 10, 0 0))"))
+        f["Area"] = area
+        layer.dataProvider().addFeatures([f])
+        return next(layer.getFeatures())
+
+    @pytest.mark.unit
+    def test_geometry_path_is_used(self):
+        from unittest.mock import patch, sentinel
+        from qgis.core import QgsCoordinateReferenceSystem
+        with patch("ibtool.helpers.edge_catch_utils._process_single_feature_geometry",
+                   return_value=sentinel.result) as fast,                 patch("ibtool.helpers.edge_catch_utils._process_single_feature_processing") as slow:
+            result = process_single_feature(self._feature(), None, None,
+                                            QgsCoordinateReferenceSystem("EPSG:25833"))
+        assert result is sentinel.result
+        fast.assert_called_once()
+        slow.assert_not_called()
+
+    @pytest.mark.unit
+    def test_falls_back_on_error(self):
+        from unittest.mock import patch, sentinel
+        from qgis.core import QgsCoordinateReferenceSystem
+        from ibtool.helpers.overlay_utils import GeometryOperationError
+        with patch("ibtool.helpers.edge_catch_utils._process_single_feature_geometry",
+                   side_effect=GeometryOperationError("intersection failed")),                 patch("ibtool.helpers.edge_catch_utils._process_single_feature_processing",
+                      return_value=sentinel.legacy) as slow,                 patch("ibtool.helpers.edge_catch_utils.Logger") as log:
+            result = process_single_feature(self._feature(), None, None,
+                                            QgsCoordinateReferenceSystem("EPSG:25833"))
+        assert result is sentinel.legacy
+        slow.assert_called_once()
+        assert any(c.kwargs.get("level") == "WARNING" for c in log.log.call_args_list)
+
+
+# ── filter_roads_near_buildings: segment selection by id without expressions ──
+
+def _roads_and_buildings():
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsRectangle
+    roads = QgsVectorLayer("MultiLineString?crs=EPSG:25833&field=name:string&field=kind:integer",
+                           "roads", "memory")
+    feats = []
+    for i, (x0, y0, x1, y1) in enumerate(((0, 0, 230.5, 0), (0, 60, 0, 300.25),
+                                          (500, 500, 700, 520), (40, 120, 260.75, 120))):
+        f = QgsFeature(roads.fields())
+        f.setGeometry(QgsGeometry.fromMultiPolylineXY([[QgsPointXY(x0, y0), QgsPointXY(x1, y1)]]))
+        f.setAttributes([f"r{i}", i])
+        feats.append(f)
+    roads.dataProvider().addFeatures(feats)
+    buildings = QgsVectorLayer("Polygon?crs=EPSG:25833", "hu", "memory")
+    blds = []
+    for x, y in ((30, 10), (170, 30), (10, 250), (100, 140)):
+        f = QgsFeature(buildings.fields())
+        f.setGeometry(QgsGeometry.fromRect(QgsRectangle(x, y, x + 8, y + 6)))
+        blds.append(f)
+    buildings.dataProvider().addFeatures(blds)
+    return roads, buildings
+
+
+def _rows_with_ids(layer):
+    return ([(f.name(), f.type()) for f in layer.fields()], layer.wkbType(),
+            [(f.id(), f.geometry().asWkb().data(), f.attributes()) for f in layer.getFeatures()])
+
+
+class TestFilterRoadsNearBuildingsSelection:
+    """The kept segments equal the former ``"seg_id" IN (...)`` extraction."""
+
+    @pytest.mark.integration
+    def test_same_segments_ids_and_order_as_expression_extract(self):
+        from unittest.mock import patch
+        from ibtool.helpers import edge_catch_utils as ecu
+        roads, buildings = _roads_and_buildings()
+        captured = {}
+        real_run = ecu.safe_processing_run
+
+        def spy(alg, params, **kw):
+            out = real_run(alg, params, **kw)
+            if alg == "native:fieldcalculator":
+                captured["segs"] = out["OUTPUT"]
+            if alg == "native:extractbylocation":
+                captured["ids"] = {f["seg_id"] for f in out["OUTPUT"].getFeatures()}
+            if alg == "native:extractbyexpression":
+                captured["used_expression"] = True
+            return out
+
+        with patch.object(ecu, "safe_processing_run", side_effect=spy):
+            result = ecu.filter_roads_near_buildings(roads, buildings, 20, 25)
+        assert "used_expression" not in captured
+        id_list = ", ".join(str(i) for i in captured["ids"])
+        expected = real_run("native:extractbyexpression", {
+            "INPUT": captured["segs"], "EXPRESSION": f'"seg_id" IN ({id_list})',
+            "OUTPUT": "TEMPORARY_OUTPUT"})["OUTPUT"]
+        assert 0 < result.featureCount() < captured["segs"].featureCount()
+        assert _rows_with_ids(result) == _rows_with_ids(expected)

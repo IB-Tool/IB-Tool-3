@@ -8,9 +8,10 @@ Focuses on functions that are testable without processing.run:
   - get_hole_polygons
 
 Functions that delegate entirely to processing.run (polyline2, shp_area,
-shp_length, nodes_detect, intersect_polygons, select_and_save_by_location,
-load_to_geopackage, split_layer_by_attribute, extract_polygons_from_lines)
-are outside the scope of these unit tests.
+shp_length, nodes_detect, intersect_polygons, load_to_geopackage,
+split_layer_by_attribute, extract_polygons_from_lines) are outside the scope
+of these unit tests. select_and_save_by_location is tested for output order
+determinism (see TestSelectAndSaveByLocation).
 """
 import pytest
 from unittest.mock import Mock
@@ -34,6 +35,7 @@ from ibtool.helpers.geometry_utils import (
     extract_polygons_from_lines,
     check_projection,
     polyline2,
+    select_and_save_by_location,
 )
 
 
@@ -570,3 +572,63 @@ class TestPolyline2:
         output = str(tmp_path / "empty.shp")
         result = polyline2([], output, output_format="shp")
         assert result == output
+
+
+# ── select_and_save_by_location ───────────────────────────────────────────────
+
+def _cover_layer(x_min, x_max, crs="EPSG:25833") -> QgsVectorLayer:
+    """Polygon layer with one rectangle covering x_min..x_max, y -5..15."""
+    layer = QgsVectorLayer(f"Polygon?crs={crs}", "cover", "memory")
+    f = QgsFeature()
+    f.setGeometry(QgsGeometry.fromPolygonXY([[
+        QgsPointXY(x_min, -5), QgsPointXY(x_max, -5),
+        QgsPointXY(x_max, 15), QgsPointXY(x_min, 15), QgsPointXY(x_min, -5),
+    ]]))
+    layer.dataProvider().addFeatures([f])
+    layer.updateExtents()
+    return layer
+
+
+def _x_positions(layer) -> list:
+    return [round(f.geometry().boundingBox().xMinimum()) for f in layer.getFeatures()]
+
+
+class TestSelectAndSaveByLocation:
+    """select_and_save_by_location must keep input order and leave the input untouched.
+
+    The output order used to come from the layer's selection set, whose
+    iteration order varies between QGIS processes for memory layers. Downstream
+    geometry operations (polygonize in Blocker) are order-sensitive at the
+    floating-point level, which made results differ between runs.
+    """
+
+    @classmethod
+    def setup_class(cls):
+        cls.QGIS_APP, cls.CANVAS, cls.IFACE, cls.PARENT = get_qgis_app()
+
+    @pytest.mark.integration
+    def test_output_keeps_input_order(self):
+        """Selected features come out in the input layer's feature order."""
+        layer = _make_polygon_layer(squares=200)
+        result = select_and_save_by_location(layer, _cover_layer(-1, 4001))
+
+        assert _x_positions(result) == _x_positions(layer)
+
+    @pytest.mark.integration
+    def test_predicate_selects_expected_features(self):
+        """Predicate 2 (disjoint) returns only the features outside the overlay, in order."""
+        layer = _make_polygon_layer(squares=10)          # squares at x = 0, 20, ..., 180
+        result = select_and_save_by_location(layer, _cover_layer(-1, 51), [2], 0)
+
+        assert _x_positions(result) == [60, 80, 100, 120, 140, 160, 180]
+
+    @pytest.mark.integration
+    def test_input_selection_is_not_modified(self):
+        """The input layer's selection is left unchanged."""
+        layer = _make_polygon_layer(squares=5)
+        first_fid = next(layer.getFeatures()).id()
+        layer.selectByIds([first_fid])
+
+        select_and_save_by_location(layer, _cover_layer(-1, 101))
+
+        assert layer.selectedFeatureIds() == [first_fid]

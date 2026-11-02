@@ -110,7 +110,8 @@ def create_partitions_list(
         part_end: End index for slicing (exclusive). Pass ``-1`` to use all.
 
     Returns:
-        List of partition name strings.
+        List of partition name strings without duplicates (first occurrence
+        kept, order preserved).
 
     Raises:
         ValueError: If ``partition_layer`` is not a valid layer.
@@ -127,4 +128,7 @@ def create_partitions_list(
     else:
         part_list = [name.replace('\n', '') for name in part_list]
 
-    return part_list
+    # A partition may consist of several features with the same NAME (the
+    # pipeline selects them together) or be listed twice by the user: process
+    # and merge each partition once, keeping the first occurrence.
+    return list(dict.fromkeys(part_list))

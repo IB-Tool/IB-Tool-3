@@ -93,26 +93,48 @@ def _blank_legacy_log_directory(config_path: str, legacy_logs: str) -> None:
 
 
 def compute_file_checksum(path: str, chunk_size: int = 8192) -> str:
-    """Compute the MD5 checksum of a file.
+    """Compute the MD5 checksum of a geodata file.
 
     Reads the file in chunks to avoid loading large geodata files fully into
     memory. Returns an empty string if the file cannot be read.
+
+    For a shapefile (``.shp``, any case) the existing sidecar files of
+    ``_SHAPEFILE_EXTENSIONS`` (``.shx``, ``.dbf``, ``.prj``, ``.cpg``,
+    ``.qpj``) are hashed too: attribute edits only touch the ``.dbf`` and a
+    CRS change only the ``.prj``. Each sidecar is fed as a tagged section
+    (extension + length + bytes) after the ``.shp`` bytes, so a ``.shp``
+    without sidecars still yields the plain MD5 of its bytes. Folder and base
+    name do not count (a moved, unchanged shapefile keeps its checksum).
 
     Args:
         path: Absolute path to the file.
         chunk_size: Read buffer size in bytes.
 
     Returns:
-        Hex-encoded MD5 digest, or ``""`` on any I/O error.
+        Hex-encoded MD5 digest, or ``""`` on any I/O error (also when an
+        existing sidecar cannot be read).
     """
     try:
         h = hashlib.md5(usedforsecurity=False)  # nosec B303, B324 — checksum only, not crypto
-        with open(path, 'rb') as fh:
-            for chunk in iter(lambda: fh.read(chunk_size), b''):
-                h.update(chunk)
+        _hash_file_into(h, path, chunk_size)
+        base, ext = os.path.splitext(path)
+        if ext.lower() == '.shp':
+            for sidecar_ext in _SHAPEFILE_EXTENSIONS[1:]:
+                sidecar = base + sidecar_ext
+                if os.path.isfile(sidecar):
+                    h.update(b"\0" + sidecar_ext.encode("ascii")
+                             + b"\0" + str(os.path.getsize(sidecar)).encode("ascii") + b"\0")
+                    _hash_file_into(h, sidecar, chunk_size)
         return h.hexdigest()
     except OSError:
         return ""
+
+
+def _hash_file_into(h, path: str, chunk_size: int) -> None:
+    """Feed the bytes of *path* into the hash object *h* (raises ``OSError``)."""
+    with open(path, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(chunk_size), b''):
+            h.update(chunk)
 
 
 def save_temp_layer_to_gpkg(

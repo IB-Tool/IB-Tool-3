@@ -14,10 +14,13 @@ from qgis.core import (
     QgsWkbTypes,
     QgsProcessingFeatureSourceDefinition,
     QgsProcessing,
+    QgsFeatureRequest,
+    QgsMemoryProviderUtils,
     edit,
 )
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
+from .processing_context import current_processing_context
 
 from .logger import Logger
 
@@ -206,7 +209,16 @@ def select_and_save_by_location(
     method=0,
     output='TEMPORARY_OUTPUT',
 ):
-    """Select features by spatial relationship and save the selection.
+    """Select features by spatial relationship and save them, in a fixed order.
+
+    The selected features are written in ascending feature-ID order (the
+    natural order of memory, GeoPackage and Shapefile sources), and the input
+    layer's previous selection is restored afterwards. The former
+    ``native:saveselectedfeatures`` route — and ``native:extractbylocation``
+    for some predicates — returned features in the iteration order of a hash
+    set of IDs, which varies between QGIS processes for memory layers.
+    Order-sensitive geometry operations downstream (polygonize in Blocker)
+    then produced results that differed between runs.
 
     Args:
         input_layer: The layer to apply the selection to.
@@ -215,25 +227,36 @@ def select_and_save_by_location(
             intersects). Defaults to [0].
         method: Selection method (e.g., 0 for 'create new selection').
         output: Output location for selected features. Defaults to
-            'TEMPORARY_OUTPUT'.
+            'TEMPORARY_OUTPUT' (memory layer).
 
     Returns:
         Output layer containing the selected features.
     """
     if predicate is None:
         predicate = [0]
+    previous_selection = input_layer.selectedFeatureIds()
     processing.run("native:selectbylocation", {
         'INPUT': input_layer,
         'PREDICATE': predicate,
         'INTERSECT': intersect_layer,
         'METHOD': method
-    })
+    }, context=current_processing_context())
+    selected_ids = sorted(input_layer.selectedFeatureIds())
+    input_layer.selectByIds(previous_selection)
 
-    selected_features = processing.run(
-        "native:saveselectedfeatures",
-        {'INPUT': input_layer,
-         'OUTPUT': output
-         })['OUTPUT']
+    request = QgsFeatureRequest().setFilterFids(selected_ids)
+    features = sorted(input_layer.getFeatures(request), key=lambda feat: feat.id())
+
+    selected_features = QgsMemoryProviderUtils.createMemoryLayer(
+        input_layer.name(), input_layer.fields(), input_layer.wkbType(), input_layer.crs())
+    selected_features.dataProvider().addFeatures(features)
+    selected_features.updateExtents()
+
+    if output not in ('TEMPORARY_OUTPUT', QgsProcessing.TEMPORARY_OUTPUT):
+        selected_features = processing.run("native:savefeatures", {
+            'INPUT': selected_features,
+            'OUTPUT': output
+        }, context=current_processing_context())['OUTPUT']
 
     return selected_features
 
@@ -389,7 +412,7 @@ def shp_area(layer, area_field='Area'):
          'FIELD_PRECISION': 0,
          'FORMULA': ' $area ',
          'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-         })['OUTPUT']
+         }, context=current_processing_context())['OUTPUT']
     return layer
 
 
@@ -477,8 +500,59 @@ def shp_length(layer, field_name='Length'):
          'FIELD_LENGTH': 0,
          'FIELD_PRECISION': 0,
          'FORMULA': ' $length',
-         'OUTPUT': 'TEMPORARY_OUTPUT'})
+         'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())
     return layer['OUTPUT']
+
+
+def merge_layers_prepending(layers, base_layer, crs):
+    """Merge *layers* onto *base_layer* in one step, in the order of an incremental merge.
+
+    Produces the same result as the former pattern::
+
+        merged = base_layer
+        for layer in layers:
+            merged = merge([layer, merged])
+
+    i.e. the features of the last layer come first and *base_layer* last —
+    but with a single ``native:mergevectorlayers`` call instead of one call
+    per layer (which copied the growing result again and again). The order is
+    kept because downstream union operations are order-sensitive at the
+    floating-point level.
+
+    If the single merge fails, the layers are merged one by one as before, so
+    that only a failing layer is skipped (logged as CRITICAL).
+
+    Args:
+        layers: Layers to merge, in processing order (may be empty).
+        base_layer: Layer the incremental merge started from (usually empty).
+        crs: Target CRS of the merge.
+
+    Returns:
+        The merged layer, or *base_layer* if *layers* is empty.
+    """
+    if not layers:
+        return base_layer
+    try:
+        return processing.run("native:mergevectorlayers", {
+            'LAYERS': list(reversed(layers)) + [base_layer],
+            'CRS': crs,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+        }, context=current_processing_context())['OUTPUT']
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"Bulk merge of {len(layers)} layers failed, merging one by one: {e}",
+                   level="WARNING")
+
+    merged = base_layer
+    for layer in layers:
+        try:
+            merged = processing.run("native:mergevectorlayers", {
+                'LAYERS': [layer, merged],
+                'CRS': crs,
+                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+            }, context=current_processing_context())['OUTPUT']
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            Logger.log(f"Layer could not be merged - {e}", level="CRITICAL")
+    return merged
 
 
 def create_empty_layer(layer_name: str, layer_type: str, crs: str) -> QgsVectorLayer:
@@ -545,25 +619,89 @@ def create_linestring_layer_from_array(data, crs, layer_name):
     return layer
 
 
+def _count_end_nodes(input_road_network):
+    """Group the first and last vertex of every line by their exact x coordinate.
+
+    Mirrors ``native:extractspecificvertices`` with ``VERTICES '0, -1'``:
+    vertex numbers count over the whole geometry (multi-part lines give the
+    first vertex of the first part and the last of the last part), a line
+    with one vertex yields it twice, features without geometry yield nothing.
+    The key is the exact x value (the former ``x-coord`` field was not
+    rounded to its declared precision — verified by test).
+
+    Returns:
+        Dict ``x -> [QgsPoint, ...]`` in input order.
+    """
+    groups = {}
+    request = QgsFeatureRequest().setNoAttributes()
+    for feature in input_road_network.getFeatures(request):
+        geom = feature.geometry()
+        if geom.isNull() or geom.isEmpty():
+            continue
+        total = geom.constGet().nCoordinates()
+        for index in (0, -1):
+            number = total + index if index < 0 else index
+            if number < 0 or number >= total:
+                continue
+            point = geom.vertexAt(number)
+            groups.setdefault(point.x(), []).append(point)
+    return groups
+
+
 def nodes_detect(input_road_network, count):
     """Detect road network nodes with a specific connection count.
 
-    QGIS port of the ArcPy NodesDetect function. Extracts endpoints from
-    the road network, aggregates by X coordinate, and returns only those
-    nodes matching the specified connection count.
+    QGIS port of the ArcPy NodesDetect function: takes the first and last
+    vertex of every road, groups them by X coordinate only (two different
+    end points with the same x count as connected — kept from the original
+    port) and returns the groups with exactly *count* points.
+
+    Computed directly from the geometries (the former processing chain —
+    ``native:aggregate`` alone took ~9 s on large partitions — is kept as
+    :func:`_nodes_detect_processing` and used as fallback on errors).
 
     Args:
         input_road_network: QgsVectorLayer containing road line features.
         count: Target connection count to filter nodes by.
 
     Returns:
-        QgsVectorLayer containing filtered network nodes.
+        QgsVectorLayer (memory, MultiPoint) with one feature per matching
+        node group and the field ``x-coord`` (the group's point count).
+    """
+    try:
+        groups = _count_end_nodes(input_road_network)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"nodes_detect: geometry path failed ({e}), using processing", "WARNING")
+        return _nodes_detect_processing(input_road_network, count)
+
+    crs = input_road_network.crs().authid()
+    layer = QgsVectorLayer(f"MultiPoint?crs={crs}&field=x-coord:double", "nodes", "memory")
+    features = []
+    for points in groups.values():
+        if len(points) != count:
+            continue
+        feature = QgsFeature(layer.fields())
+        # native:aggregate unites the group's geometries (identical points merge)
+        feature.setGeometry(QgsGeometry.unaryUnion(
+            [QgsGeometry(point.clone()) for point in points]))
+        feature.setAttributes([float(len(points))])
+        features.append(feature)
+    layer.dataProvider().addFeatures(features)
+    layer.updateExtents()
+    return layer
+
+
+def _nodes_detect_processing(input_road_network, count):
+    """Former processing implementation of :func:`nodes_detect` (fallback, reference).
+
+    extractspecificvertices '0, -1' -> x coordinate field -> aggregate by x
+    with count -> extract groups whose count equals *count*.
     """
     vertices = processing.run("native:extractspecificvertices", {
         'INPUT': input_road_network,
         'VERTICES': '0, -1',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     vertices = processing.run("qgis:fieldcalculator", {
         'INPUT': vertices,
@@ -573,7 +711,7 @@ def nodes_detect(input_road_network, count):
         'NEW_FIELD': True,
         'FORMULA': 'x($geometry)',
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     vertices = processing.run("native:aggregate", {
         'INPUT': vertices,
@@ -584,7 +722,7 @@ def nodes_detect(input_road_network, count):
             'sub_type': 0, 'type': 6, 'type_name': 'double precision',
         }],
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     filtered = processing.run("native:extractbyattribute", {
         'INPUT': vertices,
@@ -592,7 +730,7 @@ def nodes_detect(input_road_network, count):
         'OPERATOR': 0,
         'VALUE': count,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     return filtered
 
@@ -653,37 +791,37 @@ def intersect_polygons(input_polygon):
     input_clean = processing.run("native:deleteduplicategeometries", {
         'INPUT': input_polygon,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     input_buff = processing.run("native:buffer", {
         'INPUT': input_clean,
         'DISTANCE': INTERSECT_BUFFER_DISTANCE, 'SEGMENTS': 5, 'END_CAP_STYLE': 0, 'JOIN_STYLE': 0,
         'MITER_LIMIT': 2, 'DISSOLVE': False, 'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     input_lines = processing.run("native:polygonstolines", {
         'INPUT': input_buff,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     input_lines_poly = processing.run("native:polygonize", {
         'INPUT': input_lines,
         'KEEP_FIELDS': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     lines_poly_union = processing.run("native:union", {
         'INPUT': input_lines_poly,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
         'GRID_SIZE': None
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     centroides = processing.run("native:centroids", {
         'INPUT': lines_poly_union,
         'ALL_PARTS': False,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     input_lines_poly_count = processing.run("native:countpointsinpolygon", {
         'POLYGONS': input_lines_poly,
@@ -692,12 +830,12 @@ def intersect_polygons(input_polygon):
         'CLASSFIELD': '',
         'FIELD': 'NUMPOINTS',
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     intersect_poly = processing.run("native:extractbyattribute", {
         'INPUT': input_lines_poly_count,
         'FIELD': 'NUMPOINTS', 'OPERATOR': 2, 'VALUE': '1',
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     return intersect_poly

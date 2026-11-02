@@ -340,7 +340,7 @@ class TestEdgeCatch:
             "ibtool.ibtool_tools.EdgeCatch.process_single_feature",
             return_value=result_layer,
         ), patch(
-            "ibtool.ibtool_tools.EdgeCatch.processing.run",
+            "ibtool.helpers.geometry_utils.processing.run",
             side_effect=RuntimeError("native:mergevectorlayers failed"),
         ):
             result = edge_catch(
@@ -351,6 +351,89 @@ class TestEdgeCatch:
 
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
+
+    def _three_groups(self) -> QgsVectorLayer:
+        layer = make_polygon_layer(self.CRS_ID)
+        for x in (0, 200, 400):
+            add_feature_to_layer(layer, make_square_geom(x, 0, 80))
+        return layer
+
+    def _result_layers(self) -> list:
+        """One single-square result layer per group (x = 1000, 2000, 3000)."""
+        layers = []
+        for x in (1000, 2000, 3000):
+            layer = make_polygon_layer(self.CRS_ID)
+            add_feature_to_layer(layer, make_square_geom(x, 0, 10))
+            layers.append(layer)
+        return layers
+
+    @pytest.mark.unit
+    def test_results_are_merged_once_keeping_historic_order(self):
+        """Per-group results are merged in one step (not once per group).
+
+        The order is the historic one of the former incremental merge (last
+        processed group first), so downstream union operations see the same
+        input order and produce bit-identical results.
+        """
+        from unittest.mock import patch
+        from ibtool.helpers import geometry_utils as qgis_processing_owner
+        real_run = qgis_processing_owner.processing.run
+        merge_calls = []
+
+        def counting_run(alg, params, **kwargs):
+            if alg == "native:mergevectorlayers":
+                merge_calls.append(len(params["LAYERS"]))
+            return real_run(alg, params, **kwargs)
+
+        with patch(
+            "ibtool.ibtool_tools.EdgeCatch.filter_roads_near_buildings",
+            return_value=self._road_layer_near_buildings(),
+        ), patch(
+            "ibtool.ibtool_tools.EdgeCatch.process_single_feature",
+            side_effect=self._result_layers(),
+        ), patch(
+            "ibtool.helpers.geometry_utils.processing.run", side_effect=counting_run,
+        ):
+            result = edge_catch(
+                self._three_groups(), self._hu_input(),
+                self._road_layer_near_buildings(), self._block_layer(),
+                self.crs, workspace_path=None,
+            )
+
+        assert len(merge_calls) == 1, f"{len(merge_calls)} merge calls"
+        xs = [round(f.geometry().boundingBox().xMinimum()) for f in result.getFeatures()]
+        assert xs == [3000, 2000, 1000]
+
+    @pytest.mark.unit
+    def test_failing_bulk_merge_falls_back_to_per_group_merge(self):
+        """If the single bulk merge fails, results are merged one by one so that
+        only the failing group is skipped (former behaviour)."""
+        from unittest.mock import patch
+        from ibtool.helpers import geometry_utils as qgis_processing_owner
+        real_run = qgis_processing_owner.processing.run
+
+        def failing_bulk_run(alg, params, **kwargs):
+            if alg == "native:mergevectorlayers" and len(params["LAYERS"]) > 2:
+                raise RuntimeError("bulk merge failed")
+            return real_run(alg, params, **kwargs)
+
+        with patch(
+            "ibtool.ibtool_tools.EdgeCatch.filter_roads_near_buildings",
+            return_value=self._road_layer_near_buildings(),
+        ), patch(
+            "ibtool.ibtool_tools.EdgeCatch.process_single_feature",
+            side_effect=self._result_layers(),
+        ), patch(
+            "ibtool.helpers.geometry_utils.processing.run", side_effect=failing_bulk_run,
+        ):
+            result = edge_catch(
+                self._three_groups(), self._hu_input(),
+                self._road_layer_near_buildings(), self._block_layer(),
+                self.crs, workspace_path=None,
+            )
+
+        xs = [round(f.geometry().boundingBox().xMinimum()) for f in result.getFeatures()]
+        assert xs == [3000, 2000, 1000]
 
     @pytest.mark.unit
     def test_all_features_return_none_falls_back_to_grouped_bdgs(self):

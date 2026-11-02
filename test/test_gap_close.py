@@ -43,7 +43,12 @@ from .utilities import get_qgis_app
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 from .layer_factories import make_polygon_layer, make_square_geom, add_feature_to_layer
 
-from ibtool.ibtool_tools.GapClose import gap_close, gap_close_in_holes
+from qgis import processing  # noqa: E402
+from unittest.mock import patch
+
+from ibtool.helpers import overlay_utils
+from ibtool.helpers.overlay_utils import symmetrical_difference, polygon_parts
+from ibtool.ibtool_tools.GapClose import gap_close, gap_close_in_holes, TOPOLOGY_GRID_SIZE
 
 
 # ---------------------------------------------------------------------------
@@ -366,3 +371,146 @@ class TestGapClose:
 
         assert result is not None
         assert isinstance(result, QgsVectorLayer)
+
+
+# ---------------------------------------------------------------------------
+# symmetrical_difference — must reproduce qgis:symmetricaldifference exactly
+# ---------------------------------------------------------------------------
+
+def _poly(wkt: str) -> QgsGeometry:
+    return QgsGeometry.fromWkt(wkt)
+
+
+def _symdiff_inputs():
+    """Blocks (with BLOCK_ID) and one settlement polygon (with id/name).
+
+    Covers: partial overlap, block fully covered (empty difference), block
+    without contact, multipart block, off-grid coordinates, settlement with a
+    hole, block touching the settlement only along an edge. All geometries are
+    valid (the pipeline runs fixgeometries before the sym-diff).
+    """
+    blocks = QgsVectorLayer("Polygon?crs=EPSG:25833&field=BLOCK_ID:integer", "blocks", "memory")
+    block_geoms = [
+        "Polygon ((0 0, 100 0, 100 100, 0 100, 0 0))",                         # partial
+        "Polygon ((150 0, 230 0, 230 70, 150 70, 150 0))",                     # fully covered
+        "Polygon ((600 0, 700 0, 700 100, 600 100, 600 0))",                   # no contact
+        "MultiPolygon (((300 0, 340 0, 340 40, 300 40, 300 0)),"
+        "((360 60, 400 60, 400 100, 360 100, 360 60)))",                      # multipart
+        "Polygon ((250.00000123 120, 300.4567891 120, 300.4567891 180, 250.00000123 180,"
+        " 250.00000123 120))",                                                # partial, off-grid
+        "Polygon ((330.33333 100, 360 100, 360 150, 330.33333 150, 330.33333 100))",  # edge only
+    ]
+    feats = []
+    for i, wkt in enumerate(block_geoms, start=1):
+        f = QgsFeature(blocks.fields())
+        f.setGeometry(_poly(wkt))
+        f["BLOCK_ID"] = i
+        feats.append(f)
+    blocks.dataProvider().addFeatures(feats)
+
+    settlement = QgsVectorLayer("Polygon?crs=EPSG:25833&field=id:integer&field=name:string",
+                                "settlement", "memory")
+    f = QgsFeature(settlement.fields())
+    geom = _poly(
+        "Polygon ((50 -20, 250 -20, 250 20, 380 20, 380 80, 330.33333 80, 330.33333 180,"
+        " 250 180, 250 80, 50 80, 50 -20),"
+        "(120 30, 135 30, 135 45, 120 45, 120 30))")
+    assert geom.isGeosValid()
+    f.setGeometry(geom)
+    f["id"] = 7
+    f["name"] = "settlement"
+    settlement.dataProvider().addFeatures([f])
+    return blocks, settlement
+
+
+def _as_rows(layer):
+    return [(f.geometry().asWkt(17), [None if v is None or (hasattr(v, "isNull") and v.isNull())
+                                     else v for v in f.attributes()])
+            for f in layer.getFeatures()]
+
+
+class TestSymmetricalDifference:
+    """symmetrical_difference replaces qgis:symmetricaldifference in
+    _close_block_gaps. It computes the overlay union once instead of once per
+    input feature (21 s → 0.5 s on the largest sample partition) and must
+    produce exactly the same features, attributes and order."""
+
+    @pytest.mark.integration
+    def test_identical_to_qgis_algorithm(self):
+        blocks, settlement = _symdiff_inputs()
+        expected = processing.run("qgis:symmetricaldifference", {
+            "INPUT": blocks, "OVERLAY": settlement,
+            "OUTPUT": "memory:", "GRID_SIZE": TOPOLOGY_GRID_SIZE})["OUTPUT"]
+
+        actual = symmetrical_difference(blocks, settlement, TOPOLOGY_GRID_SIZE)
+
+        assert [f.name() for f in actual.fields()] == [f.name() for f in expected.fields()]
+        assert actual.wkbType() == expected.wkbType()
+        assert _as_rows(actual) == _as_rows(expected)
+        assert actual.featureCount() > 0
+
+    @pytest.mark.integration
+    def test_identical_with_swapped_inputs(self):
+        blocks, settlement = _symdiff_inputs()
+        expected = processing.run("qgis:symmetricaldifference", {
+            "INPUT": settlement, "OVERLAY": blocks,
+            "OUTPUT": "memory:", "GRID_SIZE": TOPOLOGY_GRID_SIZE})["OUTPUT"]
+
+        actual = symmetrical_difference(settlement, blocks, TOPOLOGY_GRID_SIZE)
+
+        assert _as_rows(actual) == _as_rows(expected)
+
+    @pytest.mark.unit
+    def test_overlay_union_computed_once_per_overlay_group(self):
+        """All blocks intersect the same single settlement feature → one union
+        for that direction, not one per block."""
+        blocks, settlement = _symdiff_inputs()
+        calls = []
+        real_union = overlay_utils.grid_union
+
+        def counting_union(geoms, params):
+            calls.append(len(geoms))
+            return real_union(geoms, params)
+
+        with patch.object(overlay_utils, "grid_union", side_effect=counting_union):
+            symmetrical_difference(blocks, settlement, TOPOLOGY_GRID_SIZE)
+
+        # blocks − settlement: 1 union (same settlement for all intersecting
+        # blocks); settlement − blocks: 1 union
+        assert len(calls) == 2, calls
+
+
+class TestPolygonParts:
+    """Grid differences can return a GeometryCollection (polygons plus collapsed
+    line/point remnants). Like qgis:symmetricaldifference, the polygon parts
+    must be kept (in order) — not the whole feature dropped. Found on sample
+    partition PART_56 (two blocks lost, 5,940 m² different result)."""
+
+    @pytest.mark.unit
+    def test_collection_keeps_polygon_parts_in_order(self):
+        geom = QgsGeometry.fromWkt(
+            "GeometryCollection (Polygon ((0 0, 10 0, 10 10, 0 10, 0 0)),"
+            " LineString (20 0, 30 0),"
+            " Polygon ((40 0, 50 0, 50 5, 40 5, 40 0)),"
+            " Point (60 0))")
+        result = polygon_parts(geom)
+        assert result.asWkt(0) == (
+            "MultiPolygon (((0 0, 10 0, 10 10, 0 10, 0 0)),((40 0, 50 0, 50 5, 40 5, 40 0)))")
+
+    @pytest.mark.unit
+    def test_zero_area_polygon_part_is_kept(self):
+        """QGIS keeps degenerate polygon parts; dropping them would change the WKT."""
+        geom = QgsGeometry.fromWkt(
+            "GeometryCollection (Polygon ((0 0, 10 0, 10 10, 0 10, 0 0)),"
+            " Polygon ((20 0, 30 0, 25 0, 20 0)), LineString (40 0, 50 0))")
+        assert polygon_parts(geom).constGet().numGeometries() == 2
+
+    @pytest.mark.unit
+    def test_collection_without_polygons_returns_none(self):
+        geom = QgsGeometry.fromWkt("GeometryCollection (LineString (0 0, 1 0), Point (5 5))")
+        assert polygon_parts(geom) is None
+
+    @pytest.mark.unit
+    def test_polygon_is_returned_as_multipolygon_unchanged(self):
+        geom = QgsGeometry.fromWkt("Polygon ((0 0, 10 0, 10 10, 0 10, 0 0))")
+        assert polygon_parts(geom).asWkt(0) == "MultiPolygon (((0 0, 10 0, 10 10, 0 10, 0 0)))"

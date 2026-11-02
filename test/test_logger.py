@@ -293,3 +293,20 @@ class TestLogger:
         self.logger.log(12345, level='INFO')
 
         assert any('12345' in text for text in box.texts)
+
+
+@pytest.mark.unit
+def test_sink_receives_messages_instead_of_outputs():
+    """With a sink set (worker process), messages go only to the sink."""
+    from ibtool.helpers.logger import Logger
+    got = []
+    Logger.set_sink(lambda level, message: got.append((level, message)))
+    try:
+        with patch("ibtool.helpers.logger.QgsMessageLog") as qgis_log:
+            with patch("ibtool.helpers.logger.msg") as fallback:
+                Logger.log("hello", level="CRITICAL")
+    finally:
+        Logger.set_sink(None)
+    assert got == [("CRITICAL", "hello")]
+    qgis_log.logMessage.assert_not_called()
+    fallback.assert_not_called()

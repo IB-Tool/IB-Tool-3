@@ -960,3 +960,27 @@ class TestConfigManagerChecksumRoundtrip:
             mgr = _make_manager(tmpdir)
             assert mgr.config.validation_cache.errors == "[]"
             assert mgr.config.validation_cache.warnings == "[]"
+
+
+class TestWorkerCountConfig:
+    """worker_count (Phase 4): 0 = automatic, persisted in CONFIG.ini."""
+
+    @pytest.mark.unit
+    def test_worker_count_round_trip(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.processing.worker_count = 3
+            mgr.save_config()
+            assert _make_manager(tmpdir).config.processing.worker_count == 3
+
+    @pytest.mark.unit
+    def test_worker_count_defaults_to_auto(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            assert _make_manager(tmpdir).config.processing.worker_count == 0
+
+    @pytest.mark.unit
+    def test_worker_count_in_processing_parameters(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            mgr = _make_manager(tmpdir)
+            mgr.config.processing.worker_count = 2
+            assert mgr.get_processing_parameters()["worker_count"] == 2

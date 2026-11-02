@@ -20,6 +20,7 @@ from qgis.core import QgsVectorLayer, QgsProcessing
 
 from ..helpers.logger import Logger
 from ..helpers.debug_utils import save_debug_layer
+from ..helpers.overlay_utils import symmetrical_difference
 from ..helpers.safe_processing import safe_processing_run
 
 
@@ -333,13 +334,21 @@ def _close_block_gaps(input_diss, blocks, max_hole_size, max_gap_size, crs, _dbg
     })['OUTPUT']
 
     # Symmetrical difference: result contains block areas XOR settlement areas;
-    # settlement-only areas are removed later by _gap_select based on boundary overlap
-    block_sym_diff = safe_processing_run("qgis:symmetricaldifference", {
-        'INPUT': blocks_fixed,
-        'OVERLAY': hole_closed_fixed,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-        'GRID_SIZE': TOPOLOGY_GRID_SIZE
-    }, **_dbg)['OUTPUT']
+    # settlement-only areas are removed later by _gap_select based on boundary overlap.
+    # Own implementation (identical result, overlay union computed once); falls
+    # back to the QGIS algorithm incl. its geometry-repair retries on any error.
+    try:
+        block_sym_diff = symmetrical_difference(
+            blocks_fixed, hole_closed_fixed, TOPOLOGY_GRID_SIZE)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"GapClose – fast symmetrical difference failed, using "
+                   f"qgis:symmetricaldifference: {e}", level="WARNING")
+        block_sym_diff = safe_processing_run("qgis:symmetricaldifference", {
+            'INPUT': blocks_fixed,
+            'OVERLAY': hole_closed_fixed,
+            'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
+            'GRID_SIZE': TOPOLOGY_GRID_SIZE
+        }, **_dbg)['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(block_sym_diff, _DEBUG_TOOL_NAME, "block_sym_diff", workspace_path)
 

@@ -145,16 +145,24 @@ Cross-reference of every production module, its test file, approximate test coun
 
 | Production module | Test file | ~Tests | Dominant tier | Notable gaps |
 |---|---|---|---|---|
-| `check.py` | `test_check.py` | 73 | unit | None significant |
-| `config_manager.py` | `test_config_manager.py` | 56 | unit | None significant |
-| `system_utils.py` | `test_manage_directory.py` | 22 | unit | — |
+| `check.py` | `test_check.py` | 84 | unit | None significant |
+| `config_manager.py` | `test_config_manager.py` | 73 | unit | None significant |
+| `system_utils.py` | `test_system_utils.py`, `test_manage_directory.py` | 28 + 22 | unit | — |
 | `data_loader.py` | `test_data_loader.py` | 15 | unit | Integration tests for file-loading paths |
-| `geometry_utils.py` | `test_geometry_utils.py` | 41 | unit | Processing-delegating wrappers untested (see Justified Exclusions) |
-| `safe_processing.py` | `test_safe_processing.py` | 8 | unit | — |
+| `geometry_utils.py` | `test_geometry_utils.py`, `test_nodes_detect.py` | 44 + 18 | unit | Processing-delegating wrappers untested (see Justified Exclusions) |
+| `safe_processing.py` | `test_safe_processing.py` | 11 | unit | — |
+| `processing_context.py` | `test_processing_context.py` | 15 | unit | — |
+| `overlay_utils.py` | `test_overlay_utils.py` | 13 | integration | Each function compared with its QGIS algorithm |
 | `debug_utils.py` | `test_debug_utils.py` | 14 | unit | — |
 | `mst_utils.py` | `test_mst_utils.py` | 19 | unit | — |
-| `edge_catch_utils.py` | `test_edge_catch_utils.py` | 67 | unit | — |
-| `logger.py` | `test_logger.py` | 14 | unit | — |
+| `edge_catch_utils.py`, `ortho_line_filter.py` | `test_edge_catch_utils.py` | 77 | unit | Full-rectangle equivalence only via `scripts/edge_catch_harness.py` (needs sample data) |
+| `partition_pipeline.py` | `test_partition_pipeline.py` | 5 | integration | — |
+| `partition_results.py` | `test_partition_results.py` | 21 | unit | — |
+| `run_manifest.py` | `test_run_manifest.py` | 9 | unit | — |
+| `worker_launcher.py` | `test_worker_launcher.py` | 13 | unit | Launch on non-Windows platforms (not supported yet) |
+| `worker_protocol.py` | `test_worker_protocol.py` | 10 | unit | — |
+| `worker_pool.py` | `test_worker_pool.py` | 9 | integration | Uses a fake worker (crash, error, no ready, cancel) |
+| `logger.py` | `test_logger.py` | 16 | unit | — |
 | `message.py` | `test_message.py` | 5 | unit | — |
 | `qgis_defaults.py` | `test_qgis_defaults.py` | 12 | unit | — |
 
@@ -163,13 +171,13 @@ Cross-reference of every production module, its test file, approximate test coun
 | Production module | Test file | ~Tests | Dominant tier | Notable gaps |
 |---|---|---|---|---|
 | `Blocker.py` | `test_blocker.py` | 24 | integration | Performance tests for large datasets |
-| `CreateMST.py` | `test_create_mst.py` | 12 | integration | See `ai/domain/mst-testing.md` |
-| `MST_Clustering.py` | `test_mst_clustering.py` | 25 | integration | — |
-| `FootprintDensity.py` | `test_footprint_density.py` | 11 | integration | Performance tests |
-| `ImportFilter.py` | `test_import_filter.py` | 21 | integration | — |
-| `GapClose.py` | `test_gap_close.py` | 15 | integration | — |
-| `HoleClose.py` | `test_hole_close.py` | 25 | integration | — |
-| `EdgeCatch.py` | `test_edge_catch.py` | 14 | integration | Performance cases |
+| `CreateMST.py`, `mst/` | `test_create_mst.py`, `test_mst_components.py`, `test_mst_modules.py`, `test_mst_performance_edge_cases.py` | 14 + 18 + 16 + 8 | integration | See `ai/domain/mst-testing.md` |
+| `MST_Clustering.py` | `test_mst_clustering.py` | 34 | integration | — |
+| `FootprintDensity.py` | `test_footprint_density.py` | 21 | integration | Performance tests |
+| `ImportFilter.py` | `test_import_filter.py` | 30 | integration | — |
+| `GapClose.py` | `test_gap_close.py` | 22 | integration | — |
+| `HoleClose.py` | `test_hole_close.py` | 27 | integration | — |
+| `EdgeCatch.py` | `test_edge_catch.py` | 16 | integration | Performance cases |
 | `AddSingleBuilding.py` | `test_add_single_building.py` | 8 | integration | — |
 | `PatchRemove.py` | `test_patch_remove.py` | 9 | integration | — |
 | `ErodeEmptyAreas.py` | `test_erode_empty_areas.py` | 27 | unit + integration | Performance tests |
@@ -178,18 +186,23 @@ Cross-reference of every production module, its test file, approximate test coun
 
 | Production module | Test file | ~Tests | Dominant tier | Notable gaps |
 |---|---|---|---|---|
-| `ibtool/ibtool.py` | `test_ibtool.py` | 54 | unit | Full `run()` orchestration |
-| `ibtool/ibtool_dialog.py` | `test_ibtool_dialog.py` | 68 | unit | Signal/slot wiring |
-| `__init__.py` | `test_init.py` | 1 | smoke | `classFactory()` with live `iface` |
+| `ibtool/ibtool.py` | `test_ibtool.py` | 135 | unit | Full `run()` orchestration |
+| `ibtool/ibtool_dialog.py` | `test_ibtool_dialog.py` | 152 | unit | Signal/slot wiring |
+| `ibtool/partition_worker.py` | `test_partition_worker.py` | 3 | integration | Real worker process on sample data |
+| `__init__.py` | `test_init.py` | 7 | smoke | `classFactory()` with live `iface` |
 
 ### Infrastructure / environment
 
 | File | Test file | ~Tests | Notes |
 |---|---|---|---|
-| `scripts/create_release_zip.py` | `test_create_release_zip.py` | 36 | Pure-Python unit tests; no QGIS dependency |
+| `scripts/create_release_zip.py` | `test_create_release_zip.py` | 57 | Pure-Python unit tests; no QGIS dependency |
 | (MST fixtures) | `test_fixtures_mst.py` | 0 | Helper module, not directly tested |
 | — | `test_qgis_environment.py` | 2 | Smoke: QGIS init and Processing available |
 | — | `test_translations.py` | 1 | Smoke: translation file present |
+| — | `test_encoding.py` | 1 | Regression: no broken (multi-encoded) UTF-8 characters in source files |
+| — | `test_qt_imports.py` | 1 | Guard: shipping code imports Qt via `qgis.PyQt` only |
+
+Counts as of 2026-11-02 (1,166 tests collected).
 
 ---
 

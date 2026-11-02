@@ -26,7 +26,7 @@ dissolved_settlement
     ├── [deleteholes(max_hole_size)]  → fill obvious interior rings first
     │
     ├── sym-diff with block layer     → areas in blocks but not in settlement
-    │       (GRID_SIZE=0.00001)
+    │       (GRID_SIZE=0.00001; own _symmetrical_difference(), see decision 5)
     │
     ├── multipart → singlepart
     │
@@ -128,6 +128,29 @@ closing narrow gaps inside the hole without changing the hole's overall
 extent.
 
 ---
+
+### 5. Own `_symmetrical_difference()` instead of `qgis:symmetricaldifference`
+
+`qgis:symmetricaldifference` (via `QgsOverlayUtils::difference`) unions the
+intersecting overlay features on the grid **for every input feature**. In
+`_close_block_gaps` every block intersects the same single settlement polygon,
+so the same expensive grid union (snap-rounding of the whole settlement) was
+repeated once per block: 21 s of 25 s GapClose on the largest sample partition
+(PART_64, 284 blocks, ~4,500 settlement vertices) — and, as one C++ call, a
+21 s UI freeze. `_symmetrical_difference()` re-implements the algorithm with
+`QgsGeometry` and caches the union per set of overlay features: 0.5 s, output
+**bit-identical** (WKT, order, fields, attributes; tests
+`TestSymmetricalDifference`, full runs vs. reference on QGIS 3.40 and 3.44).
+On any exception it falls back to the QGIS algorithm via `safe_processing_run`.
+
+Pitfall (found on PART_56): a grid difference can return a `GeometryCollection` (polygons plus line remnants of collapsed slivers). `QgsGeometry.convertToType()` returns a null geometry for it, which silently dropped whole blocks. `_polygon_parts()` keeps the polygon parts in order (incl. zero-area parts) exactly like the QGIS algorithm.
+
+Rejected alternatives (2026-11-01, measured on PART_64): clipping the
+settlement to each block's extent (`clipped()` or GEOS intersection with the
+bbox) is as fast but changes the result by 168,000–184,000 m²; a coarser grid
+(1 mm) is not faster; 1 cm and 10 cm make the QGIS algorithm fail ("Could not
+write feature"), and `safe_processing_run`'s last-resort retry would then
+silently drop GRID_SIZE.
 
 ## Constants Reference
 

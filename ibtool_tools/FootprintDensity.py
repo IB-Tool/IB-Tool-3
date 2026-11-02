@@ -16,8 +16,10 @@ identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
 from qgis.core import (
     QgsVectorLayer,
     QgsExpression,
+    QgsFeature,
     QgsField,
-    edit,
+    QgsFields,
+    QgsMemoryProviderUtils,
     QgsExpressionContext,
     QgsExpressionContextUtils,
 )
@@ -31,6 +33,7 @@ try:
     from ..helpers.message import msg
     from ..helpers.logger import Logger
     from ..helpers.debug_utils import save_debug_layer
+    from ..helpers.processing_context import current_processing_context
 except ImportError:
     # Fallback for test context or direct execution
 
@@ -46,6 +49,10 @@ except ImportError:
 
     def save_debug_layer(*_args, **_kwargs):
         """Fallback: no debug output outside the plugin package"""
+        return None
+
+    def current_processing_context():
+        """Fallback: no shared context, processing.run creates its own"""
         return None
 
 # ---------------------------------------------------------------------------
@@ -78,12 +85,12 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
     InputStrNetwork_Poly = processing.run("native:polygonize", {
         'INPUT': InputStrNetwork,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Create a spatial index for the polygonized street network
     processing.run("native:createspatialindex", {
         'INPUT': InputStrNetwork_Poly
-    })
+    }, context=current_processing_context())
 
     # Buffer buildings and dissolve them
     InputBdg_Buff = processing.run("native:buffer", {
@@ -95,17 +102,17 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'MITER_LIMIT': 2,
         'DISSOLVE': True,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Create a spatial index for the polygonized street network
     processing.run("native:createspatialindex", {
         'INPUT': InputBdg_Buff
-    })
+    }, context=current_processing_context())
 
     InputBdg_Buff_Line = processing.run("native:polygonstolines", {
         'INPUT': InputBdg_Buff,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # First selection based on spatial relation
     processing.run("native:selectbylocation", {
@@ -113,7 +120,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'PREDICATE': [0],  # Intersects
         'INTERSECT': InputBdg_Buff_Line,
         'METHOD': 0  # Create new selection
-    })
+    }, context=current_processing_context())
 
     # Get the IDs of the selected features
     selected_ids = InputStrNetwork_Poly.selectedFeatureIds()
@@ -129,7 +136,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         "native:saveselectedfeatures",
         {'INPUT': InputStrNetwork_Poly,
          'OUTPUT': 'TEMPORARY_OUTPUT'
-         })['OUTPUT']
+         }, context=current_processing_context())['OUTPUT']
 
     # Second selection based on the inverted selection
     BlocksInside = processing.run("native:selectbylocation", {
@@ -137,7 +144,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'PREDICATE': [0],  # Intersects
         'INTERSECT': InputBdg,
         'METHOD': 2  # Refine selection (build on the existing selection)
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Spatial join between building buffer and street polygons
     Blocks_join = processing.run("native:joinbylocationsummary", {
@@ -148,7 +155,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'SUMMARIES': [0],
         'DISCARD_NONMATCHING': False,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Dynamically find the count field created by the join
     count_field = None
@@ -168,7 +175,7 @@ def _select_block(InputStrNetwork, InputBdg, Buffer, min_bdg_count):
         'OPERATOR': 2,  # Greater than
         'VALUE': min_bdg_count,
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     return Blocks_filtered
 
@@ -201,7 +208,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
         if not Partition:
             raise ValueError("Partition layer is required for global extent.")
 
-        Merge_Dummy = None
+        inner_blocks_parts = []
 
         for feature in Partition.getFeatures():
             where_clause = f'"NAME" = \'{feature["NAME"]}\''
@@ -209,7 +216,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'INPUT': Partition,
                 'EXPRESSION': where_clause,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
             # Filter buildings and streets by partition
             SelHU = processing.run("native:extractbylocation", {
@@ -217,26 +224,27 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
                 'PREDICATE': [0],  # Intersects
                 'INTERSECT': filtered_partition,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
             SelStrassen = processing.run("native:extractbylocation", {
                 'INPUT': InputStrNetwork,
                 'PREDICATE': [0],  # Intersects
                 'INTERSECT': filtered_partition,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
-            Inner_BlocksPart = _select_block(SelStrassen, SelHU, Buffer, MinBdgCount)
+            inner_blocks_parts.append(_select_block(SelStrassen, SelHU, Buffer, MinBdgCount))
 
-            if Merge_Dummy:
-                Merge_Dummy = processing.run("native:mergevectorlayers", {
-                    'LAYERS': [Merge_Dummy, Inner_BlocksPart],
-                    'OUTPUT': 'TEMPORARY_OUTPUT'
-                })['OUTPUT']
-            else:
-                Merge_Dummy = Inner_BlocksPart
-
-        Inner_Blocks = Merge_Dummy
+        # One merge over all partitions (formerly one per partition). Feature
+        # order = partition order as before, so the float sum of the overlaps
+        # below is bit-identical.
+        if len(inner_blocks_parts) > 1:
+            Inner_Blocks = processing.run("native:mergevectorlayers", {
+                'LAYERS': inner_blocks_parts,
+                'OUTPUT': 'TEMPORARY_OUTPUT'
+            }, context=current_processing_context())['OUTPUT']
+        else:
+            Inner_Blocks = inner_blocks_parts[0] if inner_blocks_parts else None
 
     else:  # Local extent
         Inner_Blocks = _select_block(InputStrNetwork, InputBdg, Buffer, MinBdgCount)
@@ -251,7 +259,7 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
         'GROUP_FIELDS': [],
         'SORT_EXPRESSION': '',
         'OUTPUT': 'TEMPORARY_OUTPUT'
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Calculate the overlap
     result = Inner_Blocks.featureCount()
@@ -275,13 +283,95 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
 
 def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
-    """
-    Calculates the area share of small polygons within large polygons in QGIS.
+    """Area share (``OVERLAP``, percent) of the buildings within each block.
 
-    :param small_polygons_layer: Name or path of the layer with small polygons
-    :param large_polygons_layer: Name or path of the layer with large polygons
-    :param output_path: Path to the output shapefile
+    Intersects the buildings with the blocks (``native:intersection``), sums
+    the intersection areas per ``BLOCK_ID`` in feature order and returns the
+    blocks that contain building area, in block order, with the fields of
+    *Bloecke* plus ``sum_area_intersect`` and ``OVERLAP``.
+
+    The sums and the output layer are built in Python
+    (:func:`_footprint_density_python`); the former chain (one
+    ``updateFeature`` per intersection, ``native:aggregate``,
+    ``native:joinattributestable``, one ``updateFeature`` per block) took
+    ~4 s for the sample data and stays as :func:`_footprint_density_processing`
+    — fallback on any error and test reference (identical output).
+
+    :param HU_Input: Building footprint polygon layer
+    :param Bloecke: Block polygon layer with a ``BLOCK_ID`` field
+    :param footprint_density_threshold: Unused (kept for API compatibility)
+    :return: QgsVectorLayer of the blocks with ``OVERLAP``
     """
+    try:
+        return _footprint_density_python(HU_Input, Bloecke)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"footprint_density: Python-Berechnung fehlgeschlagen ({e}), "
+                   f"verwende Processing-Kette", 'WARNING')
+        return _footprint_density_processing(HU_Input, Bloecke, footprint_density_threshold)
+
+
+# Field definition of the per-block area sum, as created by the former
+# native:aggregate call (double, length 10, precision 3).
+_SUM_FIELD = ("sum_area_intersect", 10, 3)
+
+
+def _block_id_index(layer, what):
+    """Index of the ``BLOCK_ID`` field of *layer* (``ValueError`` if missing)."""
+    index = layer.fields().lookupField('BLOCK_ID')
+    if index < 0:
+        raise ValueError(f"BLOCK_ID missing in the {what}")
+    return index
+
+
+def _footprint_density_python(hu_input, blocks):
+    """Python core of :func:`footprint_density` (see there).
+
+    Reproduces the former processing chain exactly: the per-block sum adds
+    the intersection areas in the intersection's feature order (as
+    ``native:aggregate`` did), and the output keeps the block order and drops
+    blocks without building area (``joinattributestable`` with
+    ``DISCARD_NONMATCHING``).
+    """
+    intersected = processing.run("native:intersection", {
+        'INPUT': hu_input,
+        'OVERLAY': blocks,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+    }, context=current_processing_context())['OUTPUT']
+
+    key_index = _block_id_index(intersected, "intersection result")
+    sums = {}
+    for feature in intersected.getFeatures():
+        key = feature.attribute(key_index)
+        sums[key] = sums.get(key, 0.0) + feature.geometry().area()
+
+    fields = QgsFields(blocks.fields())
+    fields.append(QgsField(_SUM_FIELD[0], QMetaType.Double, "double",
+                           _SUM_FIELD[1], _SUM_FIELD[2]))
+    fields.append(QgsField("OVERLAP", QMetaType.Double))
+    layer = QgsMemoryProviderUtils.createMemoryLayer(
+        "footprint_density", fields, blocks.wkbType(), blocks.crs())
+
+    block_index = _block_id_index(blocks, "block layer")
+    out = []
+    for block in blocks.getFeatures():
+        key = block.attribute(block_index)
+        if key not in sums:
+            continue
+        total = sums[key]
+        area = block.geometry().area()
+        feature = QgsFeature(fields)
+        feature.setGeometry(block.geometry())
+        feature.setAttributes(block.attributes()
+                              + [total, (total / area) * 100 if area > 0 else 0.0])
+        out.append(feature)
+    if out and not layer.dataProvider().addFeatures(out):
+        raise RuntimeError("footprint_density: features could not be written")
+    layer.updateExtents()
+    return layer
+
+
+def _footprint_density_processing(HU_Input, Bloecke, footprint_density_threshold):  # pylint: disable=unused-argument
+    """Former processing chain of :func:`footprint_density` (fallback, test reference)."""
     # Load the input layers
     # small_layer = QgsProject.instance().mapLayersByName(small_polygons_layer)[0]
     # large_layer = QgsProject.instance().mapLayersByName(large_polygons_layer)[0]
@@ -293,7 +383,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             'INPUT': HU_Input,
             'OVERLAY': Bloecke,
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        }
+        }, context=current_processing_context()
     )
     intersected_layer = intersection_result['OUTPUT']
 
@@ -326,7 +416,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
                  'name': 'BLOCK_ID', 'precision': 0, 'sub_type': 0, 'type': 4, 'type_name': 'int8'},
             ],
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        }
+        }, context=current_processing_context()
     )['OUTPUT']
 
     # Add the area of the large polygons
@@ -342,7 +432,7 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
             'DISCARD_NONMATCHING': True,
             'PREFIX': '',
             'OUTPUT': 'TEMPORARY_OUTPUT'
-        }
+        }, context=current_processing_context()
     )['OUTPUT']
 
     # Calculate the area share
@@ -369,6 +459,30 @@ def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
     return joined_layer
 
 
+def _store_area(layer, field_name):
+    """Write ``$area`` of every feature of *layer* to *field_name*.
+
+    The expression context (global, project and layer scopes) is the same
+    for all features, so it is built once per layer — building it per
+    feature took ~1 ms each (7 s for 7,000 buildings). The values are
+    written in one provider call instead of one ``updateFeature`` per
+    feature. Results are unchanged.
+    """
+    layer.updateFields()
+    index = layer.fields().lookupField(field_name)
+    if index < 0:
+        raise ValueError(f"Field {field_name} missing in layer {layer.name()}")
+    expression = QgsExpression("$area")
+    context = QgsExpressionContext()
+    context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+    changes = {}
+    for feature in layer.getFeatures():
+        context.setFeature(feature)
+        changes[feature.id()] = {index: expression.evaluate(context)}
+    if changes and not layer.dataProvider().changeAttributeValues(changes):
+        raise RuntimeError(f"{field_name} could not be written to layer {layer.name()}")
+
+
 def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
                           debug_mode=False, workspace_path=None):
     """
@@ -391,7 +505,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
     bloecke_singlepart = processing.run(
         "native:multiparttosingleparts",
         {'INPUT': Bloecke,
-         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+         'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
 
     # Add area fields for both buildings and blocks
     bloecke_singlepart.startEditing()
@@ -405,23 +519,8 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
     HU_Input.commitChanges()
 
     # Calculate areas
-    expr_blk_area = QgsExpression("$area")
-    expr_ftprt_area = QgsExpression("$area")
-    with edit(bloecke_singlepart):
-        for feature in bloecke_singlepart.getFeatures():
-            context = QgsExpressionContext()
-            context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(bloecke_singlepart))
-            context.setFeature(feature)
-            feature["SHAPE_AREA"] = expr_blk_area.evaluate(context)
-            bloecke_singlepart.updateFeature(feature)
-
-    with edit(HU_Input):
-        for feature in HU_Input.getFeatures():
-            context = QgsExpressionContext()
-            context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(HU_Input))
-            context.setFeature(feature)
-            feature["FOOTPRINT_AREA"] = expr_ftprt_area.evaluate(context)
-            HU_Input.updateFeature(feature)
+    _store_area(bloecke_singlepart, "SHAPE_AREA")
+    _store_area(HU_Input, "FOOTPRINT_AREA")
 
     # Perform a spatial join to associate building footprints with city blocks
     dissolved_layer = processing.run(
@@ -432,7 +531,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
          'JOIN_FIELDS': ['FOOTPRINT_AREA'],
          'SUMMARIES': [5],
          'DISCARD_NONMATCHING': True,
-         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+         'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
 
     # Calculate overlap
     diss_overlap = processing.run(
@@ -443,7 +542,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
          'FIELD_LENGTH': 0,
          'FIELD_PRECISION': 0,
          'FORMULA': ' "FOOTPRINT_AREA_sum" / "SHAPE_AREA" * 100',
-         'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+         'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(diss_overlap, _DEBUG_TOOL_NAME, "block_overlap", workspace_path)
 
@@ -453,7 +552,7 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
         {
             "INPUT": diss_overlap,
             "EXPRESSION": '\"OVERLAP\" >= {}'.format(footprintdensitythreshold),
-            'OUTPUT': 'TEMPORARY_OUTPUT'})['OUTPUT']
+            'OUTPUT': 'TEMPORARY_OUTPUT'}, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(filtered_layer, _DEBUG_TOOL_NAME, "dense_blocks", workspace_path)
 

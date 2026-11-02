@@ -122,6 +122,98 @@ class TestComputeFileChecksum:
             "Directory path must return '' (open() raises OSError on directories)"
 
 
+class TestShapefileSidecarChecksum:
+    """A shapefile checksum covers its sidecar files (.shx, .dbf, .prj, .cpg, .qpj).
+
+    Attribute edits only touch the .dbf and a CRS change only the .prj; a
+    checksum of the .shp alone would not notice either (resume / validation
+    cache would trust a changed input).
+    """
+
+    @staticmethod
+    def _write_shapefile(folder, name="buildings", **sidecars):
+        shp = folder / f"{name}.shp"
+        shp.write_bytes(b"geometry bytes")
+        for ext, content in sidecars.items():
+            (folder / f"{name}.{ext}").write_bytes(content)
+        return shp
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("ext", ["shx", "dbf", "prj", "cpg", "qpj"])
+    def test_sidecar_change_changes_checksum(self, tmp_path, ext):
+        """Editing any sidecar (e.g. attributes in the .dbf) changes the checksum."""
+        sidecars = {e: b"original " + e.encode() for e in ("shx", "dbf", "prj", "cpg", "qpj")}
+        shp = self._write_shapefile(tmp_path, **sidecars)
+        before = compute_file_checksum(str(shp))
+
+        (tmp_path / f"buildings.{ext}").write_bytes(b"changed " + ext.encode())
+
+        assert compute_file_checksum(str(shp)) != before
+
+    @pytest.mark.unit
+    def test_added_sidecar_changes_checksum(self, tmp_path):
+        """Adding a missing sidecar (e.g. a .prj) changes the checksum."""
+        shp = self._write_shapefile(tmp_path, dbf=b"attributes")
+        before = compute_file_checksum(str(shp))
+
+        (tmp_path / "buildings.prj").write_bytes(b"PROJCS[...]")
+
+        assert compute_file_checksum(str(shp)) != before
+
+    @pytest.mark.unit
+    def test_same_shapefile_in_two_folders_has_same_checksum(self, tmp_path):
+        """Only content counts, not the folder or base name (moved files resume)."""
+        a, b = tmp_path / "a", tmp_path / "b"
+        a.mkdir()
+        b.mkdir()
+        shp_a = self._write_shapefile(a, name="x", dbf=b"attr", prj=b"crs")
+        shp_b = self._write_shapefile(b, name="y", dbf=b"attr", prj=b"crs")
+
+        assert compute_file_checksum(str(shp_a)) == compute_file_checksum(str(shp_b))
+
+    @pytest.mark.unit
+    def test_content_moved_between_sidecars_changes_checksum(self, tmp_path):
+        """Bytes are attributed to their sidecar (no plain concatenation)."""
+        a, b = tmp_path / "a", tmp_path / "b"
+        a.mkdir()
+        b.mkdir()
+        shp_a = self._write_shapefile(a, dbf=b"ab", prj=b"")
+        shp_b = self._write_shapefile(b, dbf=b"a", prj=b"b")
+
+        assert compute_file_checksum(str(shp_a)) != compute_file_checksum(str(shp_b))
+
+    @pytest.mark.unit
+    def test_uppercase_shapefile_extension_includes_sidecars(self, tmp_path):
+        """``.SHP`` is treated like ``.shp``."""
+        shp = tmp_path / "ROADS.SHP"
+        shp.write_bytes(b"geometry bytes")
+        dbf = tmp_path / "ROADS.dbf"
+        dbf.write_bytes(b"attributes")
+        before = compute_file_checksum(str(shp))
+
+        dbf.write_bytes(b"other attributes")
+
+        assert compute_file_checksum(str(shp)) != before
+
+    @pytest.mark.unit
+    @pytest.mark.edge_case
+    def test_missing_shp_returns_empty_string_even_with_sidecars(self, tmp_path):
+        """Without the .shp itself the checksum stays '' (file not readable)."""
+        (tmp_path / "buildings.dbf").write_bytes(b"attributes")
+
+        assert compute_file_checksum(str(tmp_path / "buildings.shp")) == ""
+
+    @pytest.mark.unit
+    def test_non_shapefile_ignores_files_with_same_base_name(self, tmp_path):
+        """A GeoPackage checksum is the plain MD5, neighbours are ignored."""
+        gpkg = tmp_path / "roads.gpkg"
+        gpkg.write_bytes(b"gpkg bytes")
+        (tmp_path / "roads.dbf").write_bytes(b"unrelated")
+
+        expected = hashlib.md5(b"gpkg bytes", usedforsecurity=False).hexdigest()  # nosec B324
+        assert compute_file_checksum(str(gpkg)) == expected
+
+
 @pytest.mark.unit
 class TestUserConfigDir:
     def test_returns_ibtool_subdir_and_creates_it(self, tmp_path):

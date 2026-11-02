@@ -26,6 +26,7 @@ Integration tests cover (input_hu_filter):
 
 import os
 import textwrap
+from unittest.mock import patch
 import pytest
 from pathlib import Path
 from qgis.core import (
@@ -43,7 +44,8 @@ from .utilities import get_qgis_app
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 from .layer_factories import make_polygon_layer
 
-from ibtool.ibtool_tools.ImportFilter import import_filter, input_hu_filter, _create_filter_string
+from ibtool.ibtool_tools.ImportFilter import (
+    import_filter, input_hu_filter, _create_filter_string, _extract_by_codes)
 
 
 # ---------------------------------------------------------------------------
@@ -403,3 +405,77 @@ class TestInputHuFilter:
         )
 
         assert result_debug.featureCount() == result_normal.featureCount()
+
+
+
+# ---------------------------------------------------------------------------
+# TestExtractByCodes — Python LIKE matching equals native:extractbyexpression
+# ---------------------------------------------------------------------------
+
+class TestExtractByCodes:
+    """_extract_by_codes must return exactly what extractbyexpression returns."""
+
+    VALUES = ["31001_1000", "31001x1000", "31001_10000", "31001_100", None, "",
+              "31001_1000 ", "Ab_c", "AbXc", "ab_c", "ABxC", "31001\n1000", "31001_1010"]
+    CODES = ["31001_1000", "Ab_c"]
+
+    def _layer(self, values, field_type=QVariant.String):
+        layer = make_polygon_layer("EPSG:25833")
+        layer.dataProvider().addAttributes([QgsField("fkt", field_type),
+                                            QgsField("other", QVariant.Int)])
+        layer.updateFields()
+        feats = []
+        for i, value in enumerate(values):
+            feat = QgsFeature(layer.fields())
+            feat.setGeometry(QgsGeometry.fromPolygonXY([[
+                QgsPointXY(i * 20, 0), QgsPointXY(i * 20 + 10, 0),
+                QgsPointXY(i * 20 + 10, 10), QgsPointXY(i * 20, 0)]]))
+            feat.setAttributes([value, i])
+            feats.append(feat)
+        layer.dataProvider().addFeatures(feats)
+        return layer
+
+    @staticmethod
+    def _full(layer):
+        return [(f.id(), tuple(f.attributes()), bytes(f.geometry().asWkb()))
+                for f in layer.getFeatures()]
+
+    def _reference(self, layer, codes):
+        from qgis import processing
+        expression = _create_filter_string([f"'{c}'" for c in codes], "fkt")
+        return processing.run("native:extractbyexpression", {
+            "INPUT": layer, "EXPRESSION": expression, "OUTPUT": "memory:"})["OUTPUT"]
+
+    @pytest.mark.integration
+    def test_same_features_as_extractbyexpression(self):
+        layer = self._layer(self.VALUES)
+        mine = _extract_by_codes(layer, self.CODES, "fkt")
+        assert self._full(mine) == self._full(self._reference(layer, self.CODES))
+        assert [f["other"] for f in mine.getFeatures()] == [0, 1, 7, 8, 11]
+
+    @pytest.mark.integration
+    def test_output_layer_matches_processing_output(self):
+        layer = self._layer(self.VALUES)
+        mine, ref = _extract_by_codes(layer, self.CODES, "fkt"), self._reference(layer, self.CODES)
+        assert [f.name() for f in mine.fields()] == [f.name() for f in ref.fields()]
+        assert mine.wkbType() == ref.wkbType() and mine.crs() == ref.crs()
+
+    @pytest.mark.integration
+    def test_fast_path_does_not_run_processing(self):
+        from ibtool.ibtool_tools import ImportFilter as module
+        layer = self._layer(self.VALUES)
+        with patch.object(module.processing, "run", side_effect=AssertionError("processing")):
+            _extract_by_codes(layer, self.CODES, "fkt")
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("codes", [["31001%"], ["310.1_1000"], ["31001\_1000"]])
+    def test_other_patterns_use_processing(self, codes):
+        layer = self._layer(self.VALUES)
+        mine = _extract_by_codes(layer, codes, "fkt")
+        assert self._full(mine) == self._full(self._reference(layer, codes))
+
+    @pytest.mark.integration
+    def test_numeric_field_uses_processing(self):
+        layer = self._layer([31001, 1000, None], QVariant.Int)
+        mine = _extract_by_codes(layer, ["31001"], "fkt")
+        assert self._full(mine) == self._full(self._reference(layer, ["31001"]))

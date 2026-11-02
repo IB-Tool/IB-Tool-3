@@ -13,11 +13,9 @@ Public API
 edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_path,
            debug_mode)
 """
-from qgis.core import QgsProcessing
-from qgis import processing
 
 from ..helpers.logger import Logger
-from ..helpers.geometry_utils import shp_area2, create_empty_layer
+from ..helpers.geometry_utils import shp_area2, create_empty_layer, merge_layers_prepending
 from ..helpers.debug_utils import save_debug_layer
 from ..helpers.edge_catch_utils import (
     filter_roads_near_buildings,
@@ -81,27 +79,22 @@ def edge_catch(grouped_bdgs, hu_input, road_network, bloecke, crs, workspace_pat
         return grouped_bdgs
 
     merge_layer = create_empty_layer("merge_layer_edge_catch", "Polygon", crs.authid())
-    polygons_merge = None
 
     shp_area2(grouped_bdgs)
+    results = []
     for feature in grouped_bdgs.getFeatures():
         result = process_single_feature(
             feature, road_network, bloecke, crs,
             debug_mode=debug_mode, workspace_path=workspace_path
         )
-        if result is None:
-            continue
+        if result is not None:
+            results.append(result)
 
-        try:
-            polygons_merge = processing.run("native:mergevectorlayers", {
-                'LAYERS': [result, merge_layer],
-                'CRS': crs,
-                'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-            })['OUTPUT']
-            merge_layer = polygons_merge
-        except Exception as e:
-            Logger.log(f"Group could not be merged - {str(e)}", level="CRITICAL")
-            continue
+    # One merge for all groups (formerly one per group, copying the growing
+    # result each time); feature order as in the former incremental merge.
+    polygons_merge = merge_layers_prepending(results, merge_layer, crs)
+    if polygons_merge is merge_layer:   # no results, or every merge failed
+        polygons_merge = None
 
     if not polygons_merge:
         Logger.log("No valid polygons produced in edge_catch", level="WARNING")

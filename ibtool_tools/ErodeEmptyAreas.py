@@ -32,6 +32,7 @@ from qgis.core import (
 from ..helpers.logger import Logger
 from ..helpers.debug_utils import save_debug_layer
 from ..helpers.safe_processing import safe_processing_run
+from ..helpers.processing_context import current_processing_context
 
 # ---------------------------------------------------------------------------
 # Debug folder name -- prefix reflects call order in the main pipeline
@@ -595,7 +596,7 @@ def erode_empty_areas(input_layer, buildings_layer,  # pylint: disable=too-many-
             'DISSOLVE': False,
             'SEPARATE_DISJOINT': False,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })['OUTPUT']
+        }, context=current_processing_context())['OUTPUT']
 
         result = safe_processing_run("native:difference", {
             'INPUT': fixed_input,

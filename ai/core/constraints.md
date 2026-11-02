@@ -29,6 +29,19 @@ When modifying existing code or documentation, apply these language rules to the
 - Processing tools must be **stateless**
 - No side effects outside the defined scope of a function
 - No modification of input parameters (input layers, feature lists)
+- **Documented exception — shared processing context** (`helpers/processing_context.py`,
+  decided 2026-11-01): the active `QgsProcessingContext` is held in a `ContextVar`,
+  scoped by `with shared_processing_context():` (one block per partition in
+  `IBTool.start_processing()`). It carries no algorithm state and does not change
+  results, only saves the per-call context setup of `processing.run()` (~24 % runtime).
+  **Every `processing.run()` call passes `context=current_processing_context()`**;
+  outside a block this is `None` and QGIS builds its own context as before.
+  The same module holds the **UI heartbeat** (`ui_heartbeat()`, set by
+  `IBTool.start_processing()`): `current_processing_context()` ticks it, so the
+  plugin window stays responsive. Long pure-Python loops in tools call
+  `heartbeat()` explicitly. Tools never call `QApplication.processEvents()`
+  themselves. `ProcessingCancelledError` derives from `BaseException` — do not
+  catch `BaseException` in tools.
 
 ## Documentation
 

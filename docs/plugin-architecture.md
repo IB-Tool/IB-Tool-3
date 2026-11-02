@@ -76,6 +76,37 @@ The main class reads user inputs from the dialog, resolves layer references, and
 
 For the full step-by-step algorithmic description, see [docs/how-it-works.md](how-it-works.md).
 
+### Partition pipeline and worker mode
+
+The per-partition steps live in one function, `helpers/partition_pipeline.run_partition()`, without UI code (progress via callbacks). It is used by both execution paths, so they compute the same:
+
+```text
+IBTool.start_processing()            QGIS main thread
+ ├─ manifest check (helpers/run_manifest.py, ibtool_run.json)
+ ├─ load inputs, global footprint density
+ ├─ resume: finish log + part files (helpers/partition_results.py)
+ ├─ _dispatch_partitions()
+ │   ├─ sequential: run_partition() in this process
+ │   └─ worker mode (Windows): helpers/worker_pool.WorkerPool
+ │        ├─ N × QProcess: <QGIS python> ibtool/partition_worker.py
+ │        │     init → ready → run/progress/log/done|error → exit
+ │        │     (JSON lines, helpers/worker_protocol.py)
+ │        └─ crashed/failed partitions → recomputed sequentially
+ ├─ each finished partition: parts/<name>.gpkg + finish line
+ └─ final merge of the part files (partition order) → output
+```
+
+| Unit | Responsibility |
+|------|----------------|
+| `helpers/worker_launcher.py` | How to start a worker on this system (`find_worker_command`, Windows only, otherwise `None` → sequential), default worker count, parent-process check |
+| `helpers/worker_protocol.py` | Line protocol between plugin and worker (prefix `IBTOOL `, JSON) |
+| `helpers/worker_pool.py` | Fixed pool of QProcess workers, signal-driven in the main thread; self-test, largest-first dispatch, cancel, crash handling |
+| `ibtool/partition_worker.py` | Worker program: initialises QGIS + Processing once, opens the inputs, runs partitions, writes part files; exits when the plugin process is gone |
+| `helpers/partition_results.py` | Part files (atomic write), finish log, resume validation, final merge, building estimates |
+| `helpers/run_manifest.py` | `ibtool_run.json`: inputs with checksums, parameters, versions; comparison for resume; settings restore |
+
+Other platforms are added by extending `find_worker_command()`; everything else is platform-independent.
+
 ---
 
 ## Package Layout

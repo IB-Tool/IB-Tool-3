@@ -867,6 +867,33 @@
            </widget>
           </item>
 
+          <item row="6" column="0">
+           <widget class="QLabel" name="labelWorkerCount">
+            <property name="text">
+             <string>Worker processes (parallel)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QSpinBox" name="WorkerCountBox">
+            <property name="toolTip">
+             <string>Number of parallel worker processes (Windows only). 0 = automatic (cores - 1, at most 4), 1 = one partition after another.</string>
+            </property>
+            <property name="specialValueText">
+             <string>Automatic</string>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>16</number>
+            </property>
+            <property name="value">
+             <number>0</number>
+            </property>
+           </widget>
+          </item>
+
          </layout>
         </widget>
        </item>

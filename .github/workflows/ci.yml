@@ -8,7 +8,15 @@ on:
 
 jobs:
   test:
+    name: test (QGIS ${{ matrix.qgis }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Supported range is 3.40–3.50 (metadata.txt). 3.40 = minimum version,
+        # 3.44 = current LTR. Note: both Linux images ship NumPy 1.26 — NumPy 2
+        # (as in QGIS 3.44 LTR on Windows/OSGeo4W) is NOT covered by this matrix.
+        qgis: ["3.40", "3.44"]
 
     steps:
       - name: Checkout repository
@@ -19,7 +27,12 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build --pull -t qgis-plugin-test .
+          docker build --pull --build-arg QGIS_VERSION=${{ matrix.qgis }} -t qgis-plugin-test .
+
+      - name: Show QGIS / NumPy versions
+        run: |
+          docker run --rm qgis-plugin-test python3 -c \
+            "import numpy, qgis.core; print('QGIS', qgis.core.Qgis.QGIS_VERSION, '| NumPy', numpy.__version__)"
 
       - name: Run tests with coverage
         id: run_tests
@@ -31,7 +44,9 @@ jobs:
             -v $(pwd):/plugins/ibtool \
             qgis-plugin-test
 
+      # Coverage is uploaded from the 3.40 job only (same code, avoids double counting)
       - name: Verify and fix coverage report
+        if: matrix.qgis == '3.40'
         run: |
           if [ ! -f coverage.xml ]; then
             echo "ERROR: coverage.xml not found after test run"
@@ -43,6 +58,7 @@ jobs:
           head -5 coverage.xml
 
       - name: Upload coverage reports to Codecov
+        if: matrix.qgis == '3.40'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

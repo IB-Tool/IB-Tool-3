@@ -78,6 +78,8 @@ class ProcessingConfig:  # pylint: disable=too-many-instance-attributes
     # Debug / run control
     debug_mode: bool = False
     delete_part_log: bool = True
+    # Parallel worker processes: 0 = automatic (cores - 1, at most 4), 1 = sequential
+    worker_count: int = 0
 
 
 @dataclass
@@ -210,6 +212,7 @@ class ConfigManager:
             self.config.processing.max_gap_size = section.getfloat('max_gap_size', 0.0)
             self.config.processing.debug_mode = section.getboolean('debug_mode', False)
             self.config.processing.delete_part_log = section.getboolean('delete_part_log', True)
+            self.config.processing.worker_count = max(0, section.getint('worker_count', 0))
 
         # Load output configuration
         if config_parser.has_section('OUTPUT'):
@@ -271,6 +274,7 @@ class ConfigManager:
             'max_gap_size': str(self.config.processing.max_gap_size),
             'debug_mode': str(self.config.processing.debug_mode),
             'delete_part_log': str(self.config.processing.delete_part_log),
+            'worker_count': str(self.config.processing.worker_count),
         }
 
         # Add output section
@@ -483,4 +487,5 @@ remember_window_size = True
             'min_patch_size': self.config.processing.min_patch_size,
             'max_hole_size': self.config.processing.max_hole_size,
             'max_gap_size': self.config.processing.max_gap_size,
+            'worker_count': self.config.processing.worker_count,
         }

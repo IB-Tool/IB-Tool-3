@@ -21,6 +21,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
+from ..helpers.processing_context import current_processing_context
 
 from .FootprintDensity import identify_dense_blocks
 from ..helpers.geometry_utils import shp_area2
@@ -94,7 +95,7 @@ def patch_remove(
     poly_single_parts = processing.run("native:multiparttosingleparts", {
         'INPUT': input_poly,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(poly_single_parts, _DEBUG_TOOL_NAME, "after_single_parts", workspace_path)
 
@@ -120,7 +121,7 @@ def patch_remove(
                 'OPERATOR': 0,
                 'VALUE': name,
                 'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-            })['OUTPUT']
+            }, context=current_processing_context())['OUTPUT']
 
             try:
                 intersect = processing.run("native:extractbylocation", {
@@ -128,7 +129,7 @@ def patch_remove(
                     'PREDICATE': [0],
                     'INTERSECT': block_sel,
                     'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-                })['OUTPUT']
+                }, context=current_processing_context())['OUTPUT']
 
                 join_count = intersect.featureCount()
                 feature['join_count'] = join_count
@@ -149,7 +150,7 @@ def patch_remove(
         'INPUT': poly_single_parts,
         'EXPRESSION': area_expression,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(poly_single_parts_sel, _DEBUG_TOOL_NAME, "after_patch_filter", workspace_path)
 
@@ -165,7 +166,7 @@ def patch_remove(
         'INPUT': dense_blocks,
         'EXPRESSION': dense_expression,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(dense_blocks_sel, _DEBUG_TOOL_NAME, "after_dense_filter", workspace_path)
 
@@ -174,7 +175,7 @@ def patch_remove(
         'LAYERS': [dense_blocks_sel, poly_single_parts_sel],
         'CRS': crs,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
     if debug_mode and workspace_path:
         save_debug_layer(merge, _DEBUG_TOOL_NAME, "after_merge", workspace_path)
 

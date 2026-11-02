@@ -91,7 +91,16 @@ max_gap_size           = 0.0       # Maximum gap size to close (m²)
 part_start             = -1        # First partition index (-1 = all)
 part_end               = -1        # Last partition index (-1 = all)
 part_list              = #         # Comma-separated list of partition IDs (# = all)
+
+# Run control
+debug_mode             = False     # Save intermediate/faulty features (Debug Mode)
+delete_part_log        = True      # Start fresh instead of resuming the working directory's run
+worker_count           = 0         # Parallel worker processes (Windows): 0 = automatic
+                                   # (physical cores - 1, at most 4), 1 = one after another
 ```
+
+`worker_count` corresponds to *Worker processes (parallel)* in the dialog. It does
+not change results and may differ between a run and its resume.
 
 ---
 

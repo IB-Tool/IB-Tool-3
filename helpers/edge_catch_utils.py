@@ -3,15 +3,23 @@ from collections import defaultdict
 from typing import List, Optional, Tuple
 
 from qgis.core import (
-    QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY,
+    Qgis, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY,
     QgsField, QgsFields, QgsWkbTypes,
-    QgsCoordinateReferenceSystem, QgsProcessing,
+    QgsCoordinateReferenceSystem, QgsMemoryProviderUtils, QgsProcessing,
 )
 from qgis.PyQt.QtCore import QMetaType
 
 from .geometry_utils import shp_area2
 from .logger import Logger
+from .ortho_line_filter import _filter_ortho_items, filter_ortho_lines
 from .debug_utils import save_debug_layer
+from .overlay_utils import (
+    extract_intersecting,
+    intersection_with,
+    make_valid_polygon,
+    polygonize_lines,
+)
+from .processing_context import heartbeat
 from .safe_processing import safe_processing_run
 
 
@@ -22,213 +30,7 @@ ROAD_SEGMENT_LENGTH = 20    # Maximum segment length for road splitting (meters)
 ROAD_BUFFER_DISTANCE = 25   # Buffer radius for building-proximity check (meters)
 LINE_EXTEND_DISTANCE = 1    # Distance by which lines are extended before polygonizing (meters)
 AREA_FILTER_FACTOR = 2      # Candidate polygons larger than source_area × factor are discarded
-
-# Filter rule thresholds
-_MAX_LINE_DISTANCE = 70         # Absolute maximum line distance (meters)
-_ANGLE_SIMILARITY = 2           # Maximum angle difference to consider lines parallel (degrees)
-_ALL_PARALLEL_THRESHOLD = 5     # Angle spread to classify all 4 lines as parallel (degrees)
-_ENDPOINT_PROXIMITY = 5         # Maximum endpoint distance for parallel-line deduplication (meters)
-_ANGLE_OUTLIER_DISTANCE_RATIO = 2.0   # Group with avg_dist > ratio × second-largest is removed
-
-
-def _group_lines_by_angle(lines: list, angle_threshold: float) -> list:
-    """Group lines with similar angles into clusters.
-
-    Lines are sorted by angle and adjacent lines whose angle difference
-    is within ``angle_threshold`` degrees are placed in the same group.
-
-    Args:
-        lines: List of line dicts, each containing an 'angle' key.
-        angle_threshold: Maximum angle difference (degrees) for grouping.
-
-    Returns:
-        List of groups, where each group is a list of line dicts.
-    """
-    if not lines:
-        return []
-    sorted_lines = sorted(lines, key=lambda x: x['angle'])
-    groups = [[sorted_lines[0]]]
-
-    for line in sorted_lines[1:]:
-        if abs(line['angle'] - groups[-1][-1]['angle']) <= angle_threshold:
-            groups[-1].append(line)
-        else:
-            groups.append([line])
-    return groups
-
-
-def _apply_rule_max_distance(line_data: list) -> list:
-    """Rule 1 — discard lines exceeding the absolute maximum distance.
-
-    Args:
-        line_data: List of line dicts with a 'distance' key.
-
-    Returns:
-        Filtered list containing only lines within ``_MAX_LINE_DISTANCE``.
-    """
-    return [line for line in line_data if line['distance'] < _MAX_LINE_DISTANCE]
-
-
-def _apply_rule_endpoint_in_rectangle(
-    filtered: list, min_lines_to_keep: int
-) -> list:
-    """Rule 2 — remove lines whose endpoint falls inside the bounding rectangle
-    of all start points (i.e., they point back into the building).
-
-    Args:
-        filtered: Current filtered line list.
-        min_lines_to_keep: Minimum number of lines to retain.
-
-    Returns:
-        Filtered list after applying the rectangle rule.
-    """
-    def _point_in_rectangle(point: Tuple[float, float],
-                            corners: List[Tuple[float, float]]) -> bool:
-        x, y = point
-        min_x = min(c[0] for c in corners)
-        max_x = max(c[0] for c in corners)
-        min_y = min(c[1] for c in corners)
-        max_y = max(c[1] for c in corners)
-        tolerance = 0.001
-        return (min_x - tolerance <= x <= max_x + tolerance
-                and min_y - tolerance <= y <= max_y + tolerance)
-
-    start_points = [(line['x1'], line['y1']) for line in filtered]
-    lines_to_keep = []
-    lines_removed = []
-
-    for line in filtered:
-        end_point = (line['x2'], line['y2'])
-        if _point_in_rectangle(end_point, start_points):
-            lines_removed.append(line)
-        else:
-            lines_to_keep.append(line)
-
-    if len(lines_to_keep) >= min_lines_to_keep:
-        return lines_to_keep
-
-    lines_removed.sort(key=lambda x: x['distance'])
-    needed = min_lines_to_keep - len(lines_to_keep)
-    return lines_to_keep + lines_removed[:needed]
-
-
-def _apply_rule_parallel_close_endpoints(
-    filtered: list, min_lines_to_keep: int
-) -> list:
-    """Rule 3a — for parallel line pairs with nearby endpoints, keep the shorter.
-
-    Compares all pairs. If two lines have nearly the same angle (or opposite
-    directions) and their endpoints are within ``_ENDPOINT_PROXIMITY`` meters,
-    the longer one is removed.
-
-    Args:
-        filtered: Current filtered line list.
-        min_lines_to_keep: Minimum number of lines to retain.
-
-    Returns:
-        Filtered list after applying the parallel/endpoint rule.
-    """
-    lines_to_remove = set()
-
-    for i in range(len(filtered)):
-        for j in range(i + 1, len(filtered)):
-            line1 = filtered[i]
-            line2 = filtered[j]
-
-            angle_diff = abs(line1['angle'] - line2['angle'])
-            if angle_diff > 180:
-                angle_diff = 360 - angle_diff
-
-            opposite_angle_diff = abs(abs(line1['angle'] - line2['angle']) - 180)
-            if opposite_angle_diff > 180:
-                opposite_angle_diff = 360 - opposite_angle_diff
-
-            final_angle_diff = min(angle_diff, opposite_angle_diff)
-
-            if final_angle_diff <= _ANGLE_SIMILARITY:
-                endpoint_dist = math.sqrt(
-                    (line1['x2'] - line2['x2']) ** 2
-                    + (line1['y2'] - line2['y2']) ** 2
-                )
-
-                if endpoint_dist <= _ENDPOINT_PROXIMITY:
-                    if line1['distance'] > line2['distance']:
-                        lines_to_remove.add(i)
-                    else:
-                        lines_to_remove.add(j)
-
-    if lines_to_remove and len(filtered) - len(lines_to_remove) >= min_lines_to_keep:
-        return [line for idx, line in enumerate(filtered) if idx not in lines_to_remove]
-    return filtered
-
-
-def _apply_rule_all_parallel(filtered: list) -> Optional[list]:
-    """Rule 3b — if all 4 lines are parallel, keep only the 2 shortest.
-
-    Only applies when exactly 4 lines remain.
-
-    Args:
-        filtered: Current filtered line list (must have exactly 4 entries).
-
-    Returns:
-        The 2 shortest lines if all 4 are parallel, otherwise None (rule not
-        applicable).
-    """
-    if len(filtered) != 4:
-        return None
-
-    angles = [line['angle'] for line in filtered]
-    normalized_angles = [angle % 180 for angle in angles]
-    if max(normalized_angles) - min(normalized_angles) <= _ALL_PARALLEL_THRESHOLD:
-        filtered.sort(key=lambda x: x['distance'])
-        return filtered[:2]
-
-    return None
-
-
-def _apply_rule_angle_outliers(filtered: list, min_lines_to_keep: int) -> list:
-    """Rule 4 — remove the angle group with the largest average distance.
-
-    Requires at least 3 angle groups. The group whose average distance is more
-    than ``_ANGLE_OUTLIER_DISTANCE_RATIO`` times the second-largest average
-    is discarded, provided enough lines remain afterward.
-
-    Args:
-        filtered: Current filtered line list.
-        min_lines_to_keep: Minimum number of lines to retain.
-
-    Returns:
-        Filtered list after applying the angle-outlier rule.
-    """
-    if len(filtered) <= 2:
-        return filtered
-
-    grouped_angle = _group_lines_by_angle(filtered, _ANGLE_SIMILARITY)
-
-    if len(grouped_angle) <= 1:
-        return filtered
-
-    group_stats = []
-    for i, group in enumerate(grouped_angle):
-        avg_distance = sum(line['distance'] for line in group) / len(group)
-        group_stats.append((i, avg_distance, group))
-
-    group_stats.sort(key=lambda x: x[1], reverse=True)
-
-    max_distance = group_stats[0][1]
-    second_max_distance = group_stats[1][1] if len(group_stats) > 1 else 0
-
-    remaining_lines = sum(len(group) for _, _, group in group_stats[1:])
-
-    if (remaining_lines >= min_lines_to_keep
-            and max_distance > _ANGLE_OUTLIER_DISTANCE_RATIO * second_max_distance
-            and len(grouped_angle) >= 3):
-        result = []
-        for _, _, group in group_stats[1:]:
-            result.extend(group)
-        return result
-
-    return filtered
+ROAD_BLOCK_TOLERANCE = 0.1  # Roads within this distance of a block count as its roads (meters)
 
 
 def create_shortest_lines_to_roads(
@@ -286,191 +88,72 @@ def create_shortest_lines_to_roads(
     temp_layer.updateFields()
 
     new_features = []
+    for line_geom, attributes in _shortest_connections(
+            [(f.id(), f.geometry()) for f in point_layer.getFeatures()],
+            [(f.id(), f.geometry()) for f in line_layer.getFeatures()]):
+        feature = QgsFeature()
+        feature.setGeometry(line_geom)
+        feature.setAttributes(attributes)
+        new_features.append(feature)
+    temp_layer_data.addFeatures(new_features)
+    return temp_layer
+
+
+def _shortest_connections(points: list, lines: list) -> list:
+    """Core of :func:`create_shortest_lines_to_roads` on plain lists.
+
+    Args:
+        points: ``(point_id, point geometry)`` in order.
+        lines: ``(line_id, line geometry)`` in order; on equal distance the
+            first line wins.
+
+    Returns:
+        List of ``(connection line geometry, attributes)`` with attributes
+        ``[x1, y1, x2, y2, angle, distance, point_id, line_id]``.
+    """
+    result = []
     error_count = 0
-    processed_count = 0
-
-    line_features = list(line_layer.getFeatures())
-
-    for point_feat in point_layer.getFeatures():
-        point_geom = point_feat.geometry()
-
+    for point_id, point_geom in points:
         if point_geom.isNull() or point_geom.isEmpty():
             error_count += 1
-            Logger.log(
-                f"Point feature {point_feat.id()} has no valid geometry.",
-                level="WARNING",
-            )
+            Logger.log(f"Point feature {point_id} has no valid geometry.", level="WARNING")
             continue
 
         point = point_geom.asPoint()
-
         min_distance = float('inf')
         closest_point = None
         closest_line_id = None
 
-        for line_feat in line_features:
-            line_geom = line_feat.geometry()
-
+        for line_id, line_geom in lines:
             if line_geom.isNull() or line_geom.isEmpty():
                 continue
-
             closest_point_on_line = line_geom.nearestPoint(point_geom)
-
             if not closest_point_on_line.isNull():
                 distance = point_geom.distance(closest_point_on_line)
-
                 if distance < min_distance:
                     min_distance = distance
                     closest_point = closest_point_on_line.asPoint()
-                    closest_line_id = line_feat.id()
+                    closest_line_id = line_id
 
         if closest_point:
-            line_geom = QgsGeometry.fromPolylineXY([point, closest_point])
-
             dx = closest_point.x() - point.x()
             dy = closest_point.y() - point.y()
             angle_deg = math.degrees(math.atan2(dy, dx))
             if angle_deg < 0:
                 angle_deg += 360
-
-            feature = QgsFeature()
-            feature.setGeometry(line_geom)
-            feature.setAttributes([
-                point.x(),
-                point.y(),
-                closest_point.x(),
-                closest_point.y(),
-                angle_deg,
-                min_distance,
-                point_feat.id(),
-                closest_line_id,
-            ])
-
-            new_features.append(feature)
-            processed_count += 1
+            result.append((QgsGeometry.fromPolylineXY([point, closest_point]),
+                           [point.x(), point.y(), closest_point.x(), closest_point.y(),
+                            angle_deg, min_distance, point_id, closest_line_id]))
         else:
             error_count += 1
-            Logger.log(
-                f"No nearest line found for point {point_feat.id()}.",
-                level="WARNING",
-            )
-
-    temp_layer_data.addFeatures(new_features)
+            Logger.log(f"No nearest line found for point {point_id}.", level="WARNING")
 
     if error_count > 0:
         Logger.log(
-            f"Created {processed_count} connection lines. {error_count} features could not be processed (see log).",
+            f"Created {len(result)} connection lines. {error_count} features could not be processed (see log).",
             level="WARNING",
         )
-
-    return temp_layer
-
-
-def filter_ortho_lines(
-    hu_ortho: QgsVectorLayer,
-    min_lines_to_keep: int = 2,
-) -> QgsVectorLayer:
-    """Filter orthogonal projection lines by applying sequential filter rules.
-
-    Groups lines from the same building (in groups of 4) and applies
-    ``apply_filter_rules`` to each group.
-
-    Args:
-        hu_ortho: QgsVectorLayer containing orthogonal projection lines.
-        min_lines_to_keep: Minimum number of lines to keep per group.
-
-    Returns:
-        QgsVectorLayer containing the filtered orthogonal lines.
-    """
-    filtered_layer = QgsVectorLayer(
-        f"LineString?crs={hu_ortho.crs().authid()}",
-        "filtered_ortho_lines",
-        "memory"
-    )
-
-    provider = filtered_layer.dataProvider()
-    provider.addAttributes(hu_ortho.fields())
-    filtered_layer.updateFields()
-
-    all_lines = list(hu_ortho.getFeatures())
-    features_to_add = []
-
-    for i in range(0, len(all_lines), 4):
-        group = all_lines[i:min(i + 4, len(all_lines))]
-
-        if len(group) <= min_lines_to_keep:
-            features_to_add.extend(group)
-            continue
-
-        line_data = []
-        for line in group:
-            line_data.append({
-                'feature': line,
-                'distance': float(line['distance']),
-                'angle': float(line['angle']),
-                'x1': float(line['x1']),
-                'y1': float(line['y1']),
-                'x2': float(line['x2']),
-                'y2': float(line['y2'])
-            })
-
-        filtered_lines = apply_filter_rules(line_data, min_lines_to_keep)
-
-        for line_info in filtered_lines:
-            features_to_add.append(line_info['feature'])
-
-    if features_to_add:
-        provider.addFeatures(features_to_add)
-
-    filtered_layer.updateExtents()
-
-    return filtered_layer
-
-
-def apply_filter_rules(line_data: list, min_lines_to_keep: int) -> list:
-    """Apply sequential filter rules to a group of orthogonal projection lines.
-
-    Rules are applied in order; each rule may reduce the set. Processing stops
-    early if the minimum number of lines is reached.
-
-    Rule 1 — Absolute maximum distance (``_MAX_LINE_DISTANCE``).
-    Rule 2 — Remove lines whose endpoint falls inside the start-point rectangle.
-    Rule 3a — Remove the longer of two parallel lines with nearby endpoints.
-    Rule 3b — If all 4 lines are parallel, keep only the 2 shortest.
-    Rule 4 — Remove the angle group with the largest average distance.
-
-    Args:
-        line_data: List of line dicts with keys: distance, angle, x1, y1, x2, y2,
-            feature.
-        min_lines_to_keep: Minimum number of lines to retain.
-
-    Returns:
-        Filtered list of line dicts.
-    """
-    # Rule 1: Absolute maximum distance
-    filtered = _apply_rule_max_distance(line_data)
-    if not filtered or len(filtered) <= min_lines_to_keep:
-        return filtered
-
-    # Rule 2: Endpoint inside start-point rectangle
-    filtered = _apply_rule_endpoint_in_rectangle(filtered, min_lines_to_keep)
-    if len(filtered) <= min_lines_to_keep:
-        return filtered
-
-    # Rule 3a: Parallel lines with nearby endpoints — keep the shorter
-    filtered = _apply_rule_parallel_close_endpoints(filtered, min_lines_to_keep)
-    if len(filtered) <= min_lines_to_keep:
-        return filtered
-
-    # Rule 3b: All 4 lines parallel — keep only 2 shortest
-    result_3b = _apply_rule_all_parallel(filtered)
-    if result_3b is not None:
-        return result_3b
-
-    # Rule 4: Remove angle-group outlier with largest average distance
-    filtered = _apply_rule_angle_outliers(filtered, min_lines_to_keep)
-
-    return filtered
+    return result
 
 
 def project_point_to_line(
@@ -685,10 +368,35 @@ def _build_minimized_lines_from_selection(
     if road_network_sel.featureCount() == 0:
         return road_network_sel
 
+    chains = _minimized_chains(road_network_sel.getFeatures())
+    if chains is None:
+        return road_network_sel
+
+    result_layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "road_network_reduced", "memory")
+    result_provider = result_layer.dataProvider()
+    result_provider.addAttributes([QgsField("src_count", QMetaType.Int)])
+    result_layer.updateFields()
+    features_to_add = []
+    for chain in chains:
+        new_feature = QgsFeature(result_layer.fields())
+        new_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in chain]))
+        new_feature["src_count"] = len(chain) - 1
+        features_to_add.append(new_feature)
+    result_provider.addFeatures(features_to_add)
+    return result_layer
+
+
+def _minimized_chains(features) -> Optional[list]:
+    """Core of :func:`_build_minimized_lines_from_selection` on an iterable of features.
+
+    Returns:
+        List of node chains (lists of ``(x, y)``) in output order, or ``None``
+        if no usable segment exists (the caller then keeps the input lines).
+    """
     unique_segments = {}
     adjacency = defaultdict(set)
 
-    for feature in road_network_sel.getFeatures():
+    for feature in features:
         geometry = feature.geometry()
         if not geometry or geometry.isEmpty():
             continue
@@ -713,13 +421,9 @@ def _build_minimized_lines_from_selection(
                 adjacency[end_key].add(start_key)
 
     if not unique_segments:
-        return road_network_sel
+        return None
 
     visited_segments = set()
-    result_layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "road_network_reduced", "memory")
-    result_provider = result_layer.dataProvider()
-    result_provider.addAttributes([QgsField("src_count", QMetaType.Int)])
-    result_layer.updateFields()
 
     def _traverse_chain(start_node, next_node):
         """Follow a chain of degree-2 nodes from start_node through next_node."""
@@ -747,7 +451,7 @@ def _build_minimized_lines_from_selection(
     if not start_nodes:
         start_nodes = [next(iter(adjacency.keys()))]
 
-    features_to_add = []
+    chains = []
     for start_node in start_nodes:
         for neighbor in adjacency[start_node]:
             segment = tuple(sorted([start_node, neighbor]))
@@ -757,11 +461,7 @@ def _build_minimized_lines_from_selection(
             chain = _traverse_chain(start_node, neighbor)
             for a, b in zip(chain[:-1], chain[1:]):
                 visited_segments.add(tuple(sorted([a, b])))
-
-            new_feature = QgsFeature(result_layer.fields())
-            new_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in chain]))
-            new_feature["src_count"] = len(chain) - 1
-            features_to_add.append(new_feature)
+            chains.append(chain)
 
     # Handle closed rings that have no start/end node with degree != 2
     for segment in unique_segments:
@@ -771,14 +471,9 @@ def _build_minimized_lines_from_selection(
         chain = _traverse_chain(start_node, next_node)
         for a, b in zip(chain[:-1], chain[1:]):
             visited_segments.add(tuple(sorted([a, b])))
+        chains.append(chain)
 
-        new_feature = QgsFeature(result_layer.fields())
-        new_feature.setGeometry(QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in chain]))
-        new_feature["src_count"] = len(chain) - 1
-        features_to_add.append(new_feature)
-
-    result_provider.addFeatures(features_to_add)
-    return result_layer
+    return chains
 
 
 def filter_roads_near_buildings(
@@ -855,17 +550,76 @@ def filter_roads_near_buildings(
     if not near_bdg_seg_ids:
         return road_segs_buf_near_bdgs
 
-    id_list = ", ".join(str(sid) for sid in near_bdg_seg_ids)
-    road_segs_near_bdgs = safe_processing_run("native:extractbyexpression", {
-        'INPUT': road_segs,
-        'EXPRESSION': f'"seg_id" IN ({id_list})',
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    }, **_dbg)['OUTPUT']
+    # Same result as native:extractbyexpression '"seg_id" IN (...)' (segments
+    # in source order, new ids 1..n), but a set lookup instead of evaluating an
+    # IN list of thousands of ids per segment (3 s on the largest sample partition).
+    road_segs_near_bdgs = _copy_features_where(
+        road_segs, lambda f: f['seg_id'] in near_bdg_seg_ids, "road_segs_near_bdgs")
 
     if debug_mode and workspace_path:
         save_debug_layer(road_segs_near_bdgs, DEBUG_TOOL_NAME, "road_segs_near_buildings", workspace_path)
 
     return road_segs_near_bdgs
+
+
+def _copy_features_where(layer: QgsVectorLayer, keep, name: str) -> QgsVectorLayer:
+    """Memory copy of the features of *layer* for which ``keep(feature)`` is true.
+
+    Keeps source order, fields, geometry type and CRS; the copies get new ids
+    1..n like a processing ``TEMPORARY_OUTPUT``.
+    """
+    out = QgsMemoryProviderUtils.createMemoryLayer(name, layer.fields(), layer.wkbType(),
+                                                   layer.crs())
+    kept = [f for f in layer.getFeatures() if keep(f)]
+    if kept and not out.dataProvider().addFeatures(kept):
+        raise RuntimeError(f"{name}: features could not be written")
+    out.updateExtents()
+    return out
+
+
+def select_roads_near_blocks(
+    road_network: QgsVectorLayer,
+    blocks: QgsVectorLayer,
+    dbg: Optional[dict] = None,
+) -> QgsVectorLayer:
+    """Select the road segments of the given blocks, with a small tolerance.
+
+    A road counts as a road of the block if it lies within
+    ``ROAD_BLOCK_TOLERANCE`` of the block. Block vertices come from
+    polygonize/noding and carry floating-point noise (< 1e-9 m), so an exact
+    ``intersects`` test flips for roads that end on the block boundary. The
+    blocks are buffered by the tolerance for the selection only; the
+    clipping to the block later in ``process_single_feature`` stays exact.
+
+    ``native:extractbylocation`` with ``intersects`` keeps the input order,
+    which matters because ``_build_minimized_lines_from_selection`` chains
+    segments in iteration order.
+
+    Args:
+        road_network: Road segment line layer.
+        blocks: Block polygon layer (usually the blocks touched by one rectangle).
+        dbg: Optional debug kwargs for ``safe_processing_run``.
+
+    Returns:
+        QgsVectorLayer with the selected road segments in input order.
+    """
+    dbg = dbg or {}
+    blocks_buffered = safe_processing_run("native:buffer", {
+        'INPUT': blocks,
+        'DISTANCE': ROAD_BLOCK_TOLERANCE,
+        'SEGMENTS': 5,
+        'END_CAP_STYLE': 0,
+        'JOIN_STYLE': 0,
+        'MITER_LIMIT': 2,
+        'DISSOLVE': False,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **dbg)['OUTPUT']
+    return safe_processing_run("native:extractbylocation", {
+        'INPUT': road_network,
+        'PREDICATE': [0],  # intersects
+        'INTERSECT': blocks_buffered,
+        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
+    }, **dbg)['OUTPUT']
 
 
 def process_single_feature(
@@ -895,13 +649,138 @@ def process_single_feature(
     Returns:
         QgsVectorLayer with candidate polygons, or None if the feature is skipped.
     """
-    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name=DEBUG_TOOL_NAME)
-
     fid = feature.id()
     area = feature['Area']
-    if area is None or area == 0:
+    # A missing value is None or a NULL QVariant, depending on QGIS version and
+    # data provider (shp_area2 leaves Area empty for invalid geometries)
+    if area is None or (hasattr(area, "isNull") and area.isNull()) or area == 0:
         Logger.log(f"Feature {fid}: Area is None or 0, skipping", level="WARNING")
         return None
+
+    heartbeat()   # keep the QGIS UI responsive (no processing.run on the fast path)
+    try:
+        return _process_single_feature_geometry(feature, area, road_network, bloecke, crs)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"Feature {fid}: geometry-based EdgeCatch failed ({e}); "
+                   f"using the processing algorithms", level="WARNING")
+        return _process_single_feature_processing(
+            feature, area, road_network, bloecke, crs, debug_mode, workspace_path)
+
+
+def _outline_points(fixed: QgsGeometry) -> list:
+    """``native:extractvertices`` + ``delete_first_point``: ring vertices without the first."""
+    points = [QgsGeometry.fromPointXY(QgsPointXY(v.x(), v.y())) for v in fixed.vertices()]
+    return points[1:] if len(points) > 1 else points
+
+
+def _outline_segments(fixed: QgsGeometry) -> list:
+    """``native:polygonstolines`` + ``native:explodelines``: every ring segment in order."""
+    segments = []
+    for polygon in fixed.asGeometryCollection():
+        for ring in polygon.asPolygon():
+            for start, end in zip(ring[:-1], ring[1:]):
+                segments.append(QgsGeometry.fromPolylineXY([start, end]))
+    return segments
+
+
+def _process_single_feature_geometry(
+    feature: QgsFeature,
+    area: float,
+    road_network: QgsVectorLayer,
+    bloecke: QgsVectorLayer,
+    crs: QgsCoordinateReferenceSystem,
+) -> Optional[QgsVectorLayer]:
+    """Geometry-based implementation of :func:`process_single_feature`.
+
+    Same steps as the processing version, each replaced by its QgsGeometry
+    equivalent from ``overlay_utils`` (verified per step on 1,926 sample
+    rectangles: identical features; see ``scripts/edge_catch_harness.py``).
+    Avoids ~16 processing calls per rectangle (≈4 ms overhead each).
+
+    Raises:
+        GeometryOperationError: if a GEOS operation fails (caller falls back).
+    """
+    fixed = make_valid_polygon(feature.geometry())
+    if fixed is None:
+        raise ValueError("rectangle geometry could not be repaired")
+    outline_points = _outline_points(fixed)
+
+    # blocks touched by the rectangle's vertices, roads of these blocks (10 cm tolerance)
+    block_features = extract_intersecting(bloecke, outline_points)
+    block_buffers = [
+        f.geometry().buffer(ROAD_BLOCK_TOLERANCE, 5, Qgis.EndCapStyle.Round, Qgis.JoinStyle.Round, 2)
+        for f in block_features
+    ]
+    selected_roads = extract_intersecting(road_network, block_buffers)
+    chains = _minimized_chains(selected_roads) if selected_roads else None
+    if chains is None:      # no usable segment: the selected road lines are used as they are
+        road_lines = [f.geometry() for f in selected_roads]
+    else:
+        road_lines = [QgsGeometry.fromPolylineXY([QgsPointXY(x, y) for x, y in chain])
+                      for chain in chains]
+
+    # memory-layer feature IDs start at 1 → same point_id / line_id as the layer version
+    connections = _shortest_connections(list(enumerate(outline_points, start=1)),
+                                        list(enumerate(road_lines, start=1)))
+    ortho_lines = _filter_ortho_items(connections)     # kept connection line geometries
+
+    lines = road_lines + ortho_lines + _outline_segments(fixed)
+    polygons = polygonize_lines(lines, LINE_EXTEND_DISTANCE)
+
+    # polygons touching the rectangle (extractbylocation with one intersect geometry)
+    engine = QgsGeometry.createGeometryEngine(fixed.constGet())
+    engine.prepareGeometry()
+    rect_bbox = fixed.boundingBox()
+    polygons_in_feature = [p for p in polygons
+                           if p.boundingBox().intersects(rect_bbox) and engine.intersects(p.constGet())]
+
+    # clip to the blocks, repair, keep pieces smaller than AREA_FILTER_FACTOR × rectangle
+    fields = QgsFields(bloecke.fields())
+    existing = {f.name().lower(): i for i, f in enumerate(fields)}
+    if "area" in existing:          # shp_area2 writes into an existing (case-insensitive) field
+        area_index = existing["area"]
+    else:
+        fields.append(QgsField("Area", QMetaType.Double))
+        area_index = fields.count() - 1
+    result = QgsVectorLayer(f"MultiPolygon?crs={crs.authid()}", "polygons_small", "memory")
+    result.dataProvider().addAttributes(fields.toList())
+    result.updateFields()
+
+    out_features = []
+    max_area = area * AREA_FILTER_FACTOR
+    for polygon in polygons_in_feature:
+        for piece, block in intersection_with(polygon, block_features):
+            piece = make_valid_polygon(piece)
+            if piece is None or not piece.isGeosValid():
+                continue        # shp_area2 leaves Area NULL → excluded by the area filter
+            piece_area = piece.area()
+            if not piece_area < max_area:
+                continue
+            attributes = list(block.attributes())
+            if area_index < len(attributes):
+                attributes[area_index] = piece_area
+            else:
+                attributes.append(piece_area)
+            out = QgsFeature(result.fields())
+            out.setGeometry(piece)
+            out.setAttributes(attributes)
+            out_features.append(out)
+    result.dataProvider().addFeatures(out_features)
+    return result
+
+
+def _process_single_feature_processing(
+    feature: QgsFeature,
+    area: float,
+    road_network: QgsVectorLayer,
+    bloecke: QgsVectorLayer,
+    crs: QgsCoordinateReferenceSystem,
+    debug_mode: bool = False,
+    workspace_path: Optional[str] = None,
+) -> Optional[QgsVectorLayer]:
+    """Original processing-based implementation (fallback of :func:`process_single_feature`)."""
+    _dbg = dict(debug_mode=debug_mode, workspace_path=workspace_path, tool_name=DEBUG_TOOL_NAME)
+    fid = feature.id()
 
     temp_layer = QgsVectorLayer(f"Polygon?crs={crs.authid()}", f"temp_feature_{fid}", "memory")
     temp_layer.dataProvider().addFeatures([QgsFeature(feature)])
@@ -923,12 +802,7 @@ def process_single_feature(
         'INTERSECT': outline_points,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
     }, **_dbg)['OUTPUT']
-    road_network_sel = safe_processing_run("native:extractbylocation", {
-        'INPUT': road_network,
-        'PREDICATE': [0],  # intersects
-        'INTERSECT': block_sel,
-        'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-    }, **_dbg)['OUTPUT']
+    road_network_sel = select_roads_near_blocks(road_network, block_sel, _dbg)
     road_network_sel = _build_minimized_lines_from_selection(road_network_sel, crs)
 
     hu_ortho = create_shortest_lines_to_roads(outline_points, road_network_sel)

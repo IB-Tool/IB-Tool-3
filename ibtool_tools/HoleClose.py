@@ -10,6 +10,7 @@ hole_close(input_layer, max_hole_size, debug_mode, workspace_path)
 """
 from qgis.core import QgsProcessing, QgsVectorLayer
 from qgis import processing
+from ..helpers.processing_context import current_processing_context
 
 from ..helpers.geometry_utils import shp_area2, get_hole_polygons
 from ..helpers.debug_utils import save_debug_layer
@@ -57,7 +58,7 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float,
         'FIELD': [],
         'SEPARATE_DISJOINT': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
     debug = debug_mode and workspace_path
     if debug:
         save_debug_layer(input_layer_diss, _DEBUG_TOOL_NAME, "after_dissolve", workspace_path)
@@ -65,13 +66,13 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float,
     input_diss_line = processing.run("native:polygonstolines", {
         'INPUT': input_layer_diss,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     lines_poly = processing.run("native:polygonize", {
         'INPUT': input_diss_line,
         'KEEP_FIELDS': False,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Identify holes (polygons inside the dissolved outline but not part of it)
     holes = get_hole_polygons(lines_poly, input_layer_diss)
@@ -87,7 +88,7 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float,
         'OPERATOR': _OPERATOR_LESS_THAN_OR_EQUAL,
         'VALUE': max_hole_size,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     if debug:
         save_debug_layer(holes_filtered, _DEBUG_TOOL_NAME, "holes_filtered", workspace_path)
@@ -97,13 +98,13 @@ def hole_close(input_layer: QgsVectorLayer, max_hole_size: float,
         "LAYERS": [holes_filtered, input_layer_diss],
         "CRS": input_layer.crs().authid(),
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     # Dissolve the merged result to produce the final closed polygon
     dissolved_result = processing.run("qgis:dissolve", {
         "INPUT": merged_result,
         'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT,
-    })['OUTPUT']
+    }, context=current_processing_context())['OUTPUT']
 
     if debug:
         save_debug_layer(dissolved_result, _DEBUG_TOOL_NAME, "result", workspace_path)

@@ -34,6 +34,7 @@ Unit tests cover (no Processing or real iface operations):
 # pylint: disable=too-many-lines,protected-access,import-outside-toplevel,wrong-import-order
 
 import atexit
+import json
 import os
 import shutil
 import tempfile
@@ -1583,15 +1584,18 @@ class TestUpdatePhase:
 
     @pytest.mark.integration
     def test_every_phase_name_has_german_translation(self):
-        """Every phase name passed to _update_phase in ibtool.py is translated
-        by the compiled i18n/IBTool_de.qm (context IBTool)."""
+        """Every phase name shown in the dialog is translated by the compiled
+        i18n/IBTool_de.qm (context IBTool): the names passed literally to
+        _update_phase in ibtool.py plus the partition phases of
+        helpers/partition_pipeline.PHASES."""
         import re
         from pathlib import Path
         from qgis.PyQt.QtCore import QTranslator
+        from ibtool.helpers.partition_pipeline import PHASES
 
         root = Path(__file__).resolve().parent.parent
         source = (root / "ibtool" / "ibtool.py").read_text(encoding="utf-8")
-        names = set(re.findall(r'_update_phase\(\d+, \d+, "([^"]+)"', source))
+        names = set(re.findall(r'_update_phase\(\d+, \d+, "([^"]+)"', source)) | set(PHASES.values())
         assert len(names) == 9, names
 
         translator = QTranslator()
@@ -1754,10 +1758,10 @@ class TestRunPartitionPipeline:
         sel_hu = MagicMock()
         sel_hu.featureCount.return_value = 5
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    return_value=sel_hu), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase"):
             mock_proc.run.return_value = {"OUTPUT": MagicMock()}
             result, anz_hu = self._call(layers)
@@ -1773,10 +1777,10 @@ class TestRunPartitionPipeline:
         sel_hu = MagicMock()
         sel_hu.featureCount.return_value = 0
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    return_value=sel_hu), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase"):
             mock_proc.run.return_value = {"OUTPUT": MagicMock()}
             result, anz_hu = self._call(layers)
@@ -1796,21 +1800,21 @@ class TestRunPartitionPipeline:
         generic = MagicMock()
         expected = MagicMock()
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    side_effect=[sel_hu, sel_roads, generic, generic]), \
-             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
-             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.erode_empty_areas", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.patch_remove", return_value=expected), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.helpers.partition_pipeline.blocker", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.input_hu_filter", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.calculate_mst", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.mst_clustering", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.add_single_bdg", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.edge_catch", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.erode_empty_areas", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.gap_close", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.patch_remove", return_value=expected), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase"):
             mock_proc.run.return_value = {"OUTPUT": generic}
             result, anz_hu = self._call(layers)
@@ -1833,15 +1837,15 @@ class TestRunPartitionPipeline:
         sel_roads.featureCount.return_value = 20
         generic = MagicMock()
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    side_effect=[sel_hu, sel_roads, generic, generic]), \
-             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
-             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=None), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.helpers.partition_pipeline.blocker", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.input_hu_filter", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.calculate_mst", return_value=None), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase"):
             mock_proc.run.return_value = {"OUTPUT": generic}
             result, anz_hu = self._call(layers)
@@ -1864,21 +1868,21 @@ class TestRunPartitionPipeline:
         generic = MagicMock()
         expected = MagicMock()
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    side_effect=[sel_hu, sel_roads, generic, generic]), \
-             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
-             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.erode_empty_areas", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.patch_remove", return_value=expected), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.helpers.partition_pipeline.blocker", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.input_hu_filter", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.calculate_mst", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.mst_clustering", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.add_single_bdg", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.edge_catch", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.erode_empty_areas", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.gap_close", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.patch_remove", return_value=expected), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase"):
             mock_proc.run.return_value = {"OUTPUT": generic}
             result, anz_hu = self._call(layers)
@@ -1893,10 +1897,10 @@ class TestRunPartitionPipeline:
         sel_hu = MagicMock()
         sel_hu.featureCount.return_value = 7  # triggers < 10 skip
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    return_value=sel_hu), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase"):
             mock_proc.run.return_value = {"OUTPUT": MagicMock()}
             _, anz_hu = self._call(layers)
@@ -1914,21 +1918,21 @@ class TestRunPartitionPipeline:
         sel_roads.featureCount.return_value = 8
         generic = MagicMock()
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    side_effect=[sel_hu, sel_roads, generic, generic]), \
-             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
-             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.mst_clustering", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.erode_empty_areas", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.gap_close", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.patch_remove", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.helpers.partition_pipeline.blocker", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.input_hu_filter", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.calculate_mst", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.mst_clustering", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.add_single_bdg", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.edge_catch", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.erode_empty_areas", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.gap_close", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.patch_remove", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase") as mock_phase:
             mock_proc.run.return_value = {"OUTPUT": generic}
             self._call(layers)
@@ -1960,21 +1964,21 @@ class TestRunPartitionPipeline:
         def phase(number, total, name, _percent):
             events.append(("phase", (number, total, name)))
 
-        with patch("ibtool.ibtool.ibtool.processing") as mock_proc, \
-             patch("ibtool.ibtool.ibtool.select_and_save_by_location",
+        with patch("ibtool.helpers.partition_pipeline.processing") as mock_proc, \
+             patch("ibtool.helpers.partition_pipeline.select_and_save_by_location",
                    side_effect=[sel_hu, sel_roads, generic, generic]), \
-             patch("ibtool.ibtool.ibtool.calc_footprint_density", return_value=0.4), \
-             patch("ibtool.ibtool.ibtool.blocker", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.input_hu_filter", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.identify_dense_blocks", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.calculate_mst", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.mst_clustering", side_effect=tool("mst_clustering")), \
-             patch("ibtool.ibtool.ibtool.add_single_bdg", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.edge_catch", return_value=generic), \
-             patch("ibtool.ibtool.ibtool.erode_empty_areas", side_effect=tool("erode_empty_areas")), \
-             patch("ibtool.ibtool.ibtool.gap_close", side_effect=tool("gap_close")), \
-             patch("ibtool.ibtool.ibtool.patch_remove", side_effect=tool("patch_remove")), \
-             patch("ibtool.ibtool.ibtool.logger"), \
+             patch("ibtool.helpers.partition_pipeline.calc_footprint_density", return_value=0.4), \
+             patch("ibtool.helpers.partition_pipeline.blocker", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.input_hu_filter", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.identify_dense_blocks", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.calculate_mst", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.mst_clustering", side_effect=tool("mst_clustering")), \
+             patch("ibtool.helpers.partition_pipeline.add_single_bdg", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.edge_catch", return_value=generic), \
+             patch("ibtool.helpers.partition_pipeline.erode_empty_areas", side_effect=tool("erode_empty_areas")), \
+             patch("ibtool.helpers.partition_pipeline.gap_close", side_effect=tool("gap_close")), \
+             patch("ibtool.helpers.partition_pipeline.patch_remove", side_effect=tool("patch_remove")), \
+             patch("ibtool.helpers.partition_pipeline.logger"), \
              patch.object(self.tool, "_update_phase", side_effect=phase):
             mock_proc.run.return_value = {"OUTPUT": generic}
             self._call(layers)
@@ -2048,3 +2052,325 @@ class TestOpenDirectory:
             _open_directory("/fake/output/dir")
         mock_msg.assert_called_once()
         assert "xdg-open" in mock_msg.call_args[0][0]
+
+
+# ---------------------------------------------------------------------------
+# UI responsiveness during processing (progress bar, heartbeat, locked UI)
+# ---------------------------------------------------------------------------
+
+class TestProcessingResponsiveness:
+    """The dialog stays usable while processing runs on the main thread."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.tool = _make_tool()
+
+    def setup_method(self):
+        self.tool._cancel_requested = False
+        self.tool._is_processing = False
+        self.tool._progress_total_hu = 0
+        self.tool._progress_done_hu = 0
+        self.tool._progress_part_hu = 0
+        self.tool._last_percent = 0
+
+    # --- ProcessingCancelledError --------------------------------------------
+
+    @pytest.mark.unit
+    def test_cancel_error_is_not_swallowed_by_except_exception(self):
+        """Tools catch `Exception` broadly (e.g. safe_processing_run); a cancel
+        raised from the heartbeat inside a tool must pass through."""
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+        assert issubclass(ProcessingCancelledError, BaseException)
+        assert not issubclass(ProcessingCancelledError, Exception)
+
+    # --- overall progress -----------------------------------------------------
+
+    @pytest.mark.unit
+    def test_overall_percent_combines_done_and_current_partition(self):
+        self.tool._progress_total_hu = 1000
+        self.tool._progress_done_hu = 200
+        self.tool._progress_part_hu = 100
+        # (200 + 100 * 50 %) / 1000 = 25 % of the partition span (95 %)
+        assert self.tool._overall_percent(50) == int(95 * 0.25)
+
+    @pytest.mark.unit
+    def test_overall_percent_never_decreases(self):
+        self.tool._progress_total_hu = 1000
+        self.tool._progress_done_hu = 500
+        self.tool._progress_part_hu = 100
+        high = self.tool._overall_percent(90)
+        self.tool._progress_part_hu = 10          # next, smaller partition
+        assert self.tool._overall_percent(10) >= high
+
+    @pytest.mark.unit
+    def test_overall_percent_without_totals_returns_input(self):
+        """Pipeline called without start_processing (tests, tools): unchanged value."""
+        assert self.tool._overall_percent(35) == 35
+
+    @pytest.mark.unit
+    def test_partition_phases_report_overall_progress(self):
+        """_run_partition_pipeline reports overall progress, not fixed per-partition
+        values (the bar used to jump back to 10 % at every partition)."""
+        from ibtool.helpers.partition_pipeline import PHASES
+
+        def fake_run_partition(*_args, progress=None, on_selected=None, **_kwargs):
+            on_selected(100)
+            for phase, name in sorted(PHASES.items()):
+                progress(phase, name)
+            return None, 100
+
+        self.tool._progress_total_hu = 1000
+        self.tool._progress_done_hu = 500
+        with patch("ibtool.ibtool.ibtool.run_partition", side_effect=fake_run_partition), \
+                patch("ibtool.ibtool.ibtool.logger"), \
+                patch.object(self.tool, "_update_phase") as phase:
+            self.tool._run_partition_pipeline("P", 1, 1, {}, None, "/ws/", False, 15.0, {})
+        percents = [c.args[3] for c in phase.call_args_list]
+        assert [c.args[0] for c in phase.call_args_list] == sorted(PHASES)
+        assert percents == sorted(percents) and percents[0] >= int(95 * 0.5)
+
+    # --- heartbeat ------------------------------------------------------------
+
+    @pytest.mark.unit
+    def test_keep_ui_alive_processes_events(self):
+        with patch("ibtool.ibtool.ibtool.QApplication.processEvents") as pe:
+            self.tool._keep_ui_alive()
+        pe.assert_called_once()
+
+    @pytest.mark.unit
+    def test_keep_ui_alive_raises_when_cancel_requested(self):
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+        self.tool._cancel_requested = True
+        with patch("ibtool.ibtool.ibtool.QApplication.processEvents"):
+            with pytest.raises(ProcessingCancelledError):
+                self.tool._keep_ui_alive()
+
+    # --- locked UI / re-entrance ---------------------------------------------
+
+    @pytest.mark.unit
+    def test_lock_ui_disables_and_unlock_restores_controls(self):
+        names = ("StartButton", "CheckButton", "backButton", "nextButton",
+                 "stepBtn0", "stepBtn1", "stepBtn2", "stepBtn3", "DeleteConfigButton")
+        self.tool._set_processing_ui_locked(True)
+        assert all(not getattr(self.tool.dlg, n).isEnabled() for n in names)
+        assert self.tool.dlg.CancelButton.isEnabled()
+        self.tool._set_processing_ui_locked(False)
+        assert all(getattr(self.tool.dlg, n).isEnabled() for n in names)
+
+    @pytest.mark.unit
+    def test_start_processing_is_ignored_while_running(self):
+        """A second click on Start (possible while events are processed) must not
+        start a nested run."""
+        self.tool._is_processing = True
+        with patch.object(self.tool.dlg, "set_step") as set_step:
+            self.tool.start_processing()
+        set_step.assert_not_called()
+        assert self.tool._is_processing is True
+
+    # --- view stays on the processing page -----------------------------------
+
+    def _run_until_load(self, valid: bool):
+        """Run start_processing with mocked validation; stop at 'Load Data'."""
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+        result = MagicMock()
+        result.is_valid = valid
+        result.errors = [] if valid else ["broken"]
+        result.warnings = []
+        with patch("ibtool.ibtool.ibtool.InputValidator") as validator,                 patch("ibtool.ibtool.ibtool.manage_directory"),                 patch("ibtool.ibtool.ibtool.logger"),                 patch("ibtool.ibtool.ibtool.msg"),                 patch.object(self.tool, "_prepare_manifest", return_value=True),                 patch.object(self.tool, "_load_input_layers",
+                             side_effect=ProcessingCancelledError()),                 patch.object(self.tool.dlg, "set_step") as set_step,                 patch.object(self.tool.dlg, "populate_validation_checklist"):
+            validator.return_value.validate_all.return_value = result
+            self.tool.dlg.partlistBox.setText("#")
+            self.tool.start_processing()
+        return [c.args[0] for c in set_step.call_args_list]
+
+    @pytest.mark.unit
+    def test_valid_input_keeps_processing_page_visible(self):
+        """The re-validation in start_processing must not switch to the
+        validation page (the progress bar would be hidden, and the page buttons
+        are locked while processing)."""
+        assert self._run_until_load(valid=True) == [3]
+
+    @pytest.mark.unit
+    def test_invalid_input_shows_validation_page_and_unlocks(self):
+        steps = self._run_until_load(valid=False)
+        assert steps[-1] == 2
+        assert self.tool.dlg.StartButton.isEnabled()
+
+
+# ---------------------------------------------------------------------------
+# TestParallelOrchestration (Phase 4: worker mode, part files, manifest)
+# ---------------------------------------------------------------------------
+
+class TestParallelOrchestration:
+    """start_processing chooses worker vs. sequential mode and keeps resume safe."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.tool = _make_tool()
+
+    @pytest.mark.unit
+    def test_manifest_mismatch_blocks_resume(self, tmp_path):
+        with patch("ibtool.ibtool.ibtool.read_manifest", return_value={"x": 1}), \
+                patch("ibtool.ibtool.ibtool.compare_manifests",
+                      return_value=["Gebäude-Datei geändert"]), \
+                patch("ibtool.ibtool.ibtool.QMessageBox") as box:
+            ok = self.tool._prepare_manifest(str(tmp_path) + "/", {}, {}, "EPSG:25833", False)
+        assert ok is False
+        assert "Gebäude-Datei geändert" in box.warning.call_args.args[2]
+        assert not (tmp_path / "ibtool_run.json").exists()
+
+    @pytest.mark.unit
+    def test_matching_manifest_is_written_running(self, tmp_path):
+        assert self.tool._prepare_manifest(str(tmp_path) + "/", {}, {"a": 1}, "EPSG:25833",
+                                           False) is True
+        assert self.tool._prepare_manifest(str(tmp_path) + "/", {}, {"a": 1}, "EPSG:25833",
+                                           False) is True
+        data = json.loads((tmp_path / "ibtool_run.json").read_text(encoding="utf-8"))
+        assert data["status"] == "running" and data["params"] == {"a": 1}
+
+    @pytest.mark.unit
+    def test_restart_overwrites_mismatching_manifest(self, tmp_path):
+        self.tool._prepare_manifest(str(tmp_path) + "/", {}, {"a": 1}, "EPSG:25833", False)
+        with patch("ibtool.ibtool.ibtool.QMessageBox") as box:
+            ok = self.tool._prepare_manifest(str(tmp_path) + "/", {}, {"a": 2}, "EPSG:25833",
+                                             True)
+        assert ok is True
+        box.warning.assert_not_called()
+
+    @pytest.mark.unit
+    def test_no_worker_command_runs_sequential(self):
+        with patch("ibtool.ibtool.ibtool.find_worker_command", return_value=None), \
+                patch.object(self.tool, "_process_partitions_sequential") as seq, \
+                patch.object(self.tool, "_process_partitions_parallel") as par:
+            self.tool._dispatch_partitions(["P1", "P2"], ctx={}, worker_count=3)
+        seq.assert_called_once_with(["P1", "P2"], {})
+        par.assert_not_called()
+
+    @pytest.mark.unit
+    def test_one_worker_runs_sequential(self):
+        with patch("ibtool.ibtool.ibtool.find_worker_command") as find, \
+                patch.object(self.tool, "_process_partitions_sequential") as seq:
+            self.tool._dispatch_partitions(["P1"], ctx={}, worker_count=1)
+        seq.assert_called_once()
+        find.assert_not_called()
+
+    @pytest.mark.unit
+    def test_failed_selftest_runs_sequential(self):
+        pool = MagicMock()
+        pool.selftest.return_value = False
+        pool.stderr_tail.return_value = ["Traceback ..."]
+        with patch("ibtool.ibtool.ibtool.find_worker_command", return_value=MagicMock()), \
+                patch("ibtool.ibtool.ibtool.WorkerPool", return_value=pool), \
+                patch.object(self.tool, "_process_partitions_sequential") as seq, \
+                patch.object(self.tool, "_process_partitions_parallel") as par:
+            self.tool._dispatch_partitions(["P1"], ctx={"init_fields": {}}, worker_count=3)
+        seq.assert_called_once()
+        par.assert_not_called()
+        assert self.tool._pool is None
+
+    @pytest.mark.unit
+    def test_recompute_list_runs_in_process(self):
+        with patch("ibtool.ibtool.ibtool.find_worker_command", return_value=MagicMock()), \
+                patch.object(self.tool, "_process_partitions_parallel", return_value=["P2"]), \
+                patch.object(self.tool, "_process_partitions_sequential") as seq, \
+                patch("ibtool.ibtool.ibtool.WorkerPool") as pool_cls:
+            pool_cls.return_value.selftest.return_value = True
+            self.tool._dispatch_partitions(["P1", "P2"], ctx={"init_fields": {}}, worker_count=3)
+        seq.assert_called_once_with(["P2"], {"init_fields": {}})
+        assert self.tool._pool is None
+
+    @pytest.mark.unit
+    def test_cancel_kills_pool(self):
+        self.tool._is_processing = True
+        self.tool._pool = MagicMock()
+        pool = self.tool._pool
+        try:
+            self.tool.cancel_processing()
+            pool.cancel.assert_called_once()
+        finally:
+            self.tool._is_processing = False
+            self.tool._cancel_requested = False
+            self.tool._pool = None
+
+    @pytest.mark.unit
+    def test_partition_finished_appends_finish_line_and_progress(self, tmp_path):
+        log_fin = str(tmp_path / "fin.txt")
+        self.tool._progress_total_hu = 100
+        self.tool._progress_done_hu = 0
+        self.tool._last_percent = 0
+        try:
+            self.tool._on_partition_finished("P1", "parts/P1.gpkg", 3, 40, log_fin)
+            self.tool._on_partition_finished("P2", None, 0, 5, log_fin)
+        finally:
+            done = self.tool._progress_done_hu
+            self.tool._progress_total_hu = 0
+            self.tool._progress_done_hu = 0
+        lines = (tmp_path / "fin.txt").read_text(encoding="utf-8").splitlines()
+        assert lines == ["P1\tparts/P1.gpkg\t3", "P2\tskipped"]
+        assert done == 45
+
+    @pytest.mark.unit
+    def test_partitions_sorted_largest_first_by_estimate(self):
+        assert self.tool._largest_first(["a", "b", "c"], {"a": 5, "b": 50, "c": 20}) == \
+            ["b", "c", "a"]
+        assert self.tool._largest_first(["a", "b"], {"a": 1, "b": 1}) == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# TestManifestRestorePrompt (Phase 4: settings from ibtool_run.json)
+# ---------------------------------------------------------------------------
+
+class TestManifestRestorePrompt:
+    """Choosing a working directory with a begun run offers its settings."""
+
+    @classmethod
+    def setup_class(cls):
+        cls.tool = _make_tool()
+
+    @pytest.mark.unit
+    def test_offers_restore_when_manifest_differs_and_applies_on_yes(self, tmp_path):
+        manifest = {"inputs": {"hu": {"path": "C:/x/hu.gpkg"}, "filter": {"path": ""}},
+                    "params": {"min_area": 60.0, "max_gap_size": 4000.0},
+                    "crs": "EPSG:25832"}
+        with patch("ibtool.ibtool.ibtool.read_manifest", return_value=manifest),                 patch("ibtool.ibtool.ibtool.QMessageBox") as box:
+            box.question.return_value = box.Yes
+            self.tool._offer_manifest_restore(str(tmp_path))
+        box.question.assert_called_once()
+        assert self.tool.dlg.HuPath.text() == "C:/x/hu.gpkg"
+        assert self.tool.dlg.MinAreaBox.value() == 60
+        assert self.tool.dlg.MaxGapSizeBox.value() == 4000
+        assert self.tool.dlg.SpatialReferenceBox.crs().authid() == "EPSG:25832"
+
+    @pytest.mark.unit
+    def test_answer_no_keeps_ui(self, tmp_path):
+        self.tool.dlg.HuPath.setText("C:/keep/hu.shp")
+        manifest = {"inputs": {"hu": {"path": "C:/other/hu.gpkg"}}, "params": {}, "crs": None}
+        with patch("ibtool.ibtool.ibtool.read_manifest", return_value=manifest),                 patch("ibtool.ibtool.ibtool.QMessageBox") as box:
+            box.question.return_value = box.No
+            self.tool._offer_manifest_restore(str(tmp_path))
+        assert self.tool.dlg.HuPath.text() == "C:/keep/hu.shp"
+
+    @pytest.mark.unit
+    def test_no_prompt_without_manifest(self, tmp_path):
+        with patch("ibtool.ibtool.ibtool.QMessageBox") as box:
+            self.tool._offer_manifest_restore(str(tmp_path))
+        box.question.assert_not_called()
+
+    @pytest.mark.unit
+    def test_no_prompt_when_ui_already_matches(self, tmp_path):
+        self.tool.dlg.HuPath.setText("C:/same/hu.shp")
+        manifest = {"inputs": {"hu": {"path": "C:/same/hu.shp"}}, "params": {},
+                    "crs": self.tool.dlg.SpatialReferenceBox.crs().authid()}
+        with patch("ibtool.ibtool.ibtool.read_manifest", return_value=manifest),                 patch("ibtool.ibtool.ibtool.QMessageBox") as box:
+            self.tool._offer_manifest_restore(str(tmp_path))
+        box.question.assert_not_called()
+
+    @pytest.mark.unit
+    def test_worker_count_box_auto(self):
+        self.tool.dlg.WorkerCountBox.setValue(0)
+        with patch("ibtool.ibtool.ibtool.default_worker_count", return_value=3):
+            assert self.tool._effective_worker_count() == 3
+        self.tool.dlg.WorkerCountBox.setValue(2)
+        assert self.tool._effective_worker_count() == 2
+        self.tool.dlg.WorkerCountBox.setValue(0)
+        assert self.tool.dlg.WorkerCountBox.text() in ("Automatic", "Automatisch")

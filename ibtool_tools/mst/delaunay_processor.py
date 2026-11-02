@@ -16,6 +16,7 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
+from ...helpers.processing_context import current_processing_context
 
 from .mst_data_classes import (
     EdgeData, BuildingCentroidsResult
@@ -195,7 +196,7 @@ class DelaunayProcessor:
             'INTERSECT': streets_layer,
             'METHOD': 0,
             'OUTPUT': QgsProcessing.TEMPORARY_OUTPUT
-        })
+        }, context=current_processing_context())
 
         # Remove selected (intersecting) edges from triangulation layer
         selected_ids = triangulation_layer.selectedFeatureIds()

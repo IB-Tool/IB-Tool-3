@@ -174,6 +174,18 @@
         <translation>Fehlerhafte Objekte speichern (Debug-Modus)</translation>
     </message>
     <message>
+        <source>Worker processes (parallel)</source>
+        <translation>Worker-Prozesse (parallel)</translation>
+    </message>
+    <message>
+        <source>Number of parallel worker processes (Windows only). 0 = automatic (cores - 1, at most 4), 1 = one partition after another.</source>
+        <translation>Anzahl paralleler Worker-Prozesse (nur Windows). 0 = automatisch (Kerne − 1, höchstens 4), 1 = Partitionen nacheinander.</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Automatisch</translation>
+    </message>
+    <message>
         <source>Ready</source>
         <translation>Bereit</translation>
     </message>

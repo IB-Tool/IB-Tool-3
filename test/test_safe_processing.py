@@ -23,6 +23,44 @@ class TestSafeProcessingRun:
             result = safe_processing_run("native:buffer", {"INPUT": "layer"})
         assert result == expected
 
+    # ── Shared processing context ─────────────────────────────────────────────
+
+    @pytest.mark.unit
+    def test_passes_no_context_outside_shared_block(self):
+        """Without a shared context, processing.run gets context=None (builds its own)."""
+        with patch("ibtool.helpers.safe_processing.processing.run",
+                   return_value={"OUTPUT": Mock()}) as run:
+            safe_processing_run("native:buffer", {"INPUT": "layer"})
+        assert run.call_args.kwargs["context"] is None
+
+    @pytest.mark.unit
+    def test_passes_shared_context_inside_block(self):
+        """Inside shared_processing_context(), the shared context is passed on."""
+        from ibtool.helpers.processing_context import shared_processing_context
+        with shared_processing_context() as ctx:
+            with patch("ibtool.helpers.safe_processing.processing.run",
+                       return_value={"OUTPUT": Mock()}) as run:
+                safe_processing_run("native:buffer", {"INPUT": "layer"})
+        assert run.call_args.kwargs["context"] is ctx
+
+    @pytest.mark.unit
+    def test_cancel_from_heartbeat_is_not_swallowed(self):
+        """A cancel raised by the UI heartbeat (evaluated before processing.run)
+        must leave safe_processing_run untouched — no repair/retry, no logging."""
+        from ibtool.helpers.processing_context import ui_heartbeat
+        from ibtool.ibtool.ibtool import ProcessingCancelledError
+
+        def cancel():
+            raise ProcessingCancelledError()
+
+        with patch("ibtool.helpers.safe_processing.processing.run") as run, \
+                patch("ibtool.helpers.safe_processing.Logger") as log:
+            with ui_heartbeat(cancel, min_interval=0):
+                with pytest.raises(ProcessingCancelledError):
+                    safe_processing_run("native:buffer", {"INPUT": "layer"})
+        run.assert_not_called()
+        log.log.assert_not_called()
+
     # ── Non-geometry errors ───────────────────────────────────────────────────
 
     @pytest.mark.unit
@@ -61,7 +99,7 @@ class TestSafeProcessingRun:
         repaired_layer = Mock()
         expected = {"OUTPUT": Mock()}
 
-        def mock_run(alg, params):
+        def mock_run(alg, params, **_kwargs):
             if alg == "native:fixgeometries":
                 return {"OUTPUT": repaired_layer}
             # Fail only when using the original (un-repaired) layer
@@ -82,7 +120,7 @@ class TestSafeProcessingRun:
         repaired_layer = Mock()
         expected = {"OUTPUT": Mock()}
 
-        def mock_run(alg, params):
+        def mock_run(alg, params, **_kwargs):
             if alg == "native:fixgeometries":
                 return {"OUTPUT": repaired_layer}
             # Fail on original AND first retry (without INVALID_FEATURE_HANDLING)
@@ -102,7 +140,7 @@ class TestSafeProcessingRun:
         """String / dict params that have no .isValid() are not passed to fixgeometries."""
         repair_calls = []
 
-        def mock_run(alg, params):
+        def mock_run(alg, params, **_kwargs):
             if alg == "native:fixgeometries":
                 repair_calls.append(params.get("INPUT"))
                 return {"OUTPUT": Mock()}
