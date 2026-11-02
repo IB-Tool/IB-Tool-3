@@ -64,7 +64,7 @@ def part_file_name(partition: str) -> str:
     if (safe == partition and partition == partition.upper()
             and not _RESERVED.match(partition)):
         return f"{safe}.gpkg"
-    digest = hashlib.sha1(partition.encode("utf-8")).hexdigest()[:6]
+    digest = hashlib.sha1(partition.encode("utf-8"), usedforsecurity=False).hexdigest()[:6]
     return f"{safe}_{digest}.gpkg"
 
 
