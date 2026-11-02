@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## 0.2.5 — unreleased
+## 0.2.5 — 2026-11-02
 
 ### Performance
 - **Shared processing context per partition** (new `helpers/processing_context.py`, `ibtool.py`, all tools): `processing.run()` built a new `QgsProcessingContext` for every call (~3 ms; ~68,000 calls on the sample data). All `processing.run()` calls now pass `context=current_processing_context()`; `IBTool.start_processing()` opens one `shared_processing_context()` for loading, one for the global density and one per partition. Output layers are still handed to the caller, so nothing accumulates in the context. Sample data: 843.6 s → 653.2 s (−23 %), result identical. Outside a shared block (e.g. tools called on their own, tests) behavior is unchanged. Documented as exception in `ai/core/constraints.md`. Tests: `test/test_processing_context.py`, `TestSafeProcessingRun` (context passing).
