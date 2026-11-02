@@ -28,21 +28,23 @@ from qgis.PyQt.QtCore import QVariant
 from .utilities import get_qgis_app
 from ibtool.helpers.edge_catch_utils import (
     _normalize_node,
-    apply_filter_rules,
     build_catch_polygon,
     project_point_to_line,
     create_shortest_lines_to_roads,
-    _apply_rule_parallel_close_endpoints,
-    _apply_rule_all_parallel,
-    _apply_rule_angle_outliers,
-    _group_lines_by_angle,
-    filter_ortho_lines,
     _build_minimized_lines_from_selection,
     extract_road_subline,
     delete_first_point,
     select_roads_near_blocks,
     ROAD_BLOCK_TOLERANCE,
     process_single_feature,
+)
+from ibtool.helpers.ortho_line_filter import (
+    apply_filter_rules,
+    _apply_rule_parallel_close_endpoints,
+    _apply_rule_all_parallel,
+    _apply_rule_angle_outliers,
+    _group_lines_by_angle,
+    filter_ortho_lines,
 )
 
 
@@ -1062,3 +1064,64 @@ class TestProcessSingleFeatureFallback:
         assert result is sentinel.legacy
         slow.assert_called_once()
         assert any(c.kwargs.get("level") == "WARNING" for c in log.log.call_args_list)
+
+
+# ── filter_roads_near_buildings: segment selection by id without expressions ──
+
+def _roads_and_buildings():
+    from qgis.core import QgsFeature, QgsGeometry, QgsPointXY, QgsRectangle
+    roads = QgsVectorLayer("MultiLineString?crs=EPSG:25833&field=name:string&field=kind:integer",
+                           "roads", "memory")
+    feats = []
+    for i, (x0, y0, x1, y1) in enumerate(((0, 0, 230.5, 0), (0, 60, 0, 300.25),
+                                          (500, 500, 700, 520), (40, 120, 260.75, 120))):
+        f = QgsFeature(roads.fields())
+        f.setGeometry(QgsGeometry.fromMultiPolylineXY([[QgsPointXY(x0, y0), QgsPointXY(x1, y1)]]))
+        f.setAttributes([f"r{i}", i])
+        feats.append(f)
+    roads.dataProvider().addFeatures(feats)
+    buildings = QgsVectorLayer("Polygon?crs=EPSG:25833", "hu", "memory")
+    blds = []
+    for x, y in ((30, 10), (170, 30), (10, 250), (100, 140)):
+        f = QgsFeature(buildings.fields())
+        f.setGeometry(QgsGeometry.fromRect(QgsRectangle(x, y, x + 8, y + 6)))
+        blds.append(f)
+    buildings.dataProvider().addFeatures(blds)
+    return roads, buildings
+
+
+def _rows_with_ids(layer):
+    return ([(f.name(), f.type()) for f in layer.fields()], layer.wkbType(),
+            [(f.id(), f.geometry().asWkb().data(), f.attributes()) for f in layer.getFeatures()])
+
+
+class TestFilterRoadsNearBuildingsSelection:
+    """The kept segments equal the former ``"seg_id" IN (...)`` extraction."""
+
+    @pytest.mark.integration
+    def test_same_segments_ids_and_order_as_expression_extract(self):
+        from unittest.mock import patch
+        from ibtool.helpers import edge_catch_utils as ecu
+        roads, buildings = _roads_and_buildings()
+        captured = {}
+        real_run = ecu.safe_processing_run
+
+        def spy(alg, params, **kw):
+            out = real_run(alg, params, **kw)
+            if alg == "native:fieldcalculator":
+                captured["segs"] = out["OUTPUT"]
+            if alg == "native:extractbylocation":
+                captured["ids"] = {f["seg_id"] for f in out["OUTPUT"].getFeatures()}
+            if alg == "native:extractbyexpression":
+                captured["used_expression"] = True
+            return out
+
+        with patch.object(ecu, "safe_processing_run", side_effect=spy):
+            result = ecu.filter_roads_near_buildings(roads, buildings, 20, 25)
+        assert "used_expression" not in captured
+        id_list = ", ".join(str(i) for i in captured["ids"])
+        expected = real_run("native:extractbyexpression", {
+            "INPUT": captured["segs"], "EXPRESSION": f'"seg_id" IN ({id_list})',
+            "OUTPUT": "TEMPORARY_OUTPUT"})["OUTPUT"]
+        assert 0 < result.featureCount() < captured["segs"].featureCount()
+        assert _rows_with_ids(result) == _rows_with_ids(expected)

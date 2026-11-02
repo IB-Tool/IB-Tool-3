@@ -14,16 +14,15 @@ processing partitions in parallel worker processes.
 
 **Branch:** `Add_multiprocessing`
 
-**Status (2026-11-01):** Phases 0–4, UI fix and GapClose sym-diff
-committed (Phase 4 in `ea09a84`, 5a CreateMST `nodes_detect` + 5b
-`identify_dense_blocks` area fields in `fd6953c`). Phase 5c (ImportFilter
-LIKE filter) implemented and verified, not committed. Sample data, QGIS 3.44: 843.6 s
-(3.40, start) → 262 s sequential → 101.5 s with 4 workers → **61.7 s with
-4 workers after 5a–5c** (3.40: 64.8 s; sequential 154.5 s), results
-identical. **Next:** PART_64 is 40.3 s; largest remaining steps
-(sequential, all partitions): EdgeCatch 41.9 s, GapClose 23.6 s, ImportFilter
-15.5 s (dissolve/selectbylocation), Erode 12.0 s, MST_Clustering 10.2 s,
-global density 12.6 s (runs before the workers start).
+**Status (2026-11-02):** Phases 0–5c committed (Phase 4 in `ea09a84`, 5a + 5b
+in `fd6953c`, 5c in `9014fbe`). Phase 5d (footprint density / road filter),
+the shapefile checksum fix and the `edge_catch_utils` split are implemented
+and verified, **not committed**. Sample data, QGIS 3.44: 843.6 s (3.40,
+start) → 262 s sequential → 101.5 s with 4 workers → 61.7 s after 5a–5c →
+**58.0 s with 4 workers after 5d** (3.40: 59.9 s; sequential 144.9 s),
+results identical. **Next (see "Open topics" at the end):** overlap the global
+density (8.4 s, before the workers start) with the partitions — needs a
+worker-protocol change (user decision); PART_64 37 s in a worker.
 
 ---
 
@@ -345,8 +344,8 @@ Biggest gains: EdgeCatch 489 → 325 s, MST_Clustering 94 → 83 s, GapClose
 - [x] Decide how to thread it through → option B (scoped ContextVar)
 - [x] Fresh context per partition (layers from string inputs are released)
 - [x] Verify results unchanged (full run vs. reference), record timing
-- [ ] Manual smoke test in the QGIS GUI (progress, cancel, resume, debug mode)
-      — to be done by the user
+- [x] Manual smoke test in the QGIS GUI (progress, cancel, resume, debug mode)
+      — covered by the user's GUI tests after the UI fix and Phase 4 (both OK)
 
 **Results (2026-11-01):** full run, all 71 partitions, no cProfile:
 **843.6 s → 653.2 s (−190 s, −23 %)**; `compare_results.py` vs. reference:
@@ -367,11 +366,11 @@ PatchRemove 44 → 41 s. New reference timing for Phase 2: **653 s**.
       `geometry_utils.merge_layers_prepending()` (same feature order as the
       former incremental merge; falls back to one-by-one merge on failure;
       "all merges failed → return grouped_bdgs" kept).
-- [ ] `ibtool.py` partition loop: append partition results to the merge
+- [x] `ibtool.py` partition loop: append partition results to the merge
       GeoPackage instead of re-merging + rewriting the whole layer per
-      partition (keep resume behavior intact). **Deferred:** not covered by
-      `profile_pipeline.py`, only 71 merges of ≤172 features; needs a GUI
-      measurement first.
+      partition (keep resume behavior intact). **Obsolete (2026-11-02):**
+      since Phase 4 every partition writes its own result file and
+      `merge_results()` merges once at the end.
 - [x] `FootprintDensity` global branch: one merge over all partitions in
       partition order (float sum of overlaps stays bit-identical; single
       partition → no merge, as before).
@@ -385,8 +384,6 @@ PatchRemove 44 → 41 s. New reference timing for Phase 2: **653 s**.
       `_first_match_index()` (9.74 → 9.84); other changed files improved
       (EdgeCatch 9.09 → 9.26, MST_Clustering 9.11 → 9.25,
       FootprintDensity 7.09 → 7.29)
-
-**Results:** _pending_
 
 ---
 
@@ -535,25 +532,24 @@ gap 10.2 s (PatchRemove). Overall since the start (3.40, no cProfile):
 **Next baseline (3.44): 262 s.**
 - Tests: `test/test_overlay_utils.py` (each function vs. its QGIS
   algorithm), fallback tests in `test_edge_catch_utils.py`; suite 1,030 passed.
-- Follow-up: `edge_catch_utils.py` is >1000 lines (C0302 since the 10 cm
-  tolerance change, now ~1,190) → move the ortho-line filter rules into their
-  own module (pure refactor).
+- [x] Follow-up: `edge_catch_utils.py` >1000 lines (C0302) → ortho-line
+  filter rules moved unchanged into `helpers/ortho_line_filter.py`
+  (2026-11-02; 1,177 → 870 lines; harness IDENTICAL, 1,927 rects, 21.8 s).
 
-- [ ] Write characterization tests for `process_single_feature` on real
-      rectangles from `Testdaten` (capture current outputs) before touching it.
-- [ ] Build `QgsSpatialIndex` once per partition for blocks and road segments;
-      replace `extractbylocation` calls with index lookups +
-      `intersects`.
-- [ ] Replace nested loop in `create_shortest_lines_to_roads` with spatial
-      index `nearestNeighbor` + `QgsGeometry.nearestPoint`.
-- [ ] Replace polygonize chain (polygonstolines → explodelines → merge →
-      extendlines → fixgeometries → polygonize) with
-      `QgsGeometry.polygonize()` on noded lines (`unaryUnion` of line
-      geometries) — check edge cases documented in `ai/domain/` and
-      `docs/how-it-works.md` Step 7.
-- [ ] Verify results unchanged (rectangle-level comparison), record timing.
+Original checklist (planned before the harness; done in the form described
+above):
 
-**Results:** _pending_
+- [x] Characterization tests → `scripts/edge_catch_harness.py` golden data
+      (1,927 real rectangles).
+- [x] Spatial lookups instead of `extractbylocation` →
+      `overlay_utils.extract_intersecting` (same output order).
+- [ ] Nested loop in `_shortest_connections` (each building vertex × each
+      road segment of the block) is still O(n·m). Not worth it: the whole
+      geometry path is ~7 s on PART_64; a spatial index must keep the
+      "first line wins on equal distance" rule. Left open.
+- [x] Polygonize chain → `overlay_utils.polygonize_lines` (strictly
+      identical to the algorithm chain).
+- [x] Verify results unchanged, record timing (see Results Phase 3).
 
 ---
 
@@ -590,9 +586,12 @@ Results (all RESULT: IDENTICAL vs. the references):
   optimizations: CreateMST, PatchRemove, ImportFilter) or overlapping the
   global density with the first partitions.
 - GUI test by the user: OK.
-- Follow-ups (not done): shapefile checksum covers only the `.shp` (attribute
-  changes in the `.dbf` are not detected on resume); `edge_catch_utils.py`
-  > 1000 lines (C0302). (The `0,0000…` validation error for Global
+- Follow-ups: ~~shapefile checksum covers only the `.shp`~~ **fixed
+  2026-11-02** (`compute_file_checksum` hashes the existing sidecars
+  `.shx/.dbf/.prj/.cpg/.qpj` as tagged sections; a `.shp` without sidecars
+  keeps its plain MD5; also fixes the validation cache; runs begun before
+  report their shapefile inputs as changed once); ~~`edge_catch_utils.py`
+  > 1000 lines~~ **done 2026-11-02**. (The `0,0000…` validation error for Global
   Footprint Density appeared only in the headless test harness; the GUI
   run with 0 works.)
 
@@ -640,9 +639,59 @@ Results (all RESULT: IDENTICAL vs. the references):
 - [x] Verified: full runs identical on 3.44 (4 workers and sequential) and 3.40.
 - [x] Timing (CPU base load 12–17 %): 4 workers 3.44 61.7 s, 3.40 64.8 s,
       PART_64 40.3 s; sequential 3.44 154.5 s (05_import_filter 15.5 s).
-- [ ] Commit (user).
+- [x] Committed (`9014fbe`; the CHANGELOG entry was left uncommitted).
 
-Original design sketch (superseded):
+### Phase 5d — footprint density + EdgeCatch road filter (2026-11-02)
+
+- [x] Per-call-site timing of all processing algorithms on PART_64 (3.44;
+      scratchpad wrapper hooking `Processing.runAlgorithm`): 24,735
+      `updateFeature` calls (4.2 s) + `native:aggregate` (2.2 s) in
+      `footprint_density`; `extractbyexpression "seg_id" IN (…)` 3.0 s +
+      `extractbylocation` 2.6 s in `filter_roads_near_buildings`.
+- [x] `footprint_density`: sums per `BLOCK_ID` in intersection order and the
+      result layer built in Python (`_footprint_density_python`); former chain
+      kept as `_footprint_density_processing` (fallback + test reference).
+      Test `TestFootprintDensityFast` (exact WKB + float attributes, field
+      definitions, order, empty case, fallback).
+- [x] `filter_roads_near_buildings`: set lookup + order-preserving memory copy
+      (`_copy_features_where`) instead of the IN-list expression. Test
+      `TestFilterRoadsNearBuildingsSelection` (ids, order, WKB, attributes vs.
+      the expression). The `extractbylocation` stays: invalid-geometry
+      handling of the processing context (stop → `safe_processing_run`
+      repair) would have to be emulated.
+- [x] Verified: full runs IDENTICAL — 3.44 4 workers, 3.44 sequential, 3.40
+      4 workers. Suite (3.40): 1,162 passed, 2 pre-existing failures
+      (release-zip / git PATH).
+- [x] Timing (3.44): 4 workers **58.0 s** (global density 8.4 s, parallel
+      phase 44.6 s, PART_64 37.3 s in a worker); 3.40 4 workers 59.9 s;
+      sequential 144.9 s (02_local_density 5.2, 05_import_filter 15.5,
+      07_create_mst 9.8, 08_mst_clustering 10.5, 10_edge_catch 37.8,
+      11_erode 12.1, 12_gap_close 23.6 s).
+- [ ] Commit (user).
+- Side finding: in worker mode PART_64 logs `[CRITICAL] PolyArea is zero in
+  MST_Clustering calc_bounding_rect` 3× (only visible because workers
+  forward log lines; MST_Clustering and its inputs unchanged; result
+  identical). Not investigated.
+
+### Open topics (2026-11-02)
+
+- **Overlap the global density with the partitions** (≤ 8.4 s of 58 s):
+  `run_partition` needs the value already in step 02 (local density uses it
+  as fallback when a partition has ≤ 5 inner blocks). Options: workers start
+  and wait for the value (protocol change of the Phase 4 spec), or the global
+  density itself is computed per partition in the workers (its per-partition
+  `_select_block` is independent; only the final mean is global). Needs a
+  user decision.
+- Global density partition extraction (`extractbyexpression` +
+  2× `extractbylocation` per partition, ~2 s) → Python only if the
+  invalid-geometry behaviour of the processing context is emulated.
+- PART_64 critical path (37 s in a worker): EdgeCatch ~12 s (geometry path
+  7 s, road filter `extractbylocation` 2.6 s), ImportFilter 4.2 s, Erode
+  2.8–4.7 s, GapClose 2.9 s, local density 2.4 s.
+- pytest under OSGeo4W 3.44 (`DLL load failed while importing _core`) not
+  investigated.
+
+Original design sketch (superseded by the Phase 4 spec/plan, kept for history):
 
 - [ ] Extract partition pipeline into a GUI-free module (e.g.
       `helpers/partition_runner.py`) callable from both the plugin and a worker

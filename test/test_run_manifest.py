@@ -53,6 +53,22 @@ class TestManifest:
         assert rm.compare_manifests(_manifest(tmp_path), _manifest(tmp_path)) == []
 
     @pytest.mark.unit
+    def test_shapefile_attribute_edit_forbids_resume(self, tmp_path):
+        """Changing only the .dbf of the building shapefile blocks the resume."""
+        inputs = _inputs(tmp_path)
+        shp = tmp_path / "buildings.shp"
+        shp.write_bytes(b"geometry")
+        dbf = tmp_path / "buildings.dbf"
+        dbf.write_bytes(b"fkt=31001")
+        inputs["hu"] = str(shp)
+        before = _manifest(tmp_path, inputs=inputs)
+
+        dbf.write_bytes(b"fkt=99999")
+
+        assert "Gebäude-Datei geändert" in rm.compare_manifests(
+            before, _manifest(tmp_path, inputs=inputs))
+
+    @pytest.mark.unit
     def test_worker_count_does_not_invalidate_resume(self, tmp_path):
         assert rm.compare_manifests(_manifest(tmp_path, worker_count=3),
                                     _manifest(tmp_path, worker_count=1)) == []

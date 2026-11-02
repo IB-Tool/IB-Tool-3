@@ -16,7 +16,10 @@ identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
 from qgis.core import (
     QgsVectorLayer,
     QgsExpression,
+    QgsFeature,
     QgsField,
+    QgsFields,
+    QgsMemoryProviderUtils,
     QgsExpressionContext,
     QgsExpressionContextUtils,
 )
@@ -280,13 +283,95 @@ def calc_footprint_density(InputBdg, InputStrNetwork, Buffer=100, GlobalThreshol
 
 
 def footprint_density(HU_Input, Bloecke, footprint_density_threshold):
-    """
-    Calculates the area share of small polygons within large polygons in QGIS.
+    """Area share (``OVERLAP``, percent) of the buildings within each block.
 
-    :param small_polygons_layer: Name or path of the layer with small polygons
-    :param large_polygons_layer: Name or path of the layer with large polygons
-    :param output_path: Path to the output shapefile
+    Intersects the buildings with the blocks (``native:intersection``), sums
+    the intersection areas per ``BLOCK_ID`` in feature order and returns the
+    blocks that contain building area, in block order, with the fields of
+    *Bloecke* plus ``sum_area_intersect`` and ``OVERLAP``.
+
+    The sums and the output layer are built in Python
+    (:func:`_footprint_density_python`); the former chain (one
+    ``updateFeature`` per intersection, ``native:aggregate``,
+    ``native:joinattributestable``, one ``updateFeature`` per block) took
+    ~4 s for the sample data and stays as :func:`_footprint_density_processing`
+    — fallback on any error and test reference (identical output).
+
+    :param HU_Input: Building footprint polygon layer
+    :param Bloecke: Block polygon layer with a ``BLOCK_ID`` field
+    :param footprint_density_threshold: Unused (kept for API compatibility)
+    :return: QgsVectorLayer of the blocks with ``OVERLAP``
     """
+    try:
+        return _footprint_density_python(HU_Input, Bloecke)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        Logger.log(f"footprint_density: Python-Berechnung fehlgeschlagen ({e}), "
+                   f"verwende Processing-Kette", 'WARNING')
+        return _footprint_density_processing(HU_Input, Bloecke, footprint_density_threshold)
+
+
+# Field definition of the per-block area sum, as created by the former
+# native:aggregate call (double, length 10, precision 3).
+_SUM_FIELD = ("sum_area_intersect", 10, 3)
+
+
+def _block_id_index(layer, what):
+    """Index of the ``BLOCK_ID`` field of *layer* (``ValueError`` if missing)."""
+    index = layer.fields().lookupField('BLOCK_ID')
+    if index < 0:
+        raise ValueError(f"BLOCK_ID missing in the {what}")
+    return index
+
+
+def _footprint_density_python(hu_input, blocks):
+    """Python core of :func:`footprint_density` (see there).
+
+    Reproduces the former processing chain exactly: the per-block sum adds
+    the intersection areas in the intersection's feature order (as
+    ``native:aggregate`` did), and the output keeps the block order and drops
+    blocks without building area (``joinattributestable`` with
+    ``DISCARD_NONMATCHING``).
+    """
+    intersected = processing.run("native:intersection", {
+        'INPUT': hu_input,
+        'OVERLAY': blocks,
+        'OUTPUT': 'TEMPORARY_OUTPUT'
+    }, context=current_processing_context())['OUTPUT']
+
+    key_index = _block_id_index(intersected, "intersection result")
+    sums = {}
+    for feature in intersected.getFeatures():
+        key = feature.attribute(key_index)
+        sums[key] = sums.get(key, 0.0) + feature.geometry().area()
+
+    fields = QgsFields(blocks.fields())
+    fields.append(QgsField(_SUM_FIELD[0], QMetaType.Double, "double",
+                           _SUM_FIELD[1], _SUM_FIELD[2]))
+    fields.append(QgsField("OVERLAP", QMetaType.Double))
+    layer = QgsMemoryProviderUtils.createMemoryLayer(
+        "footprint_density", fields, blocks.wkbType(), blocks.crs())
+
+    block_index = _block_id_index(blocks, "block layer")
+    out = []
+    for block in blocks.getFeatures():
+        key = block.attribute(block_index)
+        if key not in sums:
+            continue
+        total = sums[key]
+        area = block.geometry().area()
+        feature = QgsFeature(fields)
+        feature.setGeometry(block.geometry())
+        feature.setAttributes(block.attributes()
+                              + [total, (total / area) * 100 if area > 0 else 0.0])
+        out.append(feature)
+    if out and not layer.dataProvider().addFeatures(out):
+        raise RuntimeError("footprint_density: features could not be written")
+    layer.updateExtents()
+    return layer
+
+
+def _footprint_density_processing(HU_Input, Bloecke, footprint_density_threshold):  # pylint: disable=unused-argument
+    """Former processing chain of :func:`footprint_density` (fallback, test reference)."""
     # Load the input layers
     # small_layer = QgsProject.instance().mapLayersByName(small_polygons_layer)[0]
     # large_layer = QgsProject.instance().mapLayersByName(large_polygons_layer)[0]
