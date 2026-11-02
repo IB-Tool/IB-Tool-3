@@ -581,7 +581,9 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             box_name = self._MANIFEST_PARAM_BOXES.get(key)
             if box_name and value is not None:
                 box = getattr(self.dlg, box_name)
-                if box.value() != type(box.value())(value):
+                current = box.value()
+                value_type = type(current)
+                if current != value_type(value):
                     changes[box_name] = value
         crs = settings.get("crs")
         if crs and self.dlg.SpatialReferenceBox.crs().authid() != crs:
