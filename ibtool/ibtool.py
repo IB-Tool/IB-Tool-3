@@ -74,7 +74,9 @@ from ibtool.helpers.partition_results import (
     append_finished,
     cleanup_temporary,
     estimate_buildings,
+    merge_order,
     merge_results,
+    plan_partitions,
     read_finished,
     validate_finished,
     write_part_result,
@@ -1711,20 +1713,21 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             for name in recompute:
                 logger.log(f"Teilergebnis von {name} fehlt oder ist unvollständig – "
                            "wird neu berechnet.", "WARNING")
-            todo = [name for name in part_list if name not in valid]
-            if len(todo) < len(part_list):
-                logger.log(f"{len(part_list) - len(todo)} Partition(en) bereits fertig – "
+            # work_list = selection + invalid results of earlier batches
+            work_list, todo = plan_partitions(part_list, valid, recompute)
+            if len(todo) < len(work_list):
+                logger.log(f"{len(work_list) - len(todo)} Partition(en) bereits fertig – "
                            "werden übersprungen.", "INFO")
 
             # Progress = estimated buildings of finished partitions / of all
-            estimates = estimate_buildings(layer_hu, layer_part, part_list)
+            estimates = estimate_buildings(layer_hu, layer_part, work_list)
             self._progress_total_hu = max(1, sum(estimates.values()))
-            self._progress_done_hu = sum(estimates[name] for name in part_list
+            self._progress_done_hu = sum(estimates[name] for name in work_list
                                          if name in valid)
             self.dlg.ProgressBar.setValue(self._overall_percent(0))
 
             ctx = {
-                "part_list": part_list,
+                "part_list": work_list,
                 "layers": {
                     'layer_part': layer_part,
                     'layer_hu': layer_hu,
@@ -1765,8 +1768,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             # then the selected partitions in list order — the order of the
             # former incremental merge, independent of the worker count.
             finished = read_finished(part_log_fin)
-            selected = set(part_list)
-            order = [name for name in finished if name not in selected] + part_list
+            order = merge_order(finished, part_list)
             merge_layer = merge_results(
                 results_dir, order, finished,
                 self._resume_base_layer(results_dir, finished, spatial_reference),

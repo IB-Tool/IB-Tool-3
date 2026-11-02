@@ -20,6 +20,7 @@ from qgis.core import (QgsCoordinateTransformContext, QgsFeatureRequest, QgsSpat
                        QgsVectorFileWriter, QgsVectorLayer)
 
 from .geometry_utils import merge_layers_prepending
+from .logger import Logger
 
 PARTS_DIR = "parts"
 """Sub-folder of the results folder that holds one GeoPackage per partition."""
@@ -105,15 +106,35 @@ def write_part_result(layer: QgsVectorLayer, partition: str, results_dir: str) -
 
 
 def append_finished(log_path: str, part: FinishedPart) -> None:
-    """Append one finish line and force it to disk."""
+    """Append one finish line and force it to disk.
+
+    Logs of versions <= 0.2.4 do not end with a newline (they wrote
+    ``"\\n" + name``); a newline is inserted first so the new line is not
+    glued onto the last old partition name.
+    """
     if part.result is None:
         line = f"{part.partition}\tskipped\n"
     else:
         line = f"{part.partition}\t{part.result}\t{part.features}\n"
+    if _lacks_final_newline(log_path):
+        line = "\n" + line
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(line)
         f.flush()
         os.fsync(f.fileno())
+
+
+def _lacks_final_newline(path: str) -> bool:
+    """True if *path* exists, is not empty and its last byte is not ``\\n``."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            if f.tell() == 0:
+                return False
+            f.seek(-1, os.SEEK_END)
+            return f.read(1) != b"\n"
+    except FileNotFoundError:
+        return False
 
 
 def read_finished(log_path: str) -> Dict[str, FinishedPart]:
@@ -169,6 +190,40 @@ def validate_finished(results_dir: str,
     return valid, recompute
 
 
+def plan_partitions(part_list: List[str], valid: Dict[str, FinishedPart],
+                    recompute: List[str]) -> Tuple[List[str], List[str]]:
+    """Partitions to process in this run.
+
+    Invalid part files of *earlier* batches (finished, but not in the current
+    selection) are recomputed as well; otherwise their result would silently
+    be missing from the final merge.
+
+    Args:
+        part_list: Current selection, in list order.
+        valid: Finished partitions with a valid result (see :func:`validate_finished`).
+        recompute: Finished partitions whose part file is missing or incomplete.
+
+    Returns:
+        ``(work_list, todo)``: *work_list* is *part_list* plus the recomputed
+        earlier-batch partitions (used for numbering, estimates and progress);
+        *todo* are the partitions of *work_list* without a valid result.
+    """
+    selected = set(part_list)
+    work_list = list(part_list) + [name for name in recompute if name not in selected]
+    todo = [name for name in work_list if name not in valid]
+    return work_list, todo
+
+
+def merge_order(finished: Dict[str, FinishedPart], part_list: List[str]) -> List[str]:
+    """Final merge order: earlier batches (log order) first, then *part_list*.
+
+    This is the order of the former incremental merge, independent of the
+    worker count. Each partition appears at most once.
+    """
+    selected = set(part_list)
+    return [name for name in finished if name not in selected] + list(dict.fromkeys(part_list))
+
+
 def cleanup_temporary(results_dir: str) -> None:
     """Remove leftover ``*.tmp.gpkg`` files of an interrupted run."""
     for path in glob.glob(os.path.join(results_dir, PARTS_DIR, "*.tmp.gpkg")):
@@ -206,7 +261,12 @@ def merge_results(results_dir: str, order: List[str], finished: Dict[str, Finish
         if part is None or part.result in (None, OLD_FORMAT):
             continue
         path = os.path.join(results_dir, part.result)
-        source = QgsVectorLayer(f"{path}|layername=result", name, "ogr")
+        source = QgsVectorLayer(f"{path}|layername=result", name, "ogr") \
+            if os.path.isfile(path) else None
+        if source is None or not source.isValid():
+            Logger.log(f"Teilergebnis von {name} nicht lesbar ({part.result}) – fehlt im "
+                       "Ergebnis. Für ein vollständiges Ergebnis neu starten.", "CRITICAL")
+            continue
         memory = source.materialize(QgsFeatureRequest())
         fid_index = memory.fields().lookupField(FID_COLUMN)
         if fid_index >= 0:

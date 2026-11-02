@@ -133,6 +133,33 @@ class TestFinishLog:
         assert set(pr.read_finished(str(log))) == {"PART_1", "PART_2"}
 
     @pytest.mark.unit
+    def test_append_to_old_format_log_starts_new_line(self, tmp_path):
+        """Regression: the first new line was glued onto the last old name ("BC")."""
+        log = tmp_path / "fin.txt"
+        log.write_text("\nA\nB", encoding="utf-8")                 # as written by <= 0.2.4
+        pr.append_finished(str(log), pr.FinishedPart("C", "parts/C.gpkg", 5))
+        pr.append_finished(str(log), pr.FinishedPart("D", None, None))
+        assert pr.read_finished(str(log)) == {
+            "A": pr.FinishedPart("A", pr.OLD_FORMAT, None),
+            "B": pr.FinishedPart("B", pr.OLD_FORMAT, None),
+            "C": pr.FinishedPart("C", "parts/C.gpkg", 5),
+            "D": pr.FinishedPart("D", None, None)}
+
+    @pytest.mark.unit
+    def test_append_after_truncated_line_keeps_it_ignored(self, tmp_path):
+        log = tmp_path / "fin.txt"
+        log.write_text("A\tparts/A.gpkg\t3\nB\tparts/B.gp", encoding="utf-8")  # crash
+        pr.append_finished(str(log), pr.FinishedPart("C", None, None))
+        assert set(pr.read_finished(str(log))) == {"A", "C"}
+
+    @pytest.mark.unit
+    def test_append_to_empty_log_adds_no_blank_line(self, tmp_path):
+        log = tmp_path / "fin.txt"
+        log.write_text("", encoding="utf-8")
+        pr.append_finished(str(log), pr.FinishedPart("A", None, None))
+        assert log.read_text(encoding="utf-8") == "A\tskipped\n"
+
+    @pytest.mark.unit
     def test_missing_log_is_empty(self, tmp_path):
         assert pr.read_finished(str(tmp_path / "none.txt")) == {}
 
@@ -193,3 +220,31 @@ class TestEstimateBuildings:
         part.dataProvider().addFeatures(feats)
         assert pr.estimate_buildings(hu, part, ["A", "B", "C"]) == {"A": 2, "B": 1, "C": 0}
         assert pr.estimate_buildings(hu, part, ["B"]) == {"B": 1}
+
+
+class TestPlanning:
+
+    @pytest.mark.unit
+    def test_plan_recomputes_invalid_results_outside_selection(self):
+        valid = {"A": pr.FinishedPart("A", "parts/A.gpkg", 1)}
+        work_list, todo = pr.plan_partitions(["A", "B"], valid, ["X", "B"])
+        assert work_list == ["A", "B", "X"]
+        assert todo == ["B", "X"]
+
+    @pytest.mark.unit
+    def test_plan_without_resume(self):
+        assert pr.plan_partitions(["A", "B"], {}, []) == (["A", "B"], ["A", "B"])
+
+    @pytest.mark.unit
+    def test_merge_order_earlier_batches_first_each_once(self):
+        finished = {name: pr.FinishedPart(name, None, None) for name in ("E1", "B", "E2", "A")}
+        assert pr.merge_order(finished, ["A", "B", "A"]) == ["E1", "E2", "A", "B"]
+
+    @pytest.mark.integration
+    def test_merge_skips_unreadable_part_file(self, tmp_path):
+        rel, n = pr.write_part_result(_layer([0]), "A", str(tmp_path))
+        finished = {"A": pr.FinishedPart("A", rel, n),
+                    "X": pr.FinishedPart("X", "parts/X.gpkg", 1)}      # file missing
+        base = create_empty_layer("global_merge_layer", "Polygon", CRS.authid())
+        merged = pr.merge_results(str(tmp_path), ["X", "A"], finished, base, CRS)
+        assert merged.isValid() and merged.featureCount() == 1

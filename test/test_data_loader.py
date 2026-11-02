@@ -101,6 +101,22 @@ class TestCreatePartitionsList:
         result = data_loader.create_partitions_list(self.layer, ['B', 'C\n'], -1, -1)
         assert result == ['B', 'C']
 
+    @pytest.mark.edge_case
+    def test_create_from_list_removes_duplicates(self):
+        """A partition listed twice is processed (and merged) once."""
+        result = data_loader.create_partitions_list(self.layer, ['B', 'A', 'B\n'], -1, -1)
+        assert result == ['B', 'A']
+
+    @pytest.mark.edge_case
+    def test_create_all_removes_duplicate_feature_names(self):
+        """Several features with the same NAME form one partition."""
+        f = QgsFeature(self.layer.fields())
+        f.setAttributes(['A'])
+        f.setGeometry(QgsGeometry.fromPointXY(QgsPointXY(5, 5)))
+        self.layer.dataProvider().addFeatures([f])
+        result = data_loader.create_partitions_list(self.layer, ['#'], -1, -1)
+        assert result == ['A', 'B', 'C']
+
     def test_invalid_layer(self):
         invalid = QgsVectorLayer()  # invalid layer
         with pytest.raises(ValueError):
