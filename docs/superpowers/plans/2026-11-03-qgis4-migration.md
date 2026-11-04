@@ -255,3 +255,11 @@ Everything below is **uncommitted** on branch `qgis4_migration` (~60 files). Led
 - **Item 5:** `MIN_PYTHON = (3, 11)` (+ sync test with metadata), `writeAsVectorFormat` -> `writeAsVectorFormatV3`
   (+ content test), `SyntaxWarning` in `test/test_import_filter.py` fixed.
 - **Left:** short GUI check on QGIS 4 by the user; commit on user request.
+
+### Update 2026-11-04 (3) — release 0.3.0 prepared
+
+- plugins.qgis.org rules added to `ci/qgis_plugin_validate.py` (+ `test/test_plugin_validate.py`), CI job
+  `qt6-check`, project skill `/release-plugin` (`.claude/commands/release-plugin.md`). CI builds no ZIP (user decision).
+- Release prepared with the skill: `version=0.3.0`, metadata changelog/about updated, `docs/CHANGELOG.md` section
+  `0.3.0 — 2026-11-04`, README for QGIS 4. `MIN_PYTHON` stays 3.11 (user decision, Ubuntu 22.04 / Python 3.10 refused).
+- Left: GUI check on QGIS 3.44 and 4 (user), commit + tag `v0.3.0` + upload on user request.

@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## Unreleased
+## 0.3.0 — 2026-11-04
 
 ### Compatibility
 - **QGIS 4 (Qt6) support** — one code base for QGIS 3.40–3.x (Qt5/PyQt5) and QGIS 4.x (Qt6/PyQt6); `metadata.txt` now declares `qgisMaximumVersion=4.99` (was 3.50), `qgisMinimumVersion` stays 3.40 (see `docs/superpowers/plans/2026-11-03-qgis4-migration.md`). All Qt and QGIS enums are written fully scoped, which works on both PyQt versions: field types `QMetaType.Type.*`, geometry/WKB types `Qgis.GeometryType.*` / `Qgis.WkbType.*` (instead of `QgsWkbTypes.PolygonGeometry` etc.), `Qgis.MessageLevel.*`, `Qgis.VectorProviderCapability.CreateSpatialIndex`, `QgsVectorFileWriter.WriterError.NoError` / `ActionOnExistingFile.*`, `QMessageBox.StandardButton.*`, `QProcess.ProcessState.*` / `ProcessError.*`, `QFileDialog.Option.*`, `QDialogButtonBox.StandardButton.Close`, `Qt.Orientation.Horizontal`. `exec_()` → `exec()`. `QAction` is imported from `QtGui` (Qt6) with a fallback to `QtWidgets` (Qt5). No logic changes; results unchanged.
