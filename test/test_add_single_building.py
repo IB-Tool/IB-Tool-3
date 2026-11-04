@@ -6,10 +6,10 @@ from qgis.core import (
     QgsField,
     QgsCoordinateReferenceSystem,
     QgsPointXY,
-    QgsWkbTypes,
+    Qgis,
     QgsProject,
 )
-from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from test.utilities import get_qgis_app
 from ibtool.ibtool_tools.AddSingleBuilding import add_single_bdg
@@ -24,8 +24,8 @@ def _make_polygon_layer(crs_epsg="EPSG:25833"):
     layer = QgsVectorLayer(f"Polygon?crs={crs_epsg}", "test", "memory")
     provider = layer.dataProvider()
     provider.addAttributes([
-        QgsField("id", QVariant.Int),
-        QgsField("Area", QVariant.Double),
+        QgsField("id", QMetaType.Type.Int),
+        QgsField("Area", QMetaType.Type.Double),
     ])
     layer.updateFields()
     assert layer.isValid(), "Test layer must be valid"
@@ -124,7 +124,7 @@ class TestAddSingleBuilding:
             assert not geom.isNull(),    "Output geometry must not be null"
             assert not geom.isEmpty(),   "Output geometry must not be empty"
             assert geom.isGeosValid(),   "Output geometry must be GEOS-valid"
-            assert geom.type() == QgsWkbTypes.PolygonGeometry, (
+            assert geom.type() == Qgis.GeometryType.Polygon, (
                 "Output geometry must be polygon type"
             )
 

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## 0.3.0 — 2026-11-04
+
+### Compatibility
+- **QGIS 4 (Qt6) support** — one code base for QGIS 3.40–3.x (Qt5/PyQt5) and QGIS 4.x (Qt6/PyQt6); `metadata.txt` now declares `qgisMaximumVersion=4.99` (was 3.50), `qgisMinimumVersion` stays 3.40 (see `docs/superpowers/plans/2026-11-03-qgis4-migration.md`). All Qt and QGIS enums are written fully scoped, which works on both PyQt versions: field types `QMetaType.Type.*`, geometry/WKB types `Qgis.GeometryType.*` / `Qgis.WkbType.*` (instead of `QgsWkbTypes.PolygonGeometry` etc.), `Qgis.MessageLevel.*`, `Qgis.VectorProviderCapability.CreateSpatialIndex`, `QgsVectorFileWriter.WriterError.NoError` / `ActionOnExistingFile.*`, `QMessageBox.StandardButton.*`, `QProcess.ProcessState.*` / `ProcessError.*`, `QFileDialog.Option.*`, `QDialogButtonBox.StandardButton.Close`, `Qt.Orientation.Horizontal`. `exec_()` → `exec()`. `QAction` is imported from `QtGui` (Qt6) with a fallback to `QtWidgets` (Qt5). No logic changes; results unchanged.
+- **Tests Qt6-ready**: tests no longer import `PyQt5` directly or patch `PyQt5.*` targets, and use `QMetaType.Type.*` instead of `QVariant.*` field types (QVariant deprecation warnings in the suite: 232 → 5). New guards: `test/test_qt6_compat.py` (fails on Qt5-only spellings in code, scripts and tests), `test/test_qt_imports.py` (now also scans `test/`), `test/test_processing_ids.py` (every processing algorithm id used by the plugin resolves in the running QGIS), `test_metadata_supports_qgis4` in `test/test_init.py`.
+- **CI** tests QGIS 3.40, 3.44 LTR and 4.0 (`3liz/qgis-platform:4.0`).
+
+### Release tooling
+- **plugins.qgis.org rules in the validator** (`ci/qgis_plugin_validate.py`): fails (instead of warning or not checking) on a ZIP over 25 MB, binaries (`.exe`, `.dll`, `.so`, `.dylib`, `.pyd`, …), hidden files/folders, `__pycache__`/`__MACOSX`/`*.pyc`, a `supportsQt6` key, `qgisMaximumVersion` below 4.0 or missing, and a `changelog` without an entry for the current `version`. New `--release` flag: the version must be newer than every `v*` git tag. Tests: `test/test_plugin_validate.py` (incl. a check that the real `metadata.txt` passes).
+- **CI job `qt6-check`** (`.github/workflows/qgis-plugin-ci.yml`): runs pyqgis4-checker on the source (the check plugins.qgis.org shows in its "Qt6 Check" tab) and fails on any finding. CI still builds no release ZIP.
+- **Release procedure as a project skill** `/release-plugin` (`.claude/commands/release-plugin.md`): version, both changelogs, review of the texts shown on plugins.qgis.org, tests on QGIS 3.40/3.44/4.0, package checks, headless runs on QGIS 3.44 and 4, upload steps.
+
+### Fixed
+- **Plugin refused to start on QGIS 4** (`helpers/system_utils.version_check()`): the start-up check rejected Python > 3.12 and QGIS > 3.50, so QGIS 4 (Python 3.13) aborted with a version error. The Python upper bound is removed; the QGIS upper bound is now 4.99 (`MAX_QGIS = 49999`), matching `metadata.txt`.
+- **Missing-dependency message on QGIS 4** (root `__init__.py`): the message shown when scipy/networkx are missing used `Qgis.Critical`, which does not exist in PyQt6; now `Qgis.MessageLevel.Critical`. A UTF-8 BOM at the start of `ibtool/ibtool.py` (rejected by the QGIS 4 checker) was removed.
+- `.dockerignore` / `.gitignore`: locally generated figure/debug output and the QGIS `symbology-style.db` created by test runs are no longer baked into the local test image (the QGIS 3.44 image built with them ended with exit 139 after all tests passed).
+- `version_check()` minimum Python raised from 3.9 to 3.11, matching `pythonMinimumVersion` in `metadata.txt` (all supported QGIS versions ship 3.11 or newer); a test keeps both in sync.
+- `helpers/geometry_utils.polyline2` and `split_layer_by_attribute` used the deprecated `QgsVectorFileWriter.writeAsVectorFormat()` overload; now `writeAsVectorFormatV3` (same driver, encoding and CRS; write errors are logged). New content test for both formats.
+- Test hygiene: invalid escape sequence (`SyntaxWarning`) in `test/test_import_filter.py`; `test/test_edge_catch_utils.py` uses `qgis.core.NULL` instead of `QVariant()` (pyqgis4-checker finding).
+
+### Verified on QGIS 4
+- Sample data (`Testdaten/`, 71 partitions) on Windows QGIS 4.2.3 (Qt 6.11, Python 3.12, NumPy 2.5) with 4 workers and with 1 worker: both results identical to QGIS 3.44 LTR (172 features, 11,721,173.448 m², symmetric difference 0 m², `scripts/compare_results.py`); worker processes start on QGIS 4 (no fallback). 68.8 s with 4 workers vs. 92.7 s on QGIS 3.44.
+
+---
+
 ## 0.2.5 — 2026-11-02
 
 ### Performance

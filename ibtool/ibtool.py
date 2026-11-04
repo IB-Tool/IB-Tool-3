@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # pylint: disable=too-many-lines
 """Main plugin class and processing orchestrator for IBTool.
 
@@ -28,8 +28,11 @@ from qgis.PyQt.QtCore import (
     QTranslator,
 )
 from qgis.PyQt.QtGui import QIcon
+try:
+    from qgis.PyQt.QtGui import QAction          # Qt6 (QGIS 4)
+except ImportError:
+    from qgis.PyQt.QtWidgets import QAction      # Qt5 (QGIS 3)
 from qgis.PyQt.QtWidgets import (
-    QAction,
     QDialog,
     QFileDialog,
     QApplication,
@@ -594,8 +597,8 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.dlg, "IB-Tool",
             self.tr("This working directory contains a run that has already been started.\n"
                     "Take over its settings (input data and parameters)?"),
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
-        if answer != QMessageBox.Yes:
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes)
+        if answer != QMessageBox.StandardButton.Yes:
             return
         for name, value in changes.items():
             if name == "crs":
@@ -772,7 +775,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         positive = self.dlg.txtPositive.toPlainText()
         negative = self.dlg.txtNegative.toPlainText()
         dlg = FilterPreviewDialog(positive, negative, parent=self.dlg)
-        dlg.exec_()
+        dlg.exec()
 
     def load_filter_file(self, file_path):
         """Read a filter file and populate the positive/negative filter text fields.
@@ -981,10 +984,10 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
             self.tr("Reset Configuration"),
             self.tr("Delete CONFIG.ini and reset all fields to defaults?\n"
                     "This action cannot be undone."),
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
-        if reply != QMessageBox.Yes:
+        if reply != QMessageBox.StandardButton.Yes:
             return
 
         # Delete the file if it exists
@@ -1556,7 +1559,7 @@ class IBTool:  # pylint: disable=too-many-instance-attributes
         _status()
         pool.run(order)
         if not finished:
-            loop.exec_()
+            loop.exec()
         self._progress_part_hu = 0
         if self._cancel_requested:
             raise ProcessingCancelledError()

@@ -39,3 +39,11 @@ dist
 **/logs
 **/logfile_*.txt
 **/*.log
+
+# Locally generated figure/debug output (git-ignored) and QGIS style DB
+# created by test runs — baking them into the image changed teardown
+# behaviour on QGIS 3.44 (exit 139 after all tests passed)
+docs/img/_src/debug
+docs/img/_src/IB_Tool_Results
+docs/img/_src/figures_preview.png
+symbology-style.db

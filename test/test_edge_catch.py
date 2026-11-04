@@ -32,7 +32,7 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsCoordinateReferenceSystem,
-    QgsWkbTypes,
+    Qgis,
 )
 
 from .utilities import get_qgis_app
@@ -151,7 +151,7 @@ class TestEdgeCatch:
         for feat in result.getFeatures():
             geom = feat.geometry()
             if geom and not geom.isNull() and not geom.isEmpty():
-                assert geom.type() == QgsWkbTypes.PolygonGeometry, \
+                assert geom.type() == Qgis.GeometryType.Polygon, \
                     f"Expected polygon, got geometry type {geom.type()}"
 
     @pytest.mark.integration

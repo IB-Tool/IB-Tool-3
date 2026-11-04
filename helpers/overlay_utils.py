@@ -75,9 +75,9 @@ def polygon_parts(geom):
     Returns:
         Multi-polygon geometry, or ``None`` if *geom* has no polygon part.
     """
-    if QgsWkbTypes.flatType(geom.wkbType()) == QgsWkbTypes.GeometryCollection:
+    if QgsWkbTypes.flatType(geom.wkbType()) == Qgis.WkbType.GeometryCollection:
         parts = [part for part in geom.asGeometryCollection()
-                 if part.type() == QgsWkbTypes.PolygonGeometry]
+                 if part.type() == Qgis.GeometryType.Polygon]
         if not parts:
             return None
         geom = QgsGeometry.collectGeometry(parts)
@@ -175,7 +175,7 @@ def make_valid_polygon(geom):
     if fixed.isNull() or fixed.isEmpty():
         return None
     fixed = polygon_parts(fixed)
-    if fixed is None or fixed.type() != QgsWkbTypes.PolygonGeometry:
+    if fixed is None or fixed.type() != Qgis.GeometryType.Polygon:
         return None
     return fixed
 
@@ -285,7 +285,7 @@ def intersection_with(geom, overlay_features):
         if inter.isNull() or inter.isEmpty():
             continue
         inter = polygon_parts(inter)
-        if inter is None or inter.type() != QgsWkbTypes.PolygonGeometry:
+        if inter is None or inter.type() != Qgis.GeometryType.Polygon:
             continue
         result.append((inter, overlay))
     return result

@@ -57,3 +57,27 @@ jobs:
           print("OK: detect-secrets found no potential secrets")
           PY
 
+
+  qt6-check:
+    # Same check plugins.qgis.org runs on upload ("Qt6 Check" tab), see
+    # https://plugins.qgis.org/docs/migrate-qgis4 — fails on any finding so
+    # the plugin stays QGIS 4 ready. Runs on the source, no release ZIP built.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: pyqgis4-checker (dry run)
+        run: |
+          mkdir -p /tmp/qt6/ibtool
+          cp -r __init__.py metadata.txt helpers ibtool ibtool_tools scripts test /tmp/qt6/ibtool/
+          chmod -R a+rwX /tmp/qt6
+          docker run --rm --workdir /workspace/ -v /tmp/qt6:/workspace/ \
+            ghcr.io/qgis/pyqgis4-checker:main-ubuntu \
+            pyqt5_to_pyqt6.py --dry_run --logfile /workspace/pyqt6_checker.log ibtool
+          cat /tmp/qt6/pyqt6_checker.log
+          if grep -Eq ':[0-9]+:[0-9]+ ' /tmp/qt6/pyqt6_checker.log; then
+            echo "FAIL: pyqgis4-checker reported Qt5-only code (see log above)"
+            exit 2
+          fi
+          echo "OK: pyqgis4-checker found nothing"

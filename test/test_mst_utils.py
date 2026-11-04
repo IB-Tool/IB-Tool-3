@@ -148,7 +148,7 @@ class TestJoinArrayToPolygons:
     @pytest.mark.unit
     def test_field_not_duplicated_when_already_present(self):
         layer = _make_square_polygon_layer()
-        layer.dataProvider().addAttributes([QgsField("node", QMetaType.QString)])
+        layer.dataProvider().addAttributes([QgsField("node", QMetaType.Type.QString)])
         layer.updateFields()
         count_before = layer.fields().count()
         MSTUtilities.join_array_to_polygons(layer, [], field_name="node")
@@ -170,7 +170,7 @@ class TestPolygonSupportPointsDict:
 
     def _make_keyed_layer(self, key_value: str = "A") -> QgsVectorLayer:
         layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "keyed_polys", "memory")
-        layer.dataProvider().addAttributes([QgsField("key", QMetaType.QString)])
+        layer.dataProvider().addAttributes([QgsField("key", QMetaType.Type.QString)])
         layer.updateFields()
         feat = QgsFeature(layer.fields())
         feat["key"] = key_value
@@ -205,7 +205,7 @@ class TestPolygonSupportPointsDict:
     @pytest.mark.unit
     def test_multiple_features_produce_multiple_keys(self):
         layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "multi", "memory")
-        layer.dataProvider().addAttributes([QgsField("key", QMetaType.QString)])
+        layer.dataProvider().addAttributes([QgsField("key", QMetaType.Type.QString)])
         layer.updateFields()
         features = []
         for i, k in enumerate(["X", "Y"]):
@@ -230,7 +230,7 @@ class TestPolygonSupportPointsDict:
     @pytest.mark.edge_case
     def test_empty_layer_returns_empty_dict(self):
         layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "empty", "memory")
-        layer.dataProvider().addAttributes([QgsField("key", QMetaType.QString)])
+        layer.dataProvider().addAttributes([QgsField("key", QMetaType.Type.QString)])
         layer.updateFields()
         result = MSTUtilities.polygon_support_points_dict(layer, "key")
         assert result == {}

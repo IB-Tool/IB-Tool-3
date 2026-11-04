@@ -345,9 +345,9 @@ def _footprint_density_python(hu_input, blocks):
         sums[key] = sums.get(key, 0.0) + feature.geometry().area()
 
     fields = QgsFields(blocks.fields())
-    fields.append(QgsField(_SUM_FIELD[0], QMetaType.Double, "double",
+    fields.append(QgsField(_SUM_FIELD[0], QMetaType.Type.Double, "double",
                            _SUM_FIELD[1], _SUM_FIELD[2]))
-    fields.append(QgsField("OVERLAP", QMetaType.Double))
+    fields.append(QgsField("OVERLAP", QMetaType.Type.Double))
     layer = QgsMemoryProviderUtils.createMemoryLayer(
         "footprint_density", fields, blocks.wkbType(), blocks.crs())
 
@@ -393,7 +393,7 @@ def _footprint_density_processing(HU_Input, Bloecke, footprint_density_threshold
 
     # Ensure the 'area_intersect' field exists
     if provider.fieldNameIndex('area_intersect') == -1:
-        provider.addAttributes([QgsField("area_intersect", QMetaType.Double)])
+        provider.addAttributes([QgsField("area_intersect", QMetaType.Type.Double)])
         intersected_layer.updateFields()
 
     for feature in intersected_layer.getFeatures():
@@ -441,7 +441,7 @@ def _footprint_density_processing(HU_Input, Bloecke, footprint_density_threshold
 
     # Ensure the 'OVERLAP' field exists
     if provider.fieldNameIndex('OVERLAP') == -1:
-        provider.addAttributes([QgsField("OVERLAP", QMetaType.Double)])
+        provider.addAttributes([QgsField("OVERLAP", QMetaType.Type.Double)])
     joined_layer.updateFields()
     joined_layer.commitChanges()
 
@@ -510,12 +510,12 @@ def identify_dense_blocks(HU_Input, Bloecke, footprintdensitythreshold,
     # Add area fields for both buildings and blocks
     bloecke_singlepart.startEditing()
     if "SHAPE_AREA" not in [field.name() for field in bloecke_singlepart.fields()]:
-        bloecke_singlepart.dataProvider().addAttributes([QgsField("SHAPE_AREA", QMetaType.Double)])
+        bloecke_singlepart.dataProvider().addAttributes([QgsField("SHAPE_AREA", QMetaType.Type.Double)])
     bloecke_singlepart.commitChanges()
 
     HU_Input.startEditing()
     if "FOOTPRINT_AREA" not in [field.name() for field in HU_Input.fields()]:
-        HU_Input.dataProvider().addAttributes([QgsField("FOOTPRINT_AREA", QMetaType.Double)])
+        HU_Input.dataProvider().addAttributes([QgsField("FOOTPRINT_AREA", QMetaType.Type.Double)])
     HU_Input.commitChanges()
 
     # Calculate areas

@@ -60,7 +60,7 @@ class WorkerPool(QObject):  # pylint: disable=too-many-instance-attributes
     def process_count(self):
         """Number of worker processes still running."""
         return sum(1 for w in self._workers.values()
-                   if w.process.state() != QProcess.NotRunning)
+                   if w.process.state() != QProcess.ProcessState.NotRunning)
 
     @property
     def size(self):
@@ -83,7 +83,7 @@ class WorkerPool(QObject):  # pylint: disable=too-many-instance-attributes
         self._ready_waiter = loop
         timer.start(self._timeout_ms)
         if not worker.ready and not worker.exited:   # FailedToStart is reported in start()
-            loop.exec_()
+            loop.exec()
         self._ready_waiter = None
         if worker.ready:
             return True
@@ -178,7 +178,7 @@ class WorkerPool(QObject):  # pylint: disable=too-many-instance-attributes
             self._check_finished()
 
     def _on_error(self, worker, error):
-        if error == QProcess.FailedToStart:              # no 'finished' follows
+        if error == QProcess.ProcessError.FailedToStart:              # no 'finished' follows
             worker.stderr.append(f"Worker konnte nicht gestartet werden: "
                                  f"{worker.process.errorString()}")
             if self._ready_waiter is not None:
@@ -187,7 +187,7 @@ class WorkerPool(QObject):  # pylint: disable=too-many-instance-attributes
 
     def _alive(self):
         return [w for w in self._workers.values()
-                if not w.exited and w.process.state() != QProcess.NotRunning]
+                if not w.exited and w.process.state() != QProcess.ProcessState.NotRunning]
 
     def _on_exit(self, worker):
         if self._stopping or worker.exited:
@@ -226,7 +226,7 @@ class WorkerPool(QObject):  # pylint: disable=too-many-instance-attributes
 
     def _finish(self):
         for worker in self._workers.values():
-            if worker.process.state() != QProcess.NotRunning:
+            if worker.process.state() != QProcess.ProcessState.NotRunning:
                 worker.process.write(wp.encode_command(wp.exit_message()))
                 worker.process.waitForFinished(KILL_GRACE_MS)
         self._kill_all()
@@ -234,7 +234,7 @@ class WorkerPool(QObject):  # pylint: disable=too-many-instance-attributes
 
     def _kill_all(self):
         for worker in self._workers.values():
-            if worker.process.state() != QProcess.NotRunning:
+            if worker.process.state() != QProcess.ProcessState.NotRunning:
                 worker.process.terminate()
                 if not worker.process.waitForFinished(KILL_GRACE_MS):
                     worker.process.kill()

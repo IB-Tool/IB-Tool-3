@@ -13,10 +13,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Supported range is 3.40–3.50 (metadata.txt). 3.40 = minimum version,
-        # 3.44 = current LTR. Note: both Linux images ship NumPy 1.26 — NumPy 2
+        # Supported range is 3.40–4.x (metadata.txt). 3.40 = minimum version,
+        # 3.44 = current LTR, 4.0 = first Qt6 release (QGIS 4). Note: both Linux images ship NumPy 1.26 — NumPy 2
         # (as in QGIS 3.44 LTR on Windows/OSGeo4W) is NOT covered by this matrix.
-        qgis: ["3.40", "3.44"]
+        qgis: ["3.40", "3.44", "4.0"]
 
     steps:
       - name: Checkout repository

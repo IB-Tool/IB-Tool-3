@@ -109,7 +109,7 @@ class MSTUtilities:
         field_names = [f.name() for f in layer.fields()]
         with edit(layer):
             if field_name not in field_names:
-                layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.QString)])
+                layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.Type.QString)])
         layer.updateFields()
         field_index = layer.fields().indexFromName(field_name)
 

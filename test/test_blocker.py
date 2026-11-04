@@ -7,13 +7,13 @@ from pathlib import Path
 from qgis.core import (
     QgsVectorLayer,
     QgsProject,
-    QgsWkbTypes,
+    Qgis,
     QgsFeature,
     QgsGeometry,
     QgsPointXY,
     QgsField,
 )
-from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 from ibtool.helpers.system_utils import save_temp_layer_to_gpkg
 
 # Private helpers under test
@@ -300,7 +300,7 @@ class TestBlockerIntegration:
         # Ensure all features are polygons
         for feature in result.getFeatures():
             if feature.geometry():
-                assert feature.geometry().type() == QgsWkbTypes.PolygonGeometry, "All features should be polygons"
+                assert feature.geometry().type() == Qgis.GeometryType.Polygon, "All features should be polygons"
 
     @pytest.mark.integration
     def test_blocker_spatial_relationships(self):
@@ -557,7 +557,7 @@ class TestAssignBlockNames:
     def test_name_field_not_duplicated_when_already_present(self):
         """If NAME field already exists, no second NAME field is added."""
         layer = self._make_polygon_layer(2)
-        layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        layer.dataProvider().addAttributes([QgsField("NAME", QMetaType.Type.QString)])
         layer.updateFields()
         field_count_before = layer.fields().count()
         _assign_block_names(layer)
@@ -686,7 +686,7 @@ class TestBuildBlockPolygons:
         rn = self._load("dummy_rn.gpkg")
         part = self._load("dummy_part.gpkg")
         result = _build_block_polygons(rn, part)
-        assert result.geometryType() == QgsWkbTypes.PolygonGeometry
+        assert result.geometryType() == Qgis.GeometryType.Polygon
 
     @pytest.mark.integration
     def test_produces_at_least_one_polygon(self):

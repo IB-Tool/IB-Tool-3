@@ -20,13 +20,13 @@ import numpy as np
 from qgis.PyQt.QtCore import QMetaType
 from qgis import processing
 from qgis.core import (
+    Qgis,
     QgsGeometry,
     QgsPoint,
     QgsFeature,
     QgsVectorLayer,
     QgsField,
     QgsProcessing,
-    QgsWkbTypes,
     QgsPointXY,
     QgsCoordinateReferenceSystem
 )
@@ -276,7 +276,7 @@ def calc_bounding_rect(
     hu_dir_rect = QgsVectorLayer(f'Polygon?crs={crs.authid()}', "HUDirRect", "memory")
     provider = hu_dir_rect.dataProvider()
 
-    provider.addAttributes([QgsField("id", QMetaType.Int)])
+    provider.addAttributes([QgsField("id", QMetaType.Type.Int)])
     hu_dir_rect.updateFields()
 
     feature = QgsFeature()
@@ -454,7 +454,7 @@ def mst_clustering(
         geom = feature.geometry()
 
         # Ensure geometry is valid and represents a polygon
-        if geom.isGeosValid() and geom.type() == QgsWkbTypes.PolygonGeometry:
+        if geom.isGeosValid() and geom.type() == Qgis.GeometryType.Polygon:
             if geom.isMultipart():
                 polygons = geom.asMultiPolygon()
             else:
@@ -512,7 +512,7 @@ def mst_clustering(
     dict_hu = {fid: _filter_short_edges(rows) for fid, rows in dict_hu.items()}
 
     # Preserve original feature IDs as attributes before spatial join
-    hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QMetaType.Int)])
+    hu_layer.dataProvider().addAttributes([QgsField("fid_hu_orig", QMetaType.Type.Int)])
     hu_layer.updateFields()
 
     hu_layer = processing.run(
@@ -528,7 +528,7 @@ def mst_clustering(
     if debug_mode and workspace_path:
         save_debug_layer(hu_layer, _DEBUG_TOOL_NAME, "after_hu_fid_calc", workspace_path)
 
-    mst_layer.dataProvider().addAttributes([QgsField("fid_mst_orig", QMetaType.Int)])
+    mst_layer.dataProvider().addAttributes([QgsField("fid_mst_orig", QMetaType.Type.Int)])
     mst_layer.updateFields()
 
     mst_layer = processing.run(
@@ -700,7 +700,7 @@ def mst_clustering(
     rect_merge = None
     if rect_features:
         rects = QgsVectorLayer(f'Polygon?crs={crs.authid()}', "HUDirRect", "memory")
-        rects.dataProvider().addAttributes([QgsField("id", QMetaType.Int)])
+        rects.dataProvider().addAttributes([QgsField("id", QMetaType.Type.Int)])
         rects.updateFields()
         rects.dataProvider().addFeatures(list(reversed(rect_features)))
         rect_merge = merge_layers_prepending([rects], merge_layer_2, crs)

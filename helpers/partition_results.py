@@ -92,7 +92,7 @@ def write_part_result(layer: QgsVectorLayer, partition: str, results_dir: str) -
     opts.layerOptions = [f"FID={FID_COLUMN}"]
     err = QgsVectorFileWriter.writeAsVectorFormatV3(
         layer, temp, QgsCoordinateTransformContext(), opts)
-    if err[0] != QgsVectorFileWriter.NoError:
+    if err[0] != QgsVectorFileWriter.WriterError.NoError:
         if os.path.exists(temp):
             os.remove(temp)
         raise OSError(f"Teilergebnis {partition} konnte nicht geschrieben werden: {err[1]}")

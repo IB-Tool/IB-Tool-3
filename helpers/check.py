@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 from qgis.core import (
+    Qgis,
     QgsVectorLayer,
     QgsWkbTypes,
     QgsCoordinateReferenceSystem,
@@ -462,7 +463,7 @@ class InputValidator:
     ) -> None:
         """Validate HU layer: polygon geometry and required fields."""
         # Geometry type
-        if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+        if layer.geometryType() != Qgis.GeometryType.Polygon:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
                 _tr("Building footprints (HU): Polygon geometry required, but {geom_type} found. "
@@ -522,7 +523,7 @@ class InputValidator:
         self, layer: QgsVectorLayer, result: ValidationResult
     ) -> None:
         """Validate RN layer: must be LineString geometry."""
-        if layer.geometryType() != QgsWkbTypes.LineGeometry:
+        if layer.geometryType() != Qgis.GeometryType.Line:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
                 _tr("Road network (RN): Line geometry required, but {geom_type} found. "
@@ -533,7 +534,7 @@ class InputValidator:
         self, layer: QgsVectorLayer, result: ValidationResult
     ) -> None:
         """Validate Aux layer: must be LineString geometry."""
-        if layer.geometryType() != QgsWkbTypes.LineGeometry:
+        if layer.geometryType() != Qgis.GeometryType.Line:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
                 _tr("Auxiliary layer (Aux): Line geometry required, but {geom_type} found. "
@@ -544,7 +545,7 @@ class InputValidator:
         self, layer: QgsVectorLayer, result: ValidationResult
     ) -> None:
         """Validate Part layer: polygon geometry, NAME field and naming pattern."""
-        if layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+        if layer.geometryType() != Qgis.GeometryType.Polygon:
             geom_type = QgsWkbTypes.geometryDisplayString(layer.geometryType())
             result.add_error(
                 _tr("Partitioning (Part): Polygon geometry required, but {geom_type} found. "
@@ -610,7 +611,7 @@ class InputValidator:
         - MultiLineString with exactly 1 part -> OK
         - MultiLineString with >1 parts -> Error
         """
-        if layer.geometryType() != QgsWkbTypes.LineGeometry:
+        if layer.geometryType() != Qgis.GeometryType.Line:
             return
 
         multiline_count = 0

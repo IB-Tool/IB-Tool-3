@@ -29,9 +29,8 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsField,
-    QgsWkbTypes,
+    Qgis,
 )
-from PyQt5.QtCore import QVariant
 
 from .utilities import get_qgis_app
 
@@ -275,7 +274,7 @@ class TestHoleClose:
         layer = make_polygon_layer()
         add_feature_to_layer(layer, make_square_geom(0, 0, 100))
         result = hole_close(layer, max_hole_size=500)
-        assert result.geometryType() == QgsWkbTypes.PolygonGeometry
+        assert result.geometryType() == Qgis.GeometryType.Polygon
 
     @pytest.mark.integration
     def test_result_has_at_least_one_feature(self):

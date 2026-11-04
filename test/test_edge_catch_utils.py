@@ -21,9 +21,8 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsField,
-    QgsWkbTypes,
+    Qgis,
 )
-from qgis.PyQt.QtCore import QVariant
 
 from .utilities import get_qgis_app
 from ibtool.helpers.edge_catch_utils import (
@@ -218,7 +217,7 @@ class TestBuildCatchPolygon:
         foot_a     = QgsPointXY(0, -20)
         poly = build_catch_polygon(edge_start, edge_end, foot_a, foot_b)
         assert poly is not None
-        assert poly.type() == QgsWkbTypes.PolygonGeometry
+        assert poly.type() == Qgis.GeometryType.Polygon
 
     @pytest.mark.unit
     def test_with_intermediate_road_vertices(self):
@@ -242,7 +241,7 @@ class TestBuildCatchPolygon:
         result = build_catch_polygon(same, same, same, same)
         # Either None, or a non-Polygon geometry (e.g. Point after makeValid), is acceptable.
         if result is not None and not result.isNull() and not result.isEmpty():
-            assert result.type() != QgsWkbTypes.PolygonGeometry, (
+            assert result.type() != Qgis.GeometryType.Polygon, (
                 "Degenerate input should not produce a valid Polygon geometry"
             )
 
@@ -585,16 +584,16 @@ class TestGroupLinesByAngle:
 def _make_ortho_line_layer(crs: str = "EPSG:25833") -> "QgsVectorLayer":
     """In-memory line layer with fields expected by filter_ortho_lines."""
     from qgis.core import QgsField
-    from qgis.PyQt.QtCore import QVariant
+    from qgis.PyQt.QtCore import QMetaType
     layer = QgsVectorLayer(f"LineString?crs={crs}", "ortho_lines", "memory")
     prov = layer.dataProvider()
     prov.addAttributes([
-        QgsField("distance", QVariant.Double),
-        QgsField("angle",    QVariant.Double),
-        QgsField("x1",       QVariant.Double),
-        QgsField("y1",       QVariant.Double),
-        QgsField("x2",       QVariant.Double),
-        QgsField("y2",       QVariant.Double),
+        QgsField("distance", QMetaType.Type.Double),
+        QgsField("angle",    QMetaType.Type.Double),
+        QgsField("x1",       QMetaType.Type.Double),
+        QgsField("y1",       QMetaType.Type.Double),
+        QgsField("x2",       QMetaType.Type.Double),
+        QgsField("y2",       QMetaType.Type.Double),
     ])
     layer.updateFields()
     return layer
@@ -1012,10 +1011,9 @@ class TestProcessSingleFeatureMissingArea:
 
     @pytest.mark.unit
     def test_null_qvariant_area_is_skipped(self):
-        from qgis.core import QgsCoordinateReferenceSystem
-        from qgis.PyQt.QtCore import QVariant
+        from qgis.core import NULL, QgsCoordinateReferenceSystem
         feat = self._feature_with_null_area()
-        feat.setAttribute("Area", QVariant())          # NULL QVariant, as read from GeoPackage
+        feat.setAttribute("Area", NULL)                # NULL attribute, as read from GeoPackage
         assert process_single_feature(feat, None, None,
                                       QgsCoordinateReferenceSystem("EPSG:25833")) is None
 

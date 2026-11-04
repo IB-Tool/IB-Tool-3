@@ -13,7 +13,7 @@ from pathlib import Path
 
 # QGIS imports
 from qgis.core import (
-    QgsVectorLayer, QgsCoordinateReferenceSystem, QgsWkbTypes,
+    QgsVectorLayer, QgsCoordinateReferenceSystem, Qgis,
     QgsFeature, QgsGeometry, QgsPointXY, QgsProject
 )
 
@@ -110,7 +110,7 @@ class TestCreateMST:
         assert is_valid, f"MST layer validation failed: {message}"
 
         # Check geometry type
-        assert result.wkbType() == QgsWkbTypes.LineString, "MST should return LineString layer"
+        assert result.wkbType() == Qgis.WkbType.LineString, "MST should return LineString layer"
 
         # Check feature count (for 4 buildings, expect 3 MST edges)
         feature_count = result.featureCount()
@@ -163,9 +163,9 @@ class TestCreateMST:
         single_building_layer = QgsVectorLayer(f"Polygon?crs={crs.toWkt()}", "single", "memory")
         provider = single_building_layer.dataProvider()
 
-        from qgis.PyQt.QtCore import QVariant
+        from qgis.PyQt.QtCore import QMetaType
         from qgis.core import QgsField
-        provider.addAttributes([QgsField("id", QVariant.Int)])
+        provider.addAttributes([QgsField("id", QMetaType.Type.Int)])
         single_building_layer.updateFields()
 
         feature = QgsFeature(single_building_layer.fields())

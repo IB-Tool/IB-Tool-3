@@ -73,7 +73,7 @@ class _MissingDepsPlugin:
             "IBTool — Missing dependencies",
             f"Required packages not found: {pkg}. "
             f"Fix with: pip install {cmd} — then restart QGIS.",
-            level=Qgis.Critical,
+            level=Qgis.MessageLevel.Critical,
             duration=0,
         )
 

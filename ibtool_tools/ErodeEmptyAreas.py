@@ -21,6 +21,7 @@ import math
 
 from qgis import processing
 from qgis.core import (
+    Qgis,
     QgsVectorLayer,
     QgsFeature,
     QgsGeometry,
@@ -297,7 +298,7 @@ def _dissolve_to_single_feature(fixed_input, debug_mode=False, workspace_path=No
         geom = feat.geometry()
         if not geom or geom.isNull() or geom.isEmpty():
             continue
-        if QgsWkbTypes.geometryType(geom.wkbType()) != QgsWkbTypes.PolygonGeometry:
+        if QgsWkbTypes.geometryType(geom.wkbType()) != Qgis.GeometryType.Polygon:
             continue
         if diss_geom.isNull():
             diss_geom = QgsGeometry(geom)

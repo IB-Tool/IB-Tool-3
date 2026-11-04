@@ -510,7 +510,7 @@ class TestAddAction:
     @pytest.mark.unit
     def test_returns_qaction(self):
         """add_action must return a QAction instance."""
-        from qgis.PyQt.QtWidgets import QAction
+        from ibtool.ibtool.ibtool import QAction  # Qt5/Qt6-safe import
         tool = _make_tool()
         action = self._add(tool)
         assert isinstance(action, QAction)
@@ -620,7 +620,7 @@ class TestUnload:
     @pytest.mark.unit
     def test_calls_remove_toolbar_icon_for_each_action(self):
         """unload must call iface.removeToolBarIcon once per registered action."""
-        from qgis.PyQt.QtWidgets import QAction
+        from ibtool.ibtool.ibtool import QAction  # Qt5/Qt6-safe import
         tool = _make_tool()
         tool.iface = MagicMock()
         tool.actions = [QAction(f"Action {i}") for i in range(3)]
@@ -633,7 +633,7 @@ class TestUnload:
     @pytest.mark.unit
     def test_calls_remove_plugin_menu_for_each_action(self):
         """unload must call iface.removePluginMenu once per registered action."""
-        from qgis.PyQt.QtWidgets import QAction
+        from ibtool.ibtool.ibtool import QAction  # Qt5/Qt6-safe import
         tool = _make_tool()
         tool.iface = MagicMock()
         tool.actions = [QAction(f"Action {i}") for i in range(2)]
@@ -1376,7 +1376,7 @@ class TestConfigDir:
         tool = _make_tool()
         tool.config_dir = str(tmp_path)
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.Yes),              patch("ibtool.ibtool.ibtool.ConfigManager") as mock_cm,              patch("ibtool.ibtool.ibtool.logger"):
+                   return_value=_QMB.StandardButton.Yes),              patch("ibtool.ibtool.ibtool.ConfigManager") as mock_cm,              patch("ibtool.ibtool.ibtool.logger"):
             tool._delete_config()
         assert mock_cm.call_args[0][0] == str(tmp_path)
 
@@ -1405,7 +1405,7 @@ class TestDeleteConfig:
         tool.config_manager.config_file_path = str(cfg_file)
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.No), \
+                   return_value=_QMB.StandardButton.No), \
              patch("ibtool.ibtool.ibtool.logger"):
             tool._delete_config()
 
@@ -1421,7 +1421,7 @@ class TestDeleteConfig:
         cfg_file.write_text("[UI]\n", encoding="utf-8")
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.Yes), \
+                   return_value=_QMB.StandardButton.Yes), \
              patch("ibtool.ibtool.ibtool.logger"):
             tool._delete_config()
 
@@ -1438,7 +1438,7 @@ class TestDeleteConfig:
         tool.dlg.WorkspacePath.setText("/some/workspace")
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.Yes), \
+                   return_value=_QMB.StandardButton.Yes), \
              patch("ibtool.ibtool.ibtool.logger"):
             tool._delete_config()
 
@@ -1458,7 +1458,7 @@ class TestDeleteConfig:
         tool._validation_layer_cache = {"HuPath": {"checksum": "abc", "errors": [], "warnings": []}}
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.Yes), \
+                   return_value=_QMB.StandardButton.Yes), \
              patch("ibtool.ibtool.ibtool.logger"):
             tool._delete_config()
 
@@ -1481,7 +1481,7 @@ class TestDeleteConfig:
         tool.dlg.set_start_button_ready(True)  # enable it first
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.Yes), \
+                   return_value=_QMB.StandardButton.Yes), \
              patch("ibtool.ibtool.ibtool.logger"):
             tool._delete_config()
 
@@ -1497,7 +1497,7 @@ class TestDeleteConfig:
         # No CONFIG.ini created in tmp_path
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.Yes), \
+                   return_value=_QMB.StandardButton.Yes), \
              patch("ibtool.ibtool.ibtool.logger"):
             tool._delete_config()  # Must not raise
 
@@ -1512,7 +1512,7 @@ class TestDeleteConfig:
         tool.dlg.HuPath.setText("/some/path.shp")
 
         with patch("ibtool.ibtool.ibtool.QMessageBox.question",
-                   return_value=_QMB.Yes), \
+                   return_value=_QMB.StandardButton.Yes), \
              patch("ibtool.ibtool.ibtool.logger") as mock_log, \
              patch("os.remove", side_effect=OSError("permission denied")):
             tool._delete_config()
@@ -2333,7 +2333,7 @@ class TestManifestRestorePrompt:
                     "params": {"min_area": 60.0, "max_gap_size": 4000.0},
                     "crs": "EPSG:25832"}
         with patch("ibtool.ibtool.ibtool.read_manifest", return_value=manifest),                 patch("ibtool.ibtool.ibtool.QMessageBox") as box:
-            box.question.return_value = box.Yes
+            box.question.return_value = box.StandardButton.Yes
             self.tool._offer_manifest_restore(str(tmp_path))
         box.question.assert_called_once()
         assert self.tool.dlg.HuPath.text() == "C:/x/hu.gpkg"
@@ -2346,7 +2346,7 @@ class TestManifestRestorePrompt:
         self.tool.dlg.HuPath.setText("C:/keep/hu.shp")
         manifest = {"inputs": {"hu": {"path": "C:/other/hu.gpkg"}}, "params": {}, "crs": None}
         with patch("ibtool.ibtool.ibtool.read_manifest", return_value=manifest),                 patch("ibtool.ibtool.ibtool.QMessageBox") as box:
-            box.question.return_value = box.No
+            box.question.return_value = box.StandardButton.No
             self.tool._offer_manifest_restore(str(tmp_path))
         assert self.tool.dlg.HuPath.text() == "C:/keep/hu.shp"
 

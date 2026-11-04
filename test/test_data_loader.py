@@ -8,7 +8,7 @@ from helpers import data_loader
 
 from .utilities import get_qgis_app
 from qgis.core import QgsVectorLayer, QgsField, QgsFeature, QgsGeometry, QgsPointXY
-from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 QGIS_APP = get_qgis_app()
 
@@ -36,37 +36,37 @@ class TestSelectFileFunctions:
     def setup_method(self, method):
         self.dlg = DummyDlg()
 
-    @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
+    @patch('qgis.PyQt.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_hu_file(self, mock_dialog):
         mock_dialog.return_value = ('/mock/test_hu.shp', '')
         data_loader.select_HU_file(self.dlg)
         assert self.dlg.HuPath.text() == '/mock/test_hu.shp'
 
-    @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
+    @patch('qgis.PyQt.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_rn_file(self, mock_dialog):
         mock_dialog.return_value = ('/mock/test_rn.shp', '')
         data_loader.select_RN_file(self.dlg)
         assert self.dlg.RnPath.text() == '/mock/test_rn.shp'
 
-    @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
+    @patch('qgis.PyQt.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_part_file(self, mock_dialog):
         mock_dialog.return_value = ('/mock/test_part.shp', '')
         data_loader.select_PART_file(self.dlg)
         assert self.dlg.PartPath.text() == '/mock/test_part.shp'
 
-    @patch('PyQt5.QtWidgets.QFileDialog.getOpenFileName')
+    @patch('qgis.PyQt.QtWidgets.QFileDialog.getOpenFileName')
     def test_select_aux_file(self, mock_dialog):
         mock_dialog.return_value = ('/mock/test_aux.shp', '')
         data_loader.select_AUX_file(self.dlg)
         assert self.dlg.AuxPath.text() == '/mock/test_aux.shp'
 
-    @patch('PyQt5.QtWidgets.QFileDialog.getSaveFileName')
+    @patch('qgis.PyQt.QtWidgets.QFileDialog.getSaveFileName')
     def test_select_output_file(self, mock_dialog):
         mock_dialog.return_value = ('/mock/out.gpkg', '')
         data_loader.select_output_file(self.dlg)
         assert self.dlg.OutputPath.text() == '/mock/out.gpkg'
 
-    @patch('PyQt5.QtWidgets.QFileDialog.getExistingDirectory')
+    @patch('qgis.PyQt.QtWidgets.QFileDialog.getExistingDirectory')
     def test_select_workspace_file(self, mock_dialog):
         mock_dialog.return_value = '/mock/workspace'
         data_loader.select_workspace_file(self.dlg)
@@ -78,7 +78,7 @@ class TestCreatePartitionsList:
         # Create an in-memory vector layer with NAME field
         self.layer = QgsVectorLayer('Point?crs=EPSG:4326', 'parts', 'memory')
         pr = self.layer.dataProvider()
-        pr.addAttributes([QgsField('NAME', QVariant.String, 'varchar', 255, 0)])
+        pr.addAttributes([QgsField('NAME', QMetaType.Type.QString, 'varchar', 255, 0)])
         self.layer.updateFields()
         feats = []
         for name, x in zip(['A', 'B', 'C'], [0, 1, 2]):
@@ -126,7 +126,7 @@ class TestCreatePartitionsList:
         """Empty layer with '#' sentinel and -1/-1 returns empty list."""
         empty_layer = QgsVectorLayer('Point?crs=EPSG:4326', 'empty', 'memory')
         pr = empty_layer.dataProvider()
-        pr.addAttributes([QgsField('NAME', QVariant.String, 'varchar', 255, 0)])
+        pr.addAttributes([QgsField('NAME', QMetaType.Type.QString, 'varchar', 255, 0)])
         empty_layer.updateFields()
         result = data_loader.create_partitions_list(empty_layer, ['#'], -1, -1)
         assert result == []

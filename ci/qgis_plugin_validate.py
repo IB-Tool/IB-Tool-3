@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
 '''QGIS Plugin preflight validator (structure + metadata).
 
+Rules follow https://plugins.qgis.org/docs/publish, /docs/approval and
+/docs/migrate-qgis4: required metadata, license file, package <= 25 MB, no
+binaries, no hidden or generated files, a changelog entry for the current
+version, and the QGIS 4 range (qgisMaximumVersion >= 4.0, no supportsQt6).
+
 Usage examples:
+  python ci/qgis_plugin_validate.py --auto
   python ci/qgis_plugin_validate.py --plugin-dir path/to/plugin
-  python ci/qgis_plugin_validate.py --zip dist/MyPlugin.1.2.3.zip
+  python ci/qgis_plugin_validate.py --zip dist/ibtool.zip
+  python ci/qgis_plugin_validate.py --zip dist/ibtool.zip --release
+      (--release: the version must also be newer than every git tag v*)
 
 Exit codes:
   0 = ok
@@ -12,11 +20,8 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import configparser
-import io
-import os
+import subprocess  # nosec B404 - only runs 'git tag' with fixed arguments
 import re
-import sys
 import zipfile
 from pathlib import Path
 
@@ -43,6 +48,16 @@ REQUIRED_METADATA_KEYS = [
     "license",
 ]
 
+# plugins.qgis.org: "The plugin package must not exceed 25MB"
+MAX_ZIP_BYTES = 25 * 1024 * 1024
+# plugins.qgis.org: "Do not include binaries"
+BINARY_EXTENSIONS = {".exe", ".dll", ".so", ".dylib", ".pyd", ".bin", ".msi", ".jar", ".class"}
+# Generated files must not be shipped (publish docs, "Tips and Tricks")
+GENERATED_EXTENSIONS = {".pyc", ".pyo"}
+GENERATED_DIRS = {"__pycache__", "__MACOSX"}
+# Listing for QGIS 4 requires qgisMaximumVersion >= 4.0 (migrate-qgis4 docs)
+MIN_QGIS_MAXIMUM = (4, 0)
+
 
 def fail(msg: str) -> None:
     print(f"FAIL: {msg}")
@@ -58,19 +73,84 @@ def ok(msg: str) -> None:
 
 
 def parse_metadata_text(text: str) -> dict[str, str]:
-    # metadata.txt uses INI-like format, but often without sections.
-    # QGIS accepts it as a simple key=value file.
-    # We'll parse with a fallback approach.
+    """Parse metadata.txt like QGIS (INI): key=value, indented lines continue the previous value.
+
+    Sections are optional. Continuation lines are joined with newlines, so a
+    multi-line ``changelog`` stays one value even if an entry contains '='.
+    """
     data: dict[str, str] = {}
+    last_key = None
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or line.startswith(";"):
             continue
+        if raw[:1] in (" ", "\t") and last_key is not None:
+            data[last_key] += "\n" + line
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            last_key = None
+            continue
         if "=" not in line:
             continue
         k, v = line.split("=", 1)
-        data[k.strip()] = v.strip()
+        last_key = k.strip()
+        data[last_key] = v.strip()
     return data
+
+
+def _version_tuple(text: str) -> tuple:
+    """Sort key for versions such as '0.2.5', 'v0.2.2-beta', '4.99'.
+
+    Numeric parts compare numerically; a pre-release suffix ('-beta') sorts
+    before the plain version.
+    """
+    text = text.strip().lstrip("vV")
+    core, _, suffix = text.partition("-")
+    numbers = tuple(int(p) for p in re.findall(r"\d+", core))
+    return numbers + ((0,) if suffix else (1,))
+
+
+def check_metadata_rules(meta: dict[str, str]) -> None:
+    """Repository rules beyond the required keys (fails on the first violation)."""
+    if "supportsQt6" in meta:
+        fail("metadata.txt contains 'supportsQt6' - the flag is no longer recognised; "
+             "QGIS 4 support is declared by qgisMaximumVersion (remove the key)")
+
+    maximum = meta.get("qgisMaximumVersion", "").strip()
+    if not maximum:
+        fail("metadata.txt has no qgisMaximumVersion - without it the plugin is only "
+             "listed for the major version of qgisMinimumVersion (set 4.99)")
+    if _version_tuple(maximum)[:2] < MIN_QGIS_MAXIMUM:
+        fail(f"qgisMaximumVersion={maximum} excludes QGIS 4 (needs >= 4.0, e.g. 4.99)")
+    ok(f"QGIS range {meta.get('qgisMinimumVersion', '?')}-{maximum} includes QGIS 4")
+
+    version = meta.get("version", "").strip()
+    changelog = meta.get("changelog", "")
+    if not changelog.strip():
+        fail("metadata.txt has no changelog (required for every update)")
+    if not re.search(r"(?<![\d.])" + re.escape(version) + r"(?!\.?\d)", changelog):
+        fail(f"changelog has no entry for the current version {version}")
+    ok(f"changelog mentions version {version}")
+
+
+def check_version_is_new(version: str, tags: list[str]) -> None:
+    """Fail unless *version* is newer than every released tag (``v*``)."""
+    released = [t for t in tags if t.strip()]
+    if not released:
+        ok(f"version {version}: no earlier release tags")
+        return
+    latest = max(released, key=_version_tuple)
+    if _version_tuple(version) <= _version_tuple(latest):
+        fail(f"version {version} is not newer than the latest release tag {latest} "
+             "(every upload needs a new version number)")
+    ok(f"version {version} is newer than {latest}")
+
+
+def git_release_tags(repo: Path) -> list[str]:
+    """Release tags (``v*``) of the git repository at *repo*."""
+    result = subprocess.run(  # nosec B603 B607 - fixed git command, no user input
+        ["git", "tag", "--list", "v*"], cwd=repo, capture_output=True, text=True, check=True)
+    return result.stdout.split()
 
 
 def validate_plugin_dir(plugin_dir: Path) -> None:
@@ -120,15 +200,35 @@ def validate_plugin_dir(plugin_dir: Path) -> None:
     if len(meta.get("description", "")) < 10:
         warn("description is very short; consider a clearer English description.")
 
+    check_metadata_rules(meta)
 
-def validate_zip(zip_path: Path) -> None:
+
+def validate_zip(zip_path: Path) -> dict[str, str]:
     if not zip_path.exists():
         fail(f"zip not found: {zip_path}")
     if zip_path.suffix.lower() != ".zip":
         warn("file does not end with .zip; continuing anyway.")
 
+    size = zip_path.stat().st_size
+    if size > MAX_ZIP_BYTES:
+        fail(f"zip is {size / 1024 / 1024:.1f} MB; plugins.qgis.org accepts at most 25 MB")
+    ok(f"zip size {size / 1024:.0f} KB (limit 25 MB)")
+
     with zipfile.ZipFile(zip_path, "r") as z:
         names = [n for n in z.namelist() if not n.endswith("/")]
+
+        hidden = [n for n in names if any(part.startswith(".") for part in n.split("/"))]
+        if hidden:
+            fail(f"zip contains hidden files/folders: {hidden[:10]}")
+        generated = [n for n in names
+                     if Path(n).suffix.lower() in GENERATED_EXTENSIONS
+                     or any(part in GENERATED_DIRS for part in n.split("/"))]
+        if generated:
+            fail(f"zip contains generated files: {generated[:10]}")
+        binaries = [n for n in names if Path(n).suffix.lower() in BINARY_EXTENSIONS]
+        if binaries:
+            fail(f"zip contains binaries (not accepted by plugins.qgis.org): {binaries[:10]}")
+        ok("no hidden, generated or binary files in zip")
         top_levels = set(n.split("/", 1)[0] for n in names if "/" in n)
         if len(top_levels) != 1:
             fail(f"zip must contain exactly one top-level plugin folder. Found: {sorted(top_levels)}")
@@ -158,11 +258,8 @@ def validate_zip(zip_path: Path) -> None:
             fail(f"metadata.txt missing/empty keys: {', '.join(missing)}")
         ok("metadata.txt required keys present (zip)")
 
-        # Warn on suspicious filetypes (very simple heuristic)
-        suspicious_ext = {".exe", ".dll", ".so", ".dylib"}
-        found_susp = [n for n in names if Path(n).suffix.lower() in suspicious_ext]
-        if found_susp:
-            warn(f"zip contains binary-looking files: {found_susp[:10]}{'...' if len(found_susp)>10 else ''}")
+        check_metadata_rules(meta)
+    return meta
 
 
 def auto_detect_plugin_dir(repo_root: Path) -> Path | None:
@@ -186,15 +283,21 @@ def auto_detect_plugin_dir(repo_root: Path) -> Path | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--plugin-dir", type=Path, default=None, help="Path to the plugin folder (contains metadata.txt)")
+    ap.add_argument("--plugin-dir", type=Path, default=None,
+                    help="Path to the plugin folder (contains metadata.txt)")
     ap.add_argument("--zip", type=Path, nargs="+", default=None, help="Path(s) to release zip(s)")
-    ap.add_argument("--auto", action="store_true", help="Auto-detect plugin dir in repository (default if none provided)")
+    ap.add_argument("--auto", action="store_true",
+                    help="Auto-detect plugin dir in repository (default if none provided)")
+    ap.add_argument("--release", action="store_true",
+                    help="Release check: version must be newer than every git tag v* (use before uploading)")
     args = ap.parse_args()
 
     if args.zip:
         for zip_path in args.zip:
             print(f"\n--- {zip_path} ---")
-            validate_zip(zip_path)
+            meta = validate_zip(zip_path)
+            if args.release:
+                check_version_is_new(meta.get("version", ""), git_release_tags(Path(".")))
             ok("validation finished")
         return
 

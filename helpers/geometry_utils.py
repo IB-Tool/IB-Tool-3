@@ -2,6 +2,7 @@ import os
 import networkx as nx
 
 from qgis.core import (
+    Qgis,
     QgsProject,
     QgsVectorLayer,
     QgsFeature,
@@ -10,8 +11,6 @@ from qgis.core import (
     QgsFields,
     QgsField,
     QgsVectorFileWriter,
-    QgsVectorDataProvider,
-    QgsWkbTypes,
     QgsProcessingFeatureSourceDefinition,
     QgsProcessing,
     QgsFeatureRequest,
@@ -43,14 +42,14 @@ def polyline2(array_of_lines, output_path, output_format="shp"):
         Path to the created polyline file.
     """
     fields = QgsFields()
-    fields.append(QgsField("x1", QMetaType.Double))
-    fields.append(QgsField("y1", QMetaType.Double))
-    fields.append(QgsField("x2", QMetaType.Double))
-    fields.append(QgsField("y2", QMetaType.Double))
-    fields.append(QgsField("Shape_Len", QMetaType.Double))
+    fields.append(QgsField("x1", QMetaType.Type.Double))
+    fields.append(QgsField("y1", QMetaType.Type.Double))
+    fields.append(QgsField("x2", QMetaType.Type.Double))
+    fields.append(QgsField("y2", QMetaType.Type.Double))
+    fields.append(QgsField("Shape_Len", QMetaType.Type.Double))
 
     layer = QgsVectorLayer("LineString?crs=EPSG:4326", "PolylineLayer", "memory")
-    if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
+    if layer.dataProvider().capabilities() & Qgis.VectorProviderCapability.CreateSpatialIndex:
         layer.dataProvider().createSpatialIndex()
     else:
         Logger.log("Spatial index could not be created.", level='CRITICAL')
@@ -70,16 +69,26 @@ def polyline2(array_of_lines, output_path, output_format="shp"):
         feature.setAttributes([x1, y1, x2, y2, shape_len])
         provider.addFeature(feature)
 
-    if output_format.lower() == "gpkg":
-        QgsVectorFileWriter.writeAsVectorFormat(
-            layer, output_path, "utf-8", layer.crs(), "GPKG"
-        )
-    else:
-        QgsVectorFileWriter.writeAsVectorFormat(
-            layer, output_path, "utf-8", layer.crs(), "ESRI Shapefile"
-        )
+    driver = "GPKG" if output_format.lower() == "gpkg" else "ESRI Shapefile"
+    _write_vector_file(layer, output_path, driver)
 
     return output_path
+
+
+def _write_vector_file(layer, output_path, driver_name):
+    """Write *layer* to *output_path* with OGR driver *driver_name* in the layer's CRS.
+
+    Uses ``writeAsVectorFormatV3`` (the CRS/encoding overload of ``writeAsVectorFormat``
+    is deprecated). Failures are logged, as with the former call, which ignored its result.
+    """
+    options = QgsVectorFileWriter.SaveVectorOptions()
+    options.driverName = driver_name
+    options.fileEncoding = "UTF-8"
+    result = QgsVectorFileWriter.writeAsVectorFormatV3(
+        layer, output_path, QgsProject.instance().transformContext(), options
+    )
+    if result[0] != QgsVectorFileWriter.WriterError.NoError:
+        Logger.log(f"Could not write {output_path}: {result[1]}", level='CRITICAL')
 
 
 def check_projection(spatial_reference, inputlist):
@@ -99,7 +108,7 @@ def check_projection(spatial_reference, inputlist):
         if not layer.isValid():
             Logger.log(f"Alert: Unable to load file {f} as a valid layer!", level="CRITICAL")
             continue
-        if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
+        if layer.dataProvider().capabilities() & Qgis.VectorProviderCapability.CreateSpatialIndex:
             layer.dataProvider().createSpatialIndex()
         else:
             Logger.log("Spatial index could not be created.", level='CRITICAL')
@@ -139,7 +148,7 @@ def load_to_geopackage(input_layer, output_path, layer_name, spatial_reference):
         Logger.log(error_msg, level="CRITICAL")
         raise Exception(error_msg)
 
-    if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
+    if layer.dataProvider().capabilities() & Qgis.VectorProviderCapability.CreateSpatialIndex:
         layer.dataProvider().createSpatialIndex()
     else:
         Logger.log("Spatial index could not be created.", level='CRITICAL')
@@ -174,7 +183,7 @@ def split_layer_by_attribute(
     layer = QgsVectorLayer(input_layer_path, "InputLayer", "ogr")
     if not layer.isValid():
         raise Exception("Layer could not be loaded!")
-    if layer.dataProvider().capabilities() & QgsVectorDataProvider.CreateSpatialIndex:
+    if layer.dataProvider().capabilities() & Qgis.VectorProviderCapability.CreateSpatialIndex:
         layer.dataProvider().createSpatialIndex()
     else:
         Logger.log("Spatial index could not be created.", level='CRITICAL')
@@ -191,13 +200,7 @@ def split_layer_by_attribute(
         subset_layer = layer.materialize(QgsProcessingFeatureSourceDefinition(query))
 
         output_path = os.path.join(output_folder, f"{value}.shp")
-        QgsVectorFileWriter.writeAsVectorFormat(
-            subset_layer,
-            output_path,
-            "UTF-8",
-            layer.crs(),
-            "ESRI Shapefile"
-        )
+        _write_vector_file(subset_layer, output_path, "ESRI Shapefile")
 
     Logger.log("Split complete.", level="INFO")
 
@@ -271,7 +274,7 @@ def create_polygons_from_lines(input_layer, output_layer_name="Polygons_from_Lin
     Returns:
         QgsVectorLayer containing the created polygons.
     """
-    if not input_layer or input_layer.geometryType() != QgsWkbTypes.LineGeometry:
+    if not input_layer or input_layer.geometryType() != Qgis.GeometryType.Line:
         raise ValueError("Input layer must be a valid line geometry layer.")
 
     crs = input_layer.crs().toWkt()
@@ -343,7 +346,7 @@ def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygon
     Returns:
         QgsVectorLayer containing the extracted polygons.
     """
-    if line_layer.geometryType() != QgsWkbTypes.LineGeometry:
+    if line_layer.geometryType() != Qgis.GeometryType.Line:
         raise ValueError("The input layer must contain line geometries.")
 
     graph = nx.Graph()
@@ -367,7 +370,7 @@ def extract_polygons_from_lines(line_layer, output_layer_name="Extracted Polygon
         "Polygon?crs={}".format(line_layer.crs().authid()), output_layer_name, "memory"
     )
     provider = polygon_layer.dataProvider()
-    provider.addAttributes([QgsField("id", QMetaType.Int)])
+    provider.addAttributes([QgsField("id", QMetaType.Type.Int)])
     polygon_layer.updateFields()
 
     for idx, cycle in enumerate(cycles):
@@ -400,7 +403,7 @@ def shp_area(layer, area_field='Area'):
         raise Exception(f"Layer {layer} is not valid")
 
     if area_field not in [field.name() for field in layer.fields()]:
-        layer.dataProvider().addAttributes([QgsField(area_field, QMetaType.Double)])
+        layer.dataProvider().addAttributes([QgsField(area_field, QMetaType.Type.Double)])
         layer.updateFields()
 
     layer = processing.run(
@@ -445,7 +448,7 @@ def shp_area2(layer, field_name="Area", logger=None):
             logger.log(f"Field '{field_name}' already exists.", level="WARNING")
     else:
         layer_provider = layer.dataProvider()
-        layer_provider.addAttributes([QgsField(field_name, QMetaType.Double)])
+        layer_provider.addAttributes([QgsField(field_name, QMetaType.Type.Double)])
         layer.updateFields()
 
     try:
@@ -489,7 +492,7 @@ def shp_length(layer, field_name='Length'):
         raise Exception(f"Layer {layer} is not valid")
 
     if field_name not in [field.name() for field in layer.fields()]:
-        layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.Double)])
+        layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.Type.Double)])
         layer.updateFields()
 
     layer = processing.run(
@@ -571,8 +574,8 @@ def create_empty_layer(layer_name: str, layer_type: str, crs: str) -> QgsVectorL
     layer_data_provider = layer.dataProvider()
 
     layer_data_provider.addAttributes([
-        QgsField("id", QMetaType.Int),
-        QgsField("name", QMetaType.QString)
+        QgsField("id", QMetaType.Type.Int),
+        QgsField("name", QMetaType.Type.QString)
     ])
     layer.updateFields()
     return layer
@@ -593,7 +596,7 @@ def create_linestring_layer_from_array(data, crs, layer_name):
     layer = QgsVectorLayer("LineString?crs={}".format(crs.toWkt()), layer_name, "memory")
     prov = layer.dataProvider()
 
-    prov.addAttributes([QgsField("weight", QMetaType.Double)])
+    prov.addAttributes([QgsField("weight", QMetaType.Type.Double)])
     layer.updateFields()
 
     features = []

@@ -29,10 +29,11 @@ from .config import PROJECT_ROOT
 class DummyQgis:
     """Minimal QGIS level enum stub for logger tests."""
 
-    Info = 1
-    Warning = 2
-    Critical = 3
-    Success = 4
+    class MessageLevel:
+        Info = 1
+        Warning = 2
+        Critical = 3
+        Success = 4
 
 
 class DummyQgsMessageLog:
@@ -148,7 +149,7 @@ class TestLogger:
         self.logger.log('hello world', level='INFO')
 
         assert 'INFO: hello world' in box.texts
-        assert DummyQgsMessageLog.logs[-1] == ('hello world', 'IBTool', DummyQgis.Info)
+        assert DummyQgsMessageLog.logs[-1] == ('hello world', 'IBTool', DummyQgis.MessageLevel.Info)
         assert len(self.dummy_msg.messages) == start_count
 
     @pytest.mark.unit
@@ -160,14 +161,14 @@ class TestLogger:
     @pytest.mark.unit
     def test_qgis_level_mapping(self):
         """Maps INFO/WARNING/CRITICAL/SUCCESS strings to the correct Qgis constants."""
-        assert self.logger_mod.Logger._qgis_level('INFO') == DummyQgis.Info
-        assert self.logger_mod.Logger._qgis_level('WARNING') == DummyQgis.Warning
-        assert self.logger_mod.Logger._qgis_level('CRITICAL') == DummyQgis.Critical
-        assert self.logger_mod.Logger._qgis_level('SUCCESS') == DummyQgis.Success
+        assert self.logger_mod.Logger._qgis_level('INFO') == DummyQgis.MessageLevel.Info
+        assert self.logger_mod.Logger._qgis_level('WARNING') == DummyQgis.MessageLevel.Warning
+        assert self.logger_mod.Logger._qgis_level('CRITICAL') == DummyQgis.MessageLevel.Critical
+        assert self.logger_mod.Logger._qgis_level('SUCCESS') == DummyQgis.MessageLevel.Success
 
     @pytest.mark.unit
     def test_warning_routed_to_qgis_warning_level(self):
-        """log(..., level='WARNING') routes to QgsMessageLog with Qgis.Warning."""
+        """log(..., level='WARNING') routes to QgsMessageLog with Qgis.MessageLevel.Warning."""
         DummyQgsMessageLog.logs.clear()
 
         self.logger.log('test warning', level='WARNING')
@@ -175,12 +176,12 @@ class TestLogger:
         assert DummyQgsMessageLog.logs[-1] == (
             'test warning',
             'IBTool',
-            DummyQgis.Warning,
+            DummyQgis.MessageLevel.Warning,
         )
 
     @pytest.mark.unit
     def test_critical_routed_to_qgis_critical_level(self):
-        """log(..., level='CRITICAL') routes to QgsMessageLog with Qgis.Critical."""
+        """log(..., level='CRITICAL') routes to QgsMessageLog with Qgis.MessageLevel.Critical."""
         DummyQgsMessageLog.logs.clear()
 
         self.logger.log('test critical', level='CRITICAL')
@@ -188,7 +189,7 @@ class TestLogger:
         assert DummyQgsMessageLog.logs[-1] == (
             'test critical',
             'IBTool',
-            DummyQgis.Critical,
+            DummyQgis.MessageLevel.Critical,
         )
 
     @pytest.mark.unit

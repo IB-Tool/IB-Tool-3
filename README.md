@@ -6,7 +6,7 @@
  <img src="https://codecov.io/gh/IB-Tool/IB-Tool-3/graph/badge.svg?token=XGTC33WCFB" alt="Code coverage"/> 
  </a>
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
-![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green)
+![QGIS](https://img.shields.io/badge/QGIS-3.40%E2%80%934.x-green)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 
 <p align="center">
@@ -101,16 +101,16 @@ See [docs/input-data.md](docs/input-data.md) for how each input layer relates to
 
 ## Requirements
 
-- **QGIS**: Version 3.40–3.50 — tested with **QGIS 3.40** and **QGIS 3.44 LTR** (CI runs the test suite on both)
+- **QGIS**: Version 3.40–4.x (Qt5 and Qt6) — tested with **QGIS 3.40**, **QGIS 3.44 LTR** and **QGIS 4.0** (CI runs the test suite on all three)
 - **Python**: Version >= 3.11
 - **NumPy**: 1.x and 2.x are supported (QGIS 3.44 LTR on Windows/OSGeo4W ships NumPy 2)
 
 ### Runtime
 
-| Package | Bundled with QGIS 3.40+ | Notes |
-|---------|------------------------|-------|
+| Package | Bundled with QGIS | Notes |
+|---------|-------------------|-------|
 | `numpy` | Yes | |
-| `PyQt5` | Yes | |
+| `PyQt5` (QGIS 3) / `PyQt6` (QGIS 4) | Yes | |
 | `scipy` | Not guaranteed | Install manually if the plugin fails to load: `pip install scipy` |
 | `networkx` | Not guaranteed | Install manually if the plugin fails to load: `pip install networkx` |
 
@@ -154,6 +154,7 @@ The easiest way to install IB-Tool 3 is to download the ready-to-use ZIP file fr
 2. **Copy to the QGIS plugins folder:**
    - Windows: `C:\Users\<username>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins`
    - Linux: `~/.local/share/QGIS/QGIS3/profiles/default/python/plugins`
+   - QGIS 4 has its own profile folder: use `QGIS4` instead of `QGIS3` in these paths.
    - Note: The AppData folder may be hidden — enable "Show hidden items" in the Explorer settings.
 3. **Activate the plugin:**
    - Start QGIS and enable IB-Tool 3 in **Plugins → Manage and Install Plugins**.

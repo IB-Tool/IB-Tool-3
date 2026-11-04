@@ -32,7 +32,7 @@ def _run(pool, partitions, timeout_ms=30000):
     QTimer.singleShot(timeout_ms, loop.quit)
     pool.run(partitions)
     if not finished:
-        loop.exec_()
+        loop.exec()
     assert finished, "pool never emitted finished"
     return done, logs
 

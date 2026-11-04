@@ -98,10 +98,12 @@ make pylint
 
 ## Prerequisites
 
-- QGIS 3.40–3.50, Python 3.11+ — CI tests QGIS 3.40 and 3.44 LTR; the 3.44 LTR on
+- QGIS 3.40–4.x, Python 3.11+ — one code base for Qt5 (QGIS 3) and Qt6 (QGIS 4); CI tests
+  QGIS 3.40, 3.44 LTR and 4.0. Write every Qt/QGIS enum fully scoped (guarded by
+  `test/test_qt6_compat.py`). The 3.44 LTR on
   Windows (OSGeo4W) ships NumPy 2, so code must work with NumPy 1.x and 2.x
-- Runtime dependencies: numpy, scipy, networkx, PyQt5
-  - numpy and PyQt5 are bundled with QGIS 3.40+
+- Runtime dependencies: numpy, scipy, networkx, PyQt5 (QGIS 3) / PyQt6 (QGIS 4)
+  - numpy and PyQt are bundled with QGIS
   - scipy and networkx may not be present depending on the QGIS installation and platform — install manually if needed (`pip install scipy networkx`)
 - Dev/test dependencies (not bundled): pytest, pytest-cov (see requirements-dev.txt)
 

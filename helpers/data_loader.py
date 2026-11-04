@@ -85,7 +85,7 @@ def select_workspace_file(dlg: object) -> None:
         dlg,
         "Open Directory",
         "",
-        QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        QFileDialog.Option.ShowDirsOnly | QFileDialog.Option.DontResolveSymlinks
     )
     dlg.WorkspacePath.setText(directory)
 

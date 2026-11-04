@@ -15,7 +15,7 @@ from qgis.core import (
     QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY,
     QgsCoordinateReferenceSystem, QgsField,
 )
-from qgis.PyQt.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from .utilities import get_qgis_app
 
@@ -75,7 +75,7 @@ class TestMSTUtilitiesUnit:
     def test_polygon_support_points_dict_empty_layer_returns_empty_dict(self):
         """Returns empty dict for a layer with no features."""
         layer = make_polygon_layer()
-        layer.dataProvider().addAttributes([QgsField("node", QVariant.String)])
+        layer.dataProvider().addAttributes([QgsField("node", QMetaType.Type.QString)])
         layer.updateFields()
 
         result = MSTUtilities.polygon_support_points_dict(layer, "node")
@@ -86,7 +86,7 @@ class TestMSTUtilitiesUnit:
     def test_polygon_support_points_dict_maps_field_to_vertex_list(self):
         """Maps each field value to a non-empty list of (x, y) vertex tuples."""
         layer = make_polygon_layer()
-        layer.dataProvider().addAttributes([QgsField("node", QVariant.String)])
+        layer.dataProvider().addAttributes([QgsField("node", QMetaType.Type.QString)])
         layer.updateFields()
         feat = QgsFeature(layer.fields())
         feat.setGeometry(make_square_geom(0, 0, 10))

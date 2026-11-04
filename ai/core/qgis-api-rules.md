@@ -77,10 +77,18 @@ output_layer = result['OUTPUT']
 
 ## API Version Compatibility
 
-- **Target version**: QGIS 3.40–3.50
+- **Target version**: QGIS 3.40–4.x — one code base for Qt5/PyQt5 (QGIS 3) and Qt6/PyQt6 (QGIS 4)
 - **No deprecated API** — check the QGIS Python API documentation
 - When in doubt: use the QGIS PyQGIS Developer Cookbook as reference
-- Use `QgsWkbTypes` instead of deprecated enums for geometry types
+- **Fully scoped enums only** (works on PyQt5 and PyQt6), enforced by `test/test_qt6_compat.py`:
+  - Geometry types: `Qgis.GeometryType.Polygon`, not `QgsWkbTypes.PolygonGeometry`; WKB types: `Qgis.WkbType.MultiPolygon`
+  - Field types: `QgsField(name, QMetaType.Type.Double)`, not `QVariant.Double` or `QMetaType.Double`
+  - Message levels: `Qgis.MessageLevel.Info`; Qt: `QMessageBox.StandardButton.Yes`, `Qt.Orientation.Horizontal`,
+    `QProcess.ProcessState.NotRunning`; writer: `QgsVectorFileWriter.WriterError.NoError`
+  - Static helpers such as `QgsWkbTypes.flatType()` / `isMultiType()` stay valid
+- `exec()`, never `exec_()`
+- `QAction` lives in `QtGui` on Qt6: `try: from qgis.PyQt.QtGui import QAction` / `except ImportError: from qgis.PyQt.QtWidgets import QAction`
+- Every processing algorithm id must resolve in all supported versions (`test/test_processing_ids.py`)
 
 ## Coordinate Reference Systems
 

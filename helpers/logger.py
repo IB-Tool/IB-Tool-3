@@ -180,16 +180,16 @@ class Logger:
                 or ``'SUCCESS'``.
 
         Returns:
-            A ``Qgis.MessageLevel`` integer constant. Falls back to ``Qgis.Info``
+            A ``Qgis.MessageLevel`` value. Falls back to ``Qgis.MessageLevel.Info``
             for unknown level strings.
         """
         mapping = {
-            'INFO': Qgis.Info,
-            'WARNING': Qgis.Warning,
-            'CRITICAL': Qgis.Critical,
-            'SUCCESS': Qgis.Success,
+            'INFO': Qgis.MessageLevel.Info,
+            'WARNING': Qgis.MessageLevel.Warning,
+            'CRITICAL': Qgis.MessageLevel.Critical,
+            'SUCCESS': Qgis.MessageLevel.Success,
         }
-        return mapping.get(level, Qgis.Info)
+        return mapping.get(level, Qgis.MessageLevel.Info)
 
     @classmethod
     def close_logger(cls) -> None:
