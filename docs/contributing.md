@@ -126,10 +126,16 @@ Steps:
 
 | Step | Tool | What it checks |
 |------|------|----------------|
-| Structure + metadata validation | `ci/qgis_plugin_validate.py --auto` | `metadata.txt` completeness, required files |
+| Structure + metadata validation | `ci/qgis_plugin_validate.py --auto` | `metadata.txt` completeness, required files, QGIS 4 range (`qgisMaximumVersion` >= 4.0, no `supportsQt6`), changelog entry for the current version |
 | Style linting | `flake8` | PEP 8 compliance |
 | Security scanning | `bandit -r . -ll` | Common Python security issues |
 | Secret detection | `detect-secrets` | Accidentally committed credentials |
+| Qt6 check (own job `qt6-check`) | `pyqgis4-checker` (dry run) | Qt5-only code; the same check plugins.qgis.org runs on upload. Fails on any finding |
+
+CI does not build the release ZIP (not every push is a release). The ZIP rules
+(<= 25 MB, no binaries, no hidden or generated files) and the new-version check
+run locally before an upload: `python ci/qgis_plugin_validate.py --zip dist/ibtool.zip --release`
+(see the `/release-plugin` skill).
 
 ```mermaid
 flowchart LR

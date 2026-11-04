@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tests Qt6-ready**: tests no longer import `PyQt5` directly or patch `PyQt5.*` targets, and use `QMetaType.Type.*` instead of `QVariant.*` field types (QVariant deprecation warnings in the suite: 232 → 5). New guards: `test/test_qt6_compat.py` (fails on Qt5-only spellings in code, scripts and tests), `test/test_qt_imports.py` (now also scans `test/`), `test/test_processing_ids.py` (every processing algorithm id used by the plugin resolves in the running QGIS), `test_metadata_supports_qgis4` in `test/test_init.py`.
 - **CI** tests QGIS 3.40, 3.44 LTR and 4.0 (`3liz/qgis-platform:4.0`).
 
+### Release tooling
+- **plugins.qgis.org rules in the validator** (`ci/qgis_plugin_validate.py`): fails (instead of warning or not checking) on a ZIP over 25 MB, binaries (`.exe`, `.dll`, `.so`, `.dylib`, `.pyd`, …), hidden files/folders, `__pycache__`/`__MACOSX`/`*.pyc`, a `supportsQt6` key, `qgisMaximumVersion` below 4.0 or missing, and a `changelog` without an entry for the current `version`. New `--release` flag: the version must be newer than every `v*` git tag. Tests: `test/test_plugin_validate.py` (incl. a check that the real `metadata.txt` passes).
+- **CI job `qt6-check`** (`.github/workflows/qgis-plugin-ci.yml`): runs pyqgis4-checker on the source (the check plugins.qgis.org shows in its "Qt6 Check" tab) and fails on any finding. CI still builds no release ZIP.
+- **Release procedure as a project skill** `/release-plugin` (`.claude/commands/release-plugin.md`): version, both changelogs, review of the texts shown on plugins.qgis.org, tests on QGIS 3.40/3.44/4.0, package checks, headless runs on QGIS 3.44 and 4, upload steps.
+
 ### Fixed
 - **Plugin refused to start on QGIS 4** (`helpers/system_utils.version_check()`): the start-up check rejected Python > 3.12 and QGIS > 3.50, so QGIS 4 (Python 3.13) aborted with a version error. The Python upper bound is removed; the QGIS upper bound is now 4.99 (`MAX_QGIS = 49999`), matching `metadata.txt`.
 - **Missing-dependency message on QGIS 4** (root `__init__.py`): the message shown when scipy/networkx are missing used `Qgis.Critical`, which does not exist in PyQt6; now `Qgis.MessageLevel.Critical`. A UTF-8 BOM at the start of `ibtool/ibtool.py` (rejected by the QGIS 4 checker) was removed.
