@@ -71,9 +71,9 @@ def _write(layer, path, name, append):
     opts.driverName = "GPKG"
     opts.layerName = name
     if append:
-        opts.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteLayer
+        opts.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteLayer
     err = QgsVectorFileWriter.writeAsVectorFormatV3(layer, str(path), QgsCoordinateTransformContext(), opts)
-    if err[0] != QgsVectorFileWriter.NoError:
+    if err[0] != QgsVectorFileWriter.WriterError.NoError:
         raise RuntimeError(f"write {path}:{name} failed: {err}")
 
 

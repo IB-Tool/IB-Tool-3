@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## Unreleased
+
+### Compatibility
+- **QGIS 4 (Qt6) support** — one code base for QGIS 3.40–3.x (Qt5/PyQt5) and QGIS 4.x (Qt6/PyQt6); `metadata.txt` now declares `qgisMaximumVersion=4.99` (was 3.50), `qgisMinimumVersion` stays 3.40 (see `docs/superpowers/plans/2026-11-03-qgis4-migration.md`). All Qt and QGIS enums are written fully scoped, which works on both PyQt versions: field types `QMetaType.Type.*`, geometry/WKB types `Qgis.GeometryType.*` / `Qgis.WkbType.*` (instead of `QgsWkbTypes.PolygonGeometry` etc.), `Qgis.MessageLevel.*`, `Qgis.VectorProviderCapability.CreateSpatialIndex`, `QgsVectorFileWriter.WriterError.NoError` / `ActionOnExistingFile.*`, `QMessageBox.StandardButton.*`, `QProcess.ProcessState.*` / `ProcessError.*`, `QFileDialog.Option.*`, `QDialogButtonBox.StandardButton.Close`, `Qt.Orientation.Horizontal`. `exec_()` → `exec()`. `QAction` is imported from `QtGui` (Qt6) with a fallback to `QtWidgets` (Qt5). No logic changes; results unchanged.
+- **Tests Qt6-ready**: tests no longer import `PyQt5` directly or patch `PyQt5.*` targets, and use `QMetaType.Type.*` instead of `QVariant.*` field types (QVariant deprecation warnings in the suite: 232 → 5). New guards: `test/test_qt6_compat.py` (fails on Qt5-only spellings in code, scripts and tests), `test/test_qt_imports.py` (now also scans `test/`), `test/test_processing_ids.py` (every processing algorithm id used by the plugin resolves in the running QGIS), `test_metadata_supports_qgis4` in `test/test_init.py`.
+- **CI** tests QGIS 3.40, 3.44 LTR and 4.0 (`3liz/qgis-platform:4.0`).
+
+### Fixed
+- **Plugin refused to start on QGIS 4** (`helpers/system_utils.version_check()`): the start-up check rejected Python > 3.12 and QGIS > 3.50, so QGIS 4 (Python 3.13) aborted with a version error. The Python upper bound is removed; the QGIS upper bound is now 4.99 (`MAX_QGIS = 49999`), matching `metadata.txt`.
+- **Missing-dependency message on QGIS 4** (root `__init__.py`): the message shown when scipy/networkx are missing used `Qgis.Critical`, which does not exist in PyQt6; now `Qgis.MessageLevel.Critical`. A UTF-8 BOM at the start of `ibtool/ibtool.py` (rejected by the QGIS 4 checker) was removed.
+- `.dockerignore` / `.gitignore`: locally generated figure/debug output and the QGIS `symbology-style.db` created by test runs are no longer baked into the local test image (the QGIS 3.44 image built with them ended with exit 139 after all tests passed).
+
+---
+
 ## 0.2.5 — 2026-11-02
 
 ### Performance

@@ -80,8 +80,8 @@ Test coverage is measured with `pytest-cov` and uploaded to [Codecov](https://co
 
 The `Dockerfile` is based on the official QGIS image `3liz/qgis-platform:<QGIS_VERSION>`
 (build argument, default `3.40`). CI builds and tests a matrix of **QGIS 3.40**
-(minimum supported version) and **QGIS 3.44** (current LTR); coverage is uploaded
-from the 3.40 job only. The image:
+(minimum supported version), **QGIS 3.44** (current LTR, Qt5) and **QGIS 4.0** (Qt6);
+coverage is uploaded from the 3.40 job only. The image:
 
 - Installs runtime dependencies (numpy, scipy, networkx) and test dependencies (pytest, pytest-cov) via apt
 - Configures a headless X server environment (xvfb) for GUI tests
@@ -96,6 +96,8 @@ from the 3.40 job only. The image:
 docker build -t qgis-plugin-test .
 # ... or for QGIS 3.44 LTR
 docker build --build-arg QGIS_VERSION=3.44 -t qgis-plugin-test .
+# ... or for QGIS 4.0 (Qt6)
+docker build --build-arg QGIS_VERSION=4.0 -t qgis-plugin-test .
 # Run tests
 docker run --rm qgis-plugin-test
 # Interactive shell inside the container
@@ -112,7 +114,7 @@ docker run --rm -it qgis-plugin-test /bin/bash
 | `python3-scipy` | Delaunay triangulation, spatial distance | Runtime |
 | `python3-networkx` | MST graph algorithms | Runtime |
 
-numpy and PyQt5 are bundled with QGIS 3.40+. scipy and networkx may not be present depending on the QGIS installation and platform, so they are installed explicitly via apt. When running the plugin outside Docker: `pip install scipy networkx`.
+numpy and PyQt (PyQt5 on QGIS 3, PyQt6 on QGIS 4) are bundled with QGIS. scipy and networkx may not be present depending on the QGIS installation and platform, so they are installed explicitly via apt. When running the plugin outside Docker: `pip install scipy networkx`.
 
 ---
 

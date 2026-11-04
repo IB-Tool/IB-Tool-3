@@ -138,7 +138,7 @@ def _assign_block_names(blocks_layer):
     blocks_layer.startEditing()
     if blocks_layer.dataProvider().fieldNameIndex("NAME") < 0:
         blocks_layer.dataProvider().addAttributes([
-            QgsField("NAME", QMetaType.QString)
+            QgsField("NAME", QMetaType.Type.QString)
         ])
         blocks_layer.updateFields()
 

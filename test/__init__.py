@@ -2,7 +2,7 @@
 """
 Test module setup for QGIS Processing tests — crash-proof version.
 
-Supported QGIS versions: 3.40-3.50
+Supported QGIS versions: 3.40-4.x
 """
 
 import os

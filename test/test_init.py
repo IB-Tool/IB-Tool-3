@@ -64,6 +64,21 @@ class TestInit:
 
             assert expectation in dict(metadata), message
 
+    @pytest.mark.unit
+    def test_metadata_supports_qgis4(self):
+        """QGIS 3.40+ and 4.x: QGIS 4 only loads plugins with qgisMaximumVersion >= 4.0.
+
+        ``supportsQt6`` is an obsolete pre-release flag and must not be set
+        (https://plugins.qgis.org/docs/migrate-qgis4).
+        """
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        parser.read(Path(__file__).resolve().parent.parent / "metadata.txt", encoding="utf-8")
+        general = dict(parser.items("general"))
+        assert general["qgisMinimumVersion"] == "3.40"
+        assert general["qgisMaximumVersion"] == "4.99"
+        assert "supportsQt6" not in general
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -105,7 +120,7 @@ class TestMissingDepsPlugin:
         mock_iface = MagicMock()
 
         with patch("qgis.core.Qgis") as mock_qgis:
-            mock_qgis.Critical = 2
+            mock_qgis.MessageLevel.Critical = 2
             plugin = mod._MissingDepsPlugin(mock_iface, ["scipy"])
             plugin.initGui()
 

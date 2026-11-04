@@ -17,8 +17,8 @@ from __future__ import annotations
 import os
 import re
 
-from qgis.core import (QgsFeature, QgsMemoryProviderUtils, QgsProcessingUtils, QgsVectorLayer,
-                       QgsWkbTypes)
+from qgis.core import (Qgis, QgsFeature, QgsMemoryProviderUtils, QgsProcessingUtils,
+                       QgsVectorLayer)
 from qgis import processing
 from qgis.PyQt.QtCore import QMetaType
 from ..helpers.processing_context import current_processing_context
@@ -83,7 +83,7 @@ def _extract_by_codes(layer: QgsVectorLayer, codes: list[str], fieldname: str) -
     """
     index = layer.fields().lookupField(fieldname)
     simple = bool(codes) and all(_SIMPLE_CODE.fullmatch(code) for code in codes)
-    if not simple or index < 0 or layer.fields().at(index).type() != QMetaType.QString:
+    if not simple or index < 0 or layer.fields().at(index).type() != QMetaType.Type.QString:
         expression = _create_filter_string([f"'{code}'" for code in codes], fieldname)
         return processing.run("native:extractbyexpression", {
             'INPUT': layer,
@@ -171,7 +171,7 @@ def import_filter(
         raise ValueError(f"{filename} existiert nicht im Arbeitsverzeichnis.")
 
     # Validate input layer geometry type
-    if not hu_layer.isValid() or hu_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+    if not hu_layer.isValid() or hu_layer.geometryType() != Qgis.GeometryType.Polygon:
         raise ValueError("hu_layer must be a valid polygon layer.")
 
     # Determine attribute field name
@@ -230,7 +230,7 @@ def input_hu_filter(  # pylint: disable=too-many-arguments,too-many-locals,too-m
     Returns:
         Filtered building footprint layer as a dissolved QgsVectorLayer.
     """
-    if not hu_layer.isValid() or hu_layer.geometryType() != QgsWkbTypes.PolygonGeometry:
+    if not hu_layer.isValid() or hu_layer.geometryType() != Qgis.GeometryType.Polygon:
         raise RuntimeError("hu_layer must be a valid polygon layer.")
 
     building_count = hu_layer.featureCount()

@@ -163,7 +163,7 @@ class TestIBToolDialog:
         """
         original_default_locale = QLocale()
         try:
-            QLocale.setDefault(QLocale(QLocale.German, QLocale.Germany))
+            QLocale.setDefault(QLocale(QLocale.Language.German, QLocale.Country.Germany))
             dlg = IBToolDialog(None)
             dlg.GlobalFootprintDensityBox.setValue(19.0693693015286)
             text = dlg.GlobalFootprintDensityBox.text()
@@ -397,16 +397,16 @@ class TestIBToolDialog:
 
     @pytest.mark.unit
     def test_dialog_accept_sets_accepted_result(self):
-        """Calling accept() sets result to QDialog.Accepted."""
+        """Calling accept() sets result to QDialog.DialogCode.Accepted."""
         self.dialog.accept()
-        assert self.dialog.result() == QDialog.Accepted
+        assert self.dialog.result() == QDialog.DialogCode.Accepted
 
     @pytest.mark.unit
     def test_dialog_reject_sets_rejected_result(self):
-        """Calling reject() sets result to QDialog.Rejected."""
+        """Calling reject() sets result to QDialog.DialogCode.Rejected."""
         dlg = IBToolDialog(None)
         dlg.reject()
-        assert dlg.result() == QDialog.Rejected
+        assert dlg.result() == QDialog.DialogCode.Rejected
 
     # -----------------------------------------------------------------------
     # Complete widget inventory
@@ -888,4 +888,4 @@ class TestFilterPreviewDialog:
         from qgis.PyQt.QtWidgets import QDialog
         dlg = FilterPreviewDialog("a", "b")
         dlg.reject()
-        assert dlg.result() == QDialog.Rejected
+        assert dlg.result() == QDialog.DialogCode.Rejected

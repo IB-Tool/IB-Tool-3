@@ -101,7 +101,7 @@ See [docs/input-data.md](docs/input-data.md) for how each input layer relates to
 
 ## Requirements
 
-- **QGIS**: Version 3.40–3.50 — tested with **QGIS 3.40** and **QGIS 3.44 LTR** (CI runs the test suite on both)
+- **QGIS**: Version 3.40–4.x (Qt5 and Qt6) — tested with **QGIS 3.40**, **QGIS 3.44 LTR** and **QGIS 4.0** (CI runs the test suite on all three)
 - **Python**: Version >= 3.11
 - **NumPy**: 1.x and 2.x are supported (QGIS 3.44 LTR on Windows/OSGeo4W ships NumPy 2)
 

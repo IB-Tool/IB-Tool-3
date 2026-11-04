@@ -21,7 +21,7 @@ from qgis.core import (
     QgsFeature,
     QgsGeometry,
     QgsPointXY,
-    QgsWkbTypes,
+    Qgis,
     QgsCoordinateReferenceSystem,
 )
 
@@ -76,13 +76,13 @@ class TestCreateEmptyLayer:
     def test_returns_valid_polygon_layer(self):
         layer = create_empty_layer("test", "Polygon", "EPSG:25833")
         assert layer.isValid()
-        assert layer.geometryType() == QgsWkbTypes.PolygonGeometry
+        assert layer.geometryType() == Qgis.GeometryType.Polygon
 
     @pytest.mark.unit
     def test_returns_valid_linestring_layer(self):
         layer = create_empty_layer("lines", "LineString", "EPSG:4326")
         assert layer.isValid()
-        assert layer.geometryType() == QgsWkbTypes.LineGeometry
+        assert layer.geometryType() == Qgis.GeometryType.Line
 
     @pytest.mark.unit
     def test_layer_has_id_and_name_fields(self):
@@ -144,7 +144,7 @@ class TestCreateLinestringLayerFromArray:
     def test_geometry_type_is_linestring(self):
         crs = QgsCoordinateReferenceSystem("EPSG:25833")
         layer = create_linestring_layer_from_array([[[0, 0], [10, 0]]], crs, "lines")
-        assert layer.geometryType() == QgsWkbTypes.LineGeometry
+        assert layer.geometryType() == Qgis.GeometryType.Line
 
     @pytest.mark.unit
     def test_output_geometry_is_valid(self):

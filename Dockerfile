@@ -1,7 +1,8 @@
 # 1. Base image with QGIS — version selectable at build time:
 #      docker build -t qgis-plugin-test .                                  (QGIS 3.40, default)
 #      docker build --build-arg QGIS_VERSION=3.44 -t qgis-plugin-test .    (QGIS 3.44 LTR)
-#    CI builds both (see .github/workflows/ci.yml).
+#      docker build --build-arg QGIS_VERSION=4.0 -t qgis-plugin-test .     (QGIS 4.0, Qt6)
+#    CI builds all three (see .github/workflows/ci.yml).
 ARG QGIS_VERSION=3.40
 FROM 3liz/qgis-platform:${QGIS_VERSION}
 

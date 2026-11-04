@@ -100,7 +100,7 @@ def patch_remove(
         save_debug_layer(poly_single_parts, _DEBUG_TOOL_NAME, "after_single_parts", workspace_path)
 
     # Add a unique block name field
-    poly_single_parts.dataProvider().addAttributes([QgsField("NAME", QMetaType.QString)])
+    poly_single_parts.dataProvider().addAttributes([QgsField("NAME", QMetaType.Type.QString)])
     poly_single_parts.updateFields()
 
     with edit(poly_single_parts):
@@ -109,7 +109,7 @@ def patch_remove(
             poly_single_parts.updateFeature(feature)
 
     # Add a field to store the intersecting building count
-    poly_single_parts.dataProvider().addAttributes([QgsField("join_count", QMetaType.Int)])
+    poly_single_parts.dataProvider().addAttributes([QgsField("join_count", QMetaType.Type.Int)])
     poly_single_parts.updateFields()
 
     with edit(poly_single_parts):

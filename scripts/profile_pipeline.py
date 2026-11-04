@@ -197,7 +197,7 @@ def run_parallel(todo, part, hu, rn, aux_line_file, gfd):
     tp = time.perf_counter()
     pool.run(order)
     if not done:
-        loop.exec_()
+        loop.exec()
     TIMES["50_parallel"] = time.perf_counter() - tp
     failed = set(pool.recompute)
     return [n for n in todo if n in failed]

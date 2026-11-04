@@ -30,9 +30,8 @@ from qgis.core import (
     QgsField,
     QgsPointXY,
     QgsCoordinateReferenceSystem,
-    QgsWkbTypes,
 )
-from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from .utilities import get_qgis_app
 from helpers.check import ValidationResult, InputValidator
@@ -215,7 +214,7 @@ class TestCheckFeatureCounts:
     def test_empty_part_layer_adds_error(self):
         """Error when the Part layer has zero features."""
         part_layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "part", "memory")
-        part_layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        part_layer.dataProvider().addAttributes([QgsField("NAME", QMetaType.Type.QString)])
         part_layer.updateFields()
         result = ValidationResult()
         self.validator._check_feature_counts(
@@ -299,7 +298,7 @@ class TestCheckHuLayer:
 
     def _make_hu_layer(self, field_name: str = "fkt") -> QgsVectorLayer:
         layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "hu", "memory")
-        layer.dataProvider().addAttributes([QgsField(field_name, QVariant.String)])
+        layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.Type.QString)])
         layer.updateFields()
         return layer
 
@@ -340,7 +339,8 @@ class TestCheckHuLayer:
         result = ValidationResult()
         self.validator._check_hu_layer(layer, result)
         assert result.is_valid  # NULL fkt is a warning, not a blocking error
-        assert len(result.warnings) > 0
+        # The NULL branch must fire (not the format check) — proves NULL detection on PyQt5 and PyQt6
+        assert any("empty/NULL" in w for w in result.warnings), result.warnings
 
     @pytest.mark.unit
     @pytest.mark.edge_case
@@ -443,7 +443,7 @@ class TestCheckPartLayer:
 
     def _make_part_layer(self, name_value=None) -> QgsVectorLayer:
         layer = QgsVectorLayer("Polygon?crs=EPSG:25833", "part", "memory")
-        layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        layer.dataProvider().addAttributes([QgsField("NAME", QMetaType.Type.QString)])
         layer.updateFields()
         feat = QgsFeature(layer.fields())
         feat.setGeometry(_make_square_geom(size=10.0))
@@ -486,6 +486,8 @@ class TestCheckPartLayer:
         result = ValidationResult()
         self.validator._check_part_layer(layer, result)
         assert not result.is_valid
+        # The NULL branch must fire (not the name-format check)
+        assert any("empty/NULL" in e for e in result.errors), result.errors
 
     @pytest.mark.unit
     def test_invalid_name_format_adds_error(self):
@@ -499,7 +501,7 @@ class TestCheckPartLayer:
     def test_line_geometry_adds_error(self):
         """Error when Part layer is not polygon geometry."""
         layer = QgsVectorLayer("LineString?crs=EPSG:25833", "part", "memory")
-        layer.dataProvider().addAttributes([QgsField("NAME", QVariant.String)])
+        layer.dataProvider().addAttributes([QgsField("NAME", QMetaType.Type.QString)])
         layer.updateFields()
         feat = QgsFeature(layer.fields())
         feat.setGeometry(QgsGeometry.fromPolylineXY([

@@ -146,9 +146,9 @@ class DelaunayProcessor:
 
         provider = layer.dataProvider()
         provider.addAttributes([
-            QgsField("weight", QMetaType.Double),
-            QgsField("node1", QMetaType.QString),
-            QgsField("node2", QMetaType.QString)
+            QgsField("weight", QMetaType.Type.Double),
+            QgsField("node1", QMetaType.Type.QString),
+            QgsField("node2", QMetaType.Type.QString)
         ])
         layer.updateFields()
 

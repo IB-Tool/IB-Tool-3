@@ -7,9 +7,9 @@ Provides reusable test data and utilities for MST functionality tests.
 
 from qgis.core import (
     QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY, QgsField,
-    QgsCoordinateReferenceSystem, QgsWkbTypes
+    QgsCoordinateReferenceSystem, Qgis
 )
-from qgis.PyQt.QtCore import QMetaType, QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 
 class MSTTestFixtures:
@@ -29,9 +29,9 @@ class MSTTestFixtures:
         
         # Add standard fields
         provider.addAttributes([
-            QgsField("id", QVariant.Int),
-            QgsField("name", QVariant.String),
-            QgsField("area", QVariant.Double)
+            QgsField("id", QMetaType.Type.Int),
+            QgsField("name", QMetaType.Type.QString),
+            QgsField("area", QMetaType.Type.Double)
         ])
         layer.updateFields()
 
@@ -102,9 +102,9 @@ class MSTTestFixtures:
 
         # Add standard fields
         provider.addAttributes([
-            QgsField("id", QVariant.Int),
-            QgsField("name", QVariant.String),
-            QgsField("length", QVariant.Double)
+            QgsField("id", QMetaType.Type.Int),
+            QgsField("name", QMetaType.Type.QString),
+            QgsField("length", QMetaType.Type.Double)
         ])
         layer.updateFields()
 
@@ -148,10 +148,10 @@ class MSTTestFixtures:
         provider = layer.dataProvider()
         
         provider.addAttributes([
-            QgsField("id", QVariant.Int),
-            QgsField("name", QVariant.String),
-            QgsField("area", QVariant.Double),
-            QgsField("type", QVariant.String)
+            QgsField("id", QMetaType.Type.Int),
+            QgsField("name", QMetaType.Type.QString),
+            QgsField("area", QMetaType.Type.Double),
+            QgsField("type", QMetaType.Type.QString)
         ])
         layer.updateFields()
 
@@ -214,7 +214,7 @@ class MSTTestFixtures:
         crs = MSTTestFixtures.create_test_crs()
         layer = QgsVectorLayer(f"{layer_type}?crs={crs.toWkt()}", "empty_layer", "memory")
         provider = layer.dataProvider()
-        provider.addAttributes([QgsField("id", QVariant.Int)])
+        provider.addAttributes([QgsField("id", QMetaType.Type.Int)])
         layer.updateFields()
         return layer
 
@@ -238,7 +238,7 @@ class MSTTestFixtures:
         if not mst_layer or not mst_layer.isValid():
             return False, "Layer is None or invalid"
             
-        if mst_layer.wkbType() != QgsWkbTypes.LineString:
+        if mst_layer.wkbType() != Qgis.WkbType.LineString:
             return False, f"Expected LineString, got {mst_layer.wkbType()}"
             
         feature_count = mst_layer.featureCount()

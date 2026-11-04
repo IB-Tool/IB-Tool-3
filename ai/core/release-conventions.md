@@ -14,6 +14,9 @@ These rules are binding for all code changes. They are referenced from
 - `version` must be incremented before every release commit (semver: `MAJOR.MINOR.PATCH`)
 - `changelog` must document every version's changes (most recent entry first)
 - Never remove, comment out, or leave empty any of the 11 required keys
+- Supported range is QGIS 3.40–4.x: `qgisMinimumVersion=3.40`, `qgisMaximumVersion=4.99`;
+  do not add `supportsQt6` (QGIS 4 compatibility is declared by `qgisMaximumVersion`).
+  Guarded by `test_metadata_supports_qgis4` in `test/test_init.py`
 
 ## LICENSE File
 

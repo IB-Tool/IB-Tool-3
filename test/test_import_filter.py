@@ -35,9 +35,8 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsField,
-    QgsWkbTypes,
 )
-from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from .utilities import get_qgis_app
 
@@ -55,7 +54,7 @@ from ibtool.ibtool_tools.ImportFilter import (
 def _polygon_layer_with_field(field_name: str, crs: str = "EPSG:25833") -> QgsVectorLayer:
     """In-memory polygon layer with a single string field."""
     layer = make_polygon_layer(crs)
-    layer.dataProvider().addAttributes([QgsField(field_name, QVariant.String)])
+    layer.dataProvider().addAttributes([QgsField(field_name, QMetaType.Type.QString)])
     layer.updateFields()
     return layer
 
@@ -419,10 +418,10 @@ class TestExtractByCodes:
               "31001_1000 ", "Ab_c", "AbXc", "ab_c", "ABxC", "31001\n1000", "31001_1010"]
     CODES = ["31001_1000", "Ab_c"]
 
-    def _layer(self, values, field_type=QVariant.String):
+    def _layer(self, values, field_type=QMetaType.Type.QString):
         layer = make_polygon_layer("EPSG:25833")
         layer.dataProvider().addAttributes([QgsField("fkt", field_type),
-                                            QgsField("other", QVariant.Int)])
+                                            QgsField("other", QMetaType.Type.Int)])
         layer.updateFields()
         feats = []
         for i, value in enumerate(values):
@@ -476,6 +475,6 @@ class TestExtractByCodes:
 
     @pytest.mark.integration
     def test_numeric_field_uses_processing(self):
-        layer = self._layer([31001, 1000, None], QVariant.Int)
+        layer = self._layer([31001, 1000, None], QMetaType.Type.Int)
         mine = _extract_by_codes(layer, ["31001"], "fkt")
         assert self._full(mine) == self._full(self._reference(layer, ["31001"]))

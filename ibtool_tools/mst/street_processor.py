@@ -144,7 +144,7 @@ class StreetProcessor:
         fields = streets_layer.fields()
         if not fields.indexFromName('length') >= 0:
             streets_layer.dataProvider().addAttributes([
-                QgsField('length', QMetaType.Double)
+                QgsField('length', QMetaType.Type.Double)
             ])
             streets_layer.updateFields()
 

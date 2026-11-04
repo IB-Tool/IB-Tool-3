@@ -32,9 +32,9 @@ from qgis.core import (
     QgsPointXY,
     QgsField,
     QgsCoordinateReferenceSystem,
-    QgsWkbTypes,
+    Qgis,
 )
-from PyQt5.QtCore import QMetaType
+from qgis.PyQt.QtCore import QMetaType
 
 from .utilities import get_qgis_app
 
@@ -67,8 +67,8 @@ def _make_hu_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
     """Two building polygons with required attribute fields."""
     layer = make_polygon_layer(crs)
     layer.dataProvider().addAttributes([
-        QgsField("fktkurz",  QMetaType.QString),
-        QgsField("fkt",      QMetaType.QString),
+        QgsField("fktkurz",  QMetaType.Type.QString),
+        QgsField("fkt",      QMetaType.Type.QString),
     ])
     layer.updateFields()
     # Building 1: 50 × 50 m at (0, 0)
@@ -82,7 +82,7 @@ def _make_mst_layer(crs: str = "EPSG:25833") -> QgsVectorLayer:
     """MST line connecting centroids of the two test buildings."""
     layer = make_line_layer(crs)
     layer.dataProvider().addAttributes([
-        QgsField("weight", QMetaType.Double),
+        QgsField("weight", QMetaType.Type.Double),
     ])
     layer.updateFields()
     feat = QgsFeature(layer.fields())
@@ -180,7 +180,7 @@ class TestCalcBoundingRect:
         )
 
         if result_layer is not self.fallback_layer:
-            assert result_layer.geometryType() == QgsWkbTypes.PolygonGeometry
+            assert result_layer.geometryType() == Qgis.GeometryType.Polygon
 
     @pytest.mark.unit
     def test_bounding_rect_area_covers_point_cloud(self):
@@ -233,7 +233,7 @@ class TestMstClustering:
         result = mst_clustering(hu, mst, self.crs, overlap_ratio=18)
 
         if result.featureCount() > 0:
-            assert result.geometryType() == QgsWkbTypes.PolygonGeometry
+            assert result.geometryType() == Qgis.GeometryType.Polygon
 
     @pytest.mark.integration
     def test_two_connected_buildings_produce_cluster_rect(self):
@@ -322,8 +322,8 @@ def _make_chain_layers(building_order: tuple, crs: str = "EPSG:25833"):
     """Build hu/mst layers for the A-B-C-D chain, buildings added in *building_order*."""
     hu = make_polygon_layer(crs)
     hu.dataProvider().addAttributes([
-        QgsField("fktkurz", QMetaType.QString),
-        QgsField("fkt", QMetaType.QString),
+        QgsField("fktkurz", QMetaType.Type.QString),
+        QgsField("fkt", QMetaType.Type.QString),
     ])
     hu.updateFields()
     for name in building_order:
@@ -332,7 +332,7 @@ def _make_chain_layers(building_order: tuple, crs: str = "EPSG:25833"):
         _add_feat(hu, make_square_geom(x0, y0, size), attrs=["1010", "1010"])
 
     mst = make_line_layer(crs)
-    mst.dataProvider().addAttributes([QgsField("weight", QMetaType.Double)])
+    mst.dataProvider().addAttributes([QgsField("weight", QMetaType.Type.Double)])
     mst.updateFields()
     for a, b, weight in _CHAIN_EDGES:
         _add_feat(mst, QgsGeometry.fromPolylineXY([_centroid(a), _centroid(b)]),
@@ -412,8 +412,8 @@ _GOLDEN_EDGES = [(i, i + 1) for i in range(7)] + [(i, i + 1) for i in range(8, 1
 def _make_golden_layers(crs: str = "EPSG:25833"):
     hu = make_polygon_layer(crs)
     hu.dataProvider().addAttributes([
-        QgsField("fktkurz", QMetaType.QString),
-        QgsField("fkt", QMetaType.QString),
+        QgsField("fktkurz", QMetaType.Type.QString),
+        QgsField("fkt", QMetaType.Type.QString),
     ])
     hu.updateFields()
     geoms = []
@@ -425,7 +425,7 @@ def _make_golden_layers(crs: str = "EPSG:25833"):
         _add_feat(hu, g, attrs=["1010", "1010"])
 
     mst = make_line_layer(crs)
-    mst.dataProvider().addAttributes([QgsField("weight", QMetaType.Double)])
+    mst.dataProvider().addAttributes([QgsField("weight", QMetaType.Type.Double)])
     mst.updateFields()
     for a, b in _GOLDEN_EDGES:
         line = QgsGeometry.fromPolylineXY([geoms[a].centroid().asPoint(),

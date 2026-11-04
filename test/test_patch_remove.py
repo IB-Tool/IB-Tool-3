@@ -22,7 +22,7 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsCoordinateReferenceSystem,
-    QgsWkbTypes,
+    Qgis,
 )
 
 from .utilities import get_qgis_app
@@ -98,7 +98,7 @@ class TestPatchRemove:
         )
 
         if result.featureCount() > 0:
-            assert result.geometryType() == QgsWkbTypes.PolygonGeometry
+            assert result.geometryType() == Qgis.GeometryType.Polygon
 
     @pytest.mark.integration
     @pytest.mark.edge_case

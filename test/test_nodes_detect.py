@@ -14,6 +14,7 @@ from .utilities import get_qgis_app
 
 QGIS_APP, _CANVAS, _IFACE, _PARENT = get_qgis_app()
 
+from qgis.core import Qgis
 from qgis.core import QgsFeature, QgsGeometry, QgsVectorLayer, QgsWkbTypes  # noqa: E402
 
 from ibtool.helpers import geometry_utils as gu  # noqa: E402
@@ -82,7 +83,7 @@ class TestNodesDetect:
     def test_output_is_point_layer_in_input_crs(self):
         layer = _lines(CASES["t_junction_and_dead_ends"])
         nodes = gu.nodes_detect(layer, 1)
-        assert QgsWkbTypes.geometryType(nodes.wkbType()) == QgsWkbTypes.PointGeometry
+        assert QgsWkbTypes.geometryType(nodes.wkbType()) == Qgis.GeometryType.Point
         assert nodes.crs().authid() == "EPSG:25833"
 
     @pytest.mark.integration

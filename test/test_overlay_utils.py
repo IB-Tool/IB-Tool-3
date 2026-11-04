@@ -10,7 +10,7 @@ pipeline runs against the reference results.
 from unittest.mock import patch
 
 import pytest
-from qgis.core import QgsFeature, QgsGeometry, QgsVectorLayer, QgsWkbTypes
+from qgis.core import QgsFeature, QgsGeometry, QgsVectorLayer, Qgis
 
 from .utilities import get_qgis_app
 
@@ -172,7 +172,7 @@ class TestIntersectionWith:
         got = [(g.asWkt(17), f.attributes())
                for g, f in intersection_with(QgsGeometry.fromWkt(polygon), list(block_layer.getFeatures()))]
         assert sorted(map(str, got)) == sorted(map(str, _rows(expected)))
-        assert all(QgsGeometry.fromWkt(w).wkbType() == QgsWkbTypes.MultiPolygon for w, _ in got)
+        assert all(QgsGeometry.fromWkt(w).wkbType() == Qgis.WkbType.MultiPolygon for w, _ in got)
 
     @pytest.mark.unit
     def test_result_follows_overlay_order(self):

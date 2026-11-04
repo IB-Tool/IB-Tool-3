@@ -33,9 +33,8 @@ from qgis.core import (
     QgsGeometry,
     QgsPointXY,
     QgsField,
-    QgsWkbTypes,
 )
-from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtCore import QMetaType
 
 from .utilities import get_qgis_app
 
@@ -59,7 +58,7 @@ def _block_layer_with_name(crs: str = "EPSG:25833") -> QgsVectorLayer:
     Note: footprint_density joins on BLOCK_ID (renamed from NAME in commit 6cebfaf).
     """
     layer = make_polygon_layer(crs)
-    layer.dataProvider().addAttributes([QgsField("BLOCK_ID", QVariant.Int)])
+    layer.dataProvider().addAttributes([QgsField("BLOCK_ID", QMetaType.Type.Int)])
     layer.updateFields()
     return layer
 
@@ -411,7 +410,7 @@ def _irregular_inputs(crs="EPSG:25833"):
                                    (0, 100.3, 120.1, 5), (500, 500, 30, 9)):
         _add_named_block(blocks, x0, y0, size, block_id)
     buildings = make_polygon_layer(crs)
-    buildings.dataProvider().addAttributes([QgsField("name", QVariant.String)])
+    buildings.dataProvider().addAttributes([QgsField("name", QMetaType.Type.QString)])
     buildings.updateFields()
     feats = []
     for i in range(60):

@@ -269,7 +269,7 @@ class FilterPreviewDialog(QDialog):
         """Build the two-pane filter preview layout."""
         root = QVBoxLayout(self)
 
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Positive pane
         pos_widget = QtWidgets.QWidget()
@@ -293,6 +293,6 @@ class FilterPreviewDialog(QDialog):
 
         root.addWidget(splitter)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)

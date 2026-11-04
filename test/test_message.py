@@ -4,10 +4,11 @@ import types
 
 # Dummy QGIS classes
 class DummyQgis:
-    Info = 1
-    Warning = 2
-    Critical = 3
-    Success = 4
+    class MessageLevel:
+        Info = 1
+        Warning = 2
+        Critical = 3
+        Success = 4
 
 class DummyQgsMessageLog:
     logs = []
@@ -47,11 +48,11 @@ class TestMessage:
 
     def test_msg_logs_string(self):
         self.message_mod.msg('hello')
-        assert DummyQgsMessageLog.logs[-1] == ('hello', 'Meldungen', DummyQgis.Info)
+        assert DummyQgsMessageLog.logs[-1] == ('hello', 'Meldungen', DummyQgis.MessageLevel.Info)
 
     def test_msg_converts_non_string(self):
-        self.message_mod.msg(123, level=DummyQgis.Warning)
-        assert DummyQgsMessageLog.logs[-1] == ('123', 'Meldungen', DummyQgis.Warning)
+        self.message_mod.msg(123, level=DummyQgis.MessageLevel.Warning)
+        assert DummyQgsMessageLog.logs[-1] == ('123', 'Meldungen', DummyQgis.MessageLevel.Warning)
 
     def test_msg_without_message_box_does_not_raise(self):
         """msg() works standalone — it requires no Logger message box to function."""

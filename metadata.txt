@@ -5,7 +5,7 @@
 [general]
 name=IB-Tool 3
 qgisMinimumVersion=3.40
-qgisMaximumVersion=3.50
+qgisMaximumVersion=4.99
 pythonMinimumVersion=3.11
 description=QGIS plugin for the automated delineation of the Innenbereich (the coherently built-up area under Sec. 34 BauGB, internationally known as an urban growth boundary) from building footprints.
 version=0.2.5

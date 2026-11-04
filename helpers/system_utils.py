@@ -7,13 +7,13 @@ from typing import Optional
 from qgis.core import QgsVectorLayer, QgsProject, QgsVectorFileWriter, Qgis
 from .logger import Logger
 
-# Supported Python version range (inclusive).
+# Minimum supported Python version. No upper bound: QGIS ships its own Python
+# (QGIS 4.0 uses 3.13), so a cap would block every QGIS update.
 MIN_PYTHON = (3, 9)
-MAX_PYTHON = (3, 12)
 
 # Supported QGIS version range (inclusive, integer format: major*10000 + minor*100).
 MIN_QGIS = 34000  # QGIS 3.40
-MAX_QGIS = 35000  # QGIS 3.50
+MAX_QGIS = 49999  # QGIS 4.99.x (metadata.txt: qgisMaximumVersion=4.99)
 
 # Shapefile sidecar extensions that must be copied alongside the main .shp file.
 _SHAPEFILE_EXTENSIONS = ['.shp', '.shx', '.dbf', '.prj', '.cpg', '.qpj']
@@ -187,7 +187,7 @@ def save_temp_layer_to_gpkg(
     options = QgsVectorFileWriter.SaveVectorOptions()
     options.driverName = "GPKG"
     options.layerName = layer_name
-    options.actionOnExistingFile = QgsVectorFileWriter.CreateOrOverwriteFile
+    options.actionOnExistingFile = QgsVectorFileWriter.ActionOnExistingFile.CreateOrOverwriteFile
     # Use a dedicated primary-key column so OGR does not mistake an existing
     # "fid" attribute field (e.g. inherited from a GeoPackage source via
     # native:intersection) for the GeoPackage row-ID, which would cause a
@@ -201,7 +201,7 @@ def save_temp_layer_to_gpkg(
         options
     )
 
-    if error[0] == QgsVectorFileWriter.NoError:
+    if error[0] == QgsVectorFileWriter.WriterError.NoError:
         Logger.log(
             f"Layer erfolgreich als '{layer_name}' in '{gpkg_file}' gespeichert.",
             level="SUCCESS",
@@ -330,14 +330,13 @@ def version_check() -> None:
         RuntimeError: If Python or QGIS version is outside the supported range.
     """
     # Python check
-    if not (MIN_PYTHON <= sys.version_info[:2] <= MAX_PYTHON):
+    if tuple(sys.version_info[:2]) < MIN_PYTHON:
         raise RuntimeError(
-            f"Dieses Plugin benötigt Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} - "
-            f"{MAX_PYTHON[0]}.{MAX_PYTHON[1]}"
+            f"Dieses Plugin benötigt Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} oder neuer"
         )
     # QGIS check
     qgis_int = Qgis.QGIS_VERSION_INT
     if not (MIN_QGIS <= qgis_int <= MAX_QGIS):
         raise RuntimeError(
-            "Dieses Plugin benötigt QGIS zwischen Version 3.40 und 3.50"
+            "Dieses Plugin benötigt QGIS zwischen Version 3.40 und 4.99"
         )

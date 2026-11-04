@@ -322,12 +322,26 @@ class TestVersionCheck:
                 self.version_check()
 
     @pytest.mark.unit
-    def test_raises_for_python_too_new(self):
+    @pytest.mark.parametrize("version", [(3, 13, 5, "final", 0), (3, 14, 0, "final", 0)])
+    def test_newer_python_is_accepted(self, version):
+        """QGIS ships its own Python; QGIS 4.0 uses 3.13 — no upper Python bound."""
         import ibtool.helpers.system_utils as su
         with patch.object(su, "sys") as mock_sys:
-            mock_sys.version_info = (3, 13, 0, "final", 0)
-            with pytest.raises(RuntimeError, match="Python"):
-                self.version_check()
+            mock_sys.version_info = version
+            with patch.object(su, "Qgis") as mock_qgis:
+                mock_qgis.QGIS_VERSION_INT = 40003
+                self.version_check()  # Must not raise
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize("qgis_int", [34000, 34415, 35000, 40003, 49905])
+    def test_qgis_3_and_4_are_accepted(self, qgis_int):
+        """Same range as metadata.txt: 3.40 <= QGIS <= 4.99.x."""
+        import ibtool.helpers.system_utils as su
+        with patch.object(su, "sys") as mock_sys:
+            mock_sys.version_info = (3, 12, 0, "final", 0)
+            with patch.object(su, "Qgis") as mock_qgis:
+                mock_qgis.QGIS_VERSION_INT = qgis_int
+                self.version_check()  # Must not raise
 
     @pytest.mark.unit
     def test_raises_for_qgis_too_old(self):
@@ -345,6 +359,6 @@ class TestVersionCheck:
         with patch.object(su, "sys") as mock_sys:
             mock_sys.version_info = (3, 11, 0, "final", 0)
             with patch.object(su, "Qgis") as mock_qgis:
-                mock_qgis.QGIS_VERSION_INT = 36000
+                mock_qgis.QGIS_VERSION_INT = 50000
                 with pytest.raises(RuntimeError, match="QGIS"):
                     self.version_check()

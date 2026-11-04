@@ -9,12 +9,12 @@ delineation run.
 
 | Requirement | Minimum |
 |---|---|
-| QGIS | 3.40 |
+| QGIS | 3.40 (up to 4.x) |
 | Python | 3.11 |
 | scipy | 1.11+ |
 | networkx | 3.0+ |
 
-**numpy** and **PyQt5** are bundled with QGIS 3.40+ — no action needed.
+**numpy** and **PyQt** (PyQt5 on QGIS 3, PyQt6 on QGIS 4) are bundled with QGIS — no action needed.
 
 **scipy** and **networkx** are not always bundled with QGIS — some
 installations (e.g. the standalone QGIS installer with an optional full
@@ -22,7 +22,8 @@ Python stack) already include them, in which case no action is needed. If
 IB-Tool 3 reports them missing, install them once:
 
 ```bash
-# Windows — open the OSGeo4W Shell:
+# Windows — open the OSGeo4W Shell (QGIS 3 and QGIS 4 each have their own
+# Python, so install once per QGIS version you use):
 pip install scipy networkx
 
 # Linux / macOS — open a terminal where QGIS's Python is active:

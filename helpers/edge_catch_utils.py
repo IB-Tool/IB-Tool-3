@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 
 from qgis.core import (
     Qgis, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY,
-    QgsField, QgsFields, QgsWkbTypes,
+    QgsField, QgsFields,
     QgsCoordinateReferenceSystem, QgsMemoryProviderUtils, QgsProcessing,
 )
 from qgis.PyQt.QtCore import QMetaType
@@ -58,23 +58,23 @@ def create_shortest_lines_to_roads(
         Logger.log("One of the input layers is invalid!", level="CRITICAL")
         return None
 
-    if point_layer.geometryType() != QgsWkbTypes.PointGeometry:
+    if point_layer.geometryType() != Qgis.GeometryType.Point:
         Logger.log("The first layer must be a point layer!", level="CRITICAL")
         return None
 
-    if line_layer.geometryType() != QgsWkbTypes.LineGeometry:
+    if line_layer.geometryType() != Qgis.GeometryType.Line:
         Logger.log("The second layer must be a line layer!", level="CRITICAL")
         return None
 
     fields = QgsFields()
-    fields.append(QgsField("x1", QMetaType.Double))
-    fields.append(QgsField("y1", QMetaType.Double))
-    fields.append(QgsField("x2", QMetaType.Double))
-    fields.append(QgsField("y2", QMetaType.Double))
-    fields.append(QgsField("angle", QMetaType.Double))
-    fields.append(QgsField("distance", QMetaType.Double))
-    fields.append(QgsField("point_id", QMetaType.Int))
-    fields.append(QgsField("line_id", QMetaType.Int))
+    fields.append(QgsField("x1", QMetaType.Type.Double))
+    fields.append(QgsField("y1", QMetaType.Type.Double))
+    fields.append(QgsField("x2", QMetaType.Type.Double))
+    fields.append(QgsField("y2", QMetaType.Type.Double))
+    fields.append(QgsField("angle", QMetaType.Type.Double))
+    fields.append(QgsField("distance", QMetaType.Type.Double))
+    fields.append(QgsField("point_id", QMetaType.Type.Int))
+    fields.append(QgsField("line_id", QMetaType.Type.Int))
 
     crs = point_layer.crs()
     temp_layer = QgsVectorLayer(
@@ -374,7 +374,7 @@ def _build_minimized_lines_from_selection(
 
     result_layer = QgsVectorLayer(f"LineString?crs={crs.authid()}", "road_network_reduced", "memory")
     result_provider = result_layer.dataProvider()
-    result_provider.addAttributes([QgsField("src_count", QMetaType.Int)])
+    result_provider.addAttributes([QgsField("src_count", QMetaType.Type.Int)])
     result_layer.updateFields()
     features_to_add = []
     for chain in chains:
@@ -740,7 +740,7 @@ def _process_single_feature_geometry(
     if "area" in existing:          # shp_area2 writes into an existing (case-insensitive) field
         area_index = existing["area"]
     else:
-        fields.append(QgsField("Area", QMetaType.Double))
+        fields.append(QgsField("Area", QMetaType.Type.Double))
         area_index = fields.count() - 1
     result = QgsVectorLayer(f"MultiPolygon?crs={crs.authid()}", "polygons_small", "memory")
     result.dataProvider().addAttributes(fields.toList())
