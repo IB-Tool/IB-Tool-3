@@ -314,12 +314,24 @@ class TestVersionCheck:
         self.version_check()  # Must not raise
 
     @pytest.mark.unit
-    def test_raises_for_python_too_old(self):
+    @pytest.mark.parametrize("version", [(3, 8, 0, "final", 0), (3, 10, 14, "final", 0)])
+    def test_raises_for_python_too_old(self, version):
+        """Minimum is Python 3.11, as declared by pythonMinimumVersion in metadata.txt."""
         import ibtool.helpers.system_utils as su
         with patch.object(su, "sys") as mock_sys:
-            mock_sys.version_info = (3, 8, 0, "final", 0)
-            with pytest.raises(RuntimeError, match="Python"):
+            mock_sys.version_info = version
+            with pytest.raises(RuntimeError, match="Python 3.11"):
                 self.version_check()
+
+    @pytest.mark.unit
+    def test_min_python_matches_metadata(self):
+        import configparser
+        from pathlib import Path
+        import ibtool.helpers.system_utils as su
+        meta = configparser.ConfigParser()
+        meta.read(Path(su.__file__).resolve().parent.parent / "metadata.txt", encoding="utf-8")
+        declared = tuple(int(p) for p in meta["general"]["pythonMinimumVersion"].split("."))
+        assert su.MIN_PYTHON == declared
 
     @pytest.mark.unit
     @pytest.mark.parametrize("version", [(3, 13, 5, "final", 0), (3, 14, 0, "final", 0)])

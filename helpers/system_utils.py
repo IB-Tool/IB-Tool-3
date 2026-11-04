@@ -9,7 +9,7 @@ from .logger import Logger
 
 # Minimum supported Python version. No upper bound: QGIS ships its own Python
 # (QGIS 4.0 uses 3.13), so a cap would block every QGIS update.
-MIN_PYTHON = (3, 9)
+MIN_PYTHON = (3, 11)  # = pythonMinimumVersion in metadata.txt
 
 # Supported QGIS version range (inclusive, integer format: major*10000 + minor*100).
 MIN_QGIS = 34000  # QGIS 3.40

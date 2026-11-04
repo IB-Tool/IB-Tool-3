@@ -69,16 +69,26 @@ def polyline2(array_of_lines, output_path, output_format="shp"):
         feature.setAttributes([x1, y1, x2, y2, shape_len])
         provider.addFeature(feature)
 
-    if output_format.lower() == "gpkg":
-        QgsVectorFileWriter.writeAsVectorFormat(
-            layer, output_path, "utf-8", layer.crs(), "GPKG"
-        )
-    else:
-        QgsVectorFileWriter.writeAsVectorFormat(
-            layer, output_path, "utf-8", layer.crs(), "ESRI Shapefile"
-        )
+    driver = "GPKG" if output_format.lower() == "gpkg" else "ESRI Shapefile"
+    _write_vector_file(layer, output_path, driver)
 
     return output_path
+
+
+def _write_vector_file(layer, output_path, driver_name):
+    """Write *layer* to *output_path* with OGR driver *driver_name* in the layer's CRS.
+
+    Uses ``writeAsVectorFormatV3`` (the CRS/encoding overload of ``writeAsVectorFormat``
+    is deprecated). Failures are logged, as with the former call, which ignored its result.
+    """
+    options = QgsVectorFileWriter.SaveVectorOptions()
+    options.driverName = driver_name
+    options.fileEncoding = "UTF-8"
+    result = QgsVectorFileWriter.writeAsVectorFormatV3(
+        layer, output_path, QgsProject.instance().transformContext(), options
+    )
+    if result[0] != QgsVectorFileWriter.WriterError.NoError:
+        Logger.log(f"Could not write {output_path}: {result[1]}", level='CRITICAL')
 
 
 def check_projection(spatial_reference, inputlist):
@@ -190,13 +200,7 @@ def split_layer_by_attribute(
         subset_layer = layer.materialize(QgsProcessingFeatureSourceDefinition(query))
 
         output_path = os.path.join(output_folder, f"{value}.shp")
-        QgsVectorFileWriter.writeAsVectorFormat(
-            subset_layer,
-            output_path,
-            "UTF-8",
-            layer.crs(),
-            "ESRI Shapefile"
-        )
+        _write_vector_file(subset_layer, output_path, "ESRI Shapefile")
 
     Logger.log("Split complete.", level="INFO")
 

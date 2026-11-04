@@ -467,7 +467,7 @@ class TestExtractByCodes:
             _extract_by_codes(layer, self.CODES, "fkt")
 
     @pytest.mark.integration
-    @pytest.mark.parametrize("codes", [["31001%"], ["310.1_1000"], ["31001\_1000"]])
+    @pytest.mark.parametrize("codes", [["31001%"], ["310.1_1000"], [r"31001\_1000"]])
     def test_other_patterns_use_processing(self, codes):
         layer = self._layer(self.VALUES)
         mine = _extract_by_codes(layer, codes, "fkt")

@@ -573,6 +573,20 @@ class TestPolyline2:
         result = polyline2([], output, output_format="shp")
         assert result == output
 
+    @pytest.mark.unit
+    @pytest.mark.parametrize("fmt", ["shp", "gpkg"])
+    def test_written_file_content(self, tmp_path, fmt):
+        """The written file holds every segment with its coordinates, length and CRS."""
+        output = str(tmp_path / f"content.{fmt}")
+        lines = [((0.0, 0.0), (10.0, 0.0), 10.0), ((10.0, 0.0), (20.0, 5.0), 11.2)]
+        polyline2(lines, output, output_format=fmt)
+        written = QgsVectorLayer(output, "written", "ogr")
+        assert written.isValid()
+        assert written.crs().authid() == "EPSG:4326"
+        rows = sorted((f["x1"], f["y1"], f["x2"], f["y2"], f["Shape_Len"]) for f in written.getFeatures())
+        assert rows == [(0.0, 0.0, 10.0, 0.0, 10.0), (10.0, 0.0, 20.0, 5.0, 11.2)]
+        assert all(f.geometry().length() > 0 for f in written.getFeatures())
+
 
 # ── select_and_save_by_location ───────────────────────────────────────────────
 

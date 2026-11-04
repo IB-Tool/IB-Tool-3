@@ -245,3 +245,13 @@ Everything below is **uncommitted** on branch `qgis4_migration` (~60 files). Led
   `test/test_check.py` assert the NULL branch.
 - **Verified:** local 3.40: 1204 passed (+2 known git-on-PATH failures); Docker 3.44 and 4.0: 1207 passed, exit 0.
 - **Still open:** manual Windows QGIS 4 check (item 4, user), deferred minors (item 5), commit on user request.
+
+### Update 2026-11-04 (2) — items 4 and 5 closed
+
+- **Item 4 (QGIS 4 on Windows), headless:** local OSGeo4W QGIS 4.2.3 (Qt 6.11) with scipy/networkx installed;
+  `scripts/profile_pipeline.py` on `Testdaten/` with `--workers 4` and `--workers 1`, compared with
+  `scripts/compare_results.py` against a QGIS 3.44 LTR run (4 workers): IDENTICAL (172 features, sym. diff 0 m²);
+  worker self-test passed, no recompute. Not covered headless: GUI dialog, German UI, result buttons (user check).
+- **Item 5:** `MIN_PYTHON = (3, 11)` (+ sync test with metadata), `writeAsVectorFormat` -> `writeAsVectorFormatV3`
+  (+ content test), `SyntaxWarning` in `test/test_import_filter.py` fixed.
+- **Left:** short GUI check on QGIS 4 by the user; commit on user request.

@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plugin refused to start on QGIS 4** (`helpers/system_utils.version_check()`): the start-up check rejected Python > 3.12 and QGIS > 3.50, so QGIS 4 (Python 3.13) aborted with a version error. The Python upper bound is removed; the QGIS upper bound is now 4.99 (`MAX_QGIS = 49999`), matching `metadata.txt`.
 - **Missing-dependency message on QGIS 4** (root `__init__.py`): the message shown when scipy/networkx are missing used `Qgis.Critical`, which does not exist in PyQt6; now `Qgis.MessageLevel.Critical`. A UTF-8 BOM at the start of `ibtool/ibtool.py` (rejected by the QGIS 4 checker) was removed.
 - `.dockerignore` / `.gitignore`: locally generated figure/debug output and the QGIS `symbology-style.db` created by test runs are no longer baked into the local test image (the QGIS 3.44 image built with them ended with exit 139 after all tests passed).
+- `version_check()` minimum Python raised from 3.9 to 3.11, matching `pythonMinimumVersion` in `metadata.txt` (all supported QGIS versions ship 3.11 or newer); a test keeps both in sync.
+- `helpers/geometry_utils.polyline2` and `split_layer_by_attribute` used the deprecated `QgsVectorFileWriter.writeAsVectorFormat()` overload; now `writeAsVectorFormatV3` (same driver, encoding and CRS; write errors are logged). New content test for both formats.
+- Test hygiene: invalid escape sequence (`SyntaxWarning`) in `test/test_import_filter.py`; `test/test_edge_catch_utils.py` uses `qgis.core.NULL` instead of `QVariant()` (pyqgis4-checker finding).
+
+### Verified on QGIS 4
+- Sample data (`Testdaten/`, 71 partitions) on Windows QGIS 4.2.3 (Qt 6.11, Python 3.12, NumPy 2.5) with 4 workers and with 1 worker: both results identical to QGIS 3.44 LTR (172 features, 11,721,173.448 m², symmetric difference 0 m², `scripts/compare_results.py`); worker processes start on QGIS 4 (no fallback). 68.8 s with 4 workers vs. 92.7 s on QGIS 3.44.
 
 ---
 
